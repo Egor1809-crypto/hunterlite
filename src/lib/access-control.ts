@@ -85,6 +85,7 @@ export const accessRoutes = [
   { path: "/history", allowedRoles: ["employee"] },
   { path: "/weak-topics", allowedRoles: ["employee"] },
   { path: "/notifications", allowedRoles: ["employee", "manager", "admin"] },
+  { path: "/bfl-book", allowedRoles: ["employee"] },
   { path: "/profile", allowedRoles: ["employee", "manager", "admin"] },
   { path: "/manager", allowedRoles: ["manager"] },
   { path: "/manager/employee/:id", allowedRoles: ["manager"] },

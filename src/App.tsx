@@ -20,6 +20,7 @@ import RemedialCourse from "./pages/RemedialCourse";
 import History from "./pages/History";
 import WeakTopics from "./pages/WeakTopics";
 import Notifications from "./pages/Notifications";
+import BflBook from "./pages/BflBook";
 import Profile from "./pages/Profile";
 import Manager from "./pages/Manager";
 import ManagerEmployee from "./pages/ManagerEmployee";
@@ -75,6 +76,7 @@ const App = () => (
                   <Route path="/history" element={<History />} />
                   <Route path="/weak-topics" element={<WeakTopics />} />
                   <Route path="/notifications" element={<Notifications />} />
+                  <Route path="/bfl-book" element={<BflBook />} />
                   <Route path="/profile" element={<Profile />} />
                   <Route path="/manager" element={<Manager />} />
                   <Route path="/manager/employee/:id" element={<ManagerEmployee />} />

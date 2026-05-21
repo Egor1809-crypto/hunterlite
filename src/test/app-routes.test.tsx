@@ -18,6 +18,7 @@ const routes = [
   { path: "/history", text: "История тренировок", role: "employee" },
   { path: "/weak-topics", text: "Слабые темы", role: "employee" },
   { path: "/notifications", text: "Уведомления", role: "employee" },
+  { path: "/bfl-book", text: "Книга БФЛ", role: "employee" },
   { path: "/profile", text: "Профиль пользователя", role: "employee" },
   { path: "/manager", text: "Обзор команды", role: "manager" },
   { path: "/manager/employee/1", text: "Анна Петрова", role: "manager" },

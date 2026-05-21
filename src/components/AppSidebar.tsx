@@ -1,7 +1,7 @@
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard, MessageSquare, History, AlertTriangle, Bell,
-  Users, BarChart3, Settings, Shield, LogOut, FileText, Briefcase, MessageCircleWarning, PhoneCall
+  Users, BarChart3, Settings, Shield, LogOut, FileText, Briefcase, MessageCircleWarning, PhoneCall, BookOpen
 } from "lucide-react";
 import {
   Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel,
@@ -19,6 +19,7 @@ const employeeNav = [
   { title: "История", url: "/history", icon: History },
   { title: "Слабые темы", url: "/weak-topics", icon: AlertTriangle },
   { title: "Уведомления", url: "/notifications", icon: Bell },
+  { title: "Книга БФЛ", url: "/bfl-book", icon: BookOpen },
 ];
 const managerNav = [
   { title: "Обзор", url: "/manager", icon: LayoutDashboard },
