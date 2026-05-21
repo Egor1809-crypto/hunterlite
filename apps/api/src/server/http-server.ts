@@ -87,6 +87,8 @@ const getLoginRateLimitKey = (request: ApiRequest) =>
 
 const isAllowedPostRoute = (pathname: string) =>
   pathname === "/api/auth/login" ||
+  pathname === "/api/auth/telegram/request-code" ||
+  pathname === "/api/auth/telegram/login" ||
   pathname === "/api/auth/logout" ||
   pathname === "/api/auth/password-reset/request" ||
   pathname === "/api/auth/password-reset/complete" ||
@@ -170,6 +172,8 @@ export const resolveApiRequest = async (
   if (
     request.method === "POST" &&
     pathname !== "/api/auth/login" &&
+    pathname !== "/api/auth/telegram/request-code" &&
+    pathname !== "/api/auth/telegram/login" &&
     pathname !== "/api/auth/password-reset/request" &&
     pathname !== "/api/auth/password-reset/complete" &&
     hasSessionCookie(request.cookie) &&
@@ -240,6 +244,20 @@ export const resolveApiRequest = async (
               extraHeaders = { "Set-Cookie": [clearSessionCookie(), clearCsrfCookie()] };
               return body;
             })
+          : pathname === "/api/auth/telegram/request-code" && request.method === "POST"
+            ? auth.requestTelegramCode(request.body)
+          : pathname === "/api/auth/telegram/login" && request.method === "POST"
+            ? auth.loginWithTelegramCode(request.body).then((body) => {
+                if (body.ok && body.sessionCookie) {
+                  extraHeaders = {
+                    "Set-Cookie": [
+                      body.sessionCookie,
+                      createCsrfCookie(body.sessionCookie),
+                    ].filter((cookie): cookie is string => Boolean(cookie)),
+                  };
+                }
+                return body;
+              })
           : pathname === "/api/auth/password-reset/request" && request.method === "POST"
             ? auth.requestPasswordReset(request.body)
             : pathname === "/api/auth/password-reset/complete" && request.method === "POST"

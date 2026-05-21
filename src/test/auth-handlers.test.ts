@@ -60,6 +60,64 @@ describe("auth handlers", () => {
     });
   });
 
+  it("requests and verifies Telegram SMS codes in demo mode", async () => {
+    const auth = createAuthHandlers();
+
+    await expect(auth.requestTelegramCode({ phone: "+7 900 000-00-00" })).resolves.toEqual({
+      ok: true,
+      data: {
+        sent: true,
+        channel: "telegram",
+        devCode: "1809",
+      },
+    });
+    await expect(auth.loginWithTelegramCode({ phone: "+7 900 000-00-00", code: "1809" })).resolves.toEqual({
+      ok: true,
+      sessionCookie: expect.stringContaining("hunterlite_session=demo:employee"),
+      data: expect.objectContaining({
+        homePath: "/dashboard",
+        user: expect.objectContaining({ role: "employee" }),
+      }),
+    });
+    await expect(auth.loginWithTelegramCode({ phone: "+7 900 000-00-00", code: "0000" })).resolves.toEqual({
+      ok: false,
+      error: {
+        code: "UNAUTHORIZED",
+        message: "Telegram code is invalid or expired",
+      },
+    });
+  });
+
+  it("resolves Telegram auth HTTP routes with session and CSRF cookies", async () => {
+    await expect(resolveApiRequest({
+      method: "POST",
+      url: "/api/auth/telegram/request-code",
+      body: { phone: "+7 900 000-00-00" },
+    })).resolves.toEqual(
+      expect.objectContaining({
+        status: 200,
+        body: expect.objectContaining({
+          ok: true,
+          data: expect.objectContaining({ channel: "telegram" }),
+        }),
+      }),
+    );
+
+    const login = await resolveApiRequest({
+      method: "POST",
+      url: "/api/auth/telegram/login",
+      body: { phone: "+7 900 000-00-00", code: "1809" },
+    });
+
+    expect(login.status).toBe(200);
+    expect(login.headers?.["Set-Cookie"]).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("hunterlite_session=demo:employee"),
+        expect.stringContaining("hunterlite_csrf="),
+      ]),
+    );
+  });
+
   it("can disable demo auth fallback for strict environments", async () => {
     const auth = createAuthHandlers(undefined, { allowDemoFallback: false });
 

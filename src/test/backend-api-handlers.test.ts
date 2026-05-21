@@ -15,7 +15,11 @@ describe("backend frontend API handlers", () => {
     frontendApiRoutes.forEach((route) => {
       expect(moduleNames.has(route.module)).toBe(true);
       expect(route.path.startsWith(getBackendModule(route.module)?.exposesApiPrefix ?? "")).toBe(true);
-      expect(route.requiresAuth).toBe(!route.path.startsWith("/api/auth/password-reset") && route.path !== "/api/auth/login");
+      expect(route.requiresAuth).toBe(
+        !route.path.startsWith("/api/auth/password-reset") &&
+        !route.path.startsWith("/api/auth/telegram") &&
+        route.path !== "/api/auth/login",
+      );
     });
   });
 

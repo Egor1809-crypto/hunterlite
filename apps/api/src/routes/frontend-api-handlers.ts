@@ -68,6 +68,8 @@ export type FrontendApiRoute = {
 
 export const frontendApiRoutes = [
   { method: "POST", path: "/api/auth/login", module: "auth", requiresAuth: false },
+  { method: "POST", path: "/api/auth/telegram/request-code", module: "auth", requiresAuth: false },
+  { method: "POST", path: "/api/auth/telegram/login", module: "auth", requiresAuth: false },
   { method: "POST", path: "/api/auth/password-reset/request", module: "auth", requiresAuth: false },
   { method: "POST", path: "/api/auth/password-reset/complete", module: "auth", requiresAuth: false },
   { method: "GET", path: "/api/auth/session", module: "auth", requiresAuth: true },

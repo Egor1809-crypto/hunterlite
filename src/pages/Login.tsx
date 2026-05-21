@@ -7,21 +7,54 @@ import { BrandLogo } from "@/components/BrandLogo";
 import { useDemoAuth } from "@/lib/demo-auth";
 import { getRoleHome } from "@/lib/demo-auth-state";
 import { frontendApi, withDemoFallback } from "@/lib/frontend-api";
-import { ShieldCheck, Sparkles, Scale } from "lucide-react";
+import { MessageCircle, ShieldCheck, Sparkles, Scale } from "lucide-react";
 
 export default function Login() {
   const navigate = useNavigate();
   const { loginWithEmail, setRole } = useDemoAuth();
   const [email, setEmail] = useState("a.petrova@hunterlite.ru");
   const [password, setPassword] = useState("hunterlite-demo");
+  const [telegramOpen, setTelegramOpen] = useState(false);
+  const [telegramPhone, setTelegramPhone] = useState("+7 ");
+  const [telegramCode, setTelegramCode] = useState("");
+  const [telegramStatus, setTelegramStatus] = useState<string | null>(null);
   const [resetStatus, setResetStatus] = useState<string | null>(null);
+  const completeLogin = (session: Awaited<ReturnType<typeof frontendApi.login>>) => {
+    setRole(session.user.role);
+    navigate(session.homePath === "/dashboard" ? "/consent" : session.homePath);
+  };
+
   const handleExternalLogin = async () => {
     const session = await withDemoFallback(
       () => frontendApi.login({ email: "a.petrova@hunterlite.ru", password: "oauth-demo" }),
       () => ({ user: loginWithEmail("a.petrova@hunterlite.ru"), homePath: "/consent" }),
     );
-    setRole(session.user.role);
-    navigate("/consent");
+    completeLogin(session);
+  };
+
+  const requestTelegramCode = async () => {
+    setTelegramStatus("Отправляем код в Telegram...");
+
+    try {
+      const response = await frontendApi.requestTelegramCode({ phone: telegramPhone });
+      setTelegramStatus(response.devCode ? `Код отправлен. Demo SMS-код: ${response.devCode}` : "Код отправлен в Telegram-бот.");
+    } catch {
+      setTelegramStatus("Не удалось отправить код. Проверьте номер телефона.");
+    }
+  };
+
+  const loginWithTelegram = async () => {
+    setTelegramStatus("Проверяем код...");
+
+    try {
+      const session = await withDemoFallback(
+        () => frontendApi.loginWithTelegramCode({ phone: telegramPhone, code: telegramCode }),
+        () => ({ user: loginWithEmail("a.petrova@hunterlite.ru"), homePath: "/consent" }),
+      );
+      completeLogin(session);
+    } catch {
+      setTelegramStatus("Код не подошёл или истёк. Запросите новый код.");
+    }
   };
 
   return (
@@ -52,8 +85,7 @@ export default function Login() {
                 () => frontendApi.login({ email, password }),
                 () => ({ user: loginWithEmail(email), homePath: "/consent" }),
               ).then((session) => {
-                setRole(session.user.role);
-                navigate("/consent");
+                completeLogin(session);
               });
             }}
           >
@@ -99,7 +131,7 @@ export default function Login() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <Button
                 type="button"
                 variant="outline"
@@ -124,7 +156,56 @@ export default function Login() {
                 </span>
                 Яндекс
               </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="h-11 bg-card font-semibold text-foreground hover:bg-secondary"
+                onClick={() => setTelegramOpen((open) => !open)}
+                aria-label="Войти через Telegram"
+              >
+                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#2AABEE] text-white">
+                  <MessageCircle className="h-3.5 w-3.5" />
+                </span>
+                Telegram
+              </Button>
             </div>
+
+            {telegramOpen ? (
+              <div className="rounded-lg border border-border bg-card/70 p-3 space-y-3">
+                <div className="grid sm:grid-cols-[1fr_auto] gap-2">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="telegram-phone">Телефон Telegram</Label>
+                    <Input
+                      id="telegram-phone"
+                      type="tel"
+                      inputMode="tel"
+                      value={telegramPhone}
+                      onChange={(event) => setTelegramPhone(event.target.value)}
+                      placeholder="+7 900 000-00-00"
+                    />
+                  </div>
+                  <Button type="button" variant="outline" className="sm:self-end h-11" onClick={requestTelegramCode}>
+                    Получить код
+                  </Button>
+                </div>
+                <div className="grid sm:grid-cols-[1fr_auto] gap-2">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="telegram-code">SMS-код из Telegram</Label>
+                    <Input
+                      id="telegram-code"
+                      inputMode="numeric"
+                      value={telegramCode}
+                      onChange={(event) => setTelegramCode(event.target.value.replace(/\D/g, "").slice(0, 6))}
+                      placeholder="1809"
+                    />
+                  </div>
+                  <Button type="button" className="sm:self-end h-11 bg-primary hover:bg-primary/90" onClick={loginWithTelegram}>
+                    Войти по коду
+                  </Button>
+                </div>
+                {telegramStatus ? <p className="text-xs font-medium text-muted-foreground">{telegramStatus}</p> : null}
+              </div>
+            ) : null}
 
             <p className="text-xs text-muted-foreground text-center">
               Защищённый вход. Соответствие 152-ФЗ о персональных данных.

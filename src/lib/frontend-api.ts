@@ -25,6 +25,9 @@ import type {
   AuthPasswordResetRequestDto,
   AuthPasswordResetRequestedDto,
   AuthSessionDto,
+  AuthTelegramCodeRequestDto,
+  AuthTelegramCodeRequestedDto,
+  AuthTelegramLoginRequestDto,
   AiSpeechDto,
   AiSpeechRequestDto,
   AiTrainingReplyDto,
@@ -64,6 +67,10 @@ const roleQuery = (role?: AppRole) => (role ? `?role=${encodeURIComponent(role)}
 
 export const frontendApi = {
   login: (payload: AuthLoginRequestDto) => apiPost<AuthSessionDto, AuthLoginRequestDto>("/auth/login", payload),
+  requestTelegramCode: (payload: AuthTelegramCodeRequestDto) =>
+    apiPost<AuthTelegramCodeRequestedDto, AuthTelegramCodeRequestDto>("/auth/telegram/request-code", payload),
+  loginWithTelegramCode: (payload: AuthTelegramLoginRequestDto) =>
+    apiPost<AuthSessionDto, AuthTelegramLoginRequestDto>("/auth/telegram/login", payload),
   requestPasswordReset: (payload: AuthPasswordResetRequestDto) =>
     apiPost<AuthPasswordResetRequestedDto, AuthPasswordResetRequestDto>("/auth/password-reset/request", payload),
   completePasswordReset: (payload: AuthPasswordResetCompleteDto) =>
