@@ -127,7 +127,7 @@ describe("analytics Prisma data source", () => {
             id: "user-1",
             name: "Анна Петрова",
             score: 80,
-            exam: "Сдан",
+            exam: "Не сдан",
             status: "Допущен",
             weak: "Имущество должника",
             lastActive: "Сегодня",
@@ -152,15 +152,15 @@ describe("analytics Prisma data source", () => {
       expect.objectContaining({
         periodLabel: "апрель 2026 г.",
         summary: {
-          passedExams: 1,
-          failedExams: 0,
+          passedExams: 0,
+          failedExams: 1,
           reviewExams: 0,
           avgScore: 80,
           completedTrainings: 1,
           activeEmployees: 1,
         },
         scoreDistribution: expect.arrayContaining([
-          { range: "70-85", employees: 1, percent: 100, status: "success" },
+          { range: "75-88", employees: 1, percent: 100, status: "warning" },
         ]),
         weakTopics: [
           {

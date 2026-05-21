@@ -220,8 +220,8 @@ async function main() {
       userId: employee.id,
       topicId: mainTopic.id,
       score: 76,
-      passingScore: 70,
-      status: "passed",
+      passingScore: 88,
+      status: "failed",
       startedAt: new Date("2026-04-28T09:00:00.000Z"),
       completedAt: new Date("2026-04-28T09:40:00.000Z"),
     },
@@ -263,11 +263,11 @@ async function main() {
         key: "passing_score",
       },
     },
-    update: { value: 70 },
+    update: { value: 88 },
     create: {
       organizationId: organization.id,
       key: "passing_score",
-      value: 70,
+      value: 88,
     },
   });
 

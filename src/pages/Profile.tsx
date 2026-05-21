@@ -82,7 +82,7 @@ export default function Profile() {
               <div>
                 <h3 className="font-display font-bold text-lg text-primary">Прогресс допуска</h3>
                 <p className="text-sm text-muted-foreground mt-1">
-                  Минимальный проходной балл для самостоятельных консультаций — 70/100.
+                  Минимальный проходной балл для самостоятельных консультаций — 88/100.
                 </p>
               </div>
               <StatusBadge variant="success">{user.avgScore}%</StatusBadge>

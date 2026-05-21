@@ -1,6 +1,7 @@
 import { createHash, randomBytes } from "node:crypto";
 import type { AuthSessionDto, CurrentUserDto } from "@/lib/api-contracts";
 import { getRoleHome, type AppRole } from "@/lib/demo-auth-state";
+import { isPassingScore } from "@/lib/training-logic";
 import type { AuthDataSource } from "./auth-handlers";
 import { hashPassword, verifyPassword } from "./password-hash";
 
@@ -90,7 +91,7 @@ const roleLabels: Record<AppRole, string> = {
 };
 
 const scoreByRole: Record<AppRole, Pick<CurrentUserDto, "avgScore" | "examPassed" | "weeklyTrainings">> = {
-  employee: { avgScore: 82, examPassed: true, weeklyTrainings: 6 },
+  employee: { avgScore: 82, examPassed: isPassingScore(82), weeklyTrainings: 6 },
   manager: { avgScore: 88, examPassed: true, weeklyTrainings: 0 },
   admin: { avgScore: 0, examPassed: true, weeklyTrainings: 0 },
   client: { avgScore: 0, examPassed: false, weeklyTrainings: 0 },

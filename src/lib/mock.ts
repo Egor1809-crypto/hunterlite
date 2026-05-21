@@ -6,7 +6,7 @@ export const currentUser = {
   email: "a.petrova@hunterlite.ru",
   status: "Допущен" as const,
   avgScore: 82,
-  examPassed: true,
+  examPassed: false,
   weeklyTrainings: 6,
 };
 
@@ -39,7 +39,7 @@ export const notifications = [
 ];
 
 export const history = [
-  { id: 1, date: "28.04.2026", mode: "Экзамен", topic: "Имущество должника", score: 76, status: "Сдан" },
+  { id: 1, date: "28.04.2026", mode: "Экзамен", topic: "Имущество должника", score: 76, status: "Не сдан" },
   { id: 2, date: "27.04.2026", mode: "Тренировка", topic: "Возражения клиента", score: 84, status: "Завершено" },
   { id: 3, date: "26.04.2026", mode: "Чат-тест", topic: "Условия банкротства", score: 91, status: "Завершено" },
   { id: 4, date: "24.04.2026", mode: "Тренировка", topic: "Последствия банкротства", score: 68, status: "Завершено" },
@@ -47,7 +47,7 @@ export const history = [
 ];
 
 export const employees = [
-  { id: "1", name: "Анна Петрова", score: 84, exam: "Сдан", status: "Допущен", weak: "Имущество, сроки", lastActive: "Сегодня" },
+  { id: "1", name: "Анна Петрова", score: 84, exam: "Не сдан", status: "Не допущен", weak: "Имущество, сроки", lastActive: "Сегодня" },
   { id: "2", name: "Иван Смирнов", score: 62, exam: "Не сдан", status: "Не допущен", weak: "Последствия, риски", lastActive: "Вчера" },
   { id: "3", name: "Мария Кузнецова", score: 91, exam: "Сдан", status: "Допущен", weak: "—", lastActive: "Сегодня" },
   { id: "4", name: "Дмитрий Орлов", score: 73, exam: "На проверке", status: "На проверке", weak: "Ипотека", lastActive: "3 дня назад" },

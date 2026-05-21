@@ -88,7 +88,7 @@ describe("frontend data layer", () => {
           date: "28.04.2026",
           mode: "Экзамен",
           score: 76,
-          status: "Сдан",
+          status: "Не сдан",
         }),
       ]),
     );
@@ -127,7 +127,7 @@ describe("frontend data layer", () => {
     );
     expect(reports.summary.avgScore).toBe(manager.kpi.avgScore);
     expect(reports.scoreDistribution).toEqual(
-      expect.arrayContaining([expect.objectContaining({ range: "70-85", percent: expect.any(Number) })]),
+      expect.arrayContaining([expect.objectContaining({ range: "75-88", percent: expect.any(Number) })]),
     );
     expect(reports.attention[0]).toEqual(
       expect.objectContaining({

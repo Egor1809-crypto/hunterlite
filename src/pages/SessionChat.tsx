@@ -561,7 +561,7 @@ function SessionInfoPanel({ mode, topic, step, total, score, secs, fmt }: Sessio
         <Card className="p-4 bg-primary text-primary-foreground border-0">
           <div className="text-xs uppercase tracking-wider opacity-70 font-semibold">Таймер экзамена</div>
           <div className="text-pixel-number text-3xl mt-1 tabular-nums">{fmt(secs)}</div>
-          <div className="text-xs opacity-70 mt-1">Проходной балл — <span className="text-pixel-inline">70<span className="text-pixel-inline-muted">%</span></span></div>
+          <div className="text-xs opacity-70 mt-1">Проходной балл — <span className="text-pixel-inline">88<span className="text-pixel-inline-muted">%</span></span></div>
         </Card>
       )}
 

@@ -17,10 +17,10 @@ const modes = [
     to: "/session/setup?mode=exam",
     icon: GraduationCap,
     title: "Экзамен юриста",
-    desc: "Аттестация с таймером, проходным баллом 70% и итоговым статусом допуска.",
+    desc: "Аттестация с таймером, проходным баллом 88% и итоговым статусом допуска.",
     cta: "Начать экзамен",
     accent: "bg-primary text-primary-foreground",
-    meta: [{ icon: Clock, t: "30 мин" }, { icon: Target, t: "Порог 70%" }],
+    meta: [{ icon: Clock, t: "30 мин" }, { icon: Target, t: "Порог 88%" }],
   },
   {
     to: "/session/setup?mode=chat",

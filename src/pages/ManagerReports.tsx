@@ -5,6 +5,7 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { BackButton } from "@/components/BackButton";
 import { IconBadge } from "@/components/IconBadge";
 import { frontendApi, frontendFallbacks, useApiData } from "@/lib/frontend-api";
+import { passingScore } from "@/lib/training-logic";
 import { AlertTriangle, BarChart3, Download, ListChecks } from "lucide-react";
 
 export default function ManagerReports() {
@@ -96,7 +97,7 @@ export default function ManagerReports() {
                   <div className="text-xs text-muted-foreground mt-1">{item.issue}</div>
                 </div>
                 <div className="flex items-center gap-2 sm:justify-end">
-                  <StatusBadge variant={item.score >= 70 ? "warning" : "destructive"}>{item.score} баллов</StatusBadge>
+                  <StatusBadge variant={item.score >= passingScore ? "warning" : "destructive"}>{item.score} баллов</StatusBadge>
                   <span className="text-xs text-muted-foreground">{item.action}</span>
                 </div>
               </div>

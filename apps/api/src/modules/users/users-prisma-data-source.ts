@@ -1,5 +1,6 @@
 import type { CurrentUserDto, ProfileSummaryDto } from "@/lib/api-contracts";
 import type { AppRole } from "@/lib/demo-auth-state";
+import { isPassingScore } from "@/lib/training-logic";
 import type { FrontendApiDataSource } from "../../routes/frontend-api-handlers";
 
 type PrismaUserRecord = {
@@ -36,7 +37,7 @@ const roleLabels: Record<AppRole, string> = {
 };
 
 const scoreByRole: Record<AppRole, Pick<CurrentUserDto, "avgScore" | "examPassed" | "weeklyTrainings">> = {
-  employee: { avgScore: 82, examPassed: true, weeklyTrainings: 6 },
+  employee: { avgScore: 82, examPassed: isPassingScore(82), weeklyTrainings: 6 },
   manager: { avgScore: 88, examPassed: true, weeklyTrainings: 0 },
   admin: { avgScore: 0, examPassed: true, weeklyTrainings: 0 },
   client: { avgScore: 0, examPassed: false, weeklyTrainings: 0 },

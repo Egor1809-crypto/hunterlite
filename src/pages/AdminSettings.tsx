@@ -25,7 +25,7 @@ export default function AdminSettings() {
         <div className="grid sm:grid-cols-2 gap-4">
           <div>
             <Label>Проходной балл, %</Label>
-            <Input type="number" defaultValue={70} />
+            <Input type="number" defaultValue={88} />
           </div>
           <div>
             <Label>Длительность, мин</Label>

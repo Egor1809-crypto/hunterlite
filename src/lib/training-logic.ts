@@ -22,7 +22,7 @@ export const trainingEvaluationCriteria = [
 ] as const;
 export type TrainingEvaluationCriterion = (typeof trainingEvaluationCriteria)[number];
 
-export const passingScore = 70;
+export const passingScore = 88;
 
 export const maxQuestionsByDifficulty = {
   basic: 20,

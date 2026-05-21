@@ -11,6 +11,7 @@ import type {
   WeakTopicDto,
 } from "@/lib/api-contracts";
 import type { AppRole } from "@/lib/demo-auth-state";
+import { isPassingScore, passingScore } from "@/lib/training-logic";
 import type { FrontendApiDataSource } from "../../routes/frontend-api-handlers";
 import type { TrainingsPrismaClient } from "../trainings/trainings-prisma-data-source";
 
@@ -67,7 +68,7 @@ const employeeStatus = (membership: MembershipRecord): EmployeeDto["status"] =>
   membership.status === "active" ? "Допущен" : "Не допущен";
 
 const examStatus = (score: number): EmployeeDto["exam"] => {
-  if (score >= 70) return "Сдан";
+  if (isPassingScore(score)) return "Сдан";
   if (score > 0) return "Не сдан";
   return "На проверке";
 };
@@ -92,9 +93,9 @@ const average = (values: number[]) =>
 const reportBuckets = [
   { range: "0-40", min: 0, max: 40, status: "destructive" },
   { range: "40-60", min: 40, max: 60, status: "destructive" },
-  { range: "60-70", min: 60, max: 70, status: "warning" },
-  { range: "70-85", min: 70, max: 85, status: "success" },
-  { range: "85-100", min: 85, max: 101, status: "success" },
+  { range: "60-75", min: 60, max: 75, status: "warning" },
+  { range: "75-88", min: 75, max: 88, status: "warning" },
+  { range: "88-100", min: 88, max: 101, status: "success" },
 ] as const satisfies readonly Array<{
   range: string;
   min: number;
@@ -118,7 +119,7 @@ const toCurrentUser = (
     email: membership.user.email,
     status: statusLabel(membership.status),
     avgScore,
-    examPassed: avgScore >= 70,
+    examPassed: isPassingScore(avgScore),
     weeklyTrainings,
   };
 };
@@ -209,8 +210,8 @@ export const createAnalyticsPrismaDataSource = (
     return {
       periodLabel,
       summary: {
-        passedExams: exams.filter((exam) => exam.status === "passed" || (exam.score ?? 0) >= 70).length,
-        failedExams: exams.filter((exam) => exam.status === "failed" || ((exam.score ?? 0) > 0 && (exam.score ?? 0) < 70)).length,
+        passedExams: exams.filter((exam) => isPassingScore(exam.score ?? 0)).length,
+        failedExams: exams.filter((exam) => (exam.score ?? 0) > 0 && !isPassingScore(exam.score ?? 0)).length,
         reviewExams: exams.filter((exam) => exam.status === "review" || !(exam.score ?? 0)).length,
         avgScore: average(scores),
         completedTrainings: completedSessions.length,
@@ -233,7 +234,7 @@ export const createAnalyticsPrismaDataSource = (
         recommendation: topic.recommendation,
       })),
       attention: employees
-        .filter((employee) => employee.score < 70 || employee.exam !== "Сдан")
+        .filter((employee) => employee.score < passingScore || employee.exam !== "Сдан")
         .slice(0, 5)
         .map((employee) => ({
           employeeId: employee.id,
@@ -246,7 +247,7 @@ export const createAnalyticsPrismaDataSource = (
         weakTopicDtos[0]
           ? `Провести командный разбор: ${weakTopicDtos[0].topic}.`
           : "Провести командный разбор по самой частой ошибке недели.",
-        "Сотрудникам с баллом ниже 70 назначить повторную тренировку и контрольный экзамен.",
+        `Сотрудникам с баллом ниже ${passingScore} назначить повторную тренировку и контрольный экзамен.`,
         "Разобрать последние звонки сотрудников из зоны внимания перед следующей аттестацией.",
       ],
     };

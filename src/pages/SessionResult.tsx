@@ -6,6 +6,7 @@ import { BackButton } from "@/components/BackButton";
 import { Trophy, RotateCcw, Home, Sparkles, Check, AlertTriangle, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { frontendApi } from "@/lib/frontend-api";
+import { isPassingScore, passingScore } from "@/lib/training-logic";
 import { useQuery } from "@tanstack/react-query";
 
 // Timeline will be generated dynamically
@@ -25,7 +26,7 @@ export default function SessionResult() {
   const score = sessionDetail?.score ?? (
     params.has("score") && Number.isInteger(scoreParam) && scoreParam >= 0 && scoreParam <= 100 ? scoreParam : 76
   );
-  const passed = score >= 70;
+  const passed = !isExam || isPassingScore(score);
   
   const { state } = useLocation();
   const mistakes: string[] = sessionDetail?.mistakes || state?.mistakes || ["Ошибок не обнаружено"];
@@ -67,7 +68,11 @@ export default function SessionResult() {
               {passed ? (isExam ? "Экзамен сдан" : "Сессия завершена") : "Экзамен не сдан"}
             </h1>
             <p className="text-white/70 mt-2">
-              {passed ? "Вы превысили проходной порог 70% и подтвердили допуск." : "Назначен обязательный курс подготовки."}
+              {passed
+                ? isExam
+                  ? `Вы превысили проходной порог ${passingScore}% и подтвердили допуск.`
+                  : "Сессия сохранена, рекомендации добавлены в план подготовки."
+                : "Назначен обязательный курс подготовки."}
             </p>
             <div className="flex flex-wrap gap-2 mt-5">
               {passed ? (
@@ -87,7 +92,7 @@ export default function SessionResult() {
               <div className="text-pixel-number text-7xl tabular-nums leading-none mt-1">
                 {score}<span className="text-2xl text-white/50 font-normal">/100</span>
               </div>
-              <div className="text-xs text-white/60 mt-2">Проходной порог · 70</div>
+              <div className="text-xs text-white/60 mt-2">Проходной порог · {passingScore}</div>
             </div>
           </div>
         </div>

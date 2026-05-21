@@ -77,7 +77,7 @@ describe("backend frontend API handlers", () => {
     await expect(api.getTrainingHistory()).resolves.toEqual(
       expect.objectContaining({
         ok: true,
-        data: expect.arrayContaining([expect.objectContaining({ status: "Сдан" })]),
+        data: expect.arrayContaining([expect.objectContaining({ status: "Не сдан" })]),
       }),
     );
   });
@@ -99,7 +99,7 @@ describe("backend frontend API handlers", () => {
         ok: true,
         data: expect.objectContaining({
           summary: expect.objectContaining({ avgScore: expect.any(Number) }),
-          scoreDistribution: expect.arrayContaining([expect.objectContaining({ range: "70-85" })]),
+          scoreDistribution: expect.arrayContaining([expect.objectContaining({ range: "75-88" })]),
           recommendations: expect.arrayContaining([expect.any(String)]),
         }),
       }),

@@ -17,15 +17,15 @@ describe("block 7 training logic", () => {
     expect(trainingModes).toEqual(["talk", "exam", "chat_test"]);
   });
 
-  it("uses the agreed 0-100 score range and 70 passing score", () => {
-    expect(passingScore).toBe(70);
+  it("uses the agreed 0-100 score range and 88 passing score", () => {
+    expect(passingScore).toBe(88);
     expect(validateScore(0)).toBe(true);
     expect(validateScore(100)).toBe(true);
     expect(validateScore(-1)).toBe(false);
     expect(validateScore(101)).toBe(false);
     expect(validateScore(70.5)).toBe(false);
-    expect(isPassingScore(69)).toBe(false);
-    expect(isPassingScore(70)).toBe(true);
+    expect(isPassingScore(87)).toBe(false);
+    expect(isPassingScore(88)).toBe(true);
   });
 
   it("describes the agreed evaluation criteria", () => {

@@ -256,7 +256,7 @@ export default function Login() {
         <div className="relative grid gap-3 max-w-md">
           {[
             { icon: Scale, title: "Юридически безопасные формулировки", text: "NAVI подсвечивает рискованные обещания и неточности." },
-            { icon: ShieldCheck, title: "Экзамен и допуск", text: "Аттестация с проходным баллом 70% и итоговым статусом." },
+            { icon: ShieldCheck, title: "Экзамен и допуск", text: "Аттестация с проходным баллом 88% и итоговым статусом." },
             { icon: Sparkles, title: "Персональные слабые темы", text: "Разбор пробелов и обязательный курс при провале." },
           ].map((f) => (
             <div key={f.title} className="flex gap-3 p-4 rounded-xl bg-white/5 border border-white/10 backdrop-blur">

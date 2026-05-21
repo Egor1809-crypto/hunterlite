@@ -12,6 +12,7 @@ import type {
   WeakTopicDto,
 } from "@/lib/api-contracts";
 import { getDemoUser, type AppRole } from "@/lib/demo-auth-state";
+import { passingScore } from "@/lib/training-logic";
 import {
   characters,
   difficulties,
@@ -24,7 +25,7 @@ import {
 } from "@/lib/mock";
 
 const scoreByRole: Record<AppRole, Pick<CurrentUserDto, "avgScore" | "examPassed" | "weeklyTrainings">> = {
-  employee: { avgScore: 82, examPassed: true, weeklyTrainings: 6 },
+  employee: { avgScore: 82, examPassed: false, weeklyTrainings: 6 },
   manager: { avgScore: 88, examPassed: true, weeklyTrainings: 0 },
   admin: { avgScore: 0, examPassed: true, weeklyTrainings: 0 },
   client: { avgScore: 0, examPassed: false, weeklyTrainings: 0 },
@@ -168,9 +169,9 @@ export const getManagerSummary = (): ManagerSummaryDto => {
 const distributionBuckets = [
   { range: "0-40", min: 0, max: 40, status: "destructive" },
   { range: "40-60", min: 40, max: 60, status: "destructive" },
-  { range: "60-70", min: 60, max: 70, status: "warning" },
-  { range: "70-85", min: 70, max: 85, status: "success" },
-  { range: "85-100", min: 85, max: 101, status: "success" },
+  { range: "60-75", min: 60, max: 75, status: "warning" },
+  { range: "75-88", min: 75, max: 88, status: "warning" },
+  { range: "88-100", min: 88, max: 101, status: "success" },
 ] as const;
 
 export const getManagerReports = (): ManagerReportsDto => {
@@ -205,7 +206,7 @@ export const getManagerReports = (): ManagerReportsDto => {
       recommendation: topic.recommendation,
     })),
     attention: team
-      .filter((employee) => employee.score < 70 || employee.exam !== "Сдан")
+      .filter((employee) => employee.score < passingScore || employee.exam !== "Сдан")
       .slice(0, 4)
       .map((employee) => ({
         employeeId: employee.id,
@@ -216,7 +217,7 @@ export const getManagerReports = (): ManagerReportsDto => {
       })),
     recommendations: [
       "Провести короткий разбор по теме «Имущество должника» для всей команды.",
-      "Сотрудникам с баллом ниже 70 назначить повторную тренировку и контрольный экзамен.",
+      `Сотрудникам с баллом ниже ${passingScore} назначить повторную тренировку и контрольный экзамен.`,
       "Проверить звонки с ошибками в безопасных формулировках перед следующей аттестацией.",
     ],
   };
