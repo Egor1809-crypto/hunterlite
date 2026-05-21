@@ -1,0 +1,218 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Manrope:wght@500;600;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Brand */
+    --background: 210 40% 98%;          /* #F8FAFC */
+    --foreground: 215 25% 17%;          /* #1E293B */
+    --card: 0 0% 100%;
+    --card-foreground: 215 25% 17%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 215 25% 17%;
+
+    --primary: 222 47% 11%;             /* Navy #0F172A */
+    --primary-foreground: 210 40% 98%;
+
+    --secondary: 210 40% 96%;
+    --secondary-foreground: 222 47% 11%;
+
+    --muted: 210 40% 96%;
+    --muted-foreground: 215 16% 47%;    /* #64748B */
+
+    --accent: 217 91% 60%;              /* Blue #2563EB */
+    --accent-foreground: 0 0% 100%;
+
+    --ai: 262 83% 58%;                  /* Violet #7C3AED */
+    --ai-foreground: 0 0% 100%;
+    --ai-soft: 250 95% 95%;             /* #EDE9FE */
+    --ai-soft-foreground: 263 69% 42%;  /* #5B21B6 */
+
+    --success: 142 71% 36%;             /* #16A34A */
+    --success-foreground: 0 0% 100%;
+    --success-soft: 141 84% 93%;        /* #DCFCE7 */
+    --success-soft-foreground: 142 72% 22%; /* #166534 */
+
+    --warning: 38 92% 50%;              /* #F59E0B */
+    --warning-foreground: 0 0% 100%;
+    --warning-soft: 48 96% 89%;         /* #FEF3C7 */
+    --warning-soft-foreground: 27 96% 28%; /* #92400E */
+
+    --destructive: 0 72% 51%;           /* #DC2626 */
+    --destructive-foreground: 0 0% 100%;
+    --destructive-soft: 0 93% 94%;      /* #FEE2E2 */
+    --destructive-soft-foreground: 0 70% 36%; /* #991B1B */
+
+    --info: 217 91% 60%;
+    --info-foreground: 0 0% 100%;
+    --info-soft: 214 95% 93%;           /* #DBEAFE */
+    --info-soft-foreground: 226 71% 40%; /* #1E40AF */
+
+    --border: 214 32% 91%;              /* #E2E8F0 */
+    --input: 214 32% 91%;
+    --ring: 217 91% 60%;
+
+    --radius: 0.75rem;
+
+    /* Sidebar */
+    --sidebar-background: 222 47% 11%;
+    --sidebar-foreground: 210 40% 96%;
+    --sidebar-primary: 217 91% 60%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 217 33% 17%;
+    --sidebar-accent-foreground: 210 40% 98%;
+    --sidebar-border: 217 33% 20%;
+    --sidebar-ring: 217 91% 60%;
+
+    --gradient-ai: linear-gradient(135deg, hsl(217 91% 60%), hsl(262 83% 58%));
+    --gradient-hero: linear-gradient(135deg, hsl(222 47% 11%) 0%, hsl(222 47% 18%) 60%, hsl(217 60% 28%) 100%);
+    --shadow-card: 0 1px 2px hsl(222 47% 11% / 0.04), 0 4px 16px hsl(222 47% 11% / 0.04);
+    --shadow-elevated: 0 4px 12px hsl(222 47% 11% / 0.06), 0 12px 40px hsl(222 47% 11% / 0.08);
+  }
+
+  .dark {
+    --background: 262 34% 9%;
+    --foreground: 210 40% 98%;
+    --card: 262 30% 12%;
+    --card-foreground: 210 40% 98%;
+    --popover: 262 30% 12%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 210 40% 98%;
+    --primary-foreground: 262 34% 9%;
+    --secondary: 262 24% 18%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 262 24% 18%;
+    --muted-foreground: 255 18% 72%;
+    --accent: 217 91% 60%;
+    --accent-foreground: 0 0% 100%;
+    --border: 262 22% 24%;
+    --input: 262 22% 24%;
+
+    --sidebar-background: 262 34% 8%;
+    --sidebar-accent: 262 24% 17%;
+    --sidebar-border: 262 22% 22%;
+    --gradient-hero: linear-gradient(135deg, hsl(262 34% 10%) 0%, hsl(258 35% 18%) 56%, hsl(232 43% 25%) 100%);
+  }
+}
+
+@layer base {
+  * { @apply border-border; }
+  html, body, #root { height: 100%; }
+  body {
+    @apply bg-background text-foreground;
+    font-family: 'Inter', system-ui, sans-serif;
+    font-weight: 500;
+    font-feature-settings: 'cv02','cv03','cv04','ss01';
+    -webkit-font-smoothing: antialiased;
+  }
+  h1, h2, h3, h4 {
+    font-family: 'Manrope', 'Inter', sans-serif;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+  }
+  button,
+  input,
+  select,
+  textarea,
+  label {
+    font-weight: 600;
+  }
+  th {
+    font-weight: 800;
+  }
+}
+
+@keyframes pixel-fade {
+  0%, 14%, 100% {
+    opacity: 0;
+    transform: scale(0.75);
+  }
+  26%, 58% {
+    opacity: 0.72;
+    transform: scale(1);
+  }
+  72% {
+    opacity: 0.18;
+    transform: scale(0.92);
+  }
+}
+
+@layer utilities {
+  .pixel-background {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    overflow: hidden;
+    pointer-events: none;
+    background:
+      radial-gradient(circle at 18% 8%, hsl(262 47% 19% / 0.32), transparent 28%),
+      radial-gradient(circle at 80% 18%, hsl(232 48% 18% / 0.26), transparent 30%),
+      hsl(var(--background));
+  }
+
+  .pixel-background__dot {
+    position: absolute;
+    width: clamp(12px, 1.05vw, 18px);
+    aspect-ratio: 1;
+    border-radius: 1px;
+    background: hsl(255 17% 58% / 0.72);
+    box-shadow: 0 0 18px hsl(262 50% 68% / 0.18);
+    animation: pixel-fade 6.8s ease-in-out infinite;
+  }
+
+  .text-pixel-number {
+    font-family: "Courier New", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-weight: 900;
+    letter-spacing: 0;
+    color: hsl(var(--ai));
+    text-shadow:
+      0 0 6px hsl(var(--ai) / 0.72),
+      0 0 14px hsl(var(--ai) / 0.46),
+      2px 0 0 hsl(var(--ai) / 0.28),
+      -2px 0 0 hsl(var(--ai) / 0.2);
+    font-variant-numeric: tabular-nums;
+    line-height: 0.95;
+  }
+
+  .text-pixel-number-soft {
+    color: hsl(var(--foreground));
+    text-shadow:
+      0 0 5px hsl(var(--ai) / 0.45),
+      0 0 12px hsl(var(--ai) / 0.28);
+  }
+
+  .text-pixel-inline {
+    font-family: "Courier New", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-weight: 800;
+    letter-spacing: 0;
+    color: hsl(var(--foreground));
+    text-shadow:
+      0 0 4px hsl(var(--ai) / 0.42),
+      0 0 10px hsl(var(--ai) / 0.24);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .text-pixel-inline-muted {
+    color: hsl(var(--muted-foreground));
+    text-shadow: 0 0 7px hsl(var(--ai) / 0.16);
+  }
+
+  .font-normal { font-weight: 500; }
+  .font-medium { font-weight: 600; }
+  .font-semibold { font-weight: 700; }
+  .font-bold { font-weight: 800; }
+
+  .text-gradient-ai {
+    background: var(--gradient-ai);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  .bg-gradient-ai { background: var(--gradient-ai); }
+  .bg-gradient-hero { background: var(--gradient-hero); }
+  .shadow-card { box-shadow: var(--shadow-card); }
+  .shadow-elevated { box-shadow: var(--shadow-elevated); }
+}
