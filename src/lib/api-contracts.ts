@@ -226,6 +226,48 @@ export type TrainingSessionDetailDto = {
   messages: TrainingMessageCreatedDto[];
 };
 
+export type AiTrainingReplyRequestDto = {
+  sessionId?: string;
+  topic: string;
+  mode: TrainingModeDto;
+  step: number;
+  totalSteps: number;
+  userMessage: string;
+  messages: DialogMessageDto[];
+  scriptContext?: {
+    title?: string;
+    nextClientReplica?: string;
+    keywordRules?: unknown;
+  };
+};
+
+export type AiTrainingReplyDto = {
+  reply: string;
+  scoreDelta: number;
+  mistakes: string[];
+  recommendations: string[];
+  sessionEnded: boolean;
+};
+
+export type AiSpeechRequestDto = {
+  text: string;
+};
+
+export type AiSpeechDto = {
+  audioBase64: string;
+  contentType: string;
+};
+
+export type AiTranscriptionRequestDto = {
+  audioBase64: string;
+  mimeType: string;
+  fileName?: string;
+};
+
+export type AiTranscriptionDto = {
+  text: string;
+};
+
 export type AuthLoginRequestDto = {
   email: string;
   password?: string;

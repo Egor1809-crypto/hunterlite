@@ -1,5 +1,4 @@
 import type {
-  DialogMessageDto,
   SessionOptionsDto,
   TrainingMessageCreateRequestDto,
   TrainingMessageCreatedDto,
@@ -193,7 +192,6 @@ export const createTrainingsPrismaDataSource = (
   | "getWeakTopics"
   | "getTrainingHistory"
   | "getSessionOptions"
-  | "getDialogScript"
   | "createTrainingSession"
   | "getTrainingSessionDetail"
   | "addTrainingMessage"
@@ -349,26 +347,6 @@ export const createTrainingsPrismaDataSource = (
       };
     } catch {
       return fallback.getSessionOptions();
-    }
-  },
-
-  getDialogScript: async (): Promise<DialogMessageDto[]> => {
-    try {
-      const messages = await prisma.trainingMessage.findMany({
-        orderBy: { createdAt: "asc" },
-        take: 20,
-      });
-
-      const dialog = messages
-        .filter((message) => message.sender === "ai" || message.sender === "user")
-        .map((message) => ({
-          from: message.sender as DialogMessageDto["from"],
-          text: message.content,
-        }));
-
-      return dialog.length ? dialog : fallback.getDialogScript();
-    } catch {
-      return fallback.getDialogScript();
     }
   },
 

@@ -15,31 +15,6 @@ type Props = { mode: "talk" | "exam" | "chat-test" };
 type Msg = { from: "ai" | "user"; text: string; isSystem?: boolean };
 const DEFAULT_SCRIPT_TOPIC = "Имущество должника";
 
-type SpeechRecognitionResultEvent = Event & {
-  results: {
-    length: number;
-    [index: number]: {
-      [index: number]: {
-        transcript: string;
-      };
-    };
-  };
-};
-
-type SpeechRecognitionLike = {
-  lang: string;
-  continuous: boolean;
-  interimResults: boolean;
-  maxAlternatives: number;
-  onresult: ((event: SpeechRecognitionResultEvent) => void) | null;
-  onerror: (() => void) | null;
-  onend: (() => void) | null;
-  start: () => void;
-  stop: () => void;
-};
-
-type SpeechRecognitionConstructor = new () => SpeechRecognitionLike;
-
 type SessionInfoPanelProps = {
   mode: Props["mode"];
   topic: string;
@@ -48,6 +23,29 @@ type SessionInfoPanelProps = {
   score: number;
   secs: number;
   fmt: (seconds: number) => string;
+};
+
+const blobToBase64 = async (blob: Blob) => {
+  const buffer = await blob.arrayBuffer();
+  let binary = "";
+  const bytes = new Uint8Array(buffer);
+
+  bytes.forEach((byte) => {
+    binary += String.fromCharCode(byte);
+  });
+
+  return window.btoa(binary);
+};
+
+const audioFromBase64 = (audioBase64: string, contentType: string) => {
+  const binary = window.atob(audioBase64);
+  const bytes = new Uint8Array(binary.length);
+
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+
+  return new Blob([bytes], { type: contentType });
 };
 
 export default function SessionChat({ mode }: Props) {
@@ -85,7 +83,9 @@ export default function SessionChat({ mode }: Props) {
   const [activeSessionId, setActiveSessionId] = useState(sessionId);
   const scrollRef = useRef<HTMLDivElement>(null);
   const startRef = useRef<string | null>(null);
-  const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
+  const recorderRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const total = nodes.length > 0 ? nodes.length : 5;
 
@@ -131,14 +131,13 @@ export default function SessionChat({ mode }: Props) {
         }
       }
 
-      await new Promise((resolve) => setTimeout(resolve, 1000));
       if (cancelled) return;
 
       const initialMessage = nodes[0]?.clientReplica || "Здравствуйте!";
       setActiveSessionId(backendSessionId);
       setMessages([{ from: "ai", text: initialMessage }]);
       setAiTyping(false);
-      speak(initialMessage);
+      void speak(initialMessage);
 
       if (backendSessionId) {
         void frontendApi.addTrainingMessage(backendSessionId, { from: "ai", text: initialMessage }).catch(() => undefined);
@@ -176,87 +175,103 @@ export default function SessionChat({ mode }: Props) {
 
   useEffect(() => {
     return () => {
-      recognitionRef.current?.stop();
-      window.speechSynthesis?.cancel();
+      recorderRef.current?.stop();
+      audioRef.current?.pause();
     };
   }, []);
 
-  const speak = (text: string) => {
-    if (!voiceMode || typeof window === "undefined" || !("speechSynthesis" in window)) return;
+  const speak = async (text: string) => {
+    if (!voiceMode || typeof window === "undefined") return;
 
-    window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = "ru-RU";
-    utterance.rate = 0.95;
-    utterance.pitch = 1;
-    utterance.onstart = () => setSpeaking(true);
-    utterance.onend = () => setSpeaking(false);
-    utterance.onerror = () => setSpeaking(false);
-    window.speechSynthesis.speak(utterance);
+    try {
+      audioRef.current?.pause();
+      const speech = await frontendApi.synthesizeSpeech({ text });
+      const blob = audioFromBase64(speech.audioBase64, speech.contentType);
+      const url = URL.createObjectURL(blob);
+      const audio = new Audio(url);
+      audioRef.current = audio;
+      audio.onplay = () => setSpeaking(true);
+      audio.onended = () => {
+        setSpeaking(false);
+        URL.revokeObjectURL(url);
+      };
+      audio.onerror = () => {
+        setSpeaking(false);
+        URL.revokeObjectURL(url);
+        setVoiceError("NAVI не смог озвучить ответ. Текстовый режим работает.");
+      };
+      await audio.play();
+    } catch {
+      setSpeaking(false);
+      setVoiceError("NAVI voice временно недоступен. Текстовый режим работает.");
+    }
   };
 
   const toggleVoiceMode = () => {
     setVoiceMode((enabled) => {
       const next = !enabled;
       if (!next) {
-        window.speechSynthesis?.cancel();
+        audioRef.current?.pause();
         setSpeaking(false);
       }
       return next;
     });
   };
 
-  const toggleRecording = () => {
+  const toggleRecording = async () => {
     if (recording) {
-      recognitionRef.current?.stop();
+      recorderRef.current?.stop();
       setRecording(false);
       return;
     }
 
-    const voiceWindow = window as Window & {
-      SpeechRecognition?: SpeechRecognitionConstructor;
-      webkitSpeechRecognition?: SpeechRecognitionConstructor;
-    };
-    const Recognition = voiceWindow.SpeechRecognition || voiceWindow.webkitSpeechRecognition;
-
-    if (!Recognition) {
-      setVoiceError("Браузер не поддерживает распознавание речи. Можно отвечать текстом.");
+    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") {
+      setVoiceError("Браузер не поддерживает запись голоса. Можно отвечать текстом.");
       return;
     }
-
-    setVoiceError("");
-    const recognition = new Recognition();
-    recognition.lang = "ru-RU";
-    recognition.continuous = false;
-    recognition.interimResults = false;
-    recognition.maxAlternatives = 1;
-    recognition.onresult = (event) => {
-      const transcript = Array.from({ length: event.results.length }, (_, index) => event.results[index][0]?.transcript || "")
-        .join(" ")
-        .trim();
-
-      if (transcript) {
-        setInput(transcript);
-        send(transcript);
-      }
-    };
-    recognition.onerror = () => {
-      setVoiceError("Не удалось распознать речь. Проверьте доступ к микрофону или введите ответ текстом.");
-      setRecording(false);
-    };
-    recognition.onend = () => setRecording(false);
-    recognitionRef.current = recognition;
 
     try {
-      recognition.start();
+      setVoiceError("");
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const recorder = new MediaRecorder(stream);
+      chunksRef.current = [];
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) chunksRef.current.push(event.data);
+      };
+      recorder.onerror = () => {
+        setVoiceError("Не удалось записать речь. Проверьте доступ к микрофону или введите ответ текстом.");
+        setRecording(false);
+      };
+      recorder.onstop = () => {
+        setRecording(false);
+        stream.getTracks().forEach((track) => track.stop());
+
+        void (async () => {
+          const audioBlob = new Blob(chunksRef.current, { type: recorder.mimeType || "audio/webm" });
+          const transcription = await frontendApi.transcribeSpeech({
+            audioBase64: await blobToBase64(audioBlob),
+            mimeType: audioBlob.type || "audio/webm",
+            fileName: "speech.webm",
+          });
+
+          if (transcription.text) {
+            setInput(transcription.text);
+            void send(transcription.text);
+          }
+        })().catch(() => {
+          setVoiceError("NAVI не смог распознать речь. Попробуйте ещё раз или введите ответ текстом.");
+        });
+      };
+      recorderRef.current = recorder;
+      recorder.start();
       setRecording(true);
     } catch {
-      setVoiceError("Микрофон уже используется. Попробуйте ещё раз через секунду.");
+      setVoiceError("Микрофон недоступен. Разрешите доступ или введите ответ текстом.");
       setRecording(false);
     }
   };
 
-  const send = (overrideText?: string) => {
+  const send = async (overrideText?: string) => {
     if (sessionEnded) return;
     const text = overrideText || input.trim();
     if (!text) return;
@@ -270,57 +285,33 @@ export default function SessionChat({ mode }: Props) {
       void frontendApi.addTrainingMessage(sessionForPersistence, { from: "user", text }).catch(() => undefined);
     }
 
-    // Smart evaluation logic based on keywordRules
-    let penalty = 0;
-    const newMistakes: string[] = [];
-    const currentNode = nodes[step];
-    
-    if (currentNode?.keywordRules) {
-      const rules = currentNode.keywordRules as { requires?: string[]; forbids?: string[] };
-      const lowerText = text.toLowerCase();
-      
-      if (rules.requires && rules.requires.length > 0) {
-        let missing = 0;
-        rules.requires.forEach(word => {
-          if (!lowerText.includes(word)) {
-            missing++;
-            newMistakes.push(`Пропущено обязательное слово: "${word}" на шаге ${step + 1}`);
-          }
-        });
-        penalty += missing * 10;
-      }
-      
-      if (rules.forbids && rules.forbids.length > 0) {
-        rules.forbids.forEach(word => {
-          if (lowerText.includes(word)) {
-            penalty += 15;
-            newMistakes.push(`Использовано запрещенное слово: "${word}" на шаге ${step + 1}`);
-          }
-        });
-      }
-    } else {
-      // Fallback simple rules
-      if (text.length < 5) penalty += 5;
-      if (text.toLowerCase().includes("не знаю")) {
-        penalty += 20;
-        newMistakes.push(`Использована неуверенная формулировка "не знаю" на шаге ${step + 1}`);
-      }
-    }
-
-    if (newMistakes.length > 0) {
-      setSessionMistakes(prev => [...prev, ...newMistakes]);
-    }
-
-    setTimeout(() => {
-      if (penalty > 0) {
-        setScore(s => Math.max(0, s - penalty));
-      }
-
+    try {
       const nextStep = step + 1;
       const nextNode = nodes[nextStep];
-      const aiMessage = nextNode?.clientReplica || "Спасибо за консультацию, до свидания!";
+      const ai = await frontendApi.generateTrainingReply({
+        sessionId: sessionForPersistence,
+        topic,
+        mode: mode === "chat-test" ? "chat_test" : mode,
+        step,
+        totalSteps: total,
+        userMessage: text,
+        messages: [...messages, userMessage].map((message) => ({ from: message.from, text: message.text })),
+        scriptContext: {
+          title,
+          nextClientReplica: nextNode?.clientReplica,
+          keywordRules: nextNode?.keywordRules,
+        },
+      });
+      const aiMessage = ai.reply;
 
-      if (nextNode) {
+      if (ai.scoreDelta > 0) {
+        setScore((currentScore) => Math.max(0, currentScore - ai.scoreDelta));
+      }
+      if (ai.mistakes.length > 0) {
+        setSessionMistakes((currentMistakes) => [...currentMistakes, ...ai.mistakes]);
+      }
+
+      if (!ai.sessionEnded && nextNode) {
         setMessages((m) => [...m, { from: "ai", text: aiMessage }]);
         setStep(nextStep);
       } else {
@@ -330,9 +321,20 @@ export default function SessionChat({ mode }: Props) {
       if (sessionForPersistence) {
         void frontendApi.addTrainingMessage(sessionForPersistence, { from: "ai", text: aiMessage }).catch(() => undefined);
       }
-      speak(aiMessage);
+      void speak(aiMessage);
+    } catch {
+      setMessages((m) => [
+        ...m,
+        {
+          from: "ai",
+          text: "NAVI API сейчас недоступен. Проверьте ключ и соединение, затем отправьте ответ ещё раз.",
+          isSystem: true,
+        },
+      ]);
+      setVoiceError("NAVI API недоступен: ответ клиента не сгенерирован.");
+    } finally {
       setAiTyping(false);
-    }, 1100);
+    }
   };
 
   const finish = async () => {
@@ -435,7 +437,7 @@ export default function SessionChat({ mode }: Props) {
         <div className="border-t border-border bg-card p-3 md:p-4">
           <div className="flex items-end gap-2 max-w-3xl">
             <button
-              onClick={toggleRecording}
+              onClick={() => void toggleRecording()}
               className={cn(
                 "h-11 w-11 rounded-xl border flex items-center justify-center transition-colors shrink-0",
                 recording
@@ -463,11 +465,13 @@ export default function SessionChat({ mode }: Props) {
               placeholder={recording ? "Говорите…" : "Ответьте клиенту…"}
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && send()}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") void send();
+              }}
               className="h-11 bg-black/50"
               disabled={aiTyping || sessionEnded || isLoading || recording}
             />
-            <Button onClick={() => send()} className="h-11 bg-primary hover:bg-primary/90 px-4" disabled={aiTyping || sessionEnded || isLoading}>
+            <Button onClick={() => void send()} className="h-11 bg-primary hover:bg-primary/90 px-4" disabled={aiTyping || sessionEnded || isLoading}>
               <Send className="h-4 w-4" />
             </Button>
           </div>
@@ -482,7 +486,7 @@ export default function SessionChat({ mode }: Props) {
                 <span className="h-1.5 w-1.5 rounded-full bg-accent animate-pulse" /> Клиент говорит
               </span>
             )}
-            <span>{voiceError || "Аудио не сохраняется. В оценку идёт только расшифровка."}</span>
+            <span>{voiceError || "Голос обрабатывается через NAVI API. В историю сохраняется только расшифровка."}</span>
           </div>
         </div>
       </div>
@@ -597,7 +601,7 @@ function SessionInfoPanel({ mode, topic, step, total, score, secs, fmt }: Sessio
       </Card>
 
       <div>
-        <div className="text-[11px] uppercase tracking-wider font-semibold text-muted-foreground mb-2">Статус AI-клиента</div>
+        <div className="text-[11px] uppercase tracking-wider font-semibold text-muted-foreground mb-2">Статус NAVI-клиента</div>
         <StatusBadge variant="warning" dot>Тревожный · сомневается</StatusBadge>
       </div>
 
@@ -605,7 +609,7 @@ function SessionInfoPanel({ mode, topic, step, total, score, secs, fmt }: Sessio
         <div className="flex gap-2">
           <Sparkles className="h-4 w-4 text-ai-soft-foreground shrink-0 mt-0.5" />
           <div className="text-xs text-ai-soft-foreground">
-            <span className="font-semibold">AI:</span> добавьте уточнение про залоговое имущество и единственное жильё.
+            <span className="font-semibold">NAVI:</span> оценивает ответ через внешний API.
           </div>
         </div>
       </Card>

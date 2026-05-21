@@ -8,7 +8,7 @@ const modes = [
     to: "/session/setup?mode=talk",
     icon: MessageSquare,
     title: "Поговорить",
-    desc: "Свободная тренировка с AI-клиентом по теме банкротства физических лиц.",
+    desc: "Свободная тренировка с NAVI-клиентом по теме банкротства физических лиц.",
     cta: "Начать тренировку",
     accent: "bg-info-soft text-info-soft-foreground",
     meta: [{ icon: Clock, t: "10–20 мин" }, { icon: BookOpen, t: "Любая тема" }],
@@ -40,7 +40,7 @@ export default function Modes() {
         <IconBadge icon={MessageSquare} />
         <div>
           <h1 className="font-display text-3xl md:text-4xl font-bold text-primary tracking-tight">Выберите режим</h1>
-          <p className="text-muted-foreground mt-2">Три формата работы с AI-клиентом — от свободной тренировки до аттестации.</p>
+          <p className="text-muted-foreground mt-2">Три формата работы с NAVI-клиентом — от свободной тренировки до аттестации.</p>
         </div>
       </div>
 

@@ -153,7 +153,48 @@ describe("backend frontend API handlers", () => {
     );
   });
 
-  it("returns session setup options and dialog script", async () => {
+  it("proxies training chat and voice requests through NAVI handlers", async () => {
+    const api = createFrontendApiHandlers({
+      ...demoFrontendApiDataSource,
+      generateTrainingReply: async (payload) => ({
+        reply: `NAVI: ${payload.userMessage}`,
+        scoreDelta: 0,
+        mistakes: [],
+        recommendations: [],
+        sessionEnded: false,
+      }),
+      synthesizeSpeech: async () => ({ audioBase64: "YXVkaW8=", contentType: "audio/mpeg" }),
+      transcribeSpeech: async () => ({ text: "Распознанный ответ" }),
+    });
+
+    await expect(api.generateTrainingReply({
+      topic: "Имущество должника",
+      mode: "talk",
+      step: 0,
+      totalSteps: 3,
+      userMessage: "Здравствуйте",
+      messages: [{ from: "user", text: "Здравствуйте" }],
+    })).resolves.toEqual({
+      ok: true,
+      data: {
+        reply: "NAVI: Здравствуйте",
+        scoreDelta: 0,
+        mistakes: [],
+        recommendations: [],
+        sessionEnded: false,
+      },
+    });
+    await expect(api.synthesizeSpeech({ text: "Здравствуйте" })).resolves.toEqual({
+      ok: true,
+      data: { audioBase64: "YXVkaW8=", contentType: "audio/mpeg" },
+    });
+    await expect(api.transcribeSpeech({ audioBase64: "YXVkaW8=", mimeType: "audio/webm" })).resolves.toEqual({
+      ok: true,
+      data: { text: "Распознанный ответ" },
+    });
+  });
+
+  it("returns session setup options", async () => {
     const api = createFrontendApiHandlers();
 
     await expect(api.getSessionOptions()).resolves.toEqual(
@@ -163,12 +204,6 @@ describe("backend frontend API handlers", () => {
           topics: expect.arrayContaining(["Имущество должника"]),
           formats: expect.arrayContaining(["Текст"]),
         }),
-      }),
-    );
-    await expect(api.getDialogScript()).resolves.toEqual(
-      expect.objectContaining({
-        ok: true,
-        data: expect.arrayContaining([expect.objectContaining({ from: "ai" })]),
       }),
     );
   });

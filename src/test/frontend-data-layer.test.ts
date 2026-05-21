@@ -4,7 +4,6 @@ import { frontendApi, withDemoFallback } from "@/lib/frontend-api";
 import {
   getCurrentUser,
   getDashboardSummary,
-  getDialogScript,
   getEmployeeProfile,
   getEmployees,
   getManagerSummary,
@@ -149,18 +148,11 @@ describe("frontend data layer", () => {
     expect(getEmployeeProfile("missing").employee.id).toBe("1");
   });
 
-  it("returns session setup options and dialog script", () => {
+  it("returns session setup options", () => {
     const options = getSessionOptions();
-    const dialog = getDialogScript();
 
     expect(options.topics).toContain("Имущество должника");
     expect(options.difficulties).toContain("Средний");
-    expect(dialog[0]).toEqual(
-      expect.objectContaining({
-        from: "ai",
-        text: expect.any(String),
-      }),
-    );
   });
 
   it("reads successful API responses through apiGet", async () => {
@@ -216,12 +208,21 @@ describe("frontend data layer", () => {
     await frontendApi.notifications();
     await frontendApi.weakTopics();
     await frontendApi.trainingHistory();
+    await frontendApi.generateTrainingReply({
+      topic: "Имущество должника",
+      mode: "talk",
+      step: 0,
+      totalSteps: 3,
+      userMessage: "Здравствуйте",
+      messages: [{ from: "user", text: "Здравствуйте" }],
+    });
+    await frontendApi.synthesizeSpeech({ text: "Здравствуйте" });
+    await frontendApi.transcribeSpeech({ audioBase64: "YXVkaW8=", mimeType: "audio/webm" });
     await frontendApi.managerSummary();
     await frontendApi.managerReports();
     await frontendApi.employeeProfile("2");
     await frontendApi.assignEmployeeCourse("2", { topic: "Имущество должника" });
     await frontendApi.sessionOptions();
-    await frontendApi.dialogScript();
     await frontendApi.createTrainingSession({
       topic: "Имущество должника",
       mode: "talk",
@@ -250,12 +251,14 @@ describe("frontend data layer", () => {
       "/api/notifications",
       "/api/trainings/weak-topics",
       "/api/trainings/history",
+      "/api/ai/chat",
+      "/api/ai/speech",
+      "/api/ai/transcriptions",
       "/api/analytics/manager",
       "/api/analytics/manager/reports",
       "/api/analytics/manager/employees/2",
       "/api/analytics/manager/employees/2/course",
       "/api/trainings/session-options",
-      "/api/trainings/dialog-script",
       "/api/trainings/sessions",
       "/api/trainings/sessions/session-1",
       "/api/trainings/sessions/session-1/messages",

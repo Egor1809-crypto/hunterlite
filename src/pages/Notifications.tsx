@@ -31,7 +31,7 @@ export default function Notifications() {
         <IconBadge icon={Bell} />
         <div>
           <h1 className="font-display text-3xl font-bold text-primary tracking-tight">Уведомления</h1>
-          <p className="text-muted-foreground mt-1">Назначенные курсы, рекомендации AI и сообщения руководителя.</p>
+          <p className="text-muted-foreground mt-1">Назначенные курсы, рекомендации NAVI и сообщения руководителя.</p>
         </div>
       </div>
 

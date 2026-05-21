@@ -5,6 +5,7 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { parseEnv } from "../config/env";
 import { createAuthPrismaDataSource } from "../modules/auth/auth-prisma-data-source";
 import { createBackendDataSource } from "../modules/backend-data-source";
+import { createNavyAiClient } from "../modules/ai/navy-ai-client";
 import { createApiHttpServer } from "./http-server";
 
 const env = parseEnv({
@@ -18,7 +19,10 @@ const adapter = new PrismaPg(pool);
 const prisma = new PrismaClient({ adapter });
 
 const server = createApiHttpServer({
-  source: createBackendDataSource({ prisma }),
+  source: createBackendDataSource({
+    prisma,
+    ai: createNavyAiClient(env),
+  }),
   auth: createAuthPrismaDataSource(prisma),
   authDemoFallback: env.AUTH_DEMO_FALLBACK,
   corsOrigins: env.CORS_ORIGINS,

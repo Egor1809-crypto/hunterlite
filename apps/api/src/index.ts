@@ -7,6 +7,7 @@ export * from "./modules/auth/auth-prisma-data-source";
 export * from "./modules/auth/login-rate-limit";
 export * from "./modules/auth/password-hash";
 export * from "./modules/analytics/analytics-prisma-data-source";
+export * from "./modules/ai/navy-ai-client";
 export * from "./modules/backend-data-source";
 export * from "./modules/module-registry";
 export * from "./modules/notifications/notifications-prisma-data-source";

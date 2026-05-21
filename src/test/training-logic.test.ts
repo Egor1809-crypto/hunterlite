@@ -38,7 +38,7 @@ describe("block 7 training logic", () => {
     ]);
   });
 
-  it("supports different AI client personalities", () => {
+  it("supports different NAVI client personalities", () => {
     expect(aiClientCharacters).toEqual([
       "anxious",
       "aggressive",

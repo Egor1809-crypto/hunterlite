@@ -22,9 +22,11 @@ import {
   createAdminPrismaDataSource,
   type AdminPrismaClient,
 } from "./admin/admin-prisma-data-source";
+import type { NavyAiClient } from "./ai/navy-ai-client";
 
 export type BackendDataSourceOptions = {
   prisma?: UsersPrismaClient & TrainingsPrismaClient & NotificationsPrismaClient & AnalyticsPrismaClient & AdminPrismaClient;
+  ai?: NavyAiClient;
 };
 
 export const createBackendDataSource = (
@@ -45,6 +47,7 @@ export const createBackendDataSource = (
     ...notifications,
     ...analytics,
     ...admin,
+    ...(options.ai ?? {}),
   };
 
   return {

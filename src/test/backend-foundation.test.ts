@@ -21,6 +21,7 @@ describe("block 3 backend foundation", () => {
       SESSION_COOKIE_NAME: "hunterlite_session",
       CORS_ORIGINS: "http://127.0.0.1:8080,http://localhost:8080",
       AUTH_DEMO_FALLBACK: "true",
+      NAVI_API_KEY: "test-key",
     });
 
     expect(env).toEqual({
@@ -30,6 +31,12 @@ describe("block 3 backend foundation", () => {
       SESSION_COOKIE_NAME: "hunterlite_session",
       CORS_ORIGINS: "http://127.0.0.1:8080,http://localhost:8080",
       AUTH_DEMO_FALLBACK: true,
+      NAVI_API_KEY: "test-key",
+      NAVI_BASE_URL: "https://api.navy",
+      NAVI_CHAT_MODEL: "gemini-3.5-flash",
+      NAVI_TTS_MODEL: "eleven_flash_v2_5",
+      NAVI_TTS_VOICE: "aria",
+      NAVI_STT_MODEL: "scribe_v2",
     });
   });
 

@@ -54,7 +54,7 @@ export default function Dashboard() {
               Здравствуйте, {user.firstName}
             </h1>
             <p className="text-muted-foreground mt-1.5">
-              Сегодня хороший день, чтобы потренировать сложный кейс. AI-клиент уже ждёт.
+              Сегодня хороший день, чтобы потренировать сложный кейс. NAVI-клиент уже ждёт.
             </p>
           </div>
         </div>
@@ -68,7 +68,7 @@ export default function Dashboard() {
       {/* Quick actions */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {[
-          { to: "/session/setup?mode=talk", icon: MessageSquare, title: "Поговорить с AI-клиентом", accent: "bg-accent text-accent-foreground" },
+          { to: "/session/setup?mode=talk", icon: MessageSquare, title: "Поговорить с NAVI-клиентом", accent: "bg-accent text-accent-foreground" },
           { to: "/session/setup?mode=exam", icon: GraduationCap, title: "Начать экзамен", accent: "bg-primary text-primary-foreground" },
           { to: "/session/setup?mode=chat", icon: ListChecks, title: "Пройти тест", accent: "bg-ai text-ai-foreground" },
           { to: "/weak-topics", icon: RotateCcw, title: "Повторить слабые темы", accent: "bg-card text-foreground border border-border" },
@@ -122,7 +122,7 @@ export default function Dashboard() {
             <div className="bg-ai-soft rounded-xl p-4">
               <div className="flex items-center gap-2 mb-2">
                 <Sparkles className="h-4 w-4 text-ai-soft-foreground" />
-                <span className="text-xs font-semibold uppercase tracking-wider text-ai-soft-foreground">AI-рекомендация</span>
+                <span className="text-xs font-semibold uppercase tracking-wider text-ai-soft-foreground">NAVI-рекомендация</span>
               </div>
               <p className="text-sm text-ai-soft-foreground">
                 Повторите блок про имущество должника — особенно нюансы с ипотечным жильём. Это ваша зона роста.

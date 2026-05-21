@@ -35,7 +35,7 @@ export default function Admin() {
         <h3 className="font-display font-bold text-primary mb-3">Системные уведомления</h3>
         <div className="space-y-2 text-sm">
           {[
-            { t: "Обновление AI-модуля оценки до v2.4", time: "сегодня, 09:14", v: "info" as const },
+            { t: "Обновление NAVI-модуля оценки до v2.4", time: "сегодня, 09:14", v: "info" as const },
             { t: "Плановое обслуживание БД 02.05 03:00–03:30 МСК", time: "вчера", v: "warning" as const },
             { t: "Все юридические шаблоны актуализированы", time: "3 дня назад", v: "success" as const },
           ].map((n, i) => (

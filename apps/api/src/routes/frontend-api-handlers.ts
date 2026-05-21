@@ -1,7 +1,6 @@
 import type {
   CurrentUserDto,
   DashboardSummaryDto,
-  DialogMessageDto,
   EmployeeDto,
   EmployeeCourseAssignedDto,
   EmployeeCourseAssignRequestDto,
@@ -32,12 +31,17 @@ import type {
   CallScriptCreateRequestDto,
   CallScriptDeletedDto,
   CallScriptUpdateRequestDto,
+  AiSpeechDto,
+  AiSpeechRequestDto,
+  AiTrainingReplyDto,
+  AiTrainingReplyRequestDto,
+  AiTranscriptionDto,
+  AiTranscriptionRequestDto,
 } from "@/lib/api-contracts";
 import type { AppRole } from "@/lib/demo-auth-state";
 import {
   getCurrentUser,
   getDashboardSummary,
-  getDialogScript,
   getEmployeeProfile,
   getEmployees,
   getManagerSummary,
@@ -79,8 +83,10 @@ export const frontendApiRoutes = [
   { method: "GET", path: "/api/trainings/weak-topics", module: "trainings", requiresAuth: true },
   { method: "GET", path: "/api/trainings/history", module: "trainings", requiresAuth: true },
   { method: "GET", path: "/api/trainings/session-options", module: "trainings", requiresAuth: true },
-  { method: "GET", path: "/api/trainings/dialog-script", module: "trainings", requiresAuth: true },
   { method: "GET", path: "/api/trainings/call-scripts", module: "trainings", requiresAuth: true },
+  { method: "POST", path: "/api/ai/chat", module: "ai", requiresAuth: true },
+  { method: "POST", path: "/api/ai/speech", module: "ai", requiresAuth: true },
+  { method: "POST", path: "/api/ai/transcriptions", module: "ai", requiresAuth: true },
   { method: "POST", path: "/api/trainings/sessions", module: "trainings", requiresAuth: true },
   { method: "GET", path: "/api/trainings/sessions/:id", module: "trainings", requiresAuth: true },
   { method: "POST", path: "/api/trainings/sessions/:id/messages", module: "trainings", requiresAuth: true },
@@ -113,7 +119,9 @@ export type FrontendApiDataSource = {
   getEmployeeProfile: (id?: string) => MaybePromise<EmployeeProfileDto>;
   assignEmployeeCourse: (managerId: string, employeeId: string, payload: EmployeeCourseAssignRequestDto) => MaybePromise<EmployeeCourseAssignedDto | null>;
   getSessionOptions: () => MaybePromise<SessionOptionsDto>;
-  getDialogScript: () => MaybePromise<DialogMessageDto[]>;
+  generateTrainingReply: (payload: AiTrainingReplyRequestDto) => MaybePromise<AiTrainingReplyDto | null>;
+  synthesizeSpeech: (payload: AiSpeechRequestDto) => MaybePromise<AiSpeechDto | null>;
+  transcribeSpeech: (payload: AiTranscriptionRequestDto) => MaybePromise<AiTranscriptionDto | null>;
   createTrainingSession: (userId: string, payload: TrainingSessionCreateRequestDto) => MaybePromise<TrainingSessionCreatedDto | null>;
   getTrainingSessionDetail: (userId: string, sessionId: string, role?: AppRole) => MaybePromise<TrainingSessionDetailDto | null>;
   addTrainingMessage: (userId: string, sessionId: string, payload: TrainingMessageCreateRequestDto) => MaybePromise<TrainingMessageCreatedDto | null>;
@@ -146,7 +154,9 @@ export const demoFrontendApiDataSource: FrontendApiDataSource = {
   getEmployeeProfile,
   assignEmployeeCourse: async () => null,
   getSessionOptions,
-  getDialogScript,
+  generateTrainingReply: async () => null,
+  synthesizeSpeech: async () => null,
+  transcribeSpeech: async () => null,
   createTrainingSession: async () => null,
   getTrainingSessionDetail: async () => null,
   addTrainingMessage: async () => null,
@@ -220,7 +230,59 @@ export const createFrontendApiHandlers = (source: FrontendApiDataSource = demoFr
 
   getSessionOptions: async (): Promise<ApiResponse<SessionOptionsDto>> => ok(await source.getSessionOptions()),
 
-  getDialogScript: async (): Promise<ApiResponse<DialogMessageDto[]>> => ok(await source.getDialogScript()),
+  generateTrainingReply: async (payload: unknown): Promise<HandlerResult<AiTrainingReplyDto>> => {
+    const request = payload as Partial<AiTrainingReplyRequestDto> | undefined;
+
+    if (!request?.topic || !request.mode || !request.userMessage?.trim() || !Array.isArray(request.messages)) {
+      return fail("VALIDATION_ERROR", "NAVI chat payload is invalid");
+    }
+
+    const reply = await source.generateTrainingReply({
+      sessionId: request.sessionId,
+      topic: request.topic,
+      mode: request.mode,
+      step: Number.isFinite(request.step) ? Number(request.step) : 0,
+      totalSteps: Number.isFinite(request.totalSteps) ? Math.max(1, Number(request.totalSteps)) : 1,
+      userMessage: request.userMessage.trim(),
+      messages: request.messages,
+      scriptContext: request.scriptContext,
+    });
+
+    if (!reply) return fail("INTERNAL_ERROR", "NAVI chat is unavailable");
+
+    return ok(reply);
+  },
+
+  synthesizeSpeech: async (payload: unknown): Promise<HandlerResult<AiSpeechDto>> => {
+    const request = payload as Partial<AiSpeechRequestDto> | undefined;
+    const text = request?.text?.trim();
+
+    if (!text) return fail("VALIDATION_ERROR", "Speech text is required");
+
+    const speech = await source.synthesizeSpeech({ text });
+
+    if (!speech) return fail("INTERNAL_ERROR", "NAVI speech is unavailable");
+
+    return ok(speech);
+  },
+
+  transcribeSpeech: async (payload: unknown): Promise<HandlerResult<AiTranscriptionDto>> => {
+    const request = payload as Partial<AiTranscriptionRequestDto> | undefined;
+
+    if (!request?.audioBase64 || !request.mimeType) {
+      return fail("VALIDATION_ERROR", "Audio payload is required");
+    }
+
+    const transcription = await source.transcribeSpeech({
+      audioBase64: request.audioBase64,
+      mimeType: request.mimeType,
+      fileName: request.fileName,
+    });
+
+    if (!transcription) return fail("INTERNAL_ERROR", "NAVI transcription is unavailable");
+
+    return ok(transcription);
+  },
 
   getAdminUsers: async (): Promise<ApiResponse<AdminUserDto[]>> => ok(await source.getAdminUsers()),
 

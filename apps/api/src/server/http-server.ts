@@ -90,6 +90,7 @@ const isAllowedPostRoute = (pathname: string) =>
   pathname === "/api/auth/logout" ||
   pathname === "/api/auth/password-reset/request" ||
   pathname === "/api/auth/password-reset/complete" ||
+  /^\/api\/ai\/.*$/.test(pathname) ||
   pathname === "/api/trainings/sessions" ||
   /^\/api\/analytics\/manager\/employees\/[^/]+\/course$/.test(pathname) ||
   /^\/api\/trainings\/sessions\/[^/]+\/messages$/.test(pathname) ||
@@ -245,6 +246,12 @@ export const resolveApiRequest = async (
               ? auth.completePasswordReset(request.body)
           : pathname === "/api/trainings/sessions" && request.method === "POST" && authenticatedUserId
             ? api.createTrainingSession(authenticatedUserId, request.body)
+            : pathname === "/api/ai/chat" && request.method === "POST" && authenticatedUserId
+              ? api.generateTrainingReply(request.body)
+            : pathname === "/api/ai/speech" && request.method === "POST" && authenticatedUserId
+              ? api.synthesizeSpeech(request.body)
+            : pathname === "/api/ai/transcriptions" && request.method === "POST" && authenticatedUserId
+              ? api.transcribeSpeech(request.body)
             : employeeCourseMatch && request.method === "POST" && authenticatedUserId
               ? api.assignEmployeeCourse(authenticatedUserId, decodeURIComponent(employeeCourseMatch[1]), request.body)
             : trainingSessionMatch && request.method === "GET" && authenticatedUserId
@@ -275,9 +282,7 @@ export const resolveApiRequest = async (
                             ? api.getTrainingHistory(authenticatedUserId)
                             : pathname === "/api/trainings/session-options"
                               ? api.getSessionOptions()
-                              : pathname === "/api/trainings/dialog-script"
-                                ? api.getDialogScript()
-                                : pathname === "/api/trainings/call-scripts" && request.method === "GET"
+                              : pathname === "/api/trainings/call-scripts" && request.method === "GET"
                                   ? api.getCallScripts()
                               : pathname === "/api/admin/users" && request.method === "GET"
                                 ? api.getAdminUsers()

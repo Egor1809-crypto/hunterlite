@@ -132,6 +132,9 @@ const expectedPermissions: Record<Exclude<Role, "public">, readonly Permission[]
 const apiAccessCases = [
   { method: "GET", path: "/api/users/me", allowed: ["employee", "manager", "admin"] },
   { method: "GET", path: "/api/trainings/weak-topics", allowed: ["employee"] },
+  { method: "POST", path: "/api/ai/chat", allowed: ["employee"] },
+  { method: "POST", path: "/api/ai/speech", allowed: ["employee"] },
+  { method: "POST", path: "/api/ai/transcriptions", allowed: ["employee"] },
   { method: "POST", path: "/api/trainings/sessions", allowed: ["employee"] },
   { method: "GET", path: "/api/trainings/sessions/session-1", allowed: ["employee", "manager", "admin"] },
   { method: "POST", path: "/api/trainings/sessions/session-1/messages", allowed: ["employee"] },

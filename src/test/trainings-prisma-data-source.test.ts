@@ -195,24 +195,6 @@ describe("trainings Prisma data source", () => {
     );
   });
 
-  it("maps training messages into dialog script entries", async () => {
-    const source = createTrainingsPrismaDataSource(
-      createPrisma({
-        messages: [
-          { sender: "ai", content: "Здравствуйте.", createdAt: new Date("2026-04-27T09:00:00.000Z") },
-          { sender: "user", content: "Добрый день.", createdAt: new Date("2026-04-27T09:01:00.000Z") },
-          { sender: "system", content: "ignored", createdAt: new Date("2026-04-27T09:02:00.000Z") },
-        ],
-      }),
-      demoFrontendApiDataSource,
-    );
-
-    await expect(source.getDialogScript()).resolves.toEqual([
-      { from: "ai", text: "Здравствуйте." },
-      { from: "user", text: "Добрый день." },
-    ]);
-  });
-
   it("creates training sessions with normalized question counts", async () => {
     const prisma = createPrisma();
     const source = createTrainingsPrismaDataSource(prisma, demoFrontendApiDataSource);

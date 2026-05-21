@@ -2,7 +2,6 @@ import { useQuery, type QueryKey } from "@tanstack/react-query";
 import type {
   CurrentUserDto,
   DashboardSummaryDto,
-  DialogMessageDto,
   EmployeeProfileDto,
   ManagerSummaryDto,
   ManagerReportsDto,
@@ -25,6 +24,13 @@ import type {
   AuthPasswordResetCompletedDto,
   AuthPasswordResetRequestDto,
   AuthPasswordResetRequestedDto,
+  AuthSessionDto,
+  AiSpeechDto,
+  AiSpeechRequestDto,
+  AiTrainingReplyDto,
+  AiTrainingReplyRequestDto,
+  AiTranscriptionDto,
+  AiTranscriptionRequestDto,
   AdminUserDto,
   AdminUserCreateRequestDto,
   AdminUserUpdateRequestDto,
@@ -44,7 +50,6 @@ import type { AppRole } from "@/lib/demo-auth-state";
 import {
   getCurrentUser,
   getDashboardSummary,
-  getDialogScript,
   getEmployeeProfile,
   getManagerSummary,
   getManagerReports,
@@ -71,6 +76,12 @@ export const frontendApi = {
   notifications: () => apiGet<NotificationDto[]>("/notifications"),
   weakTopics: () => apiGet<WeakTopicDto[]>("/trainings/weak-topics"),
   trainingHistory: () => apiGet<TrainingHistoryItemDto[]>("/trainings/history"),
+  generateTrainingReply: (payload: AiTrainingReplyRequestDto) =>
+    apiPost<AiTrainingReplyDto, AiTrainingReplyRequestDto>("/ai/chat", payload),
+  synthesizeSpeech: (payload: AiSpeechRequestDto) =>
+    apiPost<AiSpeechDto, AiSpeechRequestDto>("/ai/speech", payload),
+  transcribeSpeech: (payload: AiTranscriptionRequestDto) =>
+    apiPost<AiTranscriptionDto, AiTranscriptionRequestDto>("/ai/transcriptions", payload),
   managerSummary: () => apiGet<ManagerSummaryDto>("/analytics/manager"),
   managerReports: () => apiGet<ManagerReportsDto>("/analytics/manager/reports"),
   employeeProfile: (id?: string) =>
@@ -81,7 +92,6 @@ export const frontendApi = {
       payload,
     ),
   sessionOptions: () => apiGet<SessionOptionsDto>("/trainings/session-options"),
-  dialogScript: () => apiGet<DialogMessageDto[]>("/trainings/dialog-script"),
   createTrainingSession: (payload: TrainingSessionCreateRequestDto) =>
     apiPost<TrainingSessionCreatedDto, TrainingSessionCreateRequestDto>("/trainings/sessions", payload),
   addTrainingMessage: (sessionId: string, payload: TrainingMessageCreateRequestDto) =>
@@ -160,5 +170,4 @@ export const frontendFallbacks = {
   managerReports: getManagerReports,
   employeeProfile: getEmployeeProfile,
   sessionOptions: getSessionOptions,
-  dialogScript: getDialogScript,
 };

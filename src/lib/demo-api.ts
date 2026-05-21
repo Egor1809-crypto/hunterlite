@@ -1,7 +1,6 @@
 import type {
   CurrentUserDto,
   DashboardSummaryDto,
-  DialogMessageDto,
   EmployeeDto,
   EmployeeProfileDto,
   ManagerReportsDto,
@@ -15,7 +14,6 @@ import type {
 import { getDemoUser, type AppRole } from "@/lib/demo-auth-state";
 import {
   characters,
-  dialogScript,
   difficulties,
   employees,
   formats,
@@ -242,9 +240,3 @@ export const getSessionOptions = (): SessionOptionsDto => ({
   characters: [...characters],
   formats: [...formats],
 });
-
-export const getDialogScript = (): DialogMessageDto[] =>
-  dialogScript.map((message) => ({
-    from: message.from as DialogMessageDto["from"],
-    text: message.text,
-  }));

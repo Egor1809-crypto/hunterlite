@@ -85,7 +85,7 @@ export function AppSidebar() {
           {!collapsed && (
             <div className="flex flex-col leading-tight">
               <span className="text-sm font-bold text-sidebar-foreground tracking-tight">HUNTERLITE</span>
-              <span className="text-[10px] uppercase tracking-wider text-sidebar-foreground/50">Legal AI Trainer</span>
+              <span className="text-[10px] uppercase tracking-wider text-sidebar-foreground/50">Legal NAVI Trainer</span>
             </div>
           )}
         </div>

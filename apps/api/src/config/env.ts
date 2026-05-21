@@ -7,6 +7,12 @@ export const envSchema = z.object({
   SESSION_COOKIE_NAME: z.string().min(1).default("hunterlite_session"),
   CORS_ORIGINS: z.string().min(1).default("http://127.0.0.1:8080,http://localhost:8080"),
   AUTH_DEMO_FALLBACK: z.enum(["true", "false"]).optional(),
+  NAVI_API_KEY: z.string().optional(),
+  NAVI_BASE_URL: z.string().url().default("https://api.navy"),
+  NAVI_CHAT_MODEL: z.string().min(1).default("gemini-3.5-flash"),
+  NAVI_TTS_MODEL: z.string().min(1).default("eleven_flash_v2_5"),
+  NAVI_TTS_VOICE: z.string().min(1).default("aria"),
+  NAVI_STT_MODEL: z.string().min(1).default("scribe_v2"),
 });
 
 export type ApiEnv = Omit<z.infer<typeof envSchema>, "AUTH_DEMO_FALLBACK"> & {
