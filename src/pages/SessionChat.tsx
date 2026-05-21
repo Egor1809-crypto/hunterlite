@@ -6,7 +6,7 @@ import { Card } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { StatusBadge } from "@/components/StatusBadge";
 import { frontendApi } from "@/lib/frontend-api";
-import { Mic, Send, X, ShieldAlert, Sparkles, Bot, User, Clock, Target, ChevronUp, Loader2 } from "lucide-react";
+import { Mic, Send, X, Sparkles, Bot, User, Clock, Target, ChevronUp, Loader2, Volume2, VolumeX } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import type { CallScriptDto } from "@/lib/api-contracts";
@@ -14,6 +14,31 @@ import type { CallScriptDto } from "@/lib/api-contracts";
 type Props = { mode: "talk" | "exam" | "chat-test" };
 type Msg = { from: "ai" | "user"; text: string; isSystem?: boolean };
 const DEFAULT_SCRIPT_TOPIC = "Имущество должника";
+
+type SpeechRecognitionResultEvent = Event & {
+  results: {
+    length: number;
+    [index: number]: {
+      [index: number]: {
+        transcript: string;
+      };
+    };
+  };
+};
+
+type SpeechRecognitionLike = {
+  lang: string;
+  continuous: boolean;
+  interimResults: boolean;
+  maxAlternatives: number;
+  onresult: ((event: SpeechRecognitionResultEvent) => void) | null;
+  onerror: (() => void) | null;
+  onend: (() => void) | null;
+  start: () => void;
+  stop: () => void;
+};
+
+type SpeechRecognitionConstructor = new () => SpeechRecognitionLike;
 
 type SessionInfoPanelProps = {
   mode: Props["mode"];
@@ -49,6 +74,9 @@ export default function SessionChat({ mode }: Props) {
   const [step, setStep] = useState(0);
   const [aiTyping, setAiTyping] = useState(false);
   const [recording, setRecording] = useState(false);
+  const [voiceMode, setVoiceMode] = useState(true);
+  const [speaking, setSpeaking] = useState(false);
+  const [voiceError, setVoiceError] = useState("");
   const [secs, setSecs] = useState(mode === "exam" ? 30 * 60 : 0);
   const [panelOpen, setPanelOpen] = useState(false);
   const [sessionEnded, setSessionEnded] = useState(false);
@@ -57,6 +85,7 @@ export default function SessionChat({ mode }: Props) {
   const [activeSessionId, setActiveSessionId] = useState(sessionId);
   const scrollRef = useRef<HTMLDivElement>(null);
   const startRef = useRef<string | null>(null);
+  const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
 
   const total = nodes.length > 0 ? nodes.length : 5;
 
@@ -109,6 +138,7 @@ export default function SessionChat({ mode }: Props) {
       setActiveSessionId(backendSessionId);
       setMessages([{ from: "ai", text: initialMessage }]);
       setAiTyping(false);
+      speak(initialMessage);
 
       if (backendSessionId) {
         void frontendApi.addTrainingMessage(backendSessionId, { from: "ai", text: initialMessage }).catch(() => undefined);
@@ -143,6 +173,88 @@ export default function SessionChat({ mode }: Props) {
     const id = setInterval(() => setSecs((s) => Math.max(0, s - 1)), 1000);
     return () => clearInterval(id);
   }, [mode]);
+
+  useEffect(() => {
+    return () => {
+      recognitionRef.current?.stop();
+      window.speechSynthesis?.cancel();
+    };
+  }, []);
+
+  const speak = (text: string) => {
+    if (!voiceMode || typeof window === "undefined" || !("speechSynthesis" in window)) return;
+
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = "ru-RU";
+    utterance.rate = 0.95;
+    utterance.pitch = 1;
+    utterance.onstart = () => setSpeaking(true);
+    utterance.onend = () => setSpeaking(false);
+    utterance.onerror = () => setSpeaking(false);
+    window.speechSynthesis.speak(utterance);
+  };
+
+  const toggleVoiceMode = () => {
+    setVoiceMode((enabled) => {
+      const next = !enabled;
+      if (!next) {
+        window.speechSynthesis?.cancel();
+        setSpeaking(false);
+      }
+      return next;
+    });
+  };
+
+  const toggleRecording = () => {
+    if (recording) {
+      recognitionRef.current?.stop();
+      setRecording(false);
+      return;
+    }
+
+    const voiceWindow = window as Window & {
+      SpeechRecognition?: SpeechRecognitionConstructor;
+      webkitSpeechRecognition?: SpeechRecognitionConstructor;
+    };
+    const Recognition = voiceWindow.SpeechRecognition || voiceWindow.webkitSpeechRecognition;
+
+    if (!Recognition) {
+      setVoiceError("Браузер не поддерживает распознавание речи. Можно отвечать текстом.");
+      return;
+    }
+
+    setVoiceError("");
+    const recognition = new Recognition();
+    recognition.lang = "ru-RU";
+    recognition.continuous = false;
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
+    recognition.onresult = (event) => {
+      const transcript = Array.from({ length: event.results.length }, (_, index) => event.results[index][0]?.transcript || "")
+        .join(" ")
+        .trim();
+
+      if (transcript) {
+        setInput(transcript);
+        send(transcript);
+      }
+    };
+    recognition.onerror = () => {
+      setVoiceError("Не удалось распознать речь. Проверьте доступ к микрофону или введите ответ текстом.");
+      setRecording(false);
+    };
+    recognition.onend = () => setRecording(false);
+    recognitionRef.current = recognition;
+
+    try {
+      recognition.start();
+      setRecording(true);
+    } catch {
+      setVoiceError("Микрофон уже используется. Попробуйте ещё раз через секунду.");
+      setRecording(false);
+    }
+  };
 
   const send = (overrideText?: string) => {
     if (sessionEnded) return;
@@ -218,6 +330,7 @@ export default function SessionChat({ mode }: Props) {
       if (sessionForPersistence) {
         void frontendApi.addTrainingMessage(sessionForPersistence, { from: "ai", text: aiMessage }).catch(() => undefined);
       }
+      speak(aiMessage);
       setAiTyping(false);
     }, 1100);
   };
@@ -322,7 +435,7 @@ export default function SessionChat({ mode }: Props) {
         <div className="border-t border-border bg-card p-3 md:p-4">
           <div className="flex items-end gap-2 max-w-3xl">
             <button
-              onClick={() => setRecording((r) => !r)}
+              onClick={toggleRecording}
               className={cn(
                 "h-11 w-11 rounded-xl border flex items-center justify-center transition-colors shrink-0",
                 recording
@@ -333,13 +446,26 @@ export default function SessionChat({ mode }: Props) {
             >
               <Mic className="h-4 w-4" />
             </button>
+            <button
+              onClick={toggleVoiceMode}
+              className={cn(
+                "h-11 w-11 rounded-xl border flex items-center justify-center transition-colors shrink-0",
+                voiceMode
+                  ? "border-accent bg-accent/10 text-accent"
+                  : "border-border hover:bg-muted text-muted-foreground"
+              )}
+              aria-label={voiceMode ? "Отключить озвучку клиента" : "Включить озвучку клиента"}
+              title={voiceMode ? "Отключить озвучку клиента" : "Включить озвучку клиента"}
+            >
+              {voiceMode ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
+            </button>
             <Input
               placeholder={recording ? "Говорите…" : "Ответьте клиенту…"}
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && send()}
               className="h-11 bg-black/50"
-              disabled={aiTyping || sessionEnded || isLoading}
+              disabled={aiTyping || sessionEnded || isLoading || recording}
             />
             <Button onClick={() => send()} className="h-11 bg-primary hover:bg-primary/90 px-4" disabled={aiTyping || sessionEnded || isLoading}>
               <Send className="h-4 w-4" />
@@ -351,7 +477,12 @@ export default function SessionChat({ mode }: Props) {
                 <span className="h-1.5 w-1.5 rounded-full bg-destructive animate-pulse" /> Идёт запись
               </span>
             )}
-            <span>Аудио не сохраняется. В оценку идёт только расшифровка.</span>
+            {speaking && (
+              <span className="flex items-center gap-1.5 text-accent font-medium">
+                <span className="h-1.5 w-1.5 rounded-full bg-accent animate-pulse" /> Клиент говорит
+              </span>
+            )}
+            <span>{voiceError || "Аудио не сохраняется. В оценку идёт только расшифровка."}</span>
           </div>
         </div>
       </div>
