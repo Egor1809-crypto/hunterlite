@@ -15,6 +15,7 @@ export default function ManagerEmployee() {
     fallback: () => frontendFallbacks.employeeProfile(id),
   });
   const { employee: e, history, weakTopics, strongTopics, recommendation } = profile;
+  const latestResultId = history[0]?.id;
 
   return (
     <div className="p-4 md:p-8 max-w-6xl mx-auto animate-fade-in space-y-5">
@@ -33,7 +34,11 @@ export default function ManagerEmployee() {
           </div>
           <div className="flex items-center gap-2">
             <StatusBadge variant={e.status === "Допущен" ? "success" : "destructive"} dot>{e.status}</StatusBadge>
-            <Button variant="outline" asChild><Link to="/session/result">Последний разбор</Link></Button>
+            <Button variant="outline" asChild disabled={!latestResultId}>
+              <Link to={latestResultId ? `/session/result?sessionId=${encodeURIComponent(latestResultId)}` : "/manager"}>
+                Последний разбор
+              </Link>
+            </Button>
             <Button className="bg-primary hover:bg-primary/90">Назначить курс</Button>
           </div>
         </div>
@@ -69,6 +74,9 @@ export default function ManagerEmployee() {
                   <StatusBadge variant={h.status === "Не сдан" ? "destructive" : h.status === "Сдан" ? "success" : "info"}>
                     {h.status}
                   </StatusBadge>
+                  <Button variant="ghost" size="sm" asChild>
+                    <Link to={`/session/result?sessionId=${encodeURIComponent(h.id)}`}>Разбор</Link>
+                  </Button>
                 </div>
               </div>
             ))}

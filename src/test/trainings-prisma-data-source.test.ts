@@ -42,6 +42,7 @@ const createPrisma = (
     })),
     findUnique: vi.fn(async ({ where }) => ({
       id: where.id,
+      organizationId: "org-1",
       userId: "user-1",
       topicId: "topic-1",
       mode: "talk",
@@ -270,6 +271,7 @@ describe("trainings Prisma data source", () => {
     const prisma = createPrisma();
     const findUnique = vi.fn(async () => ({
       id: "session-1",
+      organizationId: "org-1",
       userId: "user-1",
       topicId: "topic-1",
       mode: "chat_test",
@@ -320,7 +322,13 @@ describe("trainings Prisma data source", () => {
         { id: "message-user", sessionId: "session-1", from: "user", text: "Добрый день." },
       ],
     });
-    await expect(source.getTrainingSessionDetail("other-user", "session-1")).resolves.toBeNull();
+    await expect(source.getTrainingSessionDetail("manager-1", "session-1", "manager")).resolves.toEqual(
+      expect.objectContaining({
+        id: "session-1",
+        score: 91,
+      }),
+    );
+    await expect(source.getTrainingSessionDetail("other-user", "session-1", "employee")).resolves.toBeNull();
     expect(findUnique).toHaveBeenCalledWith({
       where: { id: "session-1" },
       include: {

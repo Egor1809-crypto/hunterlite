@@ -244,7 +244,7 @@ export const resolveApiRequest = async (
           : pathname === "/api/trainings/sessions" && request.method === "POST" && authenticatedUserId
             ? api.createTrainingSession(authenticatedUserId, request.body)
             : trainingSessionMatch && request.method === "GET" && authenticatedUserId
-              ? api.getTrainingSessionDetail(authenticatedUserId, decodeURIComponent(trainingSessionMatch[1]))
+              ? api.getTrainingSessionDetail(authenticatedUserId, decodeURIComponent(trainingSessionMatch[1]), authenticatedRole)
             : trainingMessageMatch && request.method === "POST" && authenticatedUserId
               ? api.addTrainingMessage(authenticatedUserId, decodeURIComponent(trainingMessageMatch[1]), request.body)
               : trainingCompleteMatch && request.method === "POST" && authenticatedUserId

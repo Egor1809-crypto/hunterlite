@@ -107,7 +107,7 @@ export type FrontendApiDataSource = {
   getSessionOptions: () => MaybePromise<SessionOptionsDto>;
   getDialogScript: () => MaybePromise<DialogMessageDto[]>;
   createTrainingSession: (userId: string, payload: TrainingSessionCreateRequestDto) => MaybePromise<TrainingSessionCreatedDto | null>;
-  getTrainingSessionDetail: (userId: string, sessionId: string) => MaybePromise<TrainingSessionDetailDto | null>;
+  getTrainingSessionDetail: (userId: string, sessionId: string, role?: AppRole) => MaybePromise<TrainingSessionDetailDto | null>;
   addTrainingMessage: (userId: string, sessionId: string, payload: TrainingMessageCreateRequestDto) => MaybePromise<TrainingMessageCreatedDto | null>;
   completeTrainingSession: (userId: string, sessionId: string, payload: TrainingSessionCompleteRequestDto) => MaybePromise<TrainingSessionCompletedDto | null>;
   getAdminUsers: () => MaybePromise<AdminUserDto[]>;
@@ -254,8 +254,9 @@ export const createFrontendApiHandlers = (source: FrontendApiDataSource = demoFr
   getTrainingSessionDetail: async (
     userId: string,
     sessionId: string,
+    role?: AppRole,
   ): Promise<HandlerResult<TrainingSessionDetailDto>> => {
-    const detail = await source.getTrainingSessionDetail(userId, sessionId);
+    const detail = await source.getTrainingSessionDetail(userId, sessionId, role);
 
     if (!detail) return fail("NOT_FOUND", "Training session not found", { id: sessionId });
 

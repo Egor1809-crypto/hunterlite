@@ -12,6 +12,7 @@ import type {
   WeakTopicDto,
 } from "@/lib/api-contracts";
 import { getMaxQuestionCount, isPassingScore, validateScore, type TrainingDifficulty } from "@/lib/training-logic";
+import type { AppRole } from "@/lib/demo-auth-state";
 import type { FrontendApiDataSource } from "../../routes/frontend-api-handlers";
 
 type TopicRecord = {
@@ -269,6 +270,7 @@ export const createTrainingsPrismaDataSource = (
   getTrainingSessionDetail: async (
     userId: string,
     sessionId: string,
+    role?: AppRole,
   ): Promise<TrainingSessionDetailDto | null> => {
     try {
       if (!prisma.trainingSession.findUnique) return null;
@@ -281,7 +283,21 @@ export const createTrainingsPrismaDataSource = (
         },
       });
 
-      if (!session || session.userId !== userId) return null;
+      if (!session) return null;
+
+      if (session.userId !== userId) {
+        const canReadOrganizationSession = role === "manager" || role === "admin";
+        const membership = canReadOrganizationSession
+          ? await prisma.membership?.findFirst({
+              where: { userId },
+              orderBy: { createdAt: "asc" },
+            })
+          : null;
+
+        if (!canReadOrganizationSession || membership?.organizationId !== session.organizationId) {
+          return null;
+        }
+      }
 
       const criteria = Array.isArray(session.evaluationCriteria)
         ? session.evaluationCriteria as TrainingSessionDetailDto["criteria"]
