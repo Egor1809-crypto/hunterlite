@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
 import { Card } from "@/components/ui/card";
 import { IconBadge } from "@/components/IconBadge";
-import { MessageSquare, GraduationCap, ListChecks, ArrowRight, Clock, Target, BookOpen } from "lucide-react";
+import { MessageSquare, GraduationCap, ListChecks, ArrowRight, Clock, Target, BookOpen, BriefcaseBusiness } from "lucide-react";
 
 const modes = [
   {
@@ -31,6 +31,15 @@ const modes = [
     accent: "bg-ai-soft text-ai-soft-foreground",
     meta: [{ icon: Clock, t: "5–15 мин" }, { icon: BookOpen, t: "10 вопросов" }],
   },
+  {
+    to: "/session/cases",
+    icon: BriefcaseBusiness,
+    title: "Кейсы",
+    desc: "Практические ситуации: ответьте по шагам и соберите процедуру банкротства по порядку.",
+    cta: "Решить кейс",
+    accent: "bg-warning-soft text-warning-soft-foreground",
+    meta: [{ icon: Clock, t: "15–25 мин" }, { icon: Target, t: "Логика + порядок" }],
+  },
 ];
 
 export default function Modes() {
@@ -40,11 +49,11 @@ export default function Modes() {
         <IconBadge icon={MessageSquare} />
         <div>
           <h1 className="font-display text-3xl md:text-4xl font-bold text-primary tracking-tight">Выберите режим</h1>
-          <p className="text-muted-foreground mt-2">Три формата работы с NAVI-клиентом — от свободной тренировки до аттестации.</p>
+          <p className="text-muted-foreground mt-2">Форматы тренировки: разговор, экзамен, тесты и практические кейсы.</p>
         </div>
       </div>
 
-      <div className="grid md:grid-cols-3 gap-4">
+      <div className="grid md:grid-cols-2 xl:grid-cols-4 gap-4">
         {modes.map((m) => (
           <Link key={m.to} to={m.to} className="group">
             <Card className="p-6 h-full flex flex-col shadow-card hover:shadow-elevated transition-all hover:-translate-y-1 border-border">

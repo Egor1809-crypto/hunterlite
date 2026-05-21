@@ -14,6 +14,7 @@ import Dashboard from "./pages/Dashboard";
 import Modes from "./pages/Modes";
 import SessionSetup from "./pages/SessionSetup";
 import SessionChat from "./pages/SessionChat";
+import CaseTraining from "./pages/CaseTraining";
 import AnswerReview from "./pages/AnswerReview";
 import SessionResult from "./pages/SessionResult";
 import RemedialCourse from "./pages/RemedialCourse";
@@ -57,6 +58,7 @@ const App = () => (
                 <Route path="/session/talk" element={<SessionChat mode="talk" />} />
                 <Route path="/session/exam" element={<SessionChat mode="exam" />} />
                 <Route path="/session/chat-test" element={<SessionChat mode="chat-test" />} />
+                <Route path="/session/cases" element={<CaseTraining />} />
               </Route>
 
               {/* Client surface */}
