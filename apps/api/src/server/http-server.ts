@@ -146,6 +146,7 @@ export const resolveApiRequest = async (
   const rateLimiter = options.loginRateLimiter ?? loginRateLimiter;
   const pathname = url.pathname;
   const employeeProfileMatch = pathname.match(/^\/api\/analytics\/manager\/employees\/([^/]+)$/);
+  const trainingSessionMatch = pathname.match(/^\/api\/trainings\/sessions\/([^/]+)$/);
   const trainingMessageMatch = pathname.match(/^\/api\/trainings\/sessions\/([^/]+)\/messages$/);
   const trainingCompleteMatch = pathname.match(/^\/api\/trainings\/sessions\/([^/]+)\/complete$/);
   const adminUserMatch = pathname.match(/^\/api\/admin\/users\/([^/]+)$/);
@@ -242,6 +243,8 @@ export const resolveApiRequest = async (
               ? auth.completePasswordReset(request.body)
           : pathname === "/api/trainings/sessions" && request.method === "POST" && authenticatedUserId
             ? api.createTrainingSession(authenticatedUserId, request.body)
+            : trainingSessionMatch && request.method === "GET" && authenticatedUserId
+              ? api.getTrainingSessionDetail(authenticatedUserId, decodeURIComponent(trainingSessionMatch[1]))
             : trainingMessageMatch && request.method === "POST" && authenticatedUserId
               ? api.addTrainingMessage(authenticatedUserId, decodeURIComponent(trainingMessageMatch[1]), request.body)
               : trainingCompleteMatch && request.method === "POST" && authenticatedUserId

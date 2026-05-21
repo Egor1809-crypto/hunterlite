@@ -15,6 +15,7 @@ import type {
   TrainingSessionCompletedDto,
   TrainingSessionCreateRequestDto,
   TrainingSessionCreatedDto,
+  TrainingSessionDetailDto,
   WeakTopicDto,
   AuthLoginRequestDto,
   AuthPasswordResetCompleteDto,
@@ -78,6 +79,8 @@ export const frontendApi = {
       `/trainings/sessions/${encodeURIComponent(sessionId)}/messages`,
       payload,
     ),
+  trainingSessionDetail: (sessionId: string) =>
+    apiGet<TrainingSessionDetailDto>(`/trainings/sessions/${encodeURIComponent(sessionId)}`),
   completeTrainingSession: (sessionId: string, payload: TrainingSessionCompleteRequestDto) =>
     apiPost<TrainingSessionCompletedDto, TrainingSessionCompleteRequestDto>(
       `/trainings/sessions/${encodeURIComponent(sessionId)}/complete`,

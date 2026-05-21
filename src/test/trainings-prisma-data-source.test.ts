@@ -45,11 +45,19 @@ const createPrisma = (
       userId: "user-1",
       topicId: "topic-1",
       mode: "talk",
+      difficulty: "medium",
+      format: "text",
+      character: "anxious",
+      questionCount: 50,
       score: null,
       status: "active",
       startedAt: new Date("2026-05-16T08:00:00.000Z"),
       completedAt: null,
+      evaluationCriteria: [],
+      mistakes: [],
+      recommendations: [],
       topic,
+      messages: [],
     })),
     update: vi.fn(async ({ where, data }) => ({
       id: where.id,
@@ -254,6 +262,70 @@ describe("trainings Prisma data source", () => {
         trainingSessionId: "session-1",
         sender: "user",
         content: "Добрый день.",
+      },
+    });
+  });
+
+  it("returns a completed training session detail only for its owner", async () => {
+    const prisma = createPrisma();
+    const findUnique = vi.fn(async () => ({
+      id: "session-1",
+      userId: "user-1",
+      topicId: "topic-1",
+      mode: "chat_test",
+      difficulty: "medium",
+      format: "text",
+      character: "anxious",
+      questionCount: 50,
+      score: 91,
+      status: "completed",
+      startedAt: new Date("2026-05-16T08:00:00.000Z"),
+      completedAt: new Date("2026-05-16T08:10:00.000Z"),
+      evaluationCriteria: [{ criterion: "legal_accuracy", score: 91, comment: "Точно." }],
+      mistakes: ["Ошибок не обнаружено"],
+      recommendations: ["Отличная работа"],
+      topic,
+      messages: [
+        {
+          id: "message-ai",
+          trainingSessionId: "session-1",
+          sender: "ai",
+          content: "Здравствуйте.",
+          createdAt: new Date("2026-05-16T08:01:00.000Z"),
+        },
+        {
+          id: "message-user",
+          trainingSessionId: "session-1",
+          sender: "user",
+          content: "Добрый день.",
+          createdAt: new Date("2026-05-16T08:02:00.000Z"),
+        },
+      ],
+    }));
+    prisma.trainingSession.findUnique = findUnique;
+    const source = createTrainingsPrismaDataSource(prisma, demoFrontendApiDataSource);
+
+    await expect(source.getTrainingSessionDetail("user-1", "session-1")).resolves.toEqual({
+      id: "session-1",
+      date: "16.05.2026",
+      mode: "Чат-тест",
+      topic: "Имущество должника",
+      score: 91,
+      status: "Завершено",
+      criteria: [{ criterion: "legal_accuracy", score: 91, comment: "Точно." }],
+      mistakes: ["Ошибок не обнаружено"],
+      recommendations: ["Отличная работа"],
+      messages: [
+        { id: "message-ai", sessionId: "session-1", from: "ai", text: "Здравствуйте." },
+        { id: "message-user", sessionId: "session-1", from: "user", text: "Добрый день." },
+      ],
+    });
+    await expect(source.getTrainingSessionDetail("other-user", "session-1")).resolves.toBeNull();
+    expect(findUnique).toHaveBeenCalledWith({
+      where: { id: "session-1" },
+      include: {
+        topic: true,
+        messages: { orderBy: { createdAt: "asc" } },
       },
     });
   });

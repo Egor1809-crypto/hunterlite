@@ -107,6 +107,7 @@ export const apiAccessPolicies = [
   { method: "GET", path: "/api/trainings/dialog-script", permission: "training:read:self" },
   { method: "GET", path: "/api/trainings/call-scripts", permission: "training:read:self" },
   { method: "POST", path: "/api/trainings/sessions", permission: "training:create:self" },
+  { method: "GET", path: "/api/trainings/sessions/:id", permission: "training:read:self" },
   { method: "POST", path: "/api/trainings/sessions/:id/messages", permission: "training:complete:self" },
   { method: "POST", path: "/api/trainings/sessions/:id/complete", permission: "training:complete:self" },
   { method: "GET", path: "/api/analytics/dashboard", permission: "training:read:self" },

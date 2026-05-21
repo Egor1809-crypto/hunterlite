@@ -15,6 +15,7 @@ import type {
   TrainingSessionCompletedDto,
   TrainingSessionCreateRequestDto,
   TrainingSessionCreatedDto,
+  TrainingSessionDetailDto,
   AdminUserDto,
   AdminUserCreateRequestDto,
   AdminUserUpdateRequestDto,
@@ -75,6 +76,7 @@ export const frontendApiRoutes = [
   { method: "GET", path: "/api/trainings/dialog-script", module: "trainings", requiresAuth: true },
   { method: "GET", path: "/api/trainings/call-scripts", module: "trainings", requiresAuth: true },
   { method: "POST", path: "/api/trainings/sessions", module: "trainings", requiresAuth: true },
+  { method: "GET", path: "/api/trainings/sessions/:id", module: "trainings", requiresAuth: true },
   { method: "POST", path: "/api/trainings/sessions/:id/messages", module: "trainings", requiresAuth: true },
   { method: "POST", path: "/api/trainings/sessions/:id/complete", module: "trainings", requiresAuth: true },
   { method: "GET", path: "/api/admin/users", module: "admin", requiresAuth: true },
@@ -105,6 +107,7 @@ export type FrontendApiDataSource = {
   getSessionOptions: () => MaybePromise<SessionOptionsDto>;
   getDialogScript: () => MaybePromise<DialogMessageDto[]>;
   createTrainingSession: (userId: string, payload: TrainingSessionCreateRequestDto) => MaybePromise<TrainingSessionCreatedDto | null>;
+  getTrainingSessionDetail: (userId: string, sessionId: string) => MaybePromise<TrainingSessionDetailDto | null>;
   addTrainingMessage: (userId: string, sessionId: string, payload: TrainingMessageCreateRequestDto) => MaybePromise<TrainingMessageCreatedDto | null>;
   completeTrainingSession: (userId: string, sessionId: string, payload: TrainingSessionCompleteRequestDto) => MaybePromise<TrainingSessionCompletedDto | null>;
   getAdminUsers: () => MaybePromise<AdminUserDto[]>;
@@ -135,6 +138,7 @@ export const demoFrontendApiDataSource: FrontendApiDataSource = {
   getSessionOptions,
   getDialogScript,
   createTrainingSession: async () => null,
+  getTrainingSessionDetail: async () => null,
   addTrainingMessage: async () => null,
   completeTrainingSession: async () => null,
   getAdminUsers: async () => [],
@@ -245,6 +249,17 @@ export const createFrontendApiHandlers = (source: FrontendApiDataSource = demoFr
     if (!created) return fail("NOT_FOUND", "Training topic or user membership not found");
 
     return ok(created);
+  },
+
+  getTrainingSessionDetail: async (
+    userId: string,
+    sessionId: string,
+  ): Promise<HandlerResult<TrainingSessionDetailDto>> => {
+    const detail = await source.getTrainingSessionDetail(userId, sessionId);
+
+    if (!detail) return fail("NOT_FOUND", "Training session not found", { id: sessionId });
+
+    return ok(detail);
   },
 
   addTrainingMessage: async (

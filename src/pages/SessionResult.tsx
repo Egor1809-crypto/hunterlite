@@ -5,20 +5,33 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { BackButton } from "@/components/BackButton";
 import { Trophy, RotateCcw, Home, Sparkles, Check, AlertTriangle, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { frontendApi } from "@/lib/frontend-api";
+import { useQuery } from "@tanstack/react-query";
 
 // Timeline will be generated dynamically
 
 export default function SessionResult() {
   const navigate = useNavigate();
   const [params] = useSearchParams();
+  const sessionId = params.get("sessionId");
   const isExam = params.get("mode") === "exam";
+  const { data: sessionDetail } = useQuery({
+    queryKey: ["training-session-detail", sessionId],
+    queryFn: () => frontendApi.trainingSessionDetail(sessionId || ""),
+    enabled: Boolean(sessionId),
+    retry: false,
+  });
   const scoreParam = Number(params.get("score"));
-  const score = params.has("score") && Number.isInteger(scoreParam) && scoreParam >= 0 && scoreParam <= 100 ? scoreParam : 76;
+  const score = sessionDetail?.score ?? (
+    params.has("score") && Number.isInteger(scoreParam) && scoreParam >= 0 && scoreParam <= 100 ? scoreParam : 76
+  );
   const passed = score >= 70;
   
   const { state } = useLocation();
-  const mistakes: string[] = state?.mistakes || ["Ошибок не обнаружено"];
-  const recommendations: string[] = state?.recommendations || ["Повторить слабые темы"];
+  const mistakes: string[] = sessionDetail?.mistakes || state?.mistakes || ["Ошибок не обнаружено"];
+  const recommendations: string[] = sessionDetail?.recommendations || state?.recommendations || ["Повторить слабые темы"];
+  const resultMode = sessionDetail?.mode ?? (isExam ? "Экзамен" : "Тренировка");
+  const resultTopic = sessionDetail?.topic ?? "Имущество должника";
   
   const dynamicTimeline = mistakes.map((m, idx) => ({
     idx: idx + 1,
@@ -48,7 +61,7 @@ export default function SessionResult() {
         <div className="relative grid md:grid-cols-2 gap-6 items-center">
           <div>
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 backdrop-blur border border-white/15 text-xs font-medium">
-              {isExam ? "Экзамен · Имущество должника" : "Тренировка · Имущество должника"}
+              {resultMode} · {resultTopic}
             </div>
             <h1 className="font-display text-3xl md:text-4xl font-bold mt-4 tracking-tight">
               {passed ? (isExam ? "Экзамен сдан" : "Сессия завершена") : "Экзамен не сдан"}
@@ -154,6 +167,28 @@ export default function SessionResult() {
           </div>
         </div>
       </Card>
+
+      {sessionDetail?.messages.length ? (
+        <Card className="p-5 mt-4 shadow-card">
+          <h3 className="font-display font-bold text-primary mb-4">Расшифровка диалога</h3>
+          <div className="space-y-3">
+            {sessionDetail.messages.map((message) => (
+              <div
+                key={message.id}
+                className={cn(
+                  "rounded-xl border p-3",
+                  message.from === "ai" ? "bg-card border-border" : "bg-primary/10 border-primary/20"
+                )}
+              >
+                <div className="text-[11px] uppercase tracking-wider font-semibold text-muted-foreground mb-1">
+                  {message.from === "ai" ? "Клиент" : "Сотрудник"}
+                </div>
+                <div className="text-sm leading-relaxed">{message.text}</div>
+              </div>
+            ))}
+          </div>
+        </Card>
+      ) : null}
 
       {/* Actions */}
       <div className="flex flex-col sm:flex-row gap-3 mt-6 justify-end">

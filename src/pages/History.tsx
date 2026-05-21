@@ -72,7 +72,9 @@ export default function History() {
                   </td>
                   <td className="p-3 text-right">
                     <Button variant="ghost" size="sm" asChild>
-                      <Link to="/session/result"><ExternalLink className="h-4 w-4 mr-1.5" /> Открыть разбор</Link>
+                      <Link to={`/session/result?sessionId=${encodeURIComponent(h.id)}`}>
+                        <ExternalLink className="h-4 w-4 mr-1.5" /> Открыть разбор
+                      </Link>
                     </Button>
                   </td>
                 </tr>

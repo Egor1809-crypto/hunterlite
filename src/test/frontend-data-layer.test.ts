@@ -215,6 +215,7 @@ describe("frontend data layer", () => {
       format: "text",
       character: "anxious",
     });
+    await frontendApi.trainingSessionDetail("session-1");
     await frontendApi.addTrainingMessage("session-1", { from: "user", text: "Добрый день." });
     await frontendApi.completeTrainingSession("session-1", {
       score: 82,
@@ -240,6 +241,7 @@ describe("frontend data layer", () => {
       "/api/trainings/session-options",
       "/api/trainings/dialog-script",
       "/api/trainings/sessions",
+      "/api/trainings/sessions/session-1",
       "/api/trainings/sessions/session-1/messages",
       "/api/trainings/sessions/session-1/complete",
     ]);

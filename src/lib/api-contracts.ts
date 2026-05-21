@@ -169,6 +169,19 @@ export type TrainingSessionCompletedDto = {
   status: "completed" | "failed";
 };
 
+export type TrainingSessionDetailDto = {
+  id: string;
+  date: string;
+  mode: string;
+  topic: string;
+  score: number;
+  status: "Сдан" | "Не сдан" | "Завершено";
+  criteria: TrainingSessionCompleteRequestDto["criteria"];
+  mistakes: string[];
+  recommendations: string[];
+  messages: TrainingMessageCreatedDto[];
+};
+
 export type AuthLoginRequestDto = {
   email: string;
   password?: string;

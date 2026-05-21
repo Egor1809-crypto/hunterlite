@@ -8,6 +8,7 @@ import type {
   TrainingSessionCompletedDto,
   TrainingSessionCreateRequestDto,
   TrainingSessionCreatedDto,
+  TrainingSessionDetailDto,
   WeakTopicDto,
 } from "@/lib/api-contracts";
 import { getMaxQuestionCount, isPassingScore, validateScore, type TrainingDifficulty } from "@/lib/training-logic";
@@ -39,7 +40,11 @@ type TrainingSessionRecord = {
   status: string;
   startedAt: Date;
   completedAt: Date | null;
+  evaluationCriteria?: unknown;
+  mistakes?: unknown;
+  recommendations?: unknown;
   topic: TopicRecord;
+  messages?: Array<TrainingMessageRecord & { id: string; trainingSessionId: string }>;
 };
 
 type MembershipRecord = {
@@ -101,7 +106,7 @@ export type TrainingsPrismaClient = {
     }) => Promise<TrainingSessionRecord>;
     findUnique?: (args: {
       where: { id: string };
-      include?: { topic?: true };
+      include?: { topic?: true; messages?: { orderBy: { createdAt: "asc" | "desc" } } };
     }) => Promise<(TrainingSessionRecord & { organizationId?: string }) | null>;
     update?: (args: {
       where: { id: string };
@@ -189,6 +194,7 @@ export const createTrainingsPrismaDataSource = (
   | "getSessionOptions"
   | "getDialogScript"
   | "createTrainingSession"
+  | "getTrainingSessionDetail"
   | "addTrainingMessage"
   | "completeTrainingSession"
 > => ({
@@ -257,6 +263,57 @@ export const createTrainingsPrismaDataSource = (
       return history.length ? history : fallback.getTrainingHistory();
     } catch {
       return fallback.getTrainingHistory();
+    }
+  },
+
+  getTrainingSessionDetail: async (
+    userId: string,
+    sessionId: string,
+  ): Promise<TrainingSessionDetailDto | null> => {
+    try {
+      if (!prisma.trainingSession.findUnique) return null;
+
+      const session = await prisma.trainingSession.findUnique({
+        where: { id: sessionId },
+        include: {
+          topic: true,
+          messages: { orderBy: { createdAt: "asc" } },
+        },
+      });
+
+      if (!session || session.userId !== userId) return null;
+
+      const criteria = Array.isArray(session.evaluationCriteria)
+        ? session.evaluationCriteria as TrainingSessionDetailDto["criteria"]
+        : [];
+      const mistakes = Array.isArray(session.mistakes)
+        ? session.mistakes.filter((item): item is string => typeof item === "string")
+        : [];
+      const recommendations = Array.isArray(session.recommendations)
+        ? session.recommendations.filter((item): item is string => typeof item === "string")
+        : [];
+
+      return {
+        id: session.id,
+        date: formatDate(session.completedAt ?? session.startedAt),
+        mode: modeLabel(session.mode),
+        topic: session.topic.title,
+        score: session.score ?? 0,
+        status: workStatusLabel(session.status),
+        criteria,
+        mistakes: mistakes.length ? mistakes : ["Ошибок не обнаружено"],
+        recommendations: recommendations.length ? recommendations : ["Повторить слабые темы"],
+        messages: (session.messages ?? [])
+          .filter((message) => message.sender === "ai" || message.sender === "user")
+          .map((message) => ({
+            id: message.id,
+            sessionId: message.trainingSessionId,
+            from: message.sender as "ai" | "user",
+            text: message.content,
+          })),
+      };
+    } catch {
+      return null;
     }
   },
 
