@@ -79,6 +79,7 @@ export type TrainingsPrismaClient = {
   };
   trainingSession: {
     findMany: (args: {
+      where?: { userId?: string };
       include: { topic: true };
       orderBy: { startedAt: "asc" | "desc" };
       take?: number;
@@ -116,6 +117,7 @@ export type TrainingsPrismaClient = {
   };
   examAttempt: {
     findMany: (args: {
+      where?: { userId?: string };
       include: { topic: true };
       orderBy: { startedAt: "asc" | "desc" };
       take?: number;
@@ -211,15 +213,18 @@ export const createTrainingsPrismaDataSource = (
     }
   },
 
-  getTrainingHistory: async (): Promise<TrainingHistoryItemDto[]> => {
+  getTrainingHistory: async (userId?: string): Promise<TrainingHistoryItemDto[]> => {
     try {
+      const where = userId ? { userId } : undefined;
       const [sessions, exams] = await Promise.all([
         prisma.trainingSession.findMany({
+          where,
           include: { topic: true },
           orderBy: { startedAt: "desc" },
           take: 20,
         }),
         prisma.examAttempt.findMany({
+          where,
           include: { topic: true },
           orderBy: { startedAt: "desc" },
           take: 20,

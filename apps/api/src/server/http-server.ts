@@ -263,7 +263,7 @@ export const resolveApiRequest = async (
                         : pathname === "/api/trainings/weak-topics"
                           ? api.getWeakTopics()
                           : pathname === "/api/trainings/history"
-                            ? api.getTrainingHistory()
+                            ? api.getTrainingHistory(authenticatedUserId)
                             : pathname === "/api/trainings/session-options"
                               ? api.getSessionOptions()
                               : pathname === "/api/trainings/dialog-script"

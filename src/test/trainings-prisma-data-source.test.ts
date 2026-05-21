@@ -108,8 +108,7 @@ describe("trainings Prisma data source", () => {
   });
 
   it("combines training sessions and exams into a sorted history DTO", async () => {
-    const source = createTrainingsPrismaDataSource(
-      createPrisma({
+    const prisma = createPrisma({
         sessions: [
           {
             id: "session-1",
@@ -131,11 +130,13 @@ describe("trainings Prisma data source", () => {
             topic,
           },
         ],
-      }),
+      });
+    const source = createTrainingsPrismaDataSource(
+      prisma,
       demoFrontendApiDataSource,
     );
 
-    await expect(source.getTrainingHistory()).resolves.toEqual([
+    await expect(source.getTrainingHistory("user-1")).resolves.toEqual([
       {
         id: "exam-1",
         date: "28.04.2026",
@@ -153,6 +154,16 @@ describe("trainings Prisma data source", () => {
         status: "Завершено",
       },
     ]);
+    expect(prisma.trainingSession.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { userId: "user-1" },
+      }),
+    );
+    expect(prisma.examAttempt.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { userId: "user-1" },
+      }),
+    );
   });
 
   it("uses active Prisma topics while keeping static session option sets", async () => {

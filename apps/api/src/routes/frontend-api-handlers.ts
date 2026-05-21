@@ -98,7 +98,7 @@ export type FrontendApiDataSource = {
   getDashboardSummary: (role?: AppRole) => MaybePromise<DashboardSummaryDto>;
   getNotifications: () => MaybePromise<NotificationDto[]>;
   getWeakTopics: () => MaybePromise<WeakTopicDto[]>;
-  getTrainingHistory: () => MaybePromise<TrainingHistoryItemDto[]>;
+  getTrainingHistory: (userId?: string) => MaybePromise<TrainingHistoryItemDto[]>;
   getEmployees: () => MaybePromise<EmployeeDto[]>;
   getManagerSummary: () => MaybePromise<ManagerSummaryDto>;
   getEmployeeProfile: (id?: string) => MaybePromise<EmployeeProfileDto>;
@@ -165,7 +165,7 @@ export const createFrontendApiHandlers = (source: FrontendApiDataSource = demoFr
 
   getWeakTopics: async (): Promise<ApiResponse<WeakTopicDto[]>> => ok(await source.getWeakTopics()),
 
-  getTrainingHistory: async (): Promise<ApiResponse<TrainingHistoryItemDto[]>> => ok(await source.getTrainingHistory()),
+  getTrainingHistory: async (userId?: string): Promise<ApiResponse<TrainingHistoryItemDto[]>> => ok(await source.getTrainingHistory(userId)),
 
   getManagerSummary: async (): Promise<ApiResponse<ManagerSummaryDto>> => ok(await source.getManagerSummary()),
 
