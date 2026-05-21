@@ -113,6 +113,36 @@ describe("backend frontend API handlers", () => {
     });
   });
 
+  it("assigns an employee course through analytics handlers", async () => {
+    const api = createFrontendApiHandlers({
+      ...demoFrontendApiDataSource,
+      assignEmployeeCourse: async (managerId, employeeId, payload) => ({
+        assigned: true,
+        employeeId,
+        topic: payload.topic,
+        notificationId: `notification-${managerId}`,
+      }),
+    });
+
+    await expect(api.assignEmployeeCourse("manager-1", "employee-1", {
+      topic: "Имущество должника",
+    })).resolves.toEqual({
+      ok: true,
+      data: {
+        assigned: true,
+        employeeId: "employee-1",
+        topic: "Имущество должника",
+        notificationId: "notification-manager-1",
+      },
+    });
+    await expect(api.assignEmployeeCourse("manager-1", "employee-1", {})).resolves.toEqual(
+      expect.objectContaining({
+        ok: false,
+        error: expect.objectContaining({ code: "VALIDATION_ERROR" }),
+      }),
+    );
+  });
+
   it("returns session setup options and dialog script", async () => {
     const api = createFrontendApiHandlers();
 

@@ -10,6 +10,7 @@ const topic = { id: "topic-1", title: "Имущество должника" };
 
 const membership = {
   id: "membership-1",
+  organizationId: "org-1",
   role: "employee",
   status: "active",
   createdAt: new Date("2026-04-01T00:00:00.000Z"),
@@ -24,7 +25,28 @@ const membership = {
 
 const createPrisma = (): AnalyticsPrismaClient => ({
   membership: {
-    findMany: vi.fn(async () => [membership]),
+    findMany: vi.fn(async ({ where }) => {
+      if (where?.userId === "manager-1") {
+        return [{
+          ...membership,
+          id: "membership-manager",
+          role: "manager",
+          user: {
+            id: "manager-1",
+            email: "manager@hunterlite.ru",
+            fullName: "Ольга Литвинова",
+            status: "active",
+            lastLoginAt: new Date("2026-05-15T08:00:00.000Z"),
+          },
+        }];
+      }
+      if (where?.userId === "user-1" && where.organizationId === "org-1") return [membership];
+      if (where?.userId) return [];
+      return [membership];
+    }),
+  },
+  notification: {
+    create: vi.fn(async () => ({ id: "notification-1" })),
   },
   weakTopic: {
     findMany: vi.fn(async () => [
@@ -149,6 +171,30 @@ describe("analytics Prisma data source", () => {
         weakTopics: [{ id: "weak-1", topic: "Имущество должника", errors: 38, recommendation: "Повторить блок про ипотечное жильё" }],
       }),
     );
+  });
+
+  it("assigns an employee course through a training notification", async () => {
+    const prisma = createPrisma();
+    const source = createAnalyticsPrismaDataSource(prisma, demoFrontendApiDataSource);
+
+    await expect(source.assignEmployeeCourse("manager-1", "user-1", {
+      topic: "Имущество должника",
+      reason: "Низкий балл по последней тренировке",
+    })).resolves.toEqual({
+      assigned: true,
+      employeeId: "user-1",
+      topic: "Имущество должника",
+      notificationId: "notification-1",
+    });
+    expect(prisma.notification?.create).toHaveBeenCalledWith({
+      data: {
+        organizationId: "org-1",
+        userId: "user-1",
+        type: "training",
+        title: "Назначен курс подготовки",
+        body: "Имущество должника: Низкий балл по последней тренировке",
+      },
+    });
   });
 
   it("plugs analytics Prisma methods into the shared backend data source", async () => {

@@ -1,6 +1,8 @@
 import type {
   CurrentUserDto,
   DashboardSummaryDto,
+  EmployeeCourseAssignedDto,
+  EmployeeCourseAssignRequestDto,
   EmployeeDto,
   EmployeeProfileDto,
   ManagerSummaryDto,
@@ -21,6 +23,7 @@ type UserRecord = {
 
 type MembershipRecord = {
   id: string;
+  organizationId: string;
   role: string;
   status: string;
   createdAt: Date;
@@ -30,10 +33,21 @@ type MembershipRecord = {
 export type AnalyticsPrismaClient = TrainingsPrismaClient & {
   membership: {
     findMany: (args: {
-      where?: { role?: AppRole };
+      where?: { role?: AppRole; userId?: string; organizationId?: string };
       include: { user: true };
       orderBy?: { createdAt: "asc" | "desc" };
     }) => Promise<MembershipRecord[]>;
+  };
+  notification?: {
+    create?: (args: {
+      data: {
+        organizationId: string;
+        userId: string;
+        type: "training";
+        title: string;
+        body: string;
+      };
+    }) => Promise<{ id: string }>;
   };
 };
 
@@ -101,7 +115,7 @@ const historyStatus = (status: string): TrainingHistoryItemDto["status"] =>
 export const createAnalyticsPrismaDataSource = (
   prisma: AnalyticsPrismaClient,
   fallback: FrontendApiDataSource,
-): Pick<FrontendApiDataSource, "getDashboardSummary" | "getManagerSummary" | "getEmployeeProfile"> => {
+): Pick<FrontendApiDataSource, "getDashboardSummary" | "getManagerSummary" | "getEmployeeProfile" | "assignEmployeeCourse"> => {
   const loadCore = async () => {
     const [memberships, sessions, exams, weakTopics] = await Promise.all([
       prisma.membership.findMany({
@@ -262,6 +276,54 @@ export const createAnalyticsPrismaDataSource = (
         };
       } catch {
         return fallback.getEmployeeProfile(id);
+      }
+    },
+
+    assignEmployeeCourse: async (
+      managerId: string,
+      employeeId: string,
+      payload: EmployeeCourseAssignRequestDto,
+    ): Promise<EmployeeCourseAssignedDto | null> => {
+      try {
+        if (!prisma.notification?.create) return null;
+
+        const [managerMembership] = await prisma.membership.findMany({
+          where: { userId: managerId },
+          include: { user: true },
+          orderBy: { createdAt: "asc" },
+        });
+
+        if (!managerMembership) return null;
+
+        const [employeeMembership] = await prisma.membership.findMany({
+          where: {
+            userId: employeeId,
+            organizationId: managerMembership.organizationId,
+          },
+          include: { user: true },
+          orderBy: { createdAt: "asc" },
+        });
+
+        if (!employeeMembership) return null;
+
+        const notification = await prisma.notification.create({
+          data: {
+            organizationId: managerMembership.organizationId,
+            userId: employeeId,
+            type: "training",
+            title: "Назначен курс подготовки",
+            body: `${payload.topic}${payload.reason ? `: ${payload.reason}` : ""}`,
+          },
+        });
+
+        return {
+          assigned: true,
+          employeeId,
+          topic: payload.topic,
+          notificationId: notification.id,
+        };
+      } catch {
+        return null;
       }
     },
   };

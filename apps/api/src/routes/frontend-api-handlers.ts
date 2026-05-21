@@ -3,6 +3,8 @@ import type {
   DashboardSummaryDto,
   DialogMessageDto,
   EmployeeDto,
+  EmployeeCourseAssignedDto,
+  EmployeeCourseAssignRequestDto,
   EmployeeProfileDto,
   ManagerSummaryDto,
   NotificationDto,
@@ -69,6 +71,7 @@ export const frontendApiRoutes = [
   { method: "GET", path: "/api/analytics/dashboard", module: "analytics", requiresAuth: true },
   { method: "GET", path: "/api/analytics/manager", module: "analytics", requiresAuth: true },
   { method: "GET", path: "/api/analytics/manager/employees/:id", module: "analytics", requiresAuth: true },
+  { method: "POST", path: "/api/analytics/manager/employees/:id/course", module: "analytics", requiresAuth: true },
   { method: "GET", path: "/api/notifications", module: "notifications", requiresAuth: true },
   { method: "GET", path: "/api/trainings/weak-topics", module: "trainings", requiresAuth: true },
   { method: "GET", path: "/api/trainings/history", module: "trainings", requiresAuth: true },
@@ -104,6 +107,7 @@ export type FrontendApiDataSource = {
   getEmployees: () => MaybePromise<EmployeeDto[]>;
   getManagerSummary: () => MaybePromise<ManagerSummaryDto>;
   getEmployeeProfile: (id?: string) => MaybePromise<EmployeeProfileDto>;
+  assignEmployeeCourse: (managerId: string, employeeId: string, payload: EmployeeCourseAssignRequestDto) => MaybePromise<EmployeeCourseAssignedDto | null>;
   getSessionOptions: () => MaybePromise<SessionOptionsDto>;
   getDialogScript: () => MaybePromise<DialogMessageDto[]>;
   createTrainingSession: (userId: string, payload: TrainingSessionCreateRequestDto) => MaybePromise<TrainingSessionCreatedDto | null>;
@@ -135,6 +139,7 @@ export const demoFrontendApiDataSource: FrontendApiDataSource = {
   getEmployees,
   getManagerSummary,
   getEmployeeProfile,
+  assignEmployeeCourse: async () => null,
   getSessionOptions,
   getDialogScript,
   createTrainingSession: async () => null,
@@ -182,6 +187,28 @@ export const createFrontendApiHandlers = (source: FrontendApiDataSource = demoFr
     }
 
     return ok(await source.getEmployeeProfile(id));
+  },
+
+  assignEmployeeCourse: async (
+    managerId: string,
+    employeeId: string,
+    payload: unknown,
+  ): Promise<HandlerResult<EmployeeCourseAssignedDto>> => {
+    const request = payload as Partial<EmployeeCourseAssignRequestDto> | undefined;
+    const topic = request?.topic?.trim();
+
+    if (!topic) {
+      return fail("VALIDATION_ERROR", "Course topic is required", { field: "topic" });
+    }
+
+    const assigned = await source.assignEmployeeCourse(managerId, employeeId, {
+      topic,
+      reason: request?.reason?.trim(),
+    });
+
+    if (!assigned) return fail("NOT_FOUND", "Employee not found", { id: employeeId });
+
+    return ok(assigned);
   },
 
   getSessionOptions: async (): Promise<ApiResponse<SessionOptionsDto>> => ok(await source.getSessionOptions()),

@@ -206,6 +206,7 @@ describe("frontend data layer", () => {
     await frontendApi.trainingHistory();
     await frontendApi.managerSummary();
     await frontendApi.employeeProfile("2");
+    await frontendApi.assignEmployeeCourse("2", { topic: "Имущество должника" });
     await frontendApi.sessionOptions();
     await frontendApi.dialogScript();
     await frontendApi.createTrainingSession({
@@ -238,6 +239,7 @@ describe("frontend data layer", () => {
       "/api/trainings/history",
       "/api/analytics/manager",
       "/api/analytics/manager/employees/2",
+      "/api/analytics/manager/employees/2/course",
       "/api/trainings/session-options",
       "/api/trainings/dialog-script",
       "/api/trainings/sessions",

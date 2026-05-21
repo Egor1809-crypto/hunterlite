@@ -95,6 +95,18 @@ export type EmployeeProfileDto = {
   recommendation: string;
 };
 
+export type EmployeeCourseAssignRequestDto = {
+  topic: string;
+  reason?: string;
+};
+
+export type EmployeeCourseAssignedDto = {
+  assigned: true;
+  employeeId: string;
+  topic: string;
+  notificationId: string;
+};
+
 export type SessionOptionsDto = {
   topics: string[];
   difficulties: string[];

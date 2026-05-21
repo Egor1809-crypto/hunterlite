@@ -6,6 +6,7 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { BackButton } from "@/components/BackButton";
 import { frontendApi, frontendFallbacks, useApiData } from "@/lib/frontend-api";
 import { Sparkles } from "lucide-react";
+import { useMutation } from "@tanstack/react-query";
 
 export default function ManagerEmployee() {
   const { id } = useParams();
@@ -16,6 +17,13 @@ export default function ManagerEmployee() {
   });
   const { employee: e, history, weakTopics, strongTopics, recommendation } = profile;
   const latestResultId = history[0]?.id;
+  const courseTopic = weakTopics[0]?.topic || e.weak || "Имущество должника";
+  const assignCourse = useMutation({
+    mutationFn: () => frontendApi.assignEmployeeCourse(e.id, {
+      topic: courseTopic,
+      reason: "Назначено руководителем по итогам проверки результатов.",
+    }),
+  });
 
   return (
     <div className="p-4 md:p-8 max-w-6xl mx-auto animate-fade-in space-y-5">
@@ -39,9 +47,22 @@ export default function ManagerEmployee() {
                 Последний разбор
               </Link>
             </Button>
-            <Button className="bg-primary hover:bg-primary/90">Назначить курс</Button>
+            <Button
+              className="bg-primary hover:bg-primary/90"
+              onClick={() => assignCourse.mutate()}
+              disabled={assignCourse.isPending}
+            >
+              {assignCourse.isPending ? "Назначаем..." : assignCourse.isSuccess ? "Курс назначен" : "Назначить курс"}
+            </Button>
           </div>
         </div>
+        {assignCourse.isSuccess || assignCourse.isError ? (
+          <div className={assignCourse.isSuccess ? "mt-4 text-sm text-success" : "mt-4 text-sm text-destructive"}>
+            {assignCourse.isSuccess
+              ? `Сотруднику назначен курс по теме «${assignCourse.data.topic}».`
+              : "Не удалось назначить курс. Проверьте, что сотрудник есть в вашей организации."}
+          </div>
+        ) : null}
       </Card>
 
       <div className="grid md:grid-cols-3 gap-3">

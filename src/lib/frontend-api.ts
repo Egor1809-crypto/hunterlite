@@ -5,6 +5,8 @@ import type {
   DialogMessageDto,
   EmployeeProfileDto,
   ManagerSummaryDto,
+  EmployeeCourseAssignedDto,
+  EmployeeCourseAssignRequestDto,
   NotificationDto,
   ProfileSummaryDto,
   SessionOptionsDto,
@@ -70,6 +72,11 @@ export const frontendApi = {
   managerSummary: () => apiGet<ManagerSummaryDto>("/analytics/manager"),
   employeeProfile: (id?: string) =>
     apiGet<EmployeeProfileDto>(`/analytics/manager/employees/${encodeURIComponent(id || "1")}`),
+  assignEmployeeCourse: (id: string, payload: EmployeeCourseAssignRequestDto) =>
+    apiPost<EmployeeCourseAssignedDto, EmployeeCourseAssignRequestDto>(
+      `/analytics/manager/employees/${encodeURIComponent(id)}/course`,
+      payload,
+    ),
   sessionOptions: () => apiGet<SessionOptionsDto>("/trainings/session-options"),
   dialogScript: () => apiGet<DialogMessageDto[]>("/trainings/dialog-script"),
   createTrainingSession: (payload: TrainingSessionCreateRequestDto) =>

@@ -91,6 +91,7 @@ const isAllowedPostRoute = (pathname: string) =>
   pathname === "/api/auth/password-reset/request" ||
   pathname === "/api/auth/password-reset/complete" ||
   pathname === "/api/trainings/sessions" ||
+  /^\/api\/analytics\/manager\/employees\/[^/]+\/course$/.test(pathname) ||
   /^\/api\/trainings\/sessions\/[^/]+\/messages$/.test(pathname) ||
   /^\/api\/trainings\/sessions\/[^/]+\/complete$/.test(pathname) ||
   /^\/api\/admin\/.*$/.test(pathname);
@@ -145,6 +146,7 @@ export const resolveApiRequest = async (
   });
   const rateLimiter = options.loginRateLimiter ?? loginRateLimiter;
   const pathname = url.pathname;
+  const employeeCourseMatch = pathname.match(/^\/api\/analytics\/manager\/employees\/([^/]+)\/course$/);
   const employeeProfileMatch = pathname.match(/^\/api\/analytics\/manager\/employees\/([^/]+)$/);
   const trainingSessionMatch = pathname.match(/^\/api\/trainings\/sessions\/([^/]+)$/);
   const trainingMessageMatch = pathname.match(/^\/api\/trainings\/sessions\/([^/]+)\/messages$/);
@@ -243,6 +245,8 @@ export const resolveApiRequest = async (
               ? auth.completePasswordReset(request.body)
           : pathname === "/api/trainings/sessions" && request.method === "POST" && authenticatedUserId
             ? api.createTrainingSession(authenticatedUserId, request.body)
+            : employeeCourseMatch && request.method === "POST" && authenticatedUserId
+              ? api.assignEmployeeCourse(authenticatedUserId, decodeURIComponent(employeeCourseMatch[1]), request.body)
             : trainingSessionMatch && request.method === "GET" && authenticatedUserId
               ? api.getTrainingSessionDetail(authenticatedUserId, decodeURIComponent(trainingSessionMatch[1]), authenticatedRole)
             : trainingMessageMatch && request.method === "POST" && authenticatedUserId
