@@ -137,6 +137,7 @@ const apiAccessCases = [
   { method: "POST", path: "/api/trainings/sessions/session-1/messages", allowed: ["employee"] },
   { method: "POST", path: "/api/trainings/sessions/session-1/complete", allowed: ["employee"] },
   { method: "GET", path: "/api/analytics/manager", allowed: ["manager"] },
+  { method: "GET", path: "/api/analytics/manager/reports", allowed: ["manager"] },
   { method: "GET", path: "/api/analytics/manager/employees/2", allowed: ["manager"] },
   { method: "POST", path: "/api/analytics/manager/employees/2/course", allowed: ["manager"] },
   { method: "GET", path: "/api/admin/users", allowed: ["admin"] },

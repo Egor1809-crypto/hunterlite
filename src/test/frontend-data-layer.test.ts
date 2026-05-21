@@ -8,6 +8,7 @@ import {
   getEmployeeProfile,
   getEmployees,
   getManagerSummary,
+  getManagerReports,
   getNotifications,
   getProfileSummary,
   getSessionOptions,
@@ -114,6 +115,7 @@ describe("frontend data layer", () => {
 
   it("returns manager team data without exposing raw mocks to pages", () => {
     const manager = getManagerSummary();
+    const reports = getManagerReports();
 
     expect(manager.kpi.totalEmployees).toBe(getEmployees().length);
     expect(manager.kpi.avgScore).toBeGreaterThan(0);
@@ -122,6 +124,16 @@ describe("frontend data layer", () => {
       expect.objectContaining({
         topic: "Имущество должника",
         errors: 38,
+      }),
+    );
+    expect(reports.summary.avgScore).toBe(manager.kpi.avgScore);
+    expect(reports.scoreDistribution).toEqual(
+      expect.arrayContaining([expect.objectContaining({ range: "70-85", percent: expect.any(Number) })]),
+    );
+    expect(reports.attention[0]).toEqual(
+      expect.objectContaining({
+        employeeId: expect.any(String),
+        action: expect.stringContaining("Назначить курс"),
       }),
     );
   });
@@ -205,6 +217,7 @@ describe("frontend data layer", () => {
     await frontendApi.weakTopics();
     await frontendApi.trainingHistory();
     await frontendApi.managerSummary();
+    await frontendApi.managerReports();
     await frontendApi.employeeProfile("2");
     await frontendApi.assignEmployeeCourse("2", { topic: "Имущество должника" });
     await frontendApi.sessionOptions();
@@ -238,6 +251,7 @@ describe("frontend data layer", () => {
       "/api/trainings/weak-topics",
       "/api/trainings/history",
       "/api/analytics/manager",
+      "/api/analytics/manager/reports",
       "/api/analytics/manager/employees/2",
       "/api/analytics/manager/employees/2/course",
       "/api/trainings/session-options",

@@ -90,6 +90,16 @@ describe("backend frontend API handlers", () => {
         }),
       }),
     );
+    await expect(api.getManagerReports()).resolves.toEqual(
+      expect.objectContaining({
+        ok: true,
+        data: expect.objectContaining({
+          summary: expect.objectContaining({ avgScore: expect.any(Number) }),
+          scoreDistribution: expect.arrayContaining([expect.objectContaining({ range: "70-85" })]),
+          recommendations: expect.arrayContaining([expect.any(String)]),
+        }),
+      }),
+    );
     await expect(api.getEmployeeProfile("1")).resolves.toEqual(
       expect.objectContaining({
         ok: true,

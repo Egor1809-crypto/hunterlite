@@ -145,6 +145,38 @@ describe("analytics Prisma data source", () => {
     );
   });
 
+  it("builds manager reports from Prisma training analytics", async () => {
+    const source = createAnalyticsPrismaDataSource(createPrisma(), demoFrontendApiDataSource);
+
+    await expect(source.getManagerReports()).resolves.toEqual(
+      expect.objectContaining({
+        periodLabel: "апрель 2026 г.",
+        summary: {
+          passedExams: 1,
+          failedExams: 0,
+          reviewExams: 0,
+          avgScore: 80,
+          completedTrainings: 1,
+          activeEmployees: 1,
+        },
+        scoreDistribution: expect.arrayContaining([
+          { range: "70-85", employees: 1, percent: 100, status: "success" },
+        ]),
+        weakTopics: [
+          {
+            topic: "Имущество должника",
+            errors: 38,
+            affectedPercent: 100,
+            recommendation: "Повторить блок про ипотечное жильё",
+          },
+        ],
+        recommendations: expect.arrayContaining([
+          "Провести командный разбор: Имущество должника.",
+        ]),
+      }),
+    );
+  });
+
   it("builds employee profile from Prisma analytics records", async () => {
     const source = createAnalyticsPrismaDataSource(createPrisma(), demoFrontendApiDataSource);
 

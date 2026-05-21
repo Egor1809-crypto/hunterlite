@@ -263,6 +263,8 @@ export const resolveApiRequest = async (
                   ? api.getDashboard(role)
                   : pathname === "/api/analytics/manager"
                     ? api.getManagerSummary()
+                    : pathname === "/api/analytics/manager/reports"
+                      ? api.getManagerReports()
                     : employeeProfileMatch
                       ? api.getEmployeeProfile(decodeURIComponent(employeeProfileMatch[1]))
                       : pathname === "/api/notifications"

@@ -4,6 +4,7 @@ import type {
   DialogMessageDto,
   EmployeeDto,
   EmployeeProfileDto,
+  ManagerReportsDto,
   ManagerSummaryDto,
   NotificationDto,
   ProfileSummaryDto,
@@ -162,6 +163,63 @@ export const getManagerSummary = (): ManagerSummaryDto => {
       { topic: "Долги без списания", errors: 29 },
       { topic: "Сроки процедуры", errors: 22 },
       { topic: "Стоимость и риски", errors: 18 },
+    ],
+  };
+};
+
+const distributionBuckets = [
+  { range: "0-40", min: 0, max: 40, status: "destructive" },
+  { range: "40-60", min: 40, max: 60, status: "destructive" },
+  { range: "60-70", min: 60, max: 70, status: "warning" },
+  { range: "70-85", min: 70, max: 85, status: "success" },
+  { range: "85-100", min: 85, max: 101, status: "success" },
+] as const;
+
+export const getManagerReports = (): ManagerReportsDto => {
+  const team = getEmployees();
+  const weak = getWeakTopics();
+  const avgScore = Math.round(team.reduce((sum, employee) => sum + employee.score, 0) / team.length);
+
+  return {
+    periodLabel: "Апрель 2026",
+    summary: {
+      passedExams: team.filter((employee) => employee.exam === "Сдан").length,
+      failedExams: team.filter((employee) => employee.exam === "Не сдан").length,
+      reviewExams: team.filter((employee) => employee.exam === "На проверке").length,
+      avgScore,
+      completedTrainings: getTrainingHistory().length,
+      activeEmployees: team.filter((employee) => employee.status === "Допущен").length,
+    },
+    scoreDistribution: distributionBuckets.map((bucket) => {
+      const employeesInBucket = team.filter((employee) => employee.score >= bucket.min && employee.score < bucket.max).length;
+
+      return {
+        range: bucket.range,
+        employees: employeesInBucket,
+        percent: Math.round((employeesInBucket / team.length) * 100),
+        status: bucket.status,
+      };
+    }),
+    weakTopics: weak.slice(0, 4).map((topic) => ({
+      topic: topic.topic,
+      errors: topic.errors,
+      affectedPercent: Math.min(100, Math.round((topic.errors / Math.max(1, team.length * 2)) * 10)),
+      recommendation: topic.recommendation,
+    })),
+    attention: team
+      .filter((employee) => employee.score < 70 || employee.exam !== "Сдан")
+      .slice(0, 4)
+      .map((employee) => ({
+        employeeId: employee.id,
+        name: employee.name,
+        score: employee.score,
+        issue: employee.exam === "Не сдан" ? "Экзамен не сдан" : `Слабая тема: ${employee.weak}`,
+        action: `Назначить курс: ${employee.weak}`,
+      })),
+    recommendations: [
+      "Провести короткий разбор по теме «Имущество должника» для всей команды.",
+      "Сотрудникам с баллом ниже 70 назначить повторную тренировку и контрольный экзамен.",
+      "Проверить звонки с ошибками в безопасных формулировках перед следующей аттестацией.",
     ],
   };
 };

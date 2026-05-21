@@ -5,6 +5,7 @@ import type {
   EmployeeCourseAssignRequestDto,
   EmployeeDto,
   EmployeeProfileDto,
+  ManagerReportsDto,
   ManagerSummaryDto,
   TrainingHistoryItemDto,
   WeakTopicDto,
@@ -88,6 +89,19 @@ const lastActiveLabel = (date?: Date | null) => {
 const average = (values: number[]) =>
   values.length ? Math.round(values.reduce((sum, value) => sum + value, 0) / values.length) : 0;
 
+const reportBuckets = [
+  { range: "0-40", min: 0, max: 40, status: "destructive" },
+  { range: "40-60", min: 40, max: 60, status: "destructive" },
+  { range: "60-70", min: 60, max: 70, status: "warning" },
+  { range: "70-85", min: 70, max: 85, status: "success" },
+  { range: "85-100", min: 85, max: 101, status: "success" },
+] as const satisfies readonly Array<{
+  range: string;
+  min: number;
+  max: number;
+  status: ManagerReportsDto["scoreDistribution"][number]["status"];
+}>;
+
 const toCurrentUser = (
   membership: MembershipRecord,
   avgScore: number,
@@ -115,7 +129,7 @@ const historyStatus = (status: string): TrainingHistoryItemDto["status"] =>
 export const createAnalyticsPrismaDataSource = (
   prisma: AnalyticsPrismaClient,
   fallback: FrontendApiDataSource,
-): Pick<FrontendApiDataSource, "getDashboardSummary" | "getManagerSummary" | "getEmployeeProfile" | "assignEmployeeCourse"> => {
+): Pick<FrontendApiDataSource, "getDashboardSummary" | "getManagerSummary" | "getManagerReports" | "getEmployeeProfile" | "assignEmployeeCourse"> => {
   const loadCore = async () => {
     const [memberships, sessions, exams, weakTopics] = await Promise.all([
       prisma.membership.findMany({
@@ -171,6 +185,71 @@ export const createAnalyticsPrismaDataSource = (
         lastActive: lastActiveLabel(membership.user.lastLoginAt),
       };
     });
+  };
+
+  const buildManagerReports = async (): Promise<ManagerReportsDto> => {
+    const [fallbackReports, employees, { sessions, exams, weakTopicDtos }] = await Promise.all([
+      fallback.getManagerReports(),
+      buildEmployees(),
+      loadCore(),
+    ]);
+
+    if (!employees.length) return fallbackReports;
+
+    const scores = employees.map((employee) => employee.score).filter((score) => score > 0);
+    const completedSessions = sessions.filter((session) => session.status === "completed" || session.score);
+    const latestActivity = [...sessions, ...exams]
+      .map((item) => item.completedAt ?? item.startedAt)
+      .filter((date): date is Date => Boolean(date))
+      .sort((left, right) => right.getTime() - left.getTime())[0];
+    const periodLabel = latestActivity
+      ? new Intl.DateTimeFormat("ru-RU", { month: "long", year: "numeric" }).format(latestActivity)
+      : fallbackReports.periodLabel;
+
+    return {
+      periodLabel,
+      summary: {
+        passedExams: exams.filter((exam) => exam.status === "passed" || (exam.score ?? 0) >= 70).length,
+        failedExams: exams.filter((exam) => exam.status === "failed" || ((exam.score ?? 0) > 0 && (exam.score ?? 0) < 70)).length,
+        reviewExams: exams.filter((exam) => exam.status === "review" || !(exam.score ?? 0)).length,
+        avgScore: average(scores),
+        completedTrainings: completedSessions.length,
+        activeEmployees: employees.filter((employee) => employee.status === "Допущен").length,
+      },
+      scoreDistribution: reportBuckets.map((bucket) => {
+        const employeesInBucket = employees.filter((employee) => employee.score >= bucket.min && employee.score < bucket.max).length;
+
+        return {
+          range: bucket.range,
+          employees: employeesInBucket,
+          percent: Math.round((employeesInBucket / employees.length) * 100),
+          status: bucket.status,
+        };
+      }),
+      weakTopics: weakTopicDtos.slice(0, 4).map((topic) => ({
+        topic: topic.topic,
+        errors: topic.errors,
+        affectedPercent: Math.min(100, Math.round((topic.errors / Math.max(1, employees.length * 2)) * 10)),
+        recommendation: topic.recommendation,
+      })),
+      attention: employees
+        .filter((employee) => employee.score < 70 || employee.exam !== "Сдан")
+        .slice(0, 5)
+        .map((employee) => ({
+          employeeId: employee.id,
+          name: employee.name,
+          score: employee.score,
+          issue: employee.exam === "Не сдан" ? "Экзамен не сдан" : `Слабая тема: ${employee.weak}`,
+          action: `Назначить курс: ${employee.weak}`,
+        })),
+      recommendations: [
+        weakTopicDtos[0]
+          ? `Провести командный разбор: ${weakTopicDtos[0].topic}.`
+          : "Провести командный разбор по самой частой ошибке недели.",
+        "Сотрудникам с баллом ниже 70 назначить повторную тренировку и контрольный экзамен.",
+        "Разобрать последние звонки сотрудников из зоны внимания перед следующей аттестацией.",
+      ],
+    };
   };
 
   return {
@@ -231,6 +310,14 @@ export const createAnalyticsPrismaDataSource = (
         };
       } catch {
         return fallback.getManagerSummary();
+      }
+    },
+
+    getManagerReports: async (): Promise<ManagerReportsDto> => {
+      try {
+        return await buildManagerReports();
+      } catch {
+        return fallback.getManagerReports();
       }
     },
 

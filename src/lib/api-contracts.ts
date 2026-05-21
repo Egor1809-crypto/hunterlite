@@ -87,6 +87,38 @@ export type ManagerSummaryDto = {
   topWeakTopics: Array<{ topic: string; errors: number }>;
 };
 
+export type ManagerReportsDto = {
+  periodLabel: string;
+  summary: {
+    passedExams: number;
+    failedExams: number;
+    reviewExams: number;
+    avgScore: number;
+    completedTrainings: number;
+    activeEmployees: number;
+  };
+  scoreDistribution: Array<{
+    range: string;
+    employees: number;
+    percent: number;
+    status: "destructive" | "warning" | "success";
+  }>;
+  weakTopics: Array<{
+    topic: string;
+    errors: number;
+    affectedPercent: number;
+    recommendation: string;
+  }>;
+  attention: Array<{
+    employeeId: string;
+    name: string;
+    score: number;
+    issue: string;
+    action: string;
+  }>;
+  recommendations: string[];
+};
+
 export type EmployeeProfileDto = {
   employee: EmployeeDto;
   history: TrainingHistoryItemDto[];

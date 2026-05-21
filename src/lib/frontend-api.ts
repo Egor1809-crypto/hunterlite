@@ -5,6 +5,7 @@ import type {
   DialogMessageDto,
   EmployeeProfileDto,
   ManagerSummaryDto,
+  ManagerReportsDto,
   EmployeeCourseAssignedDto,
   EmployeeCourseAssignRequestDto,
   NotificationDto,
@@ -46,6 +47,7 @@ import {
   getDialogScript,
   getEmployeeProfile,
   getManagerSummary,
+  getManagerReports,
   getNotifications,
   getProfileSummary,
   getSessionOptions,
@@ -70,6 +72,7 @@ export const frontendApi = {
   weakTopics: () => apiGet<WeakTopicDto[]>("/trainings/weak-topics"),
   trainingHistory: () => apiGet<TrainingHistoryItemDto[]>("/trainings/history"),
   managerSummary: () => apiGet<ManagerSummaryDto>("/analytics/manager"),
+  managerReports: () => apiGet<ManagerReportsDto>("/analytics/manager/reports"),
   employeeProfile: (id?: string) =>
     apiGet<EmployeeProfileDto>(`/analytics/manager/employees/${encodeURIComponent(id || "1")}`),
   assignEmployeeCourse: (id: string, payload: EmployeeCourseAssignRequestDto) =>
@@ -154,6 +157,7 @@ export const frontendFallbacks = {
   weakTopics: getWeakTopics,
   trainingHistory: getTrainingHistory,
   managerSummary: getManagerSummary,
+  managerReports: getManagerReports,
   employeeProfile: getEmployeeProfile,
   sessionOptions: getSessionOptions,
   dialogScript: getDialogScript,

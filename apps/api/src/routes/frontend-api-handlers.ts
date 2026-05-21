@@ -6,6 +6,7 @@ import type {
   EmployeeCourseAssignedDto,
   EmployeeCourseAssignRequestDto,
   EmployeeProfileDto,
+  ManagerReportsDto,
   ManagerSummaryDto,
   NotificationDto,
   ProfileSummaryDto,
@@ -40,6 +41,7 @@ import {
   getEmployeeProfile,
   getEmployees,
   getManagerSummary,
+  getManagerReports,
   getNotifications,
   getProfileSummary,
   getSessionOptions,
@@ -70,6 +72,7 @@ export const frontendApiRoutes = [
   { method: "GET", path: "/api/users/profile", module: "users", requiresAuth: true },
   { method: "GET", path: "/api/analytics/dashboard", module: "analytics", requiresAuth: true },
   { method: "GET", path: "/api/analytics/manager", module: "analytics", requiresAuth: true },
+  { method: "GET", path: "/api/analytics/manager/reports", module: "analytics", requiresAuth: true },
   { method: "GET", path: "/api/analytics/manager/employees/:id", module: "analytics", requiresAuth: true },
   { method: "POST", path: "/api/analytics/manager/employees/:id/course", module: "analytics", requiresAuth: true },
   { method: "GET", path: "/api/notifications", module: "notifications", requiresAuth: true },
@@ -106,6 +109,7 @@ export type FrontendApiDataSource = {
   getTrainingHistory: (userId?: string) => MaybePromise<TrainingHistoryItemDto[]>;
   getEmployees: () => MaybePromise<EmployeeDto[]>;
   getManagerSummary: () => MaybePromise<ManagerSummaryDto>;
+  getManagerReports: () => MaybePromise<ManagerReportsDto>;
   getEmployeeProfile: (id?: string) => MaybePromise<EmployeeProfileDto>;
   assignEmployeeCourse: (managerId: string, employeeId: string, payload: EmployeeCourseAssignRequestDto) => MaybePromise<EmployeeCourseAssignedDto | null>;
   getSessionOptions: () => MaybePromise<SessionOptionsDto>;
@@ -138,6 +142,7 @@ export const demoFrontendApiDataSource: FrontendApiDataSource = {
   getTrainingHistory,
   getEmployees,
   getManagerSummary,
+  getManagerReports,
   getEmployeeProfile,
   assignEmployeeCourse: async () => null,
   getSessionOptions,
@@ -177,6 +182,8 @@ export const createFrontendApiHandlers = (source: FrontendApiDataSource = demoFr
   getTrainingHistory: async (userId?: string): Promise<ApiResponse<TrainingHistoryItemDto[]>> => ok(await source.getTrainingHistory(userId)),
 
   getManagerSummary: async (): Promise<ApiResponse<ManagerSummaryDto>> => ok(await source.getManagerSummary()),
+
+  getManagerReports: async (): Promise<ApiResponse<ManagerReportsDto>> => ok(await source.getManagerReports()),
 
   getEmployeeProfile: async (id: string): Promise<HandlerResult<EmployeeProfileDto>> => {
     const employees = await source.getEmployees();

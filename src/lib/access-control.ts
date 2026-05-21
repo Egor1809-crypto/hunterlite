@@ -116,6 +116,7 @@ export const apiAccessPolicies = [
   { method: "POST", path: "/api/trainings/sessions/:id/complete", permission: "training:complete:self" },
   { method: "GET", path: "/api/analytics/dashboard", permission: "training:read:self" },
   { method: "GET", path: "/api/analytics/manager", permission: "team:read:organization" },
+  { method: "GET", path: "/api/analytics/manager/reports", permission: "reports:read:organization" },
   { method: "GET", path: "/api/analytics/manager/employees/:id", permission: "employee:read:organization" },
   { method: "POST", path: "/api/analytics/manager/employees/:id/course", permission: "employee_course:assign" },
   { method: "GET", path: "/api/admin/users", permission: "users:read" },
