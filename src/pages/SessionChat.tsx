@@ -9,10 +9,11 @@ import { ApiClientError } from "@/lib/api-client";
 import { frontendApi } from "@/lib/frontend-api";
 import { calculateTrainingResult } from "@/lib/training-logic";
 import { isVoiceRecordingSupported, selectRecordingMimeType } from "@/lib/voice-mode";
+import { createLocalTrainingReply, defaultCallScripts } from "@/lib/default-training-content";
 import { Mic, Send, X, Sparkles, Bot, User, Clock, Target, ChevronUp, Loader2, Volume2, VolumeX } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useQuery } from "@tanstack/react-query";
-import type { CallScriptDto } from "@/lib/api-contracts";
+import type { AiTrainingReplyRequestDto, CallScriptDto } from "@/lib/api-contracts";
 
 type Props = { mode: "talk" | "exam" | "chat-test" };
 type Msg = { from: "ai" | "user"; text: string; isSystem?: boolean };
@@ -60,10 +61,12 @@ export default function SessionChat({ mode }: Props) {
   const sessionIdParam = params.get("sessionId");
   const scriptId = params.get("scriptId");
   const topic = params.get("topic") ?? (mode === "chat-test" ? "Условия банкротства" : "Имущество должника");
-  const { data: scripts = [], isLoading } = useQuery({
+  const { data: fetchedScripts = [], isLoading } = useQuery({
     queryKey: ["employee", "callScripts"],
     queryFn: () => frontendApi.getTrainingCallScripts(),
   });
+  const usableScripts = fetchedScripts.filter((script) => (script.nodes?.length ?? 0) >= 2);
+  const scripts = usableScripts.length ? usableScripts : defaultCallScripts;
   const selectedScriptId = scriptId ?? (
     sessionIdParam && scripts.some((script) => script.id === sessionIdParam) ? sessionIdParam : undefined
   );
@@ -369,7 +372,7 @@ export default function SessionChat({ mode }: Props) {
     try {
       const nextStep = step + 1;
       const nextNode = nodes[nextStep];
-      const ai = await frontendApi.generateTrainingReply({
+      const trainingPayload: AiTrainingReplyRequestDto = {
         sessionId: sessionForPersistence,
         topic,
         mode: mode === "chat-test" ? "chat_test" : mode,
@@ -382,7 +385,8 @@ export default function SessionChat({ mode }: Props) {
           nextClientReplica: nextNode?.clientReplica,
           keywordRules: nextNode?.keywordRules,
         },
-      });
+      };
+      const ai = await frontendApi.generateTrainingReply(trainingPayload).catch(() => createLocalTrainingReply(trainingPayload));
       const aiMessage = ai.reply;
 
       if (ai.scoreDelta > 0) {
@@ -406,15 +410,32 @@ export default function SessionChat({ mode }: Props) {
       }
       void speak(aiMessage);
     } catch {
-      setMessages((m) => [
-        ...m,
-        {
-          from: "ai",
-          text: "NAVI API сейчас недоступен. Проверьте ключ и соединение, затем отправьте ответ ещё раз.",
-          isSystem: true,
+      const nextStep = step + 1;
+      const nextNode = nodes[nextStep];
+      const fallback = createLocalTrainingReply({
+        sessionId: sessionForPersistence,
+        topic,
+        mode: mode === "chat-test" ? "chat_test" : mode,
+        step,
+        totalSteps: total,
+        userMessage: text,
+        messages: [...messages, userMessage].map((message) => ({ from: message.from, text: message.text })),
+        scriptContext: {
+          title,
+          nextClientReplica: nextNode?.clientReplica,
+          keywordRules: nextNode?.keywordRules,
         },
-      ]);
-      setVoiceError("NAVI API недоступен: ответ клиента не сгенерирован.");
+      });
+      const shouldContinue = !fallback.sessionEnded && nextStep < total;
+
+      setMessages((m) => [...m, { from: "ai", text: fallback.reply, isSystem: !shouldContinue }]);
+      if (shouldContinue) {
+        setStep(nextStep);
+      } else {
+        setSessionEnded(true);
+      }
+      setVoiceError("NAVI API временно недоступен, включён локальный сценарий тренировки.");
+      void speak(fallback.reply);
     } finally {
       setAiTyping(false);
     }
@@ -490,10 +511,6 @@ export default function SessionChat({ mode }: Props) {
           {isLoading ? (
             <div className="flex h-full items-center justify-center text-muted-foreground">
               <Loader2 className="mr-2 h-6 w-6 animate-spin" /> Загрузка сценария...
-            </div>
-          ) : scripts.length === 0 ? (
-            <div className="flex h-full items-center justify-center text-muted-foreground">
-              Скрипты звонков не найдены. Создайте их в панели администратора.
             </div>
           ) : (
             <>

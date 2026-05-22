@@ -12,6 +12,7 @@ import type {
   WeakTopicDto,
 } from "@/lib/api-contracts";
 import { getDemoUser, type AppRole } from "@/lib/demo-auth-state";
+import { defaultCallScripts } from "@/lib/default-training-content";
 import { passingScore } from "@/lib/training-logic";
 import {
   characters,
@@ -93,6 +94,8 @@ export const getTrainingHistory = (): TrainingHistoryItemDto[] =>
     score: item.score,
     status: item.status as TrainingHistoryItemDto["status"],
   }));
+
+export const getCallScripts = () => defaultCallScripts;
 
 export const getProfileSummary = (role?: AppRole): ProfileSummaryDto => ({
   user: getCurrentUser(role),

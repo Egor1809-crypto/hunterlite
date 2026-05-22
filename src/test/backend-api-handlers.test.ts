@@ -80,6 +80,41 @@ describe("backend frontend API handlers", () => {
         data: expect.arrayContaining([expect.objectContaining({ status: "Не сдан" })]),
       }),
     );
+    await expect(api.getCallScripts()).resolves.toEqual(
+      expect.objectContaining({
+        ok: true,
+        data: expect.arrayContaining([
+          expect.objectContaining({
+            id: "default-debtor-property",
+            nodes: expect.arrayContaining([expect.objectContaining({ answerFormat: "voice" })]),
+          }),
+        ]),
+      }),
+    );
+  });
+
+  it("keeps training chat usable with the local fallback reply", async () => {
+    const api = createFrontendApiHandlers();
+
+    await expect(api.generateTrainingReply({
+      topic: "Имущество должника",
+      mode: "talk",
+      step: 0,
+      totalSteps: 5,
+      userMessage: "Понимаю, давайте разберём вашу ситуацию.",
+      messages: [{ from: "user", text: "Понимаю, давайте разберём вашу ситуацию." }],
+      scriptContext: {
+        nextClientReplica: "А квартиру точно не заберут?",
+      },
+    })).resolves.toEqual(
+      expect.objectContaining({
+        ok: true,
+        data: expect.objectContaining({
+          reply: "А квартиру точно не заберут?",
+          sessionEnded: false,
+        }),
+      }),
+    );
   });
 
   it("returns manager data and employee profile through analytics handlers", async () => {

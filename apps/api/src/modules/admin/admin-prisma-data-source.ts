@@ -174,6 +174,8 @@ export const createAdminPrismaDataSource = (
         orderBy: { createdAt: "desc" },
       });
 
+      if (!records.length) return fallback.getCallScripts();
+
       return records.map((r) => ({
         id: r.id,
         title: r.title,

@@ -2,6 +2,7 @@ import {
   demoFrontendApiDataSource,
   type FrontendApiDataSource,
 } from "../routes/frontend-api-handlers";
+import { createLocalTrainingReply } from "@/lib/default-training-content";
 import {
   createUsersPrismaDataSource,
   type UsersPrismaClient,
@@ -52,6 +53,8 @@ export const createBackendDataSource = (
 
   return {
     ...source,
+    generateTrainingReply: async (payload) =>
+      (await source.generateTrainingReply(payload)) ?? createLocalTrainingReply(payload),
     getProfileSummary: async (role) => ({
       user: await users.getCurrentUser(role),
       weakTopics: await trainings.getWeakTopics(),

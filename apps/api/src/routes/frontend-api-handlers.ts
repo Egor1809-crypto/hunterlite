@@ -39,6 +39,7 @@ import type {
   AiTranscriptionRequestDto,
 } from "@/lib/api-contracts";
 import type { AppRole } from "@/lib/demo-auth-state";
+import { createLocalTrainingReply, defaultCallScripts } from "@/lib/default-training-content";
 import { validateTranscriptionAudioPayload } from "@/lib/voice-mode";
 import {
   getCurrentUser,
@@ -157,7 +158,7 @@ export const demoFrontendApiDataSource: FrontendApiDataSource = {
   getEmployeeProfile,
   assignEmployeeCourse: async () => null,
   getSessionOptions,
-  generateTrainingReply: async () => null,
+  generateTrainingReply: async (payload) => createLocalTrainingReply(payload),
   synthesizeSpeech: async () => null,
   transcribeSpeech: async () => null,
   createTrainingSession: async () => null,
@@ -173,7 +174,7 @@ export const demoFrontendApiDataSource: FrontendApiDataSource = {
   createCaseTemplate: async () => null,
   getObjectionTemplates: async () => [],
   createObjectionTemplate: async () => null,
-  getCallScripts: async () => [],
+  getCallScripts: async () => defaultCallScripts,
   createCallScript: async () => null,
   updateCallScript: async () => null,
   deleteCallScript: async () => false,
