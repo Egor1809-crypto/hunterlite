@@ -1,7 +1,8 @@
 import { Card } from "@/components/ui/card";
 import { IconBadge } from "@/components/IconBadge";
 import { ApiState } from "@/components/ApiState";
-import { frontendApi, frontendFallbacks, useApiData } from "@/lib/frontend-api";
+import { frontendFallbacks } from "@/lib/frontend-api";
+import { useLiveNotifications } from "@/lib/live-notifications";
 import { AlertTriangle, Bell, CalendarCheck2, CheckCircle2, Sparkles } from "lucide-react";
 
 const notificationIcons = {
@@ -19,11 +20,7 @@ const notificationIconStyles = {
 } as const;
 
 export default function Notifications() {
-  const { data: notifications, isFetching, isError } = useApiData({
-    queryKey: ["notifications"],
-    request: frontendApi.notifications,
-    fallback: frontendFallbacks.notifications,
-  });
+  const { data: notifications, isFetching, isError } = useLiveNotifications(frontendFallbacks.notifications());
 
   return (
     <div className="p-4 md:p-8 max-w-3xl mx-auto animate-fade-in">
@@ -31,7 +28,7 @@ export default function Notifications() {
         <IconBadge icon={Bell} />
         <div>
           <h1 className="font-display text-3xl font-bold text-primary tracking-tight">Уведомления</h1>
-          <p className="text-muted-foreground mt-1">Назначенные курсы, рекомендации NAVI и сообщения руководителя.</p>
+          <p className="text-muted-foreground mt-1">Назначенные курсы, рекомендации NAVI и сообщения руководителя. Лента обновляется автоматически.</p>
         </div>
       </div>
 

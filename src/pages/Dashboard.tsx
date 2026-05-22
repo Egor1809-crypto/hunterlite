@@ -7,6 +7,7 @@ import { IconBadge } from "@/components/IconBadge";
 import { ApiState } from "@/components/ApiState";
 import { useDemoAuth } from "@/lib/demo-auth";
 import { frontendApi, frontendFallbacks, useApiData } from "@/lib/frontend-api";
+import { mergeNotifications, useLiveNotifications } from "@/lib/live-notifications";
 import {
   MessageSquare, GraduationCap, ListChecks, RotateCcw,
   TrendingUp, Calendar, Sparkles, AlertTriangle, ArrowRight, Home,
@@ -28,10 +29,11 @@ export default function Dashboard() {
   });
 
   const { user, weakTopics, notifications: baseNotifications, lastSession, nextTask } = dashboard;
+  const { data: liveNotifications } = useLiveNotifications(baseNotifications);
   const weakestTopic = weakTopics[0];
   
   // Создаем динамическое уведомление для нового скрипта, если он есть
-  const dynamicNotifications = [...baseNotifications];
+  const dynamicNotifications = mergeNotifications(baseNotifications, liveNotifications);
   if (scripts && scripts.length > 0) {
     const latestScript = scripts[scripts.length - 1];
     dynamicNotifications.unshift({
