@@ -7,6 +7,7 @@ import { Progress } from "@/components/ui/progress";
 import { StatusBadge } from "@/components/StatusBadge";
 import { frontendApi } from "@/lib/frontend-api";
 import { calculateTrainingResult } from "@/lib/training-logic";
+import { selectRecordingMimeType } from "@/lib/voice-mode";
 import { Mic, Send, X, Sparkles, Bot, User, Clock, Target, ChevronUp, Loader2, Volume2, VolumeX } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useQuery } from "@tanstack/react-query";
@@ -73,9 +74,12 @@ export default function SessionChat({ mode }: Props) {
   const [step, setStep] = useState(0);
   const [aiTyping, setAiTyping] = useState(false);
   const [recording, setRecording] = useState(false);
+  const [processingVoice, setProcessingVoice] = useState(false);
   const [voiceMode, setVoiceMode] = useState(true);
+  const [autoListen, setAutoListen] = useState(true);
   const [speaking, setSpeaking] = useState(false);
   const [voiceError, setVoiceError] = useState("");
+  const [voiceStatus, setVoiceStatus] = useState("Голос обрабатывается через NAVI API.");
   const [secs, setSecs] = useState(mode === "exam" ? 30 * 60 : 0);
   const [panelOpen, setPanelOpen] = useState(false);
   const [sessionEnded, setSessionEnded] = useState(false);
@@ -87,6 +91,7 @@ export default function SessionChat({ mode }: Props) {
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const recordingTimeoutRef = useRef<number | null>(null);
 
   const total = nodes.length > 0 ? nodes.length : 5;
 
@@ -177,6 +182,7 @@ export default function SessionChat({ mode }: Props) {
   useEffect(() => {
     return () => {
       recorderRef.current?.stop();
+      if (recordingTimeoutRef.current) window.clearTimeout(recordingTimeoutRef.current);
       audioRef.current?.pause();
     };
   }, []);
@@ -191,20 +197,31 @@ export default function SessionChat({ mode }: Props) {
       const url = URL.createObjectURL(blob);
       const audio = new Audio(url);
       audioRef.current = audio;
-      audio.onplay = () => setSpeaking(true);
+      audio.onplay = () => {
+        setSpeaking(true);
+        setVoiceStatus("Клиент говорит.");
+      };
       audio.onended = () => {
         setSpeaking(false);
         URL.revokeObjectURL(url);
+        setVoiceStatus(autoListen ? "Можно отвечать голосом." : "Озвучка завершена.");
+        if (autoListen && !sessionEnded) {
+          window.setTimeout(() => {
+            void startRecording();
+          }, 350);
+        }
       };
       audio.onerror = () => {
         setSpeaking(false);
         URL.revokeObjectURL(url);
         setVoiceError("NAVI не смог озвучить ответ. Текстовый режим работает.");
+        setVoiceStatus("Озвучка недоступна.");
       };
       await audio.play();
     } catch {
       setSpeaking(false);
       setVoiceError("NAVI voice временно недоступен. Текстовый режим работает.");
+      setVoiceStatus("Озвучка недоступна.");
     }
   };
 
@@ -214,18 +231,16 @@ export default function SessionChat({ mode }: Props) {
       if (!next) {
         audioRef.current?.pause();
         setSpeaking(false);
+        setAutoListen(false);
+        recorderRef.current?.stop();
       }
+      setVoiceStatus(next ? "Озвучка включена." : "Озвучка отключена.");
       return next;
     });
   };
 
-  const toggleRecording = async () => {
-    if (recording) {
-      recorderRef.current?.stop();
-      setRecording(false);
-      return;
-    }
-
+  const startRecording = async () => {
+    if (recording || processingVoice || speaking || aiTyping || sessionEnded || isLoading) return;
     if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") {
       setVoiceError("Браузер не поддерживает запись голоса. Можно отвечать текстом.");
       return;
@@ -233,22 +248,36 @@ export default function SessionChat({ mode }: Props) {
 
     try {
       setVoiceError("");
+      setVoiceStatus("Запрашиваем микрофон.");
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const recorder = new MediaRecorder(stream);
+      const mimeType = selectRecordingMimeType(MediaRecorder.isTypeSupported.bind(MediaRecorder));
+      const recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
       chunksRef.current = [];
       recorder.ondataavailable = (event) => {
         if (event.data.size > 0) chunksRef.current.push(event.data);
       };
       recorder.onerror = () => {
         setVoiceError("Не удалось записать речь. Проверьте доступ к микрофону или введите ответ текстом.");
+        setVoiceStatus("Запись остановлена.");
         setRecording(false);
       };
       recorder.onstop = () => {
         setRecording(false);
+        if (recordingTimeoutRef.current) {
+          window.clearTimeout(recordingTimeoutRef.current);
+          recordingTimeoutRef.current = null;
+        }
         stream.getTracks().forEach((track) => track.stop());
 
         void (async () => {
           const audioBlob = new Blob(chunksRef.current, { type: recorder.mimeType || "audio/webm" });
+          if (audioBlob.size === 0) {
+            setVoiceError("Запись пустая. Попробуйте ещё раз или введите ответ текстом.");
+            setVoiceStatus("Голос не распознан.");
+            return;
+          }
+          setProcessingVoice(true);
+          setVoiceStatus("Распознаём голос.");
           const transcription = await frontendApi.transcribeSpeech({
             audioBase64: await blobToBase64(audioBlob),
             mimeType: audioBlob.type || "audio/webm",
@@ -257,19 +286,39 @@ export default function SessionChat({ mode }: Props) {
 
           if (transcription.text) {
             setInput(transcription.text);
+            setVoiceStatus("Отправляем ответ.");
             void send(transcription.text);
           }
         })().catch(() => {
           setVoiceError("NAVI не смог распознать речь. Попробуйте ещё раз или введите ответ текстом.");
+          setVoiceStatus("Голос не распознан.");
+        }).finally(() => {
+          setProcessingVoice(false);
         });
       };
       recorderRef.current = recorder;
-      recorder.start();
+      recorder.start(250);
+      recordingTimeoutRef.current = window.setTimeout(() => {
+        recorderRef.current?.stop();
+      }, 45_000);
       setRecording(true);
+      setVoiceStatus("Идёт запись.");
     } catch {
       setVoiceError("Микрофон недоступен. Разрешите доступ или введите ответ текстом.");
+      setVoiceStatus("Микрофон недоступен.");
       setRecording(false);
     }
+  };
+
+  const toggleRecording = async () => {
+    if (recording) {
+      recorderRef.current?.stop();
+      setRecording(false);
+      setVoiceStatus("Запись остановлена.");
+      return;
+    }
+
+    await startRecording();
   };
 
   const send = async (overrideText?: string) => {
@@ -453,8 +502,10 @@ export default function SessionChat({ mode }: Props) {
                   : "border-border hover:bg-muted"
               )}
               aria-label="Микрофон"
+              title={recording ? "Остановить запись" : "Записать ответ"}
+              disabled={processingVoice || speaking || aiTyping || sessionEnded || isLoading}
             >
-              <Mic className="h-4 w-4" />
+              {processingVoice ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mic className="h-4 w-4" />}
             </button>
             <button
               onClick={toggleVoiceMode}
@@ -468,6 +519,20 @@ export default function SessionChat({ mode }: Props) {
               title={voiceMode ? "Отключить озвучку клиента" : "Включить озвучку клиента"}
             >
               {voiceMode ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
+            </button>
+            <button
+              onClick={() => setAutoListen((enabled) => !enabled)}
+              className={cn(
+                "h-11 px-3 rounded-xl border text-xs font-semibold transition-colors shrink-0",
+                autoListen
+                  ? "border-success bg-success-soft text-success-soft-foreground"
+                  : "border-border hover:bg-muted text-muted-foreground"
+              )}
+              aria-label={autoListen ? "Отключить автоответ голосом" : "Включить автоответ голосом"}
+              title={autoListen ? "Автоответ включён" : "Автоответ выключен"}
+              disabled={!voiceMode}
+            >
+              AUTO
             </button>
             <Input
               placeholder={recording ? "Говорите…" : "Ответьте клиенту…"}
@@ -494,7 +559,12 @@ export default function SessionChat({ mode }: Props) {
                 <span className="h-1.5 w-1.5 rounded-full bg-accent animate-pulse" /> Клиент говорит
               </span>
             )}
-            <span>{voiceError || "Голос обрабатывается через NAVI API. В историю сохраняется только расшифровка."}</span>
+            {processingVoice && (
+              <span className="flex items-center gap-1.5 text-accent font-medium">
+                <Loader2 className="h-3 w-3 animate-spin" /> Распознавание
+              </span>
+            )}
+            <span>{voiceError || voiceStatus}</span>
           </div>
         </div>
       </div>

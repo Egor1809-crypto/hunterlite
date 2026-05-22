@@ -39,6 +39,7 @@ import type {
   AiTranscriptionRequestDto,
 } from "@/lib/api-contracts";
 import type { AppRole } from "@/lib/demo-auth-state";
+import { validateTranscriptionAudioPayload } from "@/lib/voice-mode";
 import {
   getCurrentUser,
   getDashboardSummary,
@@ -271,9 +272,12 @@ export const createFrontendApiHandlers = (source: FrontendApiDataSource = demoFr
   transcribeSpeech: async (payload: unknown): Promise<HandlerResult<AiTranscriptionDto>> => {
     const request = payload as Partial<AiTranscriptionRequestDto> | undefined;
 
-    if (!request?.audioBase64 || !request.mimeType) {
-      return fail("VALIDATION_ERROR", "Audio payload is required");
-    }
+    const validation = validateTranscriptionAudioPayload({
+      audioBase64: request?.audioBase64,
+      mimeType: request?.mimeType,
+    });
+
+    if (!validation.ok) return fail("VALIDATION_ERROR", validation.reason);
 
     const transcription = await source.transcribeSpeech({
       audioBase64: request.audioBase64,

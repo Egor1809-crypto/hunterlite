@@ -6,6 +6,7 @@ import type {
   AiTranscriptionDto,
   AiTranscriptionRequestDto,
 } from "@/lib/api-contracts";
+import { sanitizeSpeechText, validateTranscriptionAudioPayload } from "@/lib/voice-mode";
 import type { ApiEnv } from "../../config/env";
 
 type FetchLike = typeof fetch;
@@ -130,7 +131,8 @@ export const createNavyAiClient = (
 
     synthesizeSpeech: async ({ text }) => {
       const authHeaders = headers();
-      if (!authHeaders || !text.trim()) return null;
+      const input = sanitizeSpeechText(text);
+      if (!authHeaders || !input) return null;
 
       const response = await fetchImpl(`${baseUrl}/v1/audio/speech`, {
         method: "POST",
@@ -141,7 +143,7 @@ export const createNavyAiClient = (
         body: JSON.stringify({
           model: env.NAVI_TTS_MODEL,
           voice: env.NAVI_TTS_VOICE,
-          input: text.slice(0, 4096),
+          input,
         }),
       });
 
@@ -157,7 +159,8 @@ export const createNavyAiClient = (
 
     transcribeSpeech: async ({ audioBase64, mimeType, fileName }) => {
       const authHeaders = headers();
-      if (!authHeaders || !audioBase64) return null;
+      const validation = validateTranscriptionAudioPayload({ audioBase64, mimeType });
+      if (!authHeaders || !validation.ok) return null;
 
       const formData = new FormData();
       formData.set("model", env.NAVI_STT_MODEL);
