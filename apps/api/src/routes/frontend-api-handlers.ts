@@ -238,7 +238,7 @@ export const createFrontendApiHandlers = (source: FrontendApiDataSource = demoFr
     const request = payload as Partial<AiTrainingReplyRequestDto> | undefined;
 
     if (!request?.topic || !request.mode || !request.userMessage?.trim() || !Array.isArray(request.messages)) {
-      return fail("VALIDATION_ERROR", "NAVI chat payload is invalid");
+      return fail("VALIDATION_ERROR", "AI chat payload is invalid");
     }
 
     const reply = await source.generateTrainingReply({
@@ -252,7 +252,7 @@ export const createFrontendApiHandlers = (source: FrontendApiDataSource = demoFr
       scriptContext: request.scriptContext,
     });
 
-    if (!reply) return fail("INTERNAL_ERROR", "NAVI chat is unavailable");
+    if (!reply) return fail("INTERNAL_ERROR", "AI chat is unavailable");
 
     return ok(reply);
   },
@@ -265,7 +265,7 @@ export const createFrontendApiHandlers = (source: FrontendApiDataSource = demoFr
 
     const speech = await source.synthesizeSpeech({ text });
 
-    if (!speech) return fail("INTERNAL_ERROR", "NAVI speech is unavailable");
+    if (!speech) return fail("INTERNAL_ERROR", "AI speech is unavailable");
 
     return ok(speech);
   },
@@ -286,7 +286,7 @@ export const createFrontendApiHandlers = (source: FrontendApiDataSource = demoFr
       fileName: request.fileName,
     });
 
-    if (!transcription) return fail("INTERNAL_ERROR", "NAVI transcription is unavailable");
+    if (!transcription) return fail("INTERNAL_ERROR", "AI transcription is unavailable");
 
     return ok(transcription);
   },

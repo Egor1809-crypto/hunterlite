@@ -19,7 +19,7 @@ describe("default training content", () => {
     );
   });
 
-  it("creates a local next client reply when NAVI chat is unavailable", () => {
+  it("creates a local next client reply when AI chat is unavailable", () => {
     const reply = createLocalTrainingReply({
       topic: "Имущество должника",
       mode: "talk",

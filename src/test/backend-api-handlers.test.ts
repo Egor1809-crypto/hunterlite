@@ -192,11 +192,11 @@ describe("backend frontend API handlers", () => {
     );
   });
 
-  it("proxies training chat and voice requests through NAVI handlers", async () => {
+  it("proxies training chat and voice requests through AI handlers", async () => {
     const api = createFrontendApiHandlers({
       ...demoFrontendApiDataSource,
       generateTrainingReply: async (payload) => ({
-        reply: `NAVI: ${payload.userMessage}`,
+        reply: `AI: ${payload.userMessage}`,
         scoreDelta: 0,
         mistakes: [],
         recommendations: [],
@@ -216,7 +216,7 @@ describe("backend frontend API handlers", () => {
     })).resolves.toEqual({
       ok: true,
       data: {
-        reply: "NAVI: Здравствуйте",
+        reply: "AI: Здравствуйте",
         scoreDelta: 0,
         mistakes: [],
         recommendations: [],

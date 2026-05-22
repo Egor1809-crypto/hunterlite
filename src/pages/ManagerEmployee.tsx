@@ -129,7 +129,7 @@ export default function ManagerEmployee() {
         <div className="flex gap-3">
           <Sparkles className="h-5 w-5 text-ai-soft-foreground shrink-0 mt-0.5" />
           <div>
-            <div className="font-semibold text-ai-soft-foreground">Рекомендация NAVI</div>
+            <div className="font-semibold text-ai-soft-foreground">Рекомендация ИИ</div>
             <p className="text-sm text-ai-soft-foreground/90 mt-1">
               {recommendation}
             </p>

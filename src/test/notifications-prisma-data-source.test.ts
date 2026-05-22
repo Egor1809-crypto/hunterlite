@@ -36,7 +36,7 @@ describe("notifications Prisma data source", () => {
       {
         id: "notification-3",
         type: "recommendation",
-        title: "Рекомендация NAVI",
+        title: "Рекомендация ИИ",
         body: "Повторите слабую тему.",
         readAt: null,
         createdAt: new Date("2026-05-13T12:30:00.000Z"),
@@ -65,7 +65,7 @@ describe("notifications Prisma data source", () => {
       },
       {
         id: "notification-3",
-        title: "Рекомендация NAVI",
+        title: "Рекомендация ИИ",
         body: "Повторите слабую тему.",
         time: "13.05, 16:30",
         tone: "success",

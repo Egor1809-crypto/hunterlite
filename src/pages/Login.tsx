@@ -65,7 +65,7 @@ export default function Login() {
           <BrandLogo />
           <div className="leading-tight">
             <div className="font-bold tracking-tight">HUNTERLITE</div>
-            <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Legal NAVI Trainer</div>
+            <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Legal AI Trainer</div>
           </div>
         </div>
 
@@ -243,10 +243,10 @@ export default function Login() {
         <div className="absolute -left-32 -bottom-32 h-96 w-96 rounded-full bg-ai/20 blur-3xl" />
         <div className="relative">
           <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/10 backdrop-blur border border-white/15 text-xs font-medium">
-            <Sparkles className="h-3.5 w-3.5" /> NAVI-тренажёр для юристов
+            <Sparkles className="h-3.5 w-3.5" /> ИИ-тренажёр для юристов
           </div>
           <h2 className="font-display text-4xl font-bold mt-6 leading-tight max-w-md">
-            Тренируйте юридические консультации с&nbsp;NAVI-клиентом
+            Тренируйте юридические консультации с&nbsp;ИИ-клиентом
           </h2>
           <p className="text-white/70 mt-4 max-w-md">
             Симуляции диалогов, аттестация, разбор формулировок и контроль качества консультаций по банкротству физлиц.
@@ -255,7 +255,7 @@ export default function Login() {
 
         <div className="relative grid gap-3 max-w-md">
           {[
-            { icon: Scale, title: "Юридически безопасные формулировки", text: "NAVI подсвечивает рискованные обещания и неточности." },
+            { icon: Scale, title: "Юридически безопасные формулировки", text: "ИИ подсвечивает рискованные обещания и неточности." },
             { icon: ShieldCheck, title: "Экзамен и допуск", text: "Аттестация с проходным баллом 88% и итоговым статусом." },
             { icon: Sparkles, title: "Персональные слабые темы", text: "Разбор пробелов и обязательный курс при провале." },
           ].map((f) => (

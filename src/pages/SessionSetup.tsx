@@ -128,7 +128,7 @@ export default function SessionSetup() {
           </div>
         </Section>
 
-        <Section title="Характер NAVI-клиента">
+        <Section title="Характер ИИ-клиента">
           <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
             {characters.map((c) => (
               <Choice key={c} active={char === c} onClick={() => setChar(c)} label={c} />

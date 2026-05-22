@@ -41,11 +41,11 @@ export default function SessionResult() {
     t: m,
   }));
   
-  // Add NAVI recommendation to the end
+  // Add AI recommendation to the end
   dynamicTimeline.push({
     idx: dynamicTimeline.length + 1,
     type: "ai",
-    q: "NAVI-рекомендация",
+    q: "ИИ-рекомендация",
     t: recommendations[0],
   });
 
@@ -138,7 +138,7 @@ export default function SessionResult() {
             const palette = {
               ok: { ring: "bg-success", icon: <Check className="h-3 w-3 text-white" />, badge: "success" as const, label: "Безопасно" },
               warn: { ring: "bg-warning", icon: <AlertTriangle className="h-3 w-3 text-white" />, badge: "warning" as const, label: "Ошибка" },
-              ai: { ring: "bg-ai", icon: <Sparkles className="h-3 w-3 text-white" />, badge: "ai" as const, label: "NAVI-рекомендация" },
+              ai: { ring: "bg-ai", icon: <Sparkles className="h-3 w-3 text-white" />, badge: "ai" as const, label: "ИИ-рекомендация" },
             }[t.type as "ok" | "warn" | "ai"];
             
             if (!palette) return null;
@@ -165,7 +165,7 @@ export default function SessionResult() {
         <div className="flex gap-3">
           <div className="h-9 w-9 rounded-lg bg-ai text-white flex items-center justify-center shrink-0"><Sparkles className="h-4 w-4" /></div>
           <div>
-            <div className="font-semibold text-ai-soft-foreground">Рекомендация NAVI</div>
+            <div className="font-semibold text-ai-soft-foreground">Рекомендация ИИ</div>
             <p className="text-sm text-ai-soft-foreground/90 mt-1">
               {recommendations[0]}
             </p>

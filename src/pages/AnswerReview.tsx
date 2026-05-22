@@ -55,7 +55,7 @@ export default function AnswerReview() {
         <div className="lg:col-span-2 space-y-4">
           {/* Question + answer */}
           <Card className="p-5 shadow-card">
-            <div className="text-[11px] uppercase tracking-wider font-semibold text-muted-foreground mb-2">Вопрос NAVI-клиента</div>
+            <div className="text-[11px] uppercase tracking-wider font-semibold text-muted-foreground mb-2">Вопрос ИИ-клиента</div>
             <div className="text-sm bg-muted/40 rounded-lg p-4 border border-border italic">
               «Я боюсь, что после банкротства у меня заберут вообще всё имущество. Это правда?»
             </div>
@@ -100,14 +100,14 @@ export default function AnswerReview() {
             </p>
           </Card>
 
-          {/* NAVI rec */}
+          {/* AI rec */}
           <Card className="p-5 bg-ai-soft border-ai/20">
             <div className="flex gap-3">
               <div className="h-9 w-9 rounded-lg bg-ai text-white flex items-center justify-center shrink-0">
                 <Sparkles className="h-4 w-4" />
               </div>
               <div>
-                <div className="font-semibold text-ai-soft-foreground">NAVI-рекомендация</div>
+                <div className="font-semibold text-ai-soft-foreground">ИИ-рекомендация</div>
                 <p className="text-sm text-ai-soft-foreground/90 mt-1">
                   Пройдите 2 кейса по теме «Ипотечное жильё при банкротстве» — это поднимет балл по полноте ответов.
                 </p>

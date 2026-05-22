@@ -8,7 +8,7 @@ const modes = [
     to: "/session/setup?mode=talk",
     icon: MessageSquare,
     title: "Поговорить",
-    desc: "Свободная тренировка с NAVI-клиентом по теме банкротства физических лиц.",
+    desc: "Свободная тренировка с ИИ-клиентом по теме банкротства физических лиц.",
     cta: "Начать тренировку",
     accent: "bg-info-soft text-info-soft-foreground",
     meta: [{ icon: Clock, t: "10–20 мин" }, { icon: BookOpen, t: "Любая тема" }],

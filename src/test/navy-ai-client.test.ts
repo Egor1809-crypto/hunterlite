@@ -10,8 +10,8 @@ const env = {
   NAVI_STT_MODEL: "scribe_v2",
 };
 
-describe("NAVI client", () => {
-  it("uses NAVI chat completions with the configured Gemini model", async () => {
+describe("external AI client", () => {
+  it("uses AI chat completions with the configured Gemini model", async () => {
     const fetchMock = vi.fn(async () => new Response(JSON.stringify({
       choices: [{
         message: {
@@ -52,7 +52,7 @@ describe("NAVI client", () => {
     }));
   });
 
-  it("uses NAVI speech and transcription endpoints with configured voice models", async () => {
+  it("uses AI speech and transcription endpoints with configured voice models", async () => {
     const fetchMock = vi.fn(async (url: string) => {
       if (url.endsWith("/v1/audio/speech")) {
         return new Response(new Uint8Array([1, 2, 3]), {

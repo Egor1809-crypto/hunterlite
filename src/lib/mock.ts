@@ -34,7 +34,7 @@ export const weakTopics = [
 
 export const notifications = [
   { id: 1, type: "info" as const, title: "Назначен экзамен", text: "Аттестация по теме «Имущество должника» — до 5 мая.", time: "2 часа назад" },
-  { id: 2, type: "warning" as const, title: "Рекомендация NAVI", text: "Повторите блок про ипотечное жильё перед экзаменом.", time: "вчера" },
+  { id: 2, type: "warning" as const, title: "Рекомендация ИИ", text: "Повторите блок про ипотечное жильё перед экзаменом.", time: "вчера" },
   { id: 3, type: "success" as const, title: "Тренировка завершена", text: "Вы получили 84/100 за сессию «Возражения клиента».", time: "2 дня назад" },
 ];
 

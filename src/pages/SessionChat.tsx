@@ -93,7 +93,7 @@ export default function SessionChat({ mode }: Props) {
   const [autoListen, setAutoListen] = useState(false);
   const [speaking, setSpeaking] = useState(false);
   const [voiceError, setVoiceError] = useState("");
-  const [voiceStatus, setVoiceStatus] = useState("Голос обрабатывается через NAVI API.");
+  const [voiceStatus, setVoiceStatus] = useState("Голос обрабатывается через внешний API.");
   const [secs, setSecs] = useState(mode === "exam" ? 30 * 60 : 0);
   const [panelOpen, setPanelOpen] = useState(false);
   const [sessionEnded, setSessionEnded] = useState(false);
@@ -246,7 +246,7 @@ export default function SessionChat({ mode }: Props) {
         setVoiceStatus("Речь распознана. Проверьте текст и нажмите отправить.");
         if (recorderRef.current?.state === "recording") recorderRef.current.stop();
       } else {
-        setVoiceStatus("Браузер не дал текст, распознаём запись через NAVI.");
+        setVoiceStatus("Браузер не дал текст, распознаём запись через внешний API.");
       }
     };
 
@@ -277,9 +277,9 @@ export default function SessionChat({ mode }: Props) {
       setVoiceError(
         error === "not-allowed"
           ? "Доступ к распознаванию речи запрещён. Разрешите микрофон и распознавание в браузере."
-          : "Браузер не дал текст, используем распознавание записи через NAVI.",
+          : "Браузер не дал текст, используем распознавание записи через внешний API.",
       );
-      setVoiceStatus("Распознаём запись через NAVI.");
+      setVoiceStatus("Распознаём запись через внешний API.");
     };
     recognition.onend = () => {
       finishRecognition();
@@ -292,7 +292,7 @@ export default function SessionChat({ mode }: Props) {
       recognition.start();
     } catch {
       speechRecognitionRef.current = null;
-      setVoiceStatus("Браузерное распознавание не запустилось, записываем через NAVI.");
+      setVoiceStatus("Браузерное распознавание не запустилось, записываем через внешний API.");
       return false;
     }
     browserSpeechTimeoutRef.current = window.setTimeout(() => {
@@ -358,7 +358,7 @@ export default function SessionChat({ mode }: Props) {
         URL.revokeObjectURL(url);
         if (!speakWithBrowserVoice()) {
           setSpeaking(false);
-          setVoiceError("NAVI не смог озвучить ответ. Текстовый режим работает.");
+          setVoiceError("Внешний API не смог озвучить ответ. Текстовый режим работает.");
           setVoiceStatus("Озвучка недоступна.");
         }
       };
@@ -371,7 +371,7 @@ export default function SessionChat({ mode }: Props) {
       }
       if (!speakWithBrowserVoice()) {
         setSpeaking(false);
-        setVoiceError("NAVI voice временно недоступен. Текстовый режим работает.");
+        setVoiceError("Голосовой API временно недоступен. Текстовый режим работает.");
         setVoiceStatus("Озвучка недоступна.");
       }
     }
@@ -444,16 +444,16 @@ export default function SessionChat({ mode }: Props) {
 
           if (transcription.text) {
             setInput(transcription.text);
-            setVoiceStatus("Речь распознана через NAVI. Проверьте текст и нажмите отправить.");
+            setVoiceStatus("Речь распознана через внешний API. Проверьте текст и нажмите отправить.");
           } else {
-            setVoiceError("NAVI вернул пустую расшифровку. Попробуйте сказать ответ ближе к микрофону.");
+            setVoiceError("Внешний API вернул пустую расшифровку. Попробуйте сказать ответ ближе к микрофону.");
             setVoiceStatus("Голос не распознан.");
           }
         })().catch((error) => {
           setVoiceError(
             error instanceof ApiClientError
-              ? `NAVI STT: ${error.message}`
-              : "NAVI не смог распознать речь. Попробуйте ещё раз или введите ответ текстом.",
+              ? `STT: ${error.message}`
+              : "Внешний API не смог распознать речь. Попробуйте ещё раз или введите ответ текстом.",
           );
           setVoiceStatus("Голос не распознан.");
         }).finally(() => {
@@ -470,7 +470,7 @@ export default function SessionChat({ mode }: Props) {
       setVoiceStatus(
         browserRecognitionStarted
           ? "Идёт запись. Говорите сейчас: текст появится в строке, отправку нажмёте сами."
-          : "Идёт запись. Говорите сейчас, затем текст появится после распознавания NAVI.",
+          : "Идёт запись. Говорите сейчас, затем текст появится после распознавания внешним API.",
       );
     } catch (error) {
       const errorName = error instanceof DOMException ? error.name : "";
@@ -575,7 +575,7 @@ export default function SessionChat({ mode }: Props) {
       } else {
         setSessionEnded(true);
       }
-      setVoiceError("NAVI API временно недоступен, включён локальный сценарий тренировки.");
+      setVoiceError("Внешний API временно недоступен, включён локальный сценарий тренировки.");
       void speak(fallback.reply);
     } finally {
       setAiTyping(false);
@@ -870,7 +870,7 @@ function SessionInfoPanel({ mode, topic, step, total, score, secs, fmt }: Sessio
       </Card>
 
       <div>
-        <div className="text-[11px] uppercase tracking-wider font-semibold text-muted-foreground mb-2">Статус NAVI-клиента</div>
+        <div className="text-[11px] uppercase tracking-wider font-semibold text-muted-foreground mb-2">Статус ИИ-клиента</div>
         <StatusBadge variant="warning" dot>Тревожный · сомневается</StatusBadge>
       </div>
 
@@ -878,7 +878,7 @@ function SessionInfoPanel({ mode, topic, step, total, score, secs, fmt }: Sessio
         <div className="flex gap-2">
           <Sparkles className="h-4 w-4 text-ai-soft-foreground shrink-0 mt-0.5" />
           <div className="text-xs text-ai-soft-foreground">
-            <span className="font-semibold">NAVI:</span> оценивает ответ через внешний API.
+            <span className="font-semibold">ИИ:</span> оценивает ответ через внешний API.
           </div>
         </div>
       </Card>
