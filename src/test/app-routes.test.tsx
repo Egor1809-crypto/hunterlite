@@ -37,23 +37,23 @@ afterEach(() => {
 });
 
 describe("application routes", () => {
-  it.each(routes)("renders $path", ({ path, text, role }) => {
+  it.each(routes)("renders $path", async ({ path, text, role }) => {
     setDemoRole((role || "employee") as AppRole);
     window.history.pushState({}, "", path);
     render(<App />);
 
-    expect(screen.getAllByText(text, { exact: false }).length).toBeGreaterThan(0);
+    expect((await screen.findAllByText(text, { exact: false })).length).toBeGreaterThan(0);
   });
 
-  it("keeps login free of demo role shortcuts and fake OAuth buttons", () => {
+  it("keeps login free of demo role shortcuts and fake OAuth buttons", async () => {
     window.history.pushState({}, "", "/login");
     render(<App />);
 
+    expect(await screen.findByRole("button", { name: /Telegram/i })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Сотрудник" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Руководитель" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Админ" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Google/i })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Яндекс/i })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Telegram/i })).toBeInTheDocument();
   });
 });

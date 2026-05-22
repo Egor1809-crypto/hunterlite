@@ -107,7 +107,7 @@ describe("e2e smoke flows", () => {
 
     render(<App />);
 
-    fireEvent.change(screen.getByLabelText("Корпоративный email"), {
+    fireEvent.change(await screen.findByLabelText("Корпоративный email"), {
       target: { value: "a.petrova@hunterlite.ru" },
     });
     fireEvent.change(screen.getByLabelText("Пароль"), {
@@ -141,13 +141,13 @@ describe("e2e smoke flows", () => {
     expect(await screen.findByText(/если это моё единственное жильё/i)).toBeInTheDocument();
   });
 
-  it("shows an exam pass result at the 88 point threshold", () => {
+  it("shows an exam pass result at the 88 point threshold", async () => {
     setDemoRole("employee");
     window.history.pushState({}, "", "/session/result?score=88&mode=exam");
 
     render(<App />);
 
-    expect(screen.getByText("Экзамен сдан")).toBeInTheDocument();
+    expect(await screen.findByText("Экзамен сдан")).toBeInTheDocument();
     expect(screen.getByText(/Проходной порог · 88/i)).toBeInTheDocument();
   });
 
