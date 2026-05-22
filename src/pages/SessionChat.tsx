@@ -105,7 +105,6 @@ export default function SessionChat({ mode }: Props) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const recordingTimeoutRef = useRef<number | null>(null);
   const browserSpeechTimeoutRef = useRef<number | null>(null);
-  const voiceSubmittedRef = useRef(false);
 
   const total = Math.max(nodes.length, MIN_CONVERSATION_STEPS);
 
@@ -233,18 +232,16 @@ export default function SessionChat({ mode }: Props) {
     };
 
     const finishRecognition = (text?: string) => {
-      if (finished || voiceSubmittedRef.current) return;
+      if (finished) return;
       finished = true;
       clearSpeechTimeout();
       speechRecognitionRef.current = null;
 
       const recognizedText = text?.trim() || transcript.trim();
       if (recognizedText) {
-        voiceSubmittedRef.current = true;
         setInput(recognizedText);
-        setVoiceStatus("Речь распознана. Отправляем ответ.");
+        setVoiceStatus("Речь распознана. Проверьте текст и нажмите отправить.");
         if (recorderRef.current?.state === "recording") recorderRef.current.stop();
-        void send(recognizedText);
       } else {
         setVoiceStatus("Браузер не дал текст, распознаём запись через NAVI.");
       }
@@ -287,7 +284,7 @@ export default function SessionChat({ mode }: Props) {
 
     speechRecognitionRef.current = recognition;
     setVoiceError("");
-    setVoiceStatus("Слушаю через браузер. Скажите ответ, распознавание отправит его автоматически.");
+    setVoiceStatus("Слушаю через браузер. Скажите ответ, текст появится в строке.");
     try {
       recognition.start();
     } catch {
@@ -356,8 +353,6 @@ export default function SessionChat({ mode }: Props) {
 
   const startRecording = async () => {
     if (recording || processingVoice || speaking || aiTyping || sessionEnded || isLoading) return;
-    voiceSubmittedRef.current = false;
-
     if (!isVoiceRecordingSupported(window.navigator?.mediaDevices, window.MediaRecorder)) {
       if (startBrowserSpeechRecognition()) {
         setRecording(true);
@@ -392,12 +387,6 @@ export default function SessionChat({ mode }: Props) {
         }
         stream.getTracks().forEach((track) => track.stop());
 
-        if (voiceSubmittedRef.current) {
-          chunksRef.current = [];
-          return;
-        }
-        voiceSubmittedRef.current = true;
-
         void (async () => {
           const audioBlob = new Blob(chunksRef.current, { type: recorder.mimeType || "audio/webm" });
           if (audioBlob.size === 0) {
@@ -415,8 +404,7 @@ export default function SessionChat({ mode }: Props) {
 
           if (transcription.text) {
             setInput(transcription.text);
-            setVoiceStatus("Отправляем ответ.");
-            void send(transcription.text);
+            setVoiceStatus("Речь распознана через NAVI. Проверьте текст и нажмите отправить.");
           } else {
             setVoiceError("NAVI вернул пустую расшифровку. Попробуйте сказать ответ ближе к микрофону.");
             setVoiceStatus("Голос не распознан.");
@@ -441,8 +429,8 @@ export default function SessionChat({ mode }: Props) {
       const browserRecognitionStarted = startBrowserSpeechRecognition();
       setVoiceStatus(
         browserRecognitionStarted
-          ? "Идёт запись. Говорите сейчас: текст появится в строке или уйдёт через NAVI."
-          : "Идёт запись. Говорите сейчас, запись сама уйдёт на распознавание NAVI.",
+          ? "Идёт запись. Говорите сейчас: текст появится в строке, отправку нажмёте сами."
+          : "Идёт запись. Говорите сейчас, затем текст появится после распознавания NAVI.",
       );
     } catch (error) {
       const errorName = error instanceof DOMException ? error.name : "";
