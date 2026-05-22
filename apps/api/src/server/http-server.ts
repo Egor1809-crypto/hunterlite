@@ -20,6 +20,12 @@ import {
   type LoginRateLimiter,
 } from "../modules/auth/login-rate-limit";
 import {
+  createNotificationHeartbeatEvent,
+  createNotificationSnapshotEvent,
+  notificationStreamIntervalMs,
+  notificationStreamPath,
+} from "../modules/notifications/notification-stream";
+import {
   createFrontendApiHandlers,
   type FrontendApiDataSource,
 } from "../routes/frontend-api-handlers";
@@ -112,6 +118,25 @@ const createJsonHeaders = (origin?: string, corsOrigins?: string) => {
           "Access-Control-Allow-Credentials": "true",
           "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
           "Access-Control-Allow-Headers": "Content-Type,Accept,X-CSRF-Token",
+          Vary: "Origin",
+        }
+      : {}),
+  };
+};
+
+const createStreamHeaders = (origin?: string, corsOrigins?: string) => {
+  const allowedOrigins = corsOrigins ? parseCorsOrigins(corsOrigins) : [];
+  const allowedOrigin = origin && allowedOrigins.includes(origin) ? origin : undefined;
+
+  return {
+    "Content-Type": "text/event-stream; charset=utf-8",
+    "Cache-Control": "no-store, no-transform",
+    Connection: "keep-alive",
+    "X-Accel-Buffering": "no",
+    ...(allowedOrigin
+      ? {
+          "Access-Control-Allow-Origin": allowedOrigin,
+          "Access-Control-Allow-Credentials": "true",
           Vary: "Origin",
         }
       : {}),
@@ -365,6 +390,47 @@ export const createApiHttpServer = (options: ApiServerOptions = {}) =>
   createServer(async (request: IncomingMessage, response: ServerResponse) => {
     const origin = request.headers.origin;
     try {
+      const requestUrl = new URL(request.url ?? "/", "http://localhost");
+
+      if (request.method === "GET" && requestUrl.pathname === notificationStreamPath) {
+        const auth = createAuthHandlers(options.auth, {
+          allowDemoFallback: options.authDemoFallback,
+        });
+        const authSession = await auth.session(request.headers.cookie);
+
+        if (!authSession.ok || !roleHasPermission(authSession.data.user.role, "notifications:read:self")) {
+          response.writeHead(401, createJsonHeaders(origin, options.corsOrigins));
+          response.end(JSON.stringify(fail("UNAUTHORIZED", "Authentication required")));
+          return;
+        }
+
+        const api = createFrontendApiHandlers(options.source);
+        response.writeHead(200, createStreamHeaders(origin, options.corsOrigins));
+        response.write(": connected\n\n");
+
+        const sendSnapshot = async () => {
+          const notifications = await api.getNotifications();
+
+          if (notifications.ok) {
+            response.write(createNotificationSnapshotEvent(notifications.data));
+          } else {
+            response.write(createNotificationHeartbeatEvent());
+          }
+        };
+
+        await sendSnapshot();
+        const interval = setInterval(() => {
+          void sendSnapshot().catch(() => {
+            response.write(createNotificationHeartbeatEvent());
+          });
+        }, notificationStreamIntervalMs);
+
+        request.on("close", () => {
+          clearInterval(interval);
+        });
+        return;
+      }
+
       const body = await readJsonBody(request);
       const resolved = await resolveApiRequest(
         {

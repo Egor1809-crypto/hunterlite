@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { NotificationDto } from "@/lib/api-contracts";
-import { liveNotificationPollMs, mergeNotifications } from "@/lib/live-notifications";
+import { notificationStreamUrl, liveNotificationPollMs, mergeNotifications } from "@/lib/live-notifications";
 
 const notification = (id: string, title = id): NotificationDto => ({
   id,
@@ -14,6 +14,7 @@ const notification = (id: string, title = id): NotificationDto => ({
 describe("live notifications", () => {
   it("polls often enough for near-realtime UX without hammering the API", () => {
     expect(liveNotificationPollMs).toBe(15_000);
+    expect(notificationStreamUrl).toBe("/api/notifications/stream");
   });
 
   it("merges incoming notifications before existing ones and deduplicates by id", () => {
