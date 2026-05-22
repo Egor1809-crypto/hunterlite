@@ -6,7 +6,11 @@ import type {
   AiTranscriptionDto,
   AiTranscriptionRequestDto,
 } from "@/lib/api-contracts";
-import { sanitizeSpeechText, validateTranscriptionAudioPayload } from "@/lib/voice-mode";
+import {
+  audioFileNameForMimeType,
+  sanitizeSpeechText,
+  validateTranscriptionAudioPayload,
+} from "@/lib/voice-mode";
 import type { ApiEnv } from "../../config/env";
 
 type FetchLike = typeof fetch;
@@ -64,6 +68,9 @@ const normalizeReply = (content: string, totalSteps: number, step: number): AiTr
 };
 
 const decodeBase64 = (value: string) => Buffer.from(value, "base64");
+
+const uniqueModels = (...models: Array<string | undefined>) =>
+  Array.from(new Set(models.map((model) => model?.trim()).filter((model): model is string => Boolean(model))));
 
 export const createNavyAiClient = (
   env: Pick<ApiEnv, "NAVI_API_KEY" | "NAVI_BASE_URL" | "NAVI_CHAT_MODEL" | "NAVI_TTS_MODEL" | "NAVI_TTS_VOICE" | "NAVI_STT_MODEL">,
@@ -162,27 +169,34 @@ export const createNavyAiClient = (
       const validation = validateTranscriptionAudioPayload({ audioBase64, mimeType });
       if (!authHeaders || !validation.ok) return null;
 
-      const formData = new FormData();
-      formData.set("model", env.NAVI_STT_MODEL);
-      formData.set("language", "ru");
-      formData.set("response_format", "json");
-      formData.set("file", new Blob([decodeBase64(audioBase64)], { type: mimeType }), fileName || "speech.webm");
+      const audioBuffer = decodeBase64(audioBase64);
+      const models = uniqueModels(env.NAVI_STT_MODEL, "whisper-1", "gpt-4o-transcribe");
 
-      const response = await fetchImpl(`${baseUrl}/v1/audio/transcriptions`, {
-        method: "POST",
-        headers: authHeaders,
-        body: formData,
-      });
+      for (const model of models) {
+        const formData = new FormData();
+        formData.set("model", model);
+        formData.set("language", "ru");
+        formData.set("response_format", "json");
+        formData.set("file", new Blob([audioBuffer], { type: mimeType }), fileName || audioFileNameForMimeType(mimeType));
 
-      if (!response.ok) return null;
+        const response = await fetchImpl(`${baseUrl}/v1/audio/transcriptions`, {
+          method: "POST",
+          headers: authHeaders,
+          body: formData,
+        });
 
-      const contentType = response.headers.get("content-type") ?? "";
-      const data = contentType.includes("application/json")
-        ? ((await response.json()) as NavyTranscriptionResponse | string)
-        : await response.text();
-      const text = (typeof data === "string" ? data : data.text)?.trim();
+        if (!response.ok) continue;
 
-      return text ? { text } : null;
+        const contentType = response.headers.get("content-type") ?? "";
+        const data = contentType.includes("application/json")
+          ? ((await response.json()) as NavyTranscriptionResponse | string)
+          : await response.text();
+        const text = (typeof data === "string" ? data : data.text)?.trim();
+
+        if (text) return { text };
+      }
+
+      return null;
     },
   };
 };

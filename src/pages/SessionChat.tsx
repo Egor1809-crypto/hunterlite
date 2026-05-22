@@ -8,12 +8,17 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { ApiClientError } from "@/lib/api-client";
 import { frontendApi } from "@/lib/frontend-api";
 import { calculateTrainingResult } from "@/lib/training-logic";
-import { isVoiceRecordingSupported, selectRecordingMimeType } from "@/lib/voice-mode";
-import { createLocalTrainingReply, defaultCallScripts } from "@/lib/default-training-content";
+import {
+  audioFileNameForMimeType,
+  getBrowserSpeechRecognition,
+  isVoiceRecordingSupported,
+  selectRecordingMimeType,
+  type BrowserSpeechRecognition,
+} from "@/lib/voice-mode";
 import { Mic, Send, X, Sparkles, Bot, User, Clock, Target, ChevronUp, Loader2, Volume2, VolumeX } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useQuery } from "@tanstack/react-query";
-import type { AiTrainingReplyRequestDto, CallScriptDto } from "@/lib/api-contracts";
+import type { CallScriptDto } from "@/lib/api-contracts";
 
 type Props = { mode: "talk" | "exam" | "chat-test" };
 type Msg = { from: "ai" | "user"; text: string; isSystem?: boolean };
@@ -61,12 +66,10 @@ export default function SessionChat({ mode }: Props) {
   const sessionIdParam = params.get("sessionId");
   const scriptId = params.get("scriptId");
   const topic = params.get("topic") ?? (mode === "chat-test" ? "Условия банкротства" : "Имущество должника");
-  const { data: fetchedScripts = [], isLoading } = useQuery({
+  const { data: scripts = [], isLoading } = useQuery({
     queryKey: ["employee", "callScripts"],
     queryFn: () => frontendApi.getTrainingCallScripts(),
   });
-  const usableScripts = fetchedScripts.filter((script) => (script.nodes?.length ?? 0) >= 2);
-  const scripts = usableScripts.length ? usableScripts : defaultCallScripts;
   const selectedScriptId = scriptId ?? (
     sessionIdParam && scripts.some((script) => script.id === sessionIdParam) ? sessionIdParam : undefined
   );
@@ -97,9 +100,11 @@ export default function SessionChat({ mode }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const startRef = useRef<string | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
+  const speechRecognitionRef = useRef<BrowserSpeechRecognition | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const recordingTimeoutRef = useRef<number | null>(null);
+  const browserSpeechTimeoutRef = useRef<number | null>(null);
 
   const total = Math.max(nodes.length, MIN_CONVERSATION_STEPS);
 
@@ -203,11 +208,100 @@ export default function SessionChat({ mode }: Props) {
 
   useEffect(() => {
     return () => {
+      speechRecognitionRef.current?.abort();
       recorderRef.current?.stop();
       if (recordingTimeoutRef.current) window.clearTimeout(recordingTimeoutRef.current);
+      if (browserSpeechTimeoutRef.current) window.clearTimeout(browserSpeechTimeoutRef.current);
       audioRef.current?.pause();
     };
   }, []);
+
+  const startBrowserSpeechRecognition = () => {
+    const SpeechRecognition = getBrowserSpeechRecognition(window);
+    if (!SpeechRecognition) return false;
+
+    let transcript = "";
+    let finished = false;
+    const recognition = new SpeechRecognition();
+
+    const clearSpeechTimeout = () => {
+      if (browserSpeechTimeoutRef.current) {
+        window.clearTimeout(browserSpeechTimeoutRef.current);
+        browserSpeechTimeoutRef.current = null;
+      }
+    };
+
+    const finishRecognition = (text?: string) => {
+      if (finished) return;
+      finished = true;
+      clearSpeechTimeout();
+      speechRecognitionRef.current = null;
+      setRecording(false);
+
+      const recognizedText = text?.trim() || transcript.trim();
+      if (recognizedText) {
+        setInput(recognizedText);
+        setVoiceStatus("Речь распознана. Отправляем ответ.");
+        void send(recognizedText);
+      } else {
+        setVoiceError("Браузер не распознал речь. Нажмите микрофон ещё раз и говорите чуть дольше.");
+        setVoiceStatus("Голос не распознан.");
+      }
+    };
+
+    recognition.lang = "ru-RU";
+    recognition.continuous = false;
+    recognition.interimResults = true;
+    recognition.maxAlternatives = 1;
+    recognition.onresult = (event) => {
+      let finalText = "";
+
+      for (let index = event.resultIndex; index < event.results.length; index += 1) {
+        const result = event.results[index];
+        const text = result[0]?.transcript?.trim();
+        if (!text) continue;
+        transcript = text;
+        if (result.isFinal) finalText += `${text} `;
+      }
+
+      if (finalText.trim()) finishRecognition(finalText);
+    };
+    recognition.onerror = (event) => {
+      finished = true;
+      clearSpeechTimeout();
+      const error = event.error ?? "";
+      setRecording(false);
+      speechRecognitionRef.current = null;
+      setVoiceError(
+        error === "not-allowed"
+          ? "Доступ к распознаванию речи запрещён. Разрешите микрофон и распознавание в браузере."
+          : "Браузер не смог распознать речь. Попробуйте ещё раз или введите ответ текстом.",
+      );
+      setVoiceStatus("Голос не распознан.");
+    };
+    recognition.onend = () => {
+      finishRecognition();
+    };
+
+    speechRecognitionRef.current = recognition;
+    setVoiceError("");
+    setRecording(true);
+    setVoiceStatus("Слушаю через браузер. Скажите ответ, распознавание отправит его автоматически.");
+    try {
+      recognition.start();
+    } catch {
+      speechRecognitionRef.current = null;
+      setRecording(false);
+      setVoiceError("Браузер не запустил распознавание речи. Попробуйте ещё раз или введите ответ текстом.");
+      setVoiceStatus("Голос не распознан.");
+      return true;
+    }
+    browserSpeechTimeoutRef.current = window.setTimeout(() => {
+      speechRecognitionRef.current?.stop();
+    }, maxRecordingMs);
+
+    return true;
+  };
 
   const speak = async (text: string) => {
     if (!voiceMode || typeof window === "undefined") return;
@@ -263,6 +357,8 @@ export default function SessionChat({ mode }: Props) {
 
   const startRecording = async () => {
     if (recording || processingVoice || speaking || aiTyping || sessionEnded || isLoading) return;
+    if (startBrowserSpeechRecognition()) return;
+
     if (!isVoiceRecordingSupported(window.navigator?.mediaDevices, window.MediaRecorder)) {
       markMicUnsupported();
       return;
@@ -303,7 +399,7 @@ export default function SessionChat({ mode }: Props) {
           const transcription = await frontendApi.transcribeSpeech({
             audioBase64: await blobToBase64(audioBlob),
             mimeType: audioBlob.type || "audio/webm",
-            fileName: "speech.webm",
+            fileName: audioFileNameForMimeType(audioBlob.type || "audio/webm"),
           });
 
           if (transcription.text) {
@@ -346,6 +442,7 @@ export default function SessionChat({ mode }: Props) {
 
   const toggleRecording = async () => {
     if (recording) {
+      speechRecognitionRef.current?.stop();
       recorderRef.current?.stop();
       setRecording(false);
       setVoiceStatus("Запись остановлена.");
@@ -372,7 +469,7 @@ export default function SessionChat({ mode }: Props) {
     try {
       const nextStep = step + 1;
       const nextNode = nodes[nextStep];
-      const trainingPayload: AiTrainingReplyRequestDto = {
+      const ai = await frontendApi.generateTrainingReply({
         sessionId: sessionForPersistence,
         topic,
         mode: mode === "chat-test" ? "chat_test" : mode,
@@ -385,8 +482,7 @@ export default function SessionChat({ mode }: Props) {
           nextClientReplica: nextNode?.clientReplica,
           keywordRules: nextNode?.keywordRules,
         },
-      };
-      const ai = await frontendApi.generateTrainingReply(trainingPayload).catch(() => createLocalTrainingReply(trainingPayload));
+      });
       const aiMessage = ai.reply;
 
       if (ai.scoreDelta > 0) {
@@ -410,32 +506,15 @@ export default function SessionChat({ mode }: Props) {
       }
       void speak(aiMessage);
     } catch {
-      const nextStep = step + 1;
-      const nextNode = nodes[nextStep];
-      const fallback = createLocalTrainingReply({
-        sessionId: sessionForPersistence,
-        topic,
-        mode: mode === "chat-test" ? "chat_test" : mode,
-        step,
-        totalSteps: total,
-        userMessage: text,
-        messages: [...messages, userMessage].map((message) => ({ from: message.from, text: message.text })),
-        scriptContext: {
-          title,
-          nextClientReplica: nextNode?.clientReplica,
-          keywordRules: nextNode?.keywordRules,
+      setMessages((m) => [
+        ...m,
+        {
+          from: "ai",
+          text: "NAVI API сейчас недоступен. Проверьте ключ и соединение, затем отправьте ответ ещё раз.",
+          isSystem: true,
         },
-      });
-      const shouldContinue = !fallback.sessionEnded && nextStep < total;
-
-      setMessages((m) => [...m, { from: "ai", text: fallback.reply, isSystem: !shouldContinue }]);
-      if (shouldContinue) {
-        setStep(nextStep);
-      } else {
-        setSessionEnded(true);
-      }
-      setVoiceError("NAVI API временно недоступен, включён локальный сценарий тренировки.");
-      void speak(fallback.reply);
+      ]);
+      setVoiceError("NAVI API недоступен: ответ клиента не сгенерирован.");
     } finally {
       setAiTyping(false);
     }
@@ -511,6 +590,10 @@ export default function SessionChat({ mode }: Props) {
           {isLoading ? (
             <div className="flex h-full items-center justify-center text-muted-foreground">
               <Loader2 className="mr-2 h-6 w-6 animate-spin" /> Загрузка сценария...
+            </div>
+          ) : scripts.length === 0 ? (
+            <div className="flex h-full items-center justify-center text-muted-foreground">
+              Скрипты звонков не найдены. Создайте их в панели администратора.
             </div>
           ) : (
             <>

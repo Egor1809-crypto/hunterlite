@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
+  audioFileNameForMimeType,
   maxTranscriptionAudioBytes,
   sanitizeSpeechText,
   isVoiceRecordingSupported,
+  getBrowserSpeechRecognition,
+  isBrowserSpeechRecognitionSupported,
   selectRecordingMimeType,
   validateTranscriptionAudioPayload,
 } from "@/lib/voice-mode";
@@ -16,6 +19,12 @@ describe("voice mode helpers", () => {
     const supported = selectRecordingMimeType((mimeType) => mimeType === "audio/webm");
 
     expect(supported).toBe("audio/webm");
+  });
+
+  it("names recorded audio files according to their real mime type", () => {
+    expect(audioFileNameForMimeType("audio/webm;codecs=opus")).toBe("speech.webm");
+    expect(audioFileNameForMimeType("audio/mp4")).toBe("speech.m4a");
+    expect(audioFileNameForMimeType("audio/wav")).toBe("speech.wav");
   });
 
   it("validates transcription audio payloads", () => {
@@ -36,5 +45,14 @@ describe("voice mode helpers", () => {
   it("detects whether browser recording APIs are available", () => {
     expect(isVoiceRecordingSupported(undefined, undefined)).toBe(false);
     expect(isVoiceRecordingSupported({ getUserMedia: async () => ({} as MediaStream) }, class {} as typeof MediaRecorder)).toBe(true);
+  });
+
+  it("detects browser speech recognition APIs for Chrome voice input", () => {
+    class Recognition {}
+    const scope = { webkitSpeechRecognition: Recognition };
+
+    expect(getBrowserSpeechRecognition(scope as never)).toBe(Recognition);
+    expect(isBrowserSpeechRecognitionSupported(scope as never)).toBe(true);
+    expect(isBrowserSpeechRecognitionSupported({})).toBe(false);
   });
 });
