@@ -65,3 +65,8 @@ export const selectRecordingMimeType = (isTypeSupported?: (mimeType: string) => 
 
   return recordingMimeTypes.find((mimeType) => isTypeSupported(mimeType)) ?? "";
 };
+
+export const isVoiceRecordingSupported = (
+  mediaDevices?: Pick<MediaDevices, "getUserMedia">,
+  mediaRecorder?: typeof MediaRecorder,
+) => Boolean(mediaDevices?.getUserMedia && mediaRecorder);

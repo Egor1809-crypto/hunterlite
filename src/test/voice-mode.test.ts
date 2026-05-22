@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   maxTranscriptionAudioBytes,
   sanitizeSpeechText,
+  isVoiceRecordingSupported,
   selectRecordingMimeType,
   validateTranscriptionAudioPayload,
 } from "@/lib/voice-mode";
@@ -30,5 +31,10 @@ describe("voice mode helpers", () => {
       audioBase64: "A".repeat(Math.ceil(((maxTranscriptionAudioBytes + 1) * 4) / 3)),
       mimeType: "audio/webm",
     })).toEqual({ ok: false, reason: "Audio file is too large" });
+  });
+
+  it("detects whether browser recording APIs are available", () => {
+    expect(isVoiceRecordingSupported(undefined, undefined)).toBe(false);
+    expect(isVoiceRecordingSupported({ getUserMedia: async () => ({} as MediaStream) }, class {} as typeof MediaRecorder)).toBe(true);
   });
 });

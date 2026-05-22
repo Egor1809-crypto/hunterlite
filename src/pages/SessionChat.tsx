@@ -7,7 +7,7 @@ import { Progress } from "@/components/ui/progress";
 import { StatusBadge } from "@/components/StatusBadge";
 import { frontendApi } from "@/lib/frontend-api";
 import { calculateTrainingResult } from "@/lib/training-logic";
-import { selectRecordingMimeType } from "@/lib/voice-mode";
+import { isVoiceRecordingSupported, selectRecordingMimeType } from "@/lib/voice-mode";
 import { Mic, Send, X, Sparkles, Bot, User, Clock, Target, ChevronUp, Loader2, Volume2, VolumeX } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useQuery } from "@tanstack/react-query";
@@ -17,6 +17,7 @@ type Props = { mode: "talk" | "exam" | "chat-test" };
 type Msg = { from: "ai" | "user"; text: string; isSystem?: boolean };
 const DEFAULT_SCRIPT_TOPIC = "Имущество должника";
 const MIN_CONVERSATION_STEPS = 5;
+const unsupportedMicMessage = "Этот браузер не даёт доступ к микрофону. Откройте платформу в Chrome или Safari по адресу 127.0.0.1:8080.";
 
 type SessionInfoPanelProps = {
   mode: Props["mode"];
@@ -76,6 +77,7 @@ export default function SessionChat({ mode }: Props) {
   const [aiTyping, setAiTyping] = useState(false);
   const [recording, setRecording] = useState(false);
   const [processingVoice, setProcessingVoice] = useState(false);
+  const [micSupported, setMicSupported] = useState(true);
   const [voiceMode, setVoiceMode] = useState(true);
   const [autoListen, setAutoListen] = useState(false);
   const [speaking, setSpeaking] = useState(false);
@@ -95,6 +97,12 @@ export default function SessionChat({ mode }: Props) {
   const recordingTimeoutRef = useRef<number | null>(null);
 
   const total = Math.max(nodes.length, MIN_CONVERSATION_STEPS);
+
+  const markMicUnsupported = () => {
+    setMicSupported(false);
+    setVoiceError(unsupportedMicMessage);
+    setVoiceStatus("Микрофон недоступен в текущем браузере.");
+  };
 
   useEffect(() => {
     if (sessionId && sessionId !== activeSessionId) {
@@ -181,6 +189,14 @@ export default function SessionChat({ mode }: Props) {
   }, [mode]);
 
   useEffect(() => {
+    const supported = isVoiceRecordingSupported(window.navigator?.mediaDevices, window.MediaRecorder);
+    setMicSupported(supported);
+    if (!supported) {
+      markMicUnsupported();
+    }
+  }, []);
+
+  useEffect(() => {
     return () => {
       recorderRef.current?.stop();
       if (recordingTimeoutRef.current) window.clearTimeout(recordingTimeoutRef.current);
@@ -242,8 +258,8 @@ export default function SessionChat({ mode }: Props) {
 
   const startRecording = async () => {
     if (recording || processingVoice || speaking || aiTyping || sessionEnded || isLoading) return;
-    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") {
-      setVoiceError("Браузер не поддерживает запись голоса. Можно отвечать текстом.");
+    if (!isVoiceRecordingSupported(window.navigator?.mediaDevices, window.MediaRecorder)) {
+      markMicUnsupported();
       return;
     }
 
@@ -304,8 +320,13 @@ export default function SessionChat({ mode }: Props) {
       }, 45_000);
       setRecording(true);
       setVoiceStatus("Идёт запись.");
-    } catch {
-      setVoiceError("Микрофон недоступен. Разрешите доступ или введите ответ текстом.");
+    } catch (error) {
+      const errorName = error instanceof DOMException ? error.name : "";
+      setVoiceError(
+        errorName === "NotAllowedError"
+          ? "Доступ к микрофону запрещён. Разрешите микрофон в настройках браузера и нажмите кнопку ещё раз."
+          : unsupportedMicMessage,
+      );
       setVoiceStatus("Микрофон недоступен.");
       setRecording(false);
     }
@@ -506,7 +527,7 @@ export default function SessionChat({ mode }: Props) {
               )}
               aria-label="Микрофон"
               title={recording ? "Остановить запись" : "Записать ответ"}
-              disabled={processingVoice || speaking || aiTyping || sessionEnded || isLoading}
+              disabled={!micSupported || processingVoice || speaking || aiTyping || sessionEnded || isLoading}
             >
               {processingVoice ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mic className="h-4 w-4" />}
             </button>
