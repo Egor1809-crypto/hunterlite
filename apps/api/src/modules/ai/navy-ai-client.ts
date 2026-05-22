@@ -176,8 +176,11 @@ export const createNavyAiClient = (
 
       if (!response.ok) return null;
 
-      const data = (await response.json()) as NavyTranscriptionResponse;
-      const text = data.text?.trim();
+      const contentType = response.headers.get("content-type") ?? "";
+      const data = contentType.includes("application/json")
+        ? ((await response.json()) as NavyTranscriptionResponse | string)
+        : await response.text();
+      const text = (typeof data === "string" ? data : data.text)?.trim();
 
       return text ? { text } : null;
     },

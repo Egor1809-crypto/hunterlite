@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { StatusBadge } from "@/components/StatusBadge";
+import { ApiClientError } from "@/lib/api-client";
 import { frontendApi } from "@/lib/frontend-api";
 import { calculateTrainingResult } from "@/lib/training-logic";
 import { isVoiceRecordingSupported, selectRecordingMimeType } from "@/lib/voice-mode";
@@ -17,6 +18,7 @@ type Props = { mode: "talk" | "exam" | "chat-test" };
 type Msg = { from: "ai" | "user"; text: string; isSystem?: boolean };
 const DEFAULT_SCRIPT_TOPIC = "Имущество должника";
 const MIN_CONVERSATION_STEPS = 5;
+const maxRecordingMs = 12_000;
 const unsupportedMicMessage = "Этот браузер не даёт доступ к микрофону. Откройте платформу в Chrome или Safari по адресу 127.0.0.1:8080.";
 
 type SessionInfoPanelProps = {
@@ -294,7 +296,7 @@ export default function SessionChat({ mode }: Props) {
             return;
           }
           setProcessingVoice(true);
-          setVoiceStatus("Распознаём голос.");
+          setVoiceStatus(`Распознаём голос (${Math.round(audioBlob.size / 1024)} КБ).`);
           const transcription = await frontendApi.transcribeSpeech({
             audioBase64: await blobToBase64(audioBlob),
             mimeType: audioBlob.type || "audio/webm",
@@ -305,9 +307,16 @@ export default function SessionChat({ mode }: Props) {
             setInput(transcription.text);
             setVoiceStatus("Отправляем ответ.");
             void send(transcription.text);
+          } else {
+            setVoiceError("NAVI вернул пустую расшифровку. Попробуйте сказать ответ ближе к микрофону.");
+            setVoiceStatus("Голос не распознан.");
           }
-        })().catch(() => {
-          setVoiceError("NAVI не смог распознать речь. Попробуйте ещё раз или введите ответ текстом.");
+        })().catch((error) => {
+          setVoiceError(
+            error instanceof ApiClientError
+              ? `NAVI STT: ${error.message}`
+              : "NAVI не смог распознать речь. Попробуйте ещё раз или введите ответ текстом.",
+          );
           setVoiceStatus("Голос не распознан.");
         }).finally(() => {
           setProcessingVoice(false);
@@ -317,9 +326,9 @@ export default function SessionChat({ mode }: Props) {
       recorder.start(250);
       recordingTimeoutRef.current = window.setTimeout(() => {
         recorderRef.current?.stop();
-      }, 45_000);
+      }, maxRecordingMs);
       setRecording(true);
-      setVoiceStatus("Идёт запись.");
+      setVoiceStatus("Идёт запись. Говорите сейчас, запись сама уйдёт на распознавание.");
     } catch (error) {
       const errorName = error instanceof DOMException ? error.name : "";
       setVoiceError(
