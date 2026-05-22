@@ -25,7 +25,14 @@ export const createCsrfCookie = (cookieHeader: string) => {
   return `${csrfCookieName}=${createCsrfToken(sessionValue)}; Path=/; SameSite=Lax; Max-Age=604800`;
 };
 
-export const clearCsrfCookie = () => `${csrfCookieName}=; Path=/; SameSite=Lax; Max-Age=0`;
+export const createSecureCsrfCookie = (cookieHeader: string) => {
+  const cookie = createCsrfCookie(cookieHeader);
+
+  return cookie ? `${cookie}; Secure` : undefined;
+};
+
+export const clearCsrfCookie = (secure = false) =>
+  `${csrfCookieName}=; Path=/; SameSite=Lax; Max-Age=0${secure ? "; Secure" : ""}`;
 
 export const hasSessionCookie = (cookieHeader?: string) =>
   Boolean(getCookieValue(cookieHeader, sessionCookieName));

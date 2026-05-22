@@ -28,18 +28,25 @@ export type AuthDataSource = {
 
 export type AuthHandlerOptions = {
   allowDemoFallback?: boolean;
+  secureCookies?: boolean;
 };
 
 const roleValues = new Set<AppRole>(["employee", "manager", "admin", "client"]);
 
-export const createSessionCookie = (role: AppRole) =>
-  `${sessionCookieName}=demo:${role}; Path=/; HttpOnly; SameSite=Lax; Max-Age=604800`;
+const cookieAttributes = (secure = false) =>
+  `Path=/; HttpOnly; SameSite=Lax; Max-Age=604800${secure ? "; Secure" : ""}`;
 
-export const createDatabaseSessionCookie = (sessionId: string) =>
-  `${sessionCookieName}=db:${sessionId}; Path=/; HttpOnly; SameSite=Lax; Max-Age=604800`;
+const expiredCookieAttributes = (secure = false) =>
+  `Path=/; HttpOnly; SameSite=Lax; Max-Age=0${secure ? "; Secure" : ""}`;
 
-export const clearSessionCookie = () =>
-  `${sessionCookieName}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`;
+export const createSessionCookie = (role: AppRole, secure = false) =>
+  `${sessionCookieName}=demo:${role}; ${cookieAttributes(secure)}`;
+
+export const createDatabaseSessionCookie = (sessionId: string, secure = false) =>
+  `${sessionCookieName}=db:${sessionId}; ${cookieAttributes(secure)}`;
+
+export const clearSessionCookie = (secure = false) =>
+  `${sessionCookieName}=; ${expiredCookieAttributes(secure)}`;
 
 export const parseSessionRole = (cookieHeader?: string): AppRole | undefined => {
   const cookie = cookieHeader
@@ -72,6 +79,7 @@ const normalizePhone = (phone: unknown) =>
 
 export const createAuthHandlers = (source?: AuthDataSource, options: AuthHandlerOptions = {}) => {
   const allowDemoFallback = options.allowDemoFallback ?? true;
+  const secureCookies = options.secureCookies ?? false;
 
   return {
     login: async (payload: unknown): Promise<ApiResponse<AuthSessionDto> & { sessionCookie?: string }> => {
@@ -87,7 +95,7 @@ export const createAuthHandlers = (source?: AuthDataSource, options: AuthHandler
       if (login) {
         return {
           ...ok(login.session),
-          sessionCookie: createDatabaseSessionCookie(login.sessionId),
+          sessionCookie: createDatabaseSessionCookie(login.sessionId, secureCookies),
         };
       }
 
@@ -99,7 +107,7 @@ export const createAuthHandlers = (source?: AuthDataSource, options: AuthHandler
 
       return {
         ...ok(createSession(role)),
-        sessionCookie: createSessionCookie(role),
+        sessionCookie: createSessionCookie(role, secureCookies),
       };
     },
 
@@ -199,7 +207,7 @@ export const createAuthHandlers = (source?: AuthDataSource, options: AuthHandler
       if (login) {
         return {
           ...ok(login.session),
-          sessionCookie: createDatabaseSessionCookie(login.sessionId),
+          sessionCookie: createDatabaseSessionCookie(login.sessionId, secureCookies),
         };
       }
 
@@ -209,7 +217,7 @@ export const createAuthHandlers = (source?: AuthDataSource, options: AuthHandler
 
       return {
         ...ok(createSession("employee")),
-        sessionCookie: createSessionCookie("employee"),
+        sessionCookie: createSessionCookie("employee", secureCookies),
       };
     },
   };

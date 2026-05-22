@@ -25,6 +25,7 @@ const server = createApiHttpServer({
   }),
   auth: createAuthPrismaDataSource(prisma),
   authDemoFallback: env.AUTH_DEMO_FALLBACK,
+  secureCookies: env.NODE_ENV === "production",
   corsOrigins: env.CORS_ORIGINS,
 });
 

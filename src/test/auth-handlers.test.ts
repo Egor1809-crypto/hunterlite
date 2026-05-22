@@ -140,10 +140,13 @@ describe("auth handlers", () => {
   it("parses and clears session cookies", () => {
     expect(createSessionCookie("admin")).toContain("hunterlite_session=demo:admin");
     expect(createDatabaseSessionCookie("session-1")).toContain("hunterlite_session=db:session-1");
+    expect(createSessionCookie("admin", true)).toContain("; Secure");
+    expect(createDatabaseSessionCookie("session-1", true)).toContain("; Secure");
     expect(parseSessionRole("other=1; hunterlite_session=demo:admin")).toBe("admin");
     expect(parseDatabaseSessionId("hunterlite_session=db:session-1")).toBe("session-1");
     expect(parseSessionRole("hunterlite_session=demo:unknown")).toBeUndefined();
     expect(clearSessionCookie()).toContain("Max-Age=0");
+    expect(clearSessionCookie(true)).toContain("; Secure");
   });
 
   it("resolves auth HTTP routes with typed responses and cookies", async () => {

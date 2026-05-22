@@ -4,6 +4,8 @@ import {
   createCsrfCookie,
   createLoginRateLimiter,
   demoFrontendApiDataSource,
+  isJsonBodyTooLarge,
+  maxJsonBodyBytes,
   resolveApiRequest,
 } from "../../apps/api/src";
 
@@ -329,11 +331,19 @@ describe("backend HTTP resolver", () => {
     expect(response.status).toBe(200);
     expect(response.headers?.["Access-Control-Allow-Origin"]).toBe("http://127.0.0.1:8080");
     expect(response.headers?.["Access-Control-Allow-Headers"]).toContain("X-CSRF-Token");
+    expect(response.headers?.["X-Content-Type-Options"]).toBe("nosniff");
+    expect(response.headers?.["X-Frame-Options"]).toBe("DENY");
+    expect(response.headers?.["Referrer-Policy"]).toBe("strict-origin-when-cross-origin");
     expect(response.body).toEqual(
       expect.objectContaining({
         ok: true,
         data: expect.objectContaining({ service: "hunterlite-api" }),
       }),
     );
+  });
+
+  it("flags oversized JSON bodies before route handling", () => {
+    expect(isJsonBodyTooLarge(maxJsonBodyBytes)).toBe(false);
+    expect(isJsonBodyTooLarge(maxJsonBodyBytes + 1)).toBe(true);
   });
 });

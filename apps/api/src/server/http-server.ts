@@ -12,6 +12,7 @@ import {
 import {
   clearCsrfCookie,
   createCsrfCookie,
+  createSecureCsrfCookie,
   hasSessionCookie,
   verifyCsrfToken,
 } from "../modules/auth/csrf";
@@ -53,11 +54,17 @@ export type ApiServerOptions = {
   source?: FrontendApiDataSource;
   auth?: AuthDataSource;
   authDemoFallback?: boolean;
+  secureCookies?: boolean;
   loginRateLimiter?: LoginRateLimiter;
   corsOrigins?: ApiEnv["CORS_ORIGINS"];
 };
 
 const roleValues = new Set<AppRole>(["employee", "manager", "admin", "client"]);
+export const maxJsonBodyBytes = 1 * 1024 * 1024;
+
+class RequestBodyTooLargeError extends Error {}
+
+export const isJsonBodyTooLarge = (bytes: number) => bytes > maxJsonBodyBytes;
 
 const getStatusCode = (body: ApiResponse<unknown>) => {
   if (body.ok) return 200;
@@ -105,11 +112,20 @@ const isAllowedPostRoute = (pathname: string) =>
   /^\/api\/trainings\/sessions\/[^/]+\/complete$/.test(pathname) ||
   /^\/api\/admin\/.*$/.test(pathname);
 
+const securityHeaders = {
+  "X-Content-Type-Options": "nosniff",
+  "X-Frame-Options": "DENY",
+  "Referrer-Policy": "strict-origin-when-cross-origin",
+  "Permissions-Policy": "camera=(), microphone=(self), geolocation=()",
+  "Cross-Origin-Resource-Policy": "same-site",
+} as const;
+
 const createJsonHeaders = (origin?: string, corsOrigins?: string) => {
   const allowedOrigins = corsOrigins ? parseCorsOrigins(corsOrigins) : [];
   const allowedOrigin = origin && allowedOrigins.includes(origin) ? origin : undefined;
 
   return {
+    ...securityHeaders,
     "Content-Type": "application/json; charset=utf-8",
     "Cache-Control": "no-store",
     ...(allowedOrigin
@@ -129,6 +145,7 @@ const createStreamHeaders = (origin?: string, corsOrigins?: string) => {
   const allowedOrigin = origin && allowedOrigins.includes(origin) ? origin : undefined;
 
   return {
+    ...securityHeaders,
     "Content-Type": "text/event-stream; charset=utf-8",
     "Cache-Control": "no-store, no-transform",
     Connection: "keep-alive",
@@ -171,6 +188,7 @@ export const resolveApiRequest = async (
   const api = createFrontendApiHandlers(options.source);
   const auth = createAuthHandlers(options.auth, {
     allowDemoFallback: options.authDemoFallback,
+    secureCookies: options.secureCookies,
   });
   const rateLimiter = options.loginRateLimiter ?? loginRateLimiter;
   const pathname = url.pathname;
@@ -257,7 +275,7 @@ export const resolveApiRequest = async (
                 extraHeaders = {
                   "Set-Cookie": [
                     body.sessionCookie,
-                    createCsrfCookie(body.sessionCookie),
+                    options.secureCookies ? createSecureCsrfCookie(body.sessionCookie) : createCsrfCookie(body.sessionCookie),
                   ].filter((cookie): cookie is string => Boolean(cookie)),
                 };
               }
@@ -266,7 +284,7 @@ export const resolveApiRequest = async (
           })
         : pathname === "/api/auth/logout" && request.method === "POST"
           ? auth.logout(request.cookie).then((body) => {
-              extraHeaders = { "Set-Cookie": [clearSessionCookie(), clearCsrfCookie()] };
+              extraHeaders = { "Set-Cookie": [clearSessionCookie(options.secureCookies), clearCsrfCookie(options.secureCookies)] };
               return body;
             })
           : pathname === "/api/auth/telegram/request-code" && request.method === "POST"
@@ -277,7 +295,7 @@ export const resolveApiRequest = async (
                   extraHeaders = {
                     "Set-Cookie": [
                       body.sessionCookie,
-                      createCsrfCookie(body.sessionCookie),
+                      options.secureCookies ? createSecureCsrfCookie(body.sessionCookie) : createCsrfCookie(body.sessionCookie),
                     ].filter((cookie): cookie is string => Boolean(cookie)),
                   };
                 }
@@ -371,9 +389,17 @@ const readJsonBody = async (request: IncomingMessage): Promise<unknown> => {
   if (request.method !== "POST") return undefined;
 
   const chunks: Buffer[] = [];
+  let totalBytes = 0;
 
   for await (const chunk of request) {
-    chunks.push(typeof chunk === "string" ? Buffer.from(chunk) : chunk);
+    const buffer = typeof chunk === "string" ? Buffer.from(chunk) : chunk;
+    totalBytes += buffer.byteLength;
+
+    if (isJsonBodyTooLarge(totalBytes)) {
+      throw new RequestBodyTooLargeError("Request body is too large");
+    }
+
+    chunks.push(buffer);
   }
 
   const raw = Buffer.concat(chunks).toString("utf8").trim();
@@ -395,6 +421,7 @@ export const createApiHttpServer = (options: ApiServerOptions = {}) =>
       if (request.method === "GET" && requestUrl.pathname === notificationStreamPath) {
         const auth = createAuthHandlers(options.auth, {
           allowDemoFallback: options.authDemoFallback,
+          secureCookies: options.secureCookies,
         });
         const authSession = await auth.session(request.headers.cookie);
 
@@ -453,7 +480,16 @@ export const createApiHttpServer = (options: ApiServerOptions = {}) =>
         ...resolved.headers,
       };
       writeJson(response, resolved);
-    } catch {
+    } catch (error) {
+      if (error instanceof RequestBodyTooLargeError) {
+        writeJson(response, {
+          status: 400,
+          body: fail("BAD_REQUEST", "Request body is too large", { maxBytes: maxJsonBodyBytes }),
+          headers: createJsonHeaders(origin, options.corsOrigins),
+        });
+        return;
+      }
+
       writeJson(response, {
         status: 500,
         body: fail("INTERNAL_ERROR", "Internal server error"),
