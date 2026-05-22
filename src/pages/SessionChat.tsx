@@ -16,6 +16,7 @@ import type { CallScriptDto } from "@/lib/api-contracts";
 type Props = { mode: "talk" | "exam" | "chat-test" };
 type Msg = { from: "ai" | "user"; text: string; isSystem?: boolean };
 const DEFAULT_SCRIPT_TOPIC = "Имущество должника";
+const MIN_CONVERSATION_STEPS = 5;
 
 type SessionInfoPanelProps = {
   mode: Props["mode"];
@@ -76,7 +77,7 @@ export default function SessionChat({ mode }: Props) {
   const [recording, setRecording] = useState(false);
   const [processingVoice, setProcessingVoice] = useState(false);
   const [voiceMode, setVoiceMode] = useState(true);
-  const [autoListen, setAutoListen] = useState(true);
+  const [autoListen, setAutoListen] = useState(false);
   const [speaking, setSpeaking] = useState(false);
   const [voiceError, setVoiceError] = useState("");
   const [voiceStatus, setVoiceStatus] = useState("Голос обрабатывается через NAVI API.");
@@ -93,7 +94,7 @@ export default function SessionChat({ mode }: Props) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const recordingTimeoutRef = useRef<number | null>(null);
 
-  const total = nodes.length > 0 ? nodes.length : 5;
+  const total = Math.max(nodes.length, MIN_CONVERSATION_STEPS);
 
   useEffect(() => {
     if (sessionId && sessionId !== activeSessionId) {
@@ -361,7 +362,9 @@ export default function SessionChat({ mode }: Props) {
         setSessionMistakes((currentMistakes) => [...currentMistakes, ...ai.mistakes]);
       }
 
-      if (!ai.sessionEnded && nextNode) {
+      const shouldContinue = !ai.sessionEnded && nextStep < total;
+
+      if (shouldContinue) {
         setMessages((m) => [...m, { from: "ai", text: aiMessage }]);
         setStep(nextStep);
       } else {
