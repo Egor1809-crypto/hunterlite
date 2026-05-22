@@ -32,6 +32,7 @@ const adminNav = [
   { title: "Сит. кейсы", url: "/admin/cases", icon: Briefcase },
   { title: "Возражения", url: "/admin/objections", icon: MessageCircleWarning },
   { title: "Скрипты", url: "/admin/scripts", icon: PhoneCall },
+  { title: "Методология", url: "/admin/methodology", icon: BookOpen },
   { title: "Пользователи", url: "/admin/users", icon: Users },
   { title: "Настройки", url: "/admin/settings", icon: Settings },
 ];

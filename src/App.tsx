@@ -33,6 +33,7 @@ import AdminTests from "./pages/admin/AdminTests";
 import AdminCases from "./pages/admin/AdminCases";
 import AdminObjections from "./pages/admin/AdminObjections";
 import AdminCallScripts from "./pages/admin/AdminCallScripts";
+import AdminMethodology from "./pages/admin/AdminMethodology";
 import ClientChat from "./pages/ClientChat";
 import ClientLead from "./pages/ClientLead";
 import NotFound from "./pages/NotFound";
@@ -90,6 +91,7 @@ const App = () => (
                   <Route path="/admin/cases" element={<AdminCases />} />
                   <Route path="/admin/objections" element={<AdminObjections />} />
                   <Route path="/admin/scripts" element={<AdminCallScripts />} />
+                  <Route path="/admin/methodology" element={<AdminMethodology />} />
                 </Route>
               </Route>
 

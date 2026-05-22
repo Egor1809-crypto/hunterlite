@@ -27,6 +27,7 @@ const routes = [
   { path: "/admin", text: "Состояние системы", role: "admin" },
   { path: "/admin/users", text: "Пользователи", role: "admin" },
   { path: "/admin/settings", text: "Настройки", role: "admin" },
+  { path: "/admin/methodology", text: "Книга БФЛ и учебные материалы", role: "admin" },
   { path: "/client", text: "Задайте вопрос по банкротству физических лиц" },
   { path: "/client/lead", text: "Заявка на консультацию" },
 ];

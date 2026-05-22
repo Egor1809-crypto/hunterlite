@@ -2,30 +2,8 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { IconBadge } from "@/components/IconBadge";
 import { StatusBadge } from "@/components/StatusBadge";
+import { bflMethodologyChapters, methodologyStats } from "@/lib/methodology";
 import { BookOpen, Bookmark, FileText, Search } from "lucide-react";
-
-const chapters = [
-  {
-    title: "Основания для банкротства",
-    status: "База",
-    items: ["Признаки неплатежеспособности", "Сумма и структура долга", "Когда процедура не подходит"],
-  },
-  {
-    title: "Имущество должника",
-    status: "Важно",
-    items: ["Единственное жильё", "Ипотека и залог", "Автомобиль, счета и сделки"],
-  },
-  {
-    title: "Долги, которые не списываются",
-    status: "Риск",
-    items: ["Алименты", "Вред жизни и здоровью", "Субсидиарная ответственность"],
-  },
-  {
-    title: "Последствия процедуры",
-    status: "Практика",
-    items: ["Кредитная история", "Ограничения после завершения", "Повторное банкротство"],
-  },
-];
 
 export default function BflBook() {
   return (
@@ -57,8 +35,8 @@ export default function BflBook() {
           </div>
           <div className="grid gap-2">
             {[
-              { label: "Глав", value: chapters.length },
-              { label: "Тем для консультаций", value: chapters.reduce((sum, chapter) => sum + chapter.items.length, 0) },
+              { label: "Глав", value: methodologyStats.chapters },
+              { label: "Тем для консультаций", value: methodologyStats.topics },
               { label: "Статус", value: "Черновик" },
             ].map((item) => (
               <div key={item.label} className="flex items-center justify-between rounded-lg border border-border bg-muted/30 p-3">
@@ -71,7 +49,7 @@ export default function BflBook() {
       </Card>
 
       <div className="grid md:grid-cols-2 gap-3">
-        {chapters.map((chapter) => (
+        {bflMethodologyChapters.map((chapter) => (
           <Card key={chapter.title} className="p-5 shadow-card">
             <div className="flex items-start justify-between gap-3">
               <div className="flex items-center gap-2">

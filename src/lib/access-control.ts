@@ -98,6 +98,7 @@ export const accessRoutes = [
   { path: "/admin/cases", allowedRoles: ["admin"] },
   { path: "/admin/objections", allowedRoles: ["admin"] },
   { path: "/admin/scripts", allowedRoles: ["admin"] },
+  { path: "/admin/methodology", allowedRoles: ["admin"] },
   { path: "/client", allowedRoles: ["public", "client"] },
   { path: "/client/chat", allowedRoles: ["public", "client"] },
   { path: "/client/lead", allowedRoles: ["public", "client"] },
