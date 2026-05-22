@@ -44,4 +44,16 @@ describe("application routes", () => {
 
     expect(screen.getAllByText(text, { exact: false }).length).toBeGreaterThan(0);
   });
+
+  it("keeps login free of demo role shortcuts and fake OAuth buttons", () => {
+    window.history.pushState({}, "", "/login");
+    render(<App />);
+
+    expect(screen.queryByRole("button", { name: "Сотрудник" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Руководитель" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Админ" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Google/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Яндекс/i })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Telegram/i })).toBeInTheDocument();
+  });
 });

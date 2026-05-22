@@ -5,15 +5,15 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { BrandLogo } from "@/components/BrandLogo";
 import { useDemoAuth } from "@/lib/demo-auth";
-import { getRoleHome } from "@/lib/demo-auth-state";
-import { frontendApi, withDemoFallback } from "@/lib/frontend-api";
+import { frontendApi } from "@/lib/frontend-api";
 import { MessageCircle, ShieldCheck, Sparkles, Scale } from "lucide-react";
 
 export default function Login() {
   const navigate = useNavigate();
-  const { loginWithEmail, setRole } = useDemoAuth();
-  const [email, setEmail] = useState("a.petrova@hunterlite.ru");
-  const [password, setPassword] = useState("hunterlite-demo");
+  const { setRole } = useDemoAuth();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [loginStatus, setLoginStatus] = useState<string | null>(null);
   const [telegramOpen, setTelegramOpen] = useState(false);
   const [telegramPhone, setTelegramPhone] = useState("+7 ");
   const [telegramCode, setTelegramCode] = useState("");
@@ -24,20 +24,12 @@ export default function Login() {
     navigate(session.homePath === "/dashboard" ? "/consent" : session.homePath);
   };
 
-  const handleExternalLogin = async () => {
-    const session = await withDemoFallback(
-      () => frontendApi.login({ email: "a.petrova@hunterlite.ru", password: "oauth-demo" }),
-      () => ({ user: loginWithEmail("a.petrova@hunterlite.ru"), homePath: "/consent" }),
-    );
-    completeLogin(session);
-  };
-
   const requestTelegramCode = async () => {
     setTelegramStatus("Отправляем код в Telegram...");
 
     try {
       const response = await frontendApi.requestTelegramCode({ phone: telegramPhone });
-      setTelegramStatus(response.devCode ? `Код отправлен. Demo SMS-код: ${response.devCode}` : "Код отправлен в Telegram-бот.");
+      setTelegramStatus(response.devCode ? `Код отправлен. Тестовый код: ${response.devCode}` : "Код отправлен в Telegram-бот.");
     } catch {
       setTelegramStatus("Не удалось отправить код. Проверьте номер телефона.");
     }
@@ -47,10 +39,7 @@ export default function Login() {
     setTelegramStatus("Проверяем код...");
 
     try {
-      const session = await withDemoFallback(
-        () => frontendApi.loginWithTelegramCode({ phone: telegramPhone, code: telegramCode }),
-        () => ({ user: loginWithEmail("a.petrova@hunterlite.ru"), homePath: "/consent" }),
-      );
+      const session = await frontendApi.loginWithTelegramCode({ phone: telegramPhone, code: telegramCode });
       completeLogin(session);
     } catch {
       setTelegramStatus("Код не подошёл или истёк. Запросите новый код.");
@@ -81,11 +70,12 @@ export default function Login() {
             className="mt-8 space-y-5"
             onSubmit={(e) => {
               e.preventDefault();
-              void withDemoFallback(
-                () => frontendApi.login({ email, password }),
-                () => ({ user: loginWithEmail(email), homePath: "/consent" }),
-              ).then((session) => {
+              setLoginStatus("Проверяем данные...");
+              void frontendApi.login({ email, password }).then((session) => {
+                setLoginStatus(null);
                 completeLogin(session);
+              }).catch(() => {
+                setLoginStatus("Email или пароль не подошли. Проверьте данные и попробуйте ещё раз.");
               });
             }}
           >
@@ -118,6 +108,7 @@ export default function Login() {
               <Input id="password" type="password" value={password} onChange={(event) => setPassword(event.target.value)} />
               {resetStatus ? <p className="text-xs font-medium text-muted-foreground">{resetStatus}</p> : null}
             </div>
+            {loginStatus ? <p className="text-sm font-medium text-muted-foreground">{loginStatus}</p> : null}
             <Button type="submit" className="w-full h-11 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold">
               Войти
             </Button>
@@ -131,31 +122,7 @@ export default function Login() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <Button
-                type="button"
-                variant="outline"
-                className="h-11 bg-card font-semibold text-foreground hover:bg-secondary"
-                onClick={handleExternalLogin}
-                aria-label="Войти через Google"
-              >
-                <span className="flex h-5 w-5 items-center justify-center rounded-full border border-border bg-white text-[13px] font-bold text-[#4285F4]">
-                  G
-                </span>
-                Google
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                className="h-11 bg-card font-semibold text-foreground hover:bg-secondary"
-                onClick={handleExternalLogin}
-                aria-label="Войти через Яндекс"
-              >
-                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#FC3F1D] text-[13px] font-bold text-white">
-                  Я
-                </span>
-                Яндекс
-              </Button>
+            <div className="grid grid-cols-1 gap-3">
               <Button
                 type="button"
                 variant="outline"
@@ -196,7 +163,7 @@ export default function Login() {
                       inputMode="numeric"
                       value={telegramCode}
                       onChange={(event) => setTelegramCode(event.target.value.replace(/\D/g, "").slice(0, 6))}
-                      placeholder="1809"
+                      placeholder="000000"
                     />
                   </div>
                   <Button type="button" className="sm:self-end h-11 bg-primary hover:bg-primary/90" onClick={loginWithTelegram}>
@@ -210,27 +177,6 @@ export default function Login() {
             <p className="text-xs text-muted-foreground text-center">
               Защищённый вход. Соответствие 152-ФЗ о персональных данных.
             </p>
-
-            <div className="grid grid-cols-3 gap-2">
-              {[
-                { label: "Сотрудник", role: "employee" as const },
-                { label: "Руководитель", role: "manager" as const },
-                { label: "Админ", role: "admin" as const },
-              ].map((item) => (
-                <Button
-                  key={item.role}
-                  type="button"
-                  variant="ghost"
-                  className="h-9 text-xs"
-                  onClick={() => {
-                    setRole(item.role);
-                    navigate(getRoleHome(item.role));
-                  }}
-                >
-                  {item.label}
-                </Button>
-              ))}
-            </div>
           </form>
         </div>
 
