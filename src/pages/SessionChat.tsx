@@ -105,6 +105,7 @@ export default function SessionChat({ mode }: Props) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const recordingTimeoutRef = useRef<number | null>(null);
   const browserSpeechTimeoutRef = useRef<number | null>(null);
+  const voiceSubmittedRef = useRef(false);
 
   const total = Math.max(nodes.length, MIN_CONVERSATION_STEPS);
 
@@ -232,20 +233,20 @@ export default function SessionChat({ mode }: Props) {
     };
 
     const finishRecognition = (text?: string) => {
-      if (finished) return;
+      if (finished || voiceSubmittedRef.current) return;
       finished = true;
       clearSpeechTimeout();
       speechRecognitionRef.current = null;
-      setRecording(false);
 
       const recognizedText = text?.trim() || transcript.trim();
       if (recognizedText) {
+        voiceSubmittedRef.current = true;
         setInput(recognizedText);
         setVoiceStatus("Речь распознана. Отправляем ответ.");
+        if (recorderRef.current?.state === "recording") recorderRef.current.stop();
         void send(recognizedText);
       } else {
-        setVoiceError("Браузер не распознал речь. Нажмите микрофон ещё раз и говорите чуть дольше.");
-        setVoiceStatus("Голос не распознан.");
+        setVoiceStatus("Браузер не дал текст, распознаём запись через NAVI.");
       }
     };
 
@@ -261,6 +262,8 @@ export default function SessionChat({ mode }: Props) {
         const text = result[0]?.transcript?.trim();
         if (!text) continue;
         transcript = text;
+        setInput(text);
+        setVoiceStatus("Слышу речь, продолжаю распознавать.");
         if (result.isFinal) finalText += `${text} `;
       }
 
@@ -270,14 +273,13 @@ export default function SessionChat({ mode }: Props) {
       finished = true;
       clearSpeechTimeout();
       const error = event.error ?? "";
-      setRecording(false);
       speechRecognitionRef.current = null;
       setVoiceError(
         error === "not-allowed"
           ? "Доступ к распознаванию речи запрещён. Разрешите микрофон и распознавание в браузере."
-          : "Браузер не смог распознать речь. Попробуйте ещё раз или введите ответ текстом.",
+          : "Браузер не дал текст, используем распознавание записи через NAVI.",
       );
-      setVoiceStatus("Голос не распознан.");
+      setVoiceStatus("Распознаём запись через NAVI.");
     };
     recognition.onend = () => {
       finishRecognition();
@@ -285,16 +287,13 @@ export default function SessionChat({ mode }: Props) {
 
     speechRecognitionRef.current = recognition;
     setVoiceError("");
-    setRecording(true);
     setVoiceStatus("Слушаю через браузер. Скажите ответ, распознавание отправит его автоматически.");
     try {
       recognition.start();
     } catch {
       speechRecognitionRef.current = null;
-      setRecording(false);
-      setVoiceError("Браузер не запустил распознавание речи. Попробуйте ещё раз или введите ответ текстом.");
-      setVoiceStatus("Голос не распознан.");
-      return true;
+      setVoiceStatus("Браузерное распознавание не запустилось, записываем через NAVI.");
+      return false;
     }
     browserSpeechTimeoutRef.current = window.setTimeout(() => {
       speechRecognitionRef.current?.stop();
@@ -357,9 +356,14 @@ export default function SessionChat({ mode }: Props) {
 
   const startRecording = async () => {
     if (recording || processingVoice || speaking || aiTyping || sessionEnded || isLoading) return;
-    if (startBrowserSpeechRecognition()) return;
+    voiceSubmittedRef.current = false;
 
     if (!isVoiceRecordingSupported(window.navigator?.mediaDevices, window.MediaRecorder)) {
+      if (startBrowserSpeechRecognition()) {
+        setRecording(true);
+        return;
+      }
+
       markMicUnsupported();
       return;
     }
@@ -381,11 +385,18 @@ export default function SessionChat({ mode }: Props) {
       };
       recorder.onstop = () => {
         setRecording(false);
+        speechRecognitionRef.current?.stop();
         if (recordingTimeoutRef.current) {
           window.clearTimeout(recordingTimeoutRef.current);
           recordingTimeoutRef.current = null;
         }
         stream.getTracks().forEach((track) => track.stop());
+
+        if (voiceSubmittedRef.current) {
+          chunksRef.current = [];
+          return;
+        }
+        voiceSubmittedRef.current = true;
 
         void (async () => {
           const audioBlob = new Blob(chunksRef.current, { type: recorder.mimeType || "audio/webm" });
@@ -427,7 +438,12 @@ export default function SessionChat({ mode }: Props) {
         recorderRef.current?.stop();
       }, maxRecordingMs);
       setRecording(true);
-      setVoiceStatus("Идёт запись. Говорите сейчас, запись сама уйдёт на распознавание.");
+      const browserRecognitionStarted = startBrowserSpeechRecognition();
+      setVoiceStatus(
+        browserRecognitionStarted
+          ? "Идёт запись. Говорите сейчас: текст появится в строке или уйдёт через NAVI."
+          : "Идёт запись. Говорите сейчас, запись сама уйдёт на распознавание NAVI.",
+      );
     } catch (error) {
       const errorName = error instanceof DOMException ? error.name : "";
       setVoiceError(
