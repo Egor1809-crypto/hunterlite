@@ -1,5 +1,5 @@
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
@@ -80,7 +80,7 @@ export default function SessionChat({ mode }: Props) {
   const activeScript = (
     selectedScriptId ? scripts.find((script) => script.id === selectedScriptId) : scripts[0]
   ) as CallScriptDto | undefined;
-  const nodes = activeScript?.nodes || [];
+  const nodes = useMemo(() => activeScript?.nodes ?? [], [activeScript?.nodes]);
 
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
@@ -108,6 +108,7 @@ export default function SessionChat({ mode }: Props) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const recordingTimeoutRef = useRef<number | null>(null);
   const browserSpeechTimeoutRef = useRef<number | null>(null);
+  const speakRef = useRef<(text: string) => void>(() => undefined);
 
   const total = Math.max(nodes.length, MIN_CONVERSATION_STEPS);
 
@@ -165,7 +166,7 @@ export default function SessionChat({ mode }: Props) {
       setActiveSessionId(backendSessionId);
       setMessages([{ from: "ai", text: initialMessage }]);
       setAiTyping(false);
-      void speak(initialMessage);
+      speakRef.current(initialMessage);
 
       if (backendSessionId) {
         void frontendApi.addTrainingMessage(backendSessionId, { from: "ai", text: initialMessage }).catch(() => undefined);
@@ -375,6 +376,10 @@ export default function SessionChat({ mode }: Props) {
         setVoiceStatus("Озвучка недоступна.");
       }
     }
+  };
+
+  speakRef.current = (text: string) => {
+    void speak(text);
   };
 
   const toggleVoiceMode = () => {

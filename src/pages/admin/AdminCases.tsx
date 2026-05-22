@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Plus, Edit, Trash2, Loader2, GitBranch } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { frontendApi } from "@/lib/frontend-api";
-import type { CaseTemplateCreateRequestDto, CaseStepCreateRequestDto } from "@/lib/api-contracts";
+import type { CaseTemplateCreateRequestDto, CaseStepCreateRequestDto, CaseTemplateDto } from "@/lib/api-contracts";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -47,10 +47,10 @@ const AdminCases = () => {
     createMutation.mutate({
       title: formData.title,
       introText: formData.introText,
-      difficulty: formData.difficulty as any,
+      difficulty: formData.difficulty ?? "medium",
       attachments: [],
       tags: [],
-      steps: formData.steps as CaseStepCreateRequestDto[],
+      steps: formData.steps ?? [],
     });
   };
 
@@ -100,7 +100,7 @@ const AdminCases = () => {
               </div>
               <div className="grid gap-2">
                 <Label>Сложность</Label>
-                <Select value={formData.difficulty} onValueChange={(val) => setFormData(p => ({ ...p, difficulty: val as any }))}>
+                <Select value={formData.difficulty} onValueChange={(val) => setFormData(p => ({ ...p, difficulty: val as CaseTemplateDto["difficulty"] }))}>
                   <SelectTrigger className="bg-white/5 border-white/10">
                     <SelectValue />
                   </SelectTrigger>
@@ -142,7 +142,7 @@ const AdminCases = () => {
                         <Label className="mb-1 block text-xs">Формат ответа</Label>
                         <Select value={step.answerFormat} onValueChange={(val) => {
                           const newSteps = [...(formData.steps || [])];
-                          newSteps[idx].answerFormat = val as any;
+                          newSteps[idx].answerFormat = val as CaseStepCreateRequestDto["answerFormat"];
                           setFormData(p => ({ ...p, steps: newSteps }));
                         }}>
                           <SelectTrigger className="bg-white/5 border-white/10 h-8">
@@ -188,7 +188,7 @@ const AdminCases = () => {
             <p className="text-muted-foreground mb-4">Пока нет ни одного ситуационного кейса</p>
             <Button variant="outline" onClick={() => setIsAddOpen(true)}>Создать первый кейс</Button>
           </div>
-        ) : cases.map((c: any) => (
+        ) : cases.map((c) => (
           <Card key={c.id} className="border-white/10 bg-white/5 backdrop-blur-sm overflow-hidden transition-all hover:bg-white/10 hover:border-white/20">
             <CardContent className="p-0">
               <div className="flex flex-col sm:flex-row">

@@ -15,47 +15,113 @@ import type {
 import type { FrontendApiDataSource } from "../../routes/frontend-api-handlers";
 import { hashPassword } from "../auth/password-hash";
 
-const mapAnswerFormat = (f: string) => f === "options" ? "choice" : "text_manual";
-const unmapAnswerFormat = (f: string) => f === "choice" ? "options" : "text";
+type PrismaArgs = Record<string, unknown>;
+type UserRecord = {
+  id: string;
+  email: string;
+  fullName: string;
+  status: AdminUserDto["status"];
+};
+type MembershipRecord = {
+  id: string;
+  role: AdminUserDto["role"];
+  status: AdminUserDto["status"];
+  user: UserRecord;
+};
+type TestQuestionRecord = TestQuestionDto & { createdAt?: Date };
+type CaseStepRecord = {
+  id: string;
+  caseId: string;
+  question: string;
+  answerFormat: string;
+  options?: unknown;
+  correctOptionId?: string | null;
+  keywordRules?: unknown;
+  referenceAnswer?: string | null;
+  isRedFlag: boolean;
+};
+type CaseTemplateRecord = {
+  id: string;
+  title: string;
+  introText: string;
+  attachments: string[];
+  difficulty: CaseTemplateDto["difficulty"];
+  tags: string[];
+  steps: CaseStepRecord[];
+};
+type ObjectionTemplateRecord = {
+  id: string;
+  category: string;
+  clientPhrase: string;
+  targetRole: string;
+  answerFormat: string;
+  options?: unknown;
+  correctOptionId?: string | null;
+  keywordRules?: unknown;
+  referenceAnswer: string;
+  explanation?: string | null;
+  difficulty: ObjectionTemplateDto["difficulty"];
+};
+type CallScriptNodeRecord = {
+  id: string;
+  scriptId: string;
+  clientReplica: string;
+  answerFormat: string;
+  options?: unknown;
+  keywordRules?: unknown;
+  isSuccessEnd: boolean;
+  isFailEnd: boolean;
+};
+type CallScriptRecord = {
+  id: string;
+  title: string;
+  clientProfile: unknown;
+  firstNodeId?: string | null;
+  nodes: CallScriptNodeRecord[];
+};
+
+const mapAnswerFormat = (f: "options" | "text" | "voice" | string) => f === "options" ? "choice" : "text_manual";
+const unmapAnswerFormat = (f: string): "options" | "text" => f === "choice" ? "options" : "text";
 
 const mapTargetRole = (r: string) => r === "all" ? "both" : r;
-const unmapTargetRole = (r: string) => r === "both" ? "all" : r;
+const unmapTargetRole = (r: string): ObjectionTemplateDto["targetRole"] =>
+  r === "both" ? "all" : (r as ObjectionTemplateDto["targetRole"]);
 
 // Временный тип, чтобы не импортировать полный PrismaClient
 export type AdminPrismaClient = {
   user: {
-    create: (args: any) => Promise<any>;
-    update: (args: any) => Promise<any>;
+    create: (args: PrismaArgs) => Promise<UserRecord>;
+    update: (args: PrismaArgs) => Promise<UserRecord>;
   };
   membership: {
-    findMany: (args?: any) => Promise<any[]>;
-    findFirst: (args?: any) => Promise<any | null>;
-    create: (args: any) => Promise<any>;
-    update: (args: any) => Promise<any>;
+    findMany: (args?: PrismaArgs) => Promise<MembershipRecord[]>;
+    findFirst: (args?: PrismaArgs) => Promise<MembershipRecord | null>;
+    create: (args: PrismaArgs) => Promise<MembershipRecord>;
+    update: (args: PrismaArgs) => Promise<MembershipRecord>;
   };
   authAccount: {
-    create: (args: any) => Promise<any>;
+    create: (args: PrismaArgs) => Promise<unknown>;
   };
   testQuestion: {
-    findMany: (args?: any) => Promise<any[]>;
-    create: (args: any) => Promise<any>;
+    findMany: (args?: PrismaArgs) => Promise<TestQuestionRecord[]>;
+    create: (args: PrismaArgs) => Promise<TestQuestionRecord>;
   };
   caseTemplate: {
-    findMany: (args?: any) => Promise<any[]>;
-    create: (args: any) => Promise<any>;
+    findMany: (args?: PrismaArgs) => Promise<CaseTemplateRecord[]>;
+    create: (args: PrismaArgs) => Promise<CaseTemplateRecord>;
   };
   objectionTemplate: {
-    findMany: (args?: any) => Promise<any[]>;
-    create: (args: any) => Promise<any>;
+    findMany: (args?: PrismaArgs) => Promise<ObjectionTemplateRecord[]>;
+    create: (args: PrismaArgs) => Promise<ObjectionTemplateRecord>;
   };
   callScript: {
-    findMany: (args?: any) => Promise<any[]>;
-    create: (args: any) => Promise<any>;
-    update: (args: any) => Promise<any>;
-    delete: (args: any) => Promise<any>;
+    findMany: (args?: PrismaArgs) => Promise<CallScriptRecord[]>;
+    create: (args: PrismaArgs) => Promise<CallScriptRecord>;
+    update: (args: PrismaArgs) => Promise<CallScriptRecord>;
+    delete: (args: PrismaArgs) => Promise<unknown>;
   };
   organization: {
-    findFirst: (args?: any) => Promise<{ id: string } | null>;
+    findFirst: (args?: PrismaArgs) => Promise<{ id: string } | null>;
   }
 };
 
@@ -71,7 +137,7 @@ const statusLabels: Record<AdminUserDto["status"], AdminUserDto["statusLabel"]> 
   invited: "Приглашён",
 };
 
-const mapMembershipToAdminUser = (membership: any): AdminUserDto => ({
+const mapMembershipToAdminUser = (membership: MembershipRecord): AdminUserDto => ({
   id: membership.user.id,
   name: membership.user.fullName,
   email: membership.user.email,
@@ -174,7 +240,7 @@ export const createAdminPrismaDataSource = (
         orderBy: { createdAt: "desc" },
       });
 
-      if (!records.length) return fallback.getCallScripts();
+      if (!records.length) return fallback.getTestQuestions();
 
       return records.map((r) => ({
         id: r.id,
@@ -246,7 +312,7 @@ export const createAdminPrismaDataSource = (
         attachments: r.attachments,
         difficulty: r.difficulty,
         tags: r.tags,
-        steps: r.steps.map((s: any) => ({
+        steps: r.steps.map((s) => ({
           id: s.id,
           caseId: s.caseId,
           question: s.question,
@@ -300,7 +366,7 @@ export const createAdminPrismaDataSource = (
         attachments: created.attachments,
         difficulty: created.difficulty,
         tags: created.tags,
-        steps: created.steps.map((s: any) => ({
+        steps: created.steps.map((s) => ({
           id: s.id,
           caseId: s.caseId,
           question: s.question,
@@ -394,7 +460,7 @@ export const createAdminPrismaDataSource = (
         title: r.title,
         clientProfile: r.clientProfile,
         firstNodeId: r.firstNodeId ?? undefined,
-        nodes: r.nodes.map((n: any) => ({
+        nodes: r.nodes.map((n) => ({
           id: n.id,
           scriptId: n.scriptId,
           clientReplica: n.clientReplica,
@@ -442,7 +508,7 @@ export const createAdminPrismaDataSource = (
         title: created.title,
         clientProfile: created.clientProfile,
         firstNodeId: created.firstNodeId ?? undefined,
-        nodes: created.nodes.map((n: any) => ({
+        nodes: created.nodes.map((n) => ({
           id: n.id,
           scriptId: n.scriptId,
           clientReplica: n.clientReplica,
@@ -493,7 +559,7 @@ export const createAdminPrismaDataSource = (
         title: updated.title,
         clientProfile: updated.clientProfile,
         firstNodeId: updated.firstNodeId ?? undefined,
-        nodes: updated.nodes.map((n: any) => ({
+        nodes: updated.nodes.map((n) => ({
           id: n.id,
           scriptId: n.scriptId,
           clientReplica: n.clientReplica,

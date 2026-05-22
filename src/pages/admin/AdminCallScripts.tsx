@@ -19,16 +19,52 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 
+type ClientProfileForm = {
+  name?: string;
+  debt?: string;
+  type?: string;
+};
+
+type KeywordRulesForm = {
+  requires?: string;
+  forbids?: string;
+};
+
+type CallScriptNodeForm = Omit<CallScriptNodeCreateRequestDto, "keywordRules"> & {
+  keywordRules?: KeywordRulesForm | null;
+};
+
+type CallScriptForm = Omit<CallScriptCreateRequestDto, "clientProfile" | "nodes"> & {
+  clientProfile: ClientProfileForm;
+  nodes: CallScriptNodeForm[];
+};
+
+const defaultNode = (): CallScriptNodeForm => ({
+  clientReplica: "",
+  answerFormat: "text",
+  isSuccessEnd: false,
+  isFailEnd: false,
+  keywordRules: { requires: "", forbids: "" },
+});
+
+const initialForm = (): CallScriptForm => ({
+  title: "",
+  clientProfile: { name: "Иван Иванович", debt: "1 500 000 руб", type: "Ипотека" },
+  nodes: [defaultNode()],
+});
+
+const getClientProfile = (profile: unknown): ClientProfileForm =>
+  typeof profile === "object" && profile !== null ? profile as ClientProfileForm : {};
+
+const splitKeywordInput = (value?: string) =>
+  value ? value.split(",").map((item) => item.trim().toLowerCase()).filter(Boolean) : [];
+
 const AdminCallScripts = () => {
   const queryClient = useQueryClient();
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [editingScript, setEditingScript] = useState<CallScriptDto | null>(null);
   
-  const [formData, setFormData] = useState<Partial<CallScriptCreateRequestDto>>({
-    title: "",
-    clientProfile: { name: "Иван Иванович", debt: "1 500 000 руб", type: "Ипотека" },
-    nodes: [{ clientReplica: "", answerFormat: "text", isSuccessEnd: false, isFailEnd: false, keywordRules: { requires: "", forbids: "" } }],
-  });
+  const [formData, setFormData] = useState<CallScriptForm>(initialForm);
 
   const { data: scripts = [], isLoading } = useQuery({
     queryKey: ["admin", "callScripts"],
@@ -37,11 +73,7 @@ const AdminCallScripts = () => {
 
   const resetForm = () => {
     setEditingScript(null);
-    setFormData({
-      title: "",
-      clientProfile: { name: "Иван Иванович", debt: "1 500 000 руб", type: "Ипотека" },
-      nodes: [{ clientReplica: "", answerFormat: "text", isSuccessEnd: false, isFailEnd: false, keywordRules: { requires: "", forbids: "" } }],
-    });
+    setFormData(initialForm());
   };
 
   const createMutation = useMutation({
@@ -76,7 +108,7 @@ const AdminCallScripts = () => {
     setEditingScript(script);
     setFormData({
       title: script.title,
-      clientProfile: script.clientProfile,
+      clientProfile: getClientProfile(script.clientProfile),
       nodes: (script.nodes || []).map((node) => {
         const rules = node.keywordRules as { requires?: unknown; forbids?: unknown } | null | undefined;
 
@@ -97,23 +129,23 @@ const AdminCallScripts = () => {
   };
 
   const handleSave = () => {
-    if (!formData.title || !formData.nodes || formData.nodes.length === 0) return;
+    if (!formData.title || formData.nodes.length === 0) return;
     
-    const formattedNodes = formData.nodes.map(node => {
-      const rules = node.keywordRules as any;
+    const formattedNodes: CallScriptNodeCreateRequestDto[] = formData.nodes.map(node => {
+      const rules = node.keywordRules;
       return {
         ...node,
         keywordRules: rules ? {
-          requires: rules.requires ? rules.requires.split(',').map((s:string) => s.trim().toLowerCase()).filter(Boolean) : [],
-          forbids: rules.forbids ? rules.forbids.split(',').map((s:string) => s.trim().toLowerCase()).filter(Boolean) : []
+          requires: splitKeywordInput(rules.requires),
+          forbids: splitKeywordInput(rules.forbids),
         } : null
       };
     });
 
-    const payload = {
+    const payload: CallScriptCreateRequestDto = {
       title: formData.title,
-      clientProfile: formData.clientProfile ?? {},
-      nodes: formattedNodes as CallScriptNodeCreateRequestDto[],
+      clientProfile: formData.clientProfile,
+      nodes: formattedNodes,
     };
 
     if (editingScript) {
@@ -171,13 +203,13 @@ const AdminCallScripts = () => {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="grid gap-2">
                     <Label className="text-xs text-muted-foreground">Имя клиента</Label>
-                    <Input className="bg-black/50 border-white/10 h-8" value={(formData.clientProfile as any)?.name || ""} 
-                      onChange={e => setFormData(p => ({ ...p, clientProfile: { ...(p.clientProfile as any), name: e.target.value } }))} />
+                    <Input className="bg-black/50 border-white/10 h-8" value={formData.clientProfile.name || ""} 
+                      onChange={e => setFormData(p => ({ ...p, clientProfile: { ...p.clientProfile, name: e.target.value } }))} />
                   </div>
                   <div className="grid gap-2">
                     <Label className="text-xs text-muted-foreground">Сумма долга</Label>
-                    <Input className="bg-black/50 border-white/10 h-8" value={(formData.clientProfile as any)?.debt || ""} 
-                      onChange={e => setFormData(p => ({ ...p, clientProfile: { ...(p.clientProfile as any), debt: e.target.value } }))} />
+                    <Input className="bg-black/50 border-white/10 h-8" value={formData.clientProfile.debt || ""} 
+                      onChange={e => setFormData(p => ({ ...p, clientProfile: { ...p.clientProfile, debt: e.target.value } }))} />
                   </div>
                 </div>
               </div>
@@ -190,13 +222,13 @@ const AdminCallScripts = () => {
                   *В MVP мы просто задаем линейную/плоскую цепочку реплик для отработки.
                 </p>
 
-                {(formData.nodes || []).map((node, idx) => (
+                {formData.nodes.map((node, idx) => (
                   <div key={idx} className="mb-4 p-4 border border-white/10 rounded-lg bg-white/5 space-y-3 relative">
                     <div className="flex justify-between items-center mb-1">
                       <span className="text-sm font-semibold text-primary">Узел {idx + 1}</span>
                       {idx > 0 && (
                         <Button variant="ghost" size="sm" className="h-6 px-2 text-red-400 hover:text-red-300" onClick={() => {
-                          const newNodes = [...(formData.nodes || [])];
+                          const newNodes = [...formData.nodes];
                           newNodes.splice(idx, 1);
                           setFormData(p => ({ ...p, nodes: newNodes }));
                         }}>Удалить</Button>
@@ -207,7 +239,7 @@ const AdminCallScripts = () => {
                       <Label className="text-sm text-white">Реплика клиента</Label>
                       <Input placeholder="«Алло, я по поводу банкротства...»" className="bg-black/50 border-white/10" 
                         value={node.clientReplica} onChange={e => {
-                          const newNodes = [...(formData.nodes || [])];
+                          const newNodes = [...formData.nodes];
                           newNodes[idx].clientReplica = e.target.value;
                           setFormData(p => ({ ...p, nodes: newNodes }));
                         }} />
@@ -217,18 +249,18 @@ const AdminCallScripts = () => {
                       <div className="grid gap-2 flex-1">
                         <Label className="text-xs text-muted-foreground">Обязательные слова (через запятую)</Label>
                         <Input placeholder="суд, документы, банкротство" className="bg-black/50 border-white/10 h-8" 
-                          value={(node.keywordRules as any)?.requires || ""} onChange={e => {
-                            const newNodes = [...(formData.nodes || [])];
-                            newNodes[idx].keywordRules = { ...(newNodes[idx].keywordRules as any), requires: e.target.value };
+                          value={node.keywordRules?.requires || ""} onChange={e => {
+                            const newNodes = [...formData.nodes];
+                            newNodes[idx].keywordRules = { ...(newNodes[idx].keywordRules ?? {}), requires: e.target.value };
                             setFormData(p => ({ ...p, nodes: newNodes }));
                           }} />
                       </div>
                       <div className="grid gap-2 flex-1">
                         <Label className="text-xs text-muted-foreground">Запрещенные слова (через запятую)</Label>
                         <Input placeholder="гарантия, 100%, точно" className="bg-black/50 border-white/10 h-8" 
-                          value={(node.keywordRules as any)?.forbids || ""} onChange={e => {
-                            const newNodes = [...(formData.nodes || [])];
-                            newNodes[idx].keywordRules = { ...(newNodes[idx].keywordRules as any), forbids: e.target.value };
+                          value={node.keywordRules?.forbids || ""} onChange={e => {
+                            const newNodes = [...formData.nodes];
+                            newNodes[idx].keywordRules = { ...(newNodes[idx].keywordRules ?? {}), forbids: e.target.value };
                             setFormData(p => ({ ...p, nodes: newNodes }));
                           }} />
                       </div>
@@ -238,8 +270,8 @@ const AdminCallScripts = () => {
                       <div className="flex-1">
                         <Label className="mb-1 block text-xs">Формат ответа сотрудника</Label>
                         <Select value={node.answerFormat} onValueChange={(val) => {
-                          const newNodes = [...(formData.nodes || [])];
-                          newNodes[idx].answerFormat = val as any;
+                          const newNodes = [...formData.nodes];
+                          newNodes[idx].answerFormat = val as CallScriptNodeCreateRequestDto["answerFormat"];
                           setFormData(p => ({ ...p, nodes: newNodes }));
                         }}>
                           <SelectTrigger className="bg-black/50 border-white/10 h-8">
@@ -255,7 +287,7 @@ const AdminCallScripts = () => {
                       
                       <div className="flex items-center space-x-2 pt-5">
                         <Switch id={`success-${idx}`} checked={node.isSuccessEnd} onCheckedChange={(val) => {
-                          const newNodes = [...(formData.nodes || [])];
+                          const newNodes = [...formData.nodes];
                           newNodes[idx].isSuccessEnd = val;
                           setFormData(p => ({ ...p, nodes: newNodes }));
                         }} />
@@ -264,7 +296,7 @@ const AdminCallScripts = () => {
                       
                       <div className="flex items-center space-x-2 pt-5">
                         <Switch id={`fail-${idx}`} checked={node.isFailEnd} onCheckedChange={(val) => {
-                          const newNodes = [...(formData.nodes || [])];
+                          const newNodes = [...formData.nodes];
                           newNodes[idx].isFailEnd = val;
                           setFormData(p => ({ ...p, nodes: newNodes }));
                         }} />
@@ -275,7 +307,7 @@ const AdminCallScripts = () => {
                 ))}
                 
                 <Button variant="outline" size="sm" className="w-full border-dashed border-white/20 mt-2" onClick={() => {
-                  setFormData(p => ({ ...p, nodes: [...(p.nodes || []), { clientReplica: "", answerFormat: "text", isSuccessEnd: false, isFailEnd: false, keywordRules: { requires: "", forbids: "" } }] }));
+                  setFormData(p => ({ ...p, nodes: [...p.nodes, defaultNode()] }));
                 }}>
                   <Plus className="mr-2 h-4 w-4" /> Добавить узел
                 </Button>
@@ -307,50 +339,54 @@ const AdminCallScripts = () => {
             <p className="text-muted-foreground mb-4">Скрипты звонков пока не созданы</p>
             <Button variant="outline" onClick={() => setIsAddOpen(true)}>Создать первый скрипт</Button>
           </div>
-        ) : scripts.map((s: any) => (
-          <Card key={s.id} className="border-white/10 bg-white/5 backdrop-blur-sm overflow-hidden transition-all hover:bg-white/10 hover:border-white/20">
-            <CardContent className="p-0">
-              <div className="flex flex-col sm:flex-row">
-                <div className="p-6 flex-1">
-                  <h3 className="text-xl font-semibold text-white mb-2">{s.title}</h3>
-                  <div className="flex items-center gap-4 text-sm text-muted-foreground mb-4 bg-black/30 p-2 rounded-md inline-flex">
-                    <span><strong>Клиент:</strong> {(s.clientProfile as any)?.name || "Аноним"}</span>
-                    <span className="w-1 h-1 bg-white/20 rounded-full"></span>
-                    <span><strong>Долг:</strong> {(s.clientProfile as any)?.debt || "Не указан"}</span>
+        ) : scripts.map((s) => {
+          const profile = getClientProfile(s.clientProfile);
+
+          return (
+            <Card key={s.id} className="border-white/10 bg-white/5 backdrop-blur-sm overflow-hidden transition-all hover:bg-white/10 hover:border-white/20">
+              <CardContent className="p-0">
+                <div className="flex flex-col sm:flex-row">
+                  <div className="p-6 flex-1">
+                    <h3 className="text-xl font-semibold text-white mb-2">{s.title}</h3>
+                    <div className="flex items-center gap-4 text-sm text-muted-foreground mb-4 bg-black/30 p-2 rounded-md inline-flex">
+                      <span><strong>Клиент:</strong> {profile.name || "Аноним"}</span>
+                      <span className="w-1 h-1 bg-white/20 rounded-full"></span>
+                      <span><strong>Долг:</strong> {profile.debt || "Не указан"}</span>
+                    </div>
+                    
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs bg-primary/20 text-primary px-2 py-1 rounded-full font-medium">
+                        Узлов диалога: {s.nodes?.length || 0}
+                      </span>
+                    </div>
                   </div>
                   
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs bg-primary/20 text-primary px-2 py-1 rounded-full font-medium">
-                      Узлов диалога: {s.nodes?.length || 0}
-                    </span>
+                  <div className="border-t sm:border-t-0 sm:border-l border-white/10 bg-black/20 p-4 flex sm:flex-col justify-end sm:justify-center gap-2 sm:w-32">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="w-full justify-start text-muted-foreground hover:text-white hover:bg-white/10"
+                      onClick={() => openEdit(s)}
+                    >
+                      <Edit className="mr-2 h-4 w-4" />
+                      Редакт.
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="w-full justify-start text-red-400 hover:text-red-300 hover:bg-red-500/20"
+                      disabled={deleteMutation.isPending}
+                      onClick={() => deleteMutation.mutate(s.id)}
+                    >
+                      <Trash2 className="mr-2 h-4 w-4" />
+                      Удалить
+                    </Button>
                   </div>
                 </div>
-                
-                <div className="border-t sm:border-t-0 sm:border-l border-white/10 bg-black/20 p-4 flex sm:flex-col justify-end sm:justify-center gap-2 sm:w-32">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="w-full justify-start text-muted-foreground hover:text-white hover:bg-white/10"
-                    onClick={() => openEdit(s)}
-                  >
-                    <Edit className="mr-2 h-4 w-4" />
-                    Редакт.
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="w-full justify-start text-red-400 hover:text-red-300 hover:bg-red-500/20"
-                    disabled={deleteMutation.isPending}
-                    onClick={() => deleteMutation.mutate(s.id)}
-                  >
-                    <Trash2 className="mr-2 h-4 w-4" />
-                    Удалить
-                  </Button>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+              </CardContent>
+            </Card>
+          );
+        })}
       </div>
     </div>
   );

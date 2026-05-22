@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Plus, Edit, Trash2, Loader2, MessageCircle } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { frontendApi } from "@/lib/frontend-api";
-import type { ObjectionTemplateCreateRequestDto } from "@/lib/api-contracts";
+import type { ObjectionTemplateCreateRequestDto, ObjectionTemplateDto } from "@/lib/api-contracts";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -48,11 +48,11 @@ const AdminObjections = () => {
     createMutation.mutate({
       category: formData.category,
       clientPhrase: formData.clientPhrase,
-      targetRole: formData.targetRole as any,
-      answerFormat: formData.answerFormat as any,
+      targetRole: formData.targetRole ?? "all",
+      answerFormat: formData.answerFormat ?? "text",
       referenceAnswer: formData.referenceAnswer,
       explanation: formData.explanation,
-      difficulty: formData.difficulty as any,
+      difficulty: formData.difficulty ?? "medium",
     });
   };
 
@@ -113,7 +113,7 @@ const AdminObjections = () => {
               <div className="grid grid-cols-2 gap-4">
                 <div className="grid gap-2">
                   <Label>Целевая роль</Label>
-                  <Select value={formData.targetRole} onValueChange={(val) => setFormData(p => ({ ...p, targetRole: val as any }))}>
+                  <Select value={formData.targetRole} onValueChange={(val) => setFormData(p => ({ ...p, targetRole: val as ObjectionTemplateDto["targetRole"] }))}>
                     <SelectTrigger className="bg-white/5 border-white/10">
                       <SelectValue />
                     </SelectTrigger>
@@ -126,7 +126,7 @@ const AdminObjections = () => {
                 </div>
                 <div className="grid gap-2">
                   <Label>Формат отработки</Label>
-                  <Select value={formData.answerFormat} onValueChange={(val) => setFormData(p => ({ ...p, answerFormat: val as any }))}>
+                  <Select value={formData.answerFormat} onValueChange={(val) => setFormData(p => ({ ...p, answerFormat: val as ObjectionTemplateDto["answerFormat"] }))}>
                     <SelectTrigger className="bg-white/5 border-white/10">
                       <SelectValue />
                     </SelectTrigger>
@@ -176,7 +176,7 @@ const AdminObjections = () => {
             <p className="text-muted-foreground mb-4">Пока не добавлено ни одного возражения</p>
             <Button variant="outline" onClick={() => setIsAddOpen(true)}>Добавить возражение</Button>
           </div>
-        ) : objections.map((obj: any) => (
+        ) : objections.map((obj) => (
           <Card key={obj.id} className="border-white/10 bg-white/5 backdrop-blur-sm overflow-hidden transition-all hover:bg-white/10 hover:border-white/20">
             <CardContent className="p-0">
               <div className="flex flex-col sm:flex-row">

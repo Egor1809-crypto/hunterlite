@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Plus, Edit, Trash2, CheckCircle2, Loader2 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { frontendApi } from "@/lib/frontend-api";
-import type { TestQuestionCreateRequestDto } from "@/lib/api-contracts";
+import type { TestQuestionCreateRequestDto, TestQuestionDto } from "@/lib/api-contracts";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -21,7 +21,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 
 // Временные типы для UI
-type QuestionType = "single_choice" | "multiple_choice" | "true_false" | "text_input";
+type QuestionType = TestQuestionDto["type"];
+type QuestionDifficulty = TestQuestionDto["difficulty"];
 
 interface TestQuestion {
   id: string;
@@ -78,8 +79,8 @@ const AdminTests = () => {
     createMutation.mutate({
       title: formData.title,
       text: formData.text,
-      type: formData.type as any,
-      difficulty: formData.difficulty as any,
+      type: formData.type ?? "single_choice",
+      difficulty: formData.difficulty ?? "medium",
       correctAnswer: {}, // Mock
     });
   };
@@ -141,7 +142,7 @@ const AdminTests = () => {
               <div className="grid grid-cols-2 gap-4">
                 <div className="grid gap-2">
                   <Label>Тип вопроса</Label>
-                  <Select value={formData.type} onValueChange={(val) => setFormData(p => ({ ...p, type: val as any }))}>
+                  <Select value={formData.type} onValueChange={(val) => setFormData(p => ({ ...p, type: val as QuestionType }))}>
                     <SelectTrigger className="bg-white/5 border-white/10">
                       <SelectValue />
                     </SelectTrigger>
@@ -155,7 +156,7 @@ const AdminTests = () => {
                 </div>
                 <div className="grid gap-2">
                   <Label>Сложность</Label>
-                  <Select value={formData.difficulty} onValueChange={(val) => setFormData(p => ({ ...p, difficulty: val as any }))}>
+                  <Select value={formData.difficulty} onValueChange={(val) => setFormData(p => ({ ...p, difficulty: val as QuestionDifficulty }))}>
                     <SelectTrigger className="bg-white/5 border-white/10">
                       <SelectValue />
                     </SelectTrigger>
@@ -198,7 +199,7 @@ const AdminTests = () => {
             <p className="text-muted-foreground mb-4">В банке пока нет вопросов</p>
             <Button variant="outline" onClick={() => setIsAddOpen(true)}>Добавить первый вопрос</Button>
           </div>
-        ) : questions.map((q: any) => (
+        ) : questions.map((q) => (
           <Card key={q.id} className="border-white/10 bg-white/5 backdrop-blur-sm overflow-hidden transition-all hover:bg-white/10 hover:border-white/20">
             <CardContent className="p-0">
               <div className="flex flex-col sm:flex-row">
