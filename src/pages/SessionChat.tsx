@@ -305,6 +305,40 @@ export default function SessionChat({ mode }: Props) {
   const speak = async (text: string) => {
     if (!voiceMode || typeof window === "undefined") return;
 
+    const finishSpeech = () => {
+      setSpeaking(false);
+      setVoiceStatus(autoListen ? "Можно отвечать голосом." : "Озвучка завершена.");
+      if (autoListen && !sessionEnded) {
+        window.setTimeout(() => {
+          void startRecording();
+        }, 350);
+      }
+    };
+
+    const speakWithBrowserVoice = () => {
+      if (!window.speechSynthesis || typeof window.SpeechSynthesisUtterance === "undefined") return false;
+
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(text);
+      const voices = window.speechSynthesis.getVoices();
+      utterance.lang = "ru-RU";
+      utterance.rate = 0.96;
+      utterance.pitch = 1;
+      utterance.voice = voices.find((voice) => voice.lang.toLowerCase().startsWith("ru")) ?? null;
+      utterance.onstart = () => {
+        setSpeaking(true);
+        setVoiceStatus("Клиент говорит.");
+      };
+      utterance.onend = finishSpeech;
+      utterance.onerror = () => {
+        setSpeaking(false);
+        setVoiceError("Озвучка клиента недоступна в браузере. Текстовый режим работает.");
+        setVoiceStatus("Озвучка недоступна.");
+      };
+      window.speechSynthesis.speak(utterance);
+      return true;
+    };
+
     try {
       audioRef.current?.pause();
       const speech = await frontendApi.synthesizeSpeech({ text });
@@ -317,26 +351,29 @@ export default function SessionChat({ mode }: Props) {
         setVoiceStatus("Клиент говорит.");
       };
       audio.onended = () => {
-        setSpeaking(false);
         URL.revokeObjectURL(url);
-        setVoiceStatus(autoListen ? "Можно отвечать голосом." : "Озвучка завершена.");
-        if (autoListen && !sessionEnded) {
-          window.setTimeout(() => {
-            void startRecording();
-          }, 350);
-        }
+        finishSpeech();
       };
       audio.onerror = () => {
-        setSpeaking(false);
         URL.revokeObjectURL(url);
-        setVoiceError("NAVI не смог озвучить ответ. Текстовый режим работает.");
-        setVoiceStatus("Озвучка недоступна.");
+        if (!speakWithBrowserVoice()) {
+          setSpeaking(false);
+          setVoiceError("NAVI не смог озвучить ответ. Текстовый режим работает.");
+          setVoiceStatus("Озвучка недоступна.");
+        }
       };
       await audio.play();
     } catch {
-      setSpeaking(false);
-      setVoiceError("NAVI voice временно недоступен. Текстовый режим работает.");
-      setVoiceStatus("Озвучка недоступна.");
+      if (audioRef.current) {
+        const failedAudio = audioRef.current;
+        audioRef.current = null;
+        window.setTimeout(() => URL.revokeObjectURL(failedAudio.src), 0);
+      }
+      if (!speakWithBrowserVoice()) {
+        setSpeaking(false);
+        setVoiceError("NAVI voice временно недоступен. Текстовый режим работает.");
+        setVoiceStatus("Озвучка недоступна.");
+      }
     }
   };
 
