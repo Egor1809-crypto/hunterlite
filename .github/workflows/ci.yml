@@ -12,7 +12,7 @@ concurrency:
 
 jobs:
   verify:
-    name: Test and build
+    name: Validate, test and build
     runs-on: ubuntu-latest
 
     env:
@@ -32,8 +32,14 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Validate Prisma schema
+        run: npx prisma validate
+
       - name: Generate Prisma client
         run: npm run db:generate
+
+      - name: Run lint
+        run: npm run lint
 
       - name: Run unit tests
         run: npm run test
