@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   aiClientCharacters,
   bankruptcyTopics,
+  calculateTrainingResult,
   getMaxQuestionCount,
   isCorrectProcedureSequence,
   isPassingScore,
@@ -36,6 +37,42 @@ describe("block 7 training logic", () => {
       "empathy",
       "objection_handling",
     ]);
+  });
+
+  it("calculates a full five-criterion training score", () => {
+    const result = calculateTrainingResult({
+      score: 94,
+      mistakes: ["Пропущен шаг с проверкой имущества должника."],
+      answeredSteps: 4,
+      totalSteps: 5,
+    });
+
+    expect(result.criteria).toHaveLength(5);
+    expect(result.score).toBeLessThan(94);
+    expect(result.criteria).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ criterion: "legal_accuracy", score: expect.any(Number) }),
+        expect.objectContaining({ criterion: "answer_structure", score: expect.any(Number) }),
+        expect.objectContaining({ criterion: "safe_wording", score: expect.any(Number) }),
+        expect.objectContaining({ criterion: "empathy", score: expect.any(Number) }),
+        expect.objectContaining({ criterion: "objection_handling", score: expect.any(Number) }),
+      ]),
+    );
+    expect(result.recommendations.length).toBeGreaterThan(0);
+  });
+
+  it("penalizes risky guarantees in safe wording", () => {
+    const result = calculateTrainingResult({
+      score: 90,
+      mistakes: ["Сотрудник дал гарантию 100% списания долга без риска."],
+      answeredSteps: 5,
+      totalSteps: 5,
+    });
+
+    const safeWording = result.criteria.find((item) => item.criterion === "safe_wording");
+
+    expect(safeWording?.score).toBeLessThan(90);
+    expect(result.passed).toBe(false);
   });
 
   it("supports different NAVI client personalities", () => {

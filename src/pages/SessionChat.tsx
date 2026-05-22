@@ -6,6 +6,7 @@ import { Card } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { StatusBadge } from "@/components/StatusBadge";
 import { frontendApi } from "@/lib/frontend-api";
+import { calculateTrainingResult } from "@/lib/training-logic";
 import { Mic, Send, X, Sparkles, Bot, User, Clock, Target, ChevronUp, Loader2, Volume2, VolumeX } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useQuery } from "@tanstack/react-query";
@@ -339,23 +340,30 @@ export default function SessionChat({ mode }: Props) {
 
   const finish = async () => {
     const resultSessionId = activeSessionId && activeSessionId !== "demo-session" ? activeSessionId : undefined;
+    const result = calculateTrainingResult({
+      score,
+      mistakes: sessionMistakes,
+      answeredSteps: step + 1,
+      totalSteps: total,
+    });
 
     if (resultSessionId) {
       await frontendApi.completeTrainingSession(resultSessionId, {
-        score,
-        criteria: [
-          { criterion: "legal_accuracy", score: score > 80 ? 90 : 70, comment: "Оценка сформирована автоматически." },
-          { criterion: "safe_wording", score: score > 60 ? 80 : 50, comment: "Проверено по ключевым словам." },
-        ],
-        mistakes: sessionMistakes.length > 0 ? sessionMistakes : ["Ошибок не обнаружено"],
-        recommendations: sessionMistakes.length > 0 ? ["Повторить скрипт и использовать обязательные ключевые слова"] : ["Отличная работа"],
+        score: result.score,
+        criteria: result.criteria,
+        mistakes: result.mistakes,
+        recommendations: result.recommendations,
       }).catch(() => undefined);
     }
 
-    navigate(`${mode === "exam" ? "/session/result?mode=exam" : "/session/result"}${resultSessionId ? `${mode === "exam" ? "&" : "?"}sessionId=${encodeURIComponent(resultSessionId)}&score=${score}` : ""}`, {
+    const resultParams = new URLSearchParams({ score: String(result.score) });
+    if (mode === "exam") resultParams.set("mode", "exam");
+    if (resultSessionId) resultParams.set("sessionId", resultSessionId);
+
+    navigate(`/session/result?${resultParams.toString()}`, {
       state: {
-        mistakes: sessionMistakes.length > 0 ? sessionMistakes : ["Ошибок не обнаружено"],
-        recommendations: sessionMistakes.length > 0 ? ["Повторить скрипт и использовать обязательные ключевые слова"] : ["Отличная работа"],
+        mistakes: result.mistakes,
+        recommendations: result.recommendations,
       }
     });
   };
