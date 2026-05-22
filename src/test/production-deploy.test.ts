@@ -13,6 +13,7 @@ describe("production deploy assets", () => {
     expect(compose).toContain("restart: unless-stopped");
     expect(compose).toContain("condition: service_healthy");
     expect(compose).toContain("AUTH_DEMO_FALLBACK: \"false\"");
+    expect(compose).toContain("HUNTERLITE_CSRF_SECRET");
     expect(compose).toContain("/api/health");
   });
 
@@ -31,6 +32,7 @@ describe("production deploy assets", () => {
     const backup = read("deployment/backup-db.sh");
 
     expect(env).toContain("AUTH_DEMO_FALLBACK=false");
+    expect(env).toContain("HUNTERLITE_CSRF_SECRET=");
     expect(env).toContain("NAVI_CHAT_MODEL=gemini-3.5-flash");
     expect(backup).toContain("pg_dump");
     expect(backup).toContain("gzip");

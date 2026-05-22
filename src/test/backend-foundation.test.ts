@@ -21,6 +21,7 @@ describe("block 3 backend foundation", () => {
       SESSION_COOKIE_NAME: "hunterlite_session",
       CORS_ORIGINS: "http://127.0.0.1:8080,http://localhost:8080",
       AUTH_DEMO_FALLBACK: "true",
+      HUNTERLITE_CSRF_SECRET: "test-csrf-secret",
       NAVI_API_KEY: "test-key",
     });
 
@@ -31,6 +32,7 @@ describe("block 3 backend foundation", () => {
       SESSION_COOKIE_NAME: "hunterlite_session",
       CORS_ORIGINS: "http://127.0.0.1:8080,http://localhost:8080",
       AUTH_DEMO_FALLBACK: true,
+      HUNTERLITE_CSRF_SECRET: "test-csrf-secret",
       NAVI_API_KEY: "test-key",
       NAVI_BASE_URL: "https://api.navy",
       NAVI_CHAT_MODEL: "gemini-3.5-flash",
@@ -45,6 +47,8 @@ describe("block 3 backend foundation", () => {
       parseEnv({
         NODE_ENV: "production",
         DATABASE_URL: "postgresql://hunterlite:hunterlite@localhost:5432/hunterlite",
+        HUNTERLITE_CSRF_SECRET: "production-csrf-secret-32-characters",
+        NAVI_API_KEY: "production-key",
       }).AUTH_DEMO_FALLBACK,
     ).toBe(false);
 
@@ -58,6 +62,26 @@ describe("block 3 backend foundation", () => {
 
   it("rejects missing database configuration", () => {
     expect(() => parseEnv({ NODE_ENV: "test" })).toThrow();
+  });
+
+  it("requires a strong CSRF secret in production", () => {
+    expect(() =>
+      parseEnv({
+        NODE_ENV: "production",
+        DATABASE_URL: "postgresql://hunterlite:hunterlite@localhost:5432/hunterlite",
+        NAVI_API_KEY: "production-key",
+      }),
+    ).toThrow(/HUNTERLITE_CSRF_SECRET/);
+  });
+
+  it("requires a NAVI API key in production", () => {
+    expect(() =>
+      parseEnv({
+        NODE_ENV: "production",
+        DATABASE_URL: "postgresql://hunterlite:hunterlite@localhost:5432/hunterlite",
+        HUNTERLITE_CSRF_SECRET: "production-csrf-secret-32-characters",
+      }),
+    ).toThrow(/NAVI_API_KEY/);
   });
 
   it("normalizes CORS origins", () => {

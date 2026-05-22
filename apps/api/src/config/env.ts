@@ -7,6 +7,7 @@ export const envSchema = z.object({
   SESSION_COOKIE_NAME: z.string().min(1).default("hunterlite_session"),
   CORS_ORIGINS: z.string().min(1).default("http://127.0.0.1:8080,http://localhost:8080"),
   AUTH_DEMO_FALLBACK: z.enum(["true", "false"]).optional(),
+  HUNTERLITE_CSRF_SECRET: z.string().optional(),
   NAVI_API_KEY: z.string().optional(),
   NAVI_BASE_URL: z.string().url().default("https://api.navy"),
   NAVI_CHAT_MODEL: z.string().min(1).default("gemini-3.5-flash"),
@@ -15,15 +16,29 @@ export const envSchema = z.object({
   NAVI_STT_MODEL: z.string().min(1).default("scribe_v2"),
 });
 
+const localCsrfSecret = "hunterlite-local-csrf-secret";
+const minProductionSecretLength = 32;
+
 export type ApiEnv = Omit<z.infer<typeof envSchema>, "AUTH_DEMO_FALLBACK"> & {
   AUTH_DEMO_FALLBACK: boolean;
+  HUNTERLITE_CSRF_SECRET: string;
 };
 
 export const parseEnv = (source: Record<string, string | undefined>): ApiEnv => {
   const env = envSchema.parse(source);
+  const csrfSecret = env.HUNTERLITE_CSRF_SECRET ?? localCsrfSecret;
+
+  if (env.NODE_ENV === "production" && csrfSecret.length < minProductionSecretLength) {
+    throw new Error(`HUNTERLITE_CSRF_SECRET must be at least ${minProductionSecretLength} characters in production`);
+  }
+
+  if (env.NODE_ENV === "production" && !env.NAVI_API_KEY?.trim()) {
+    throw new Error("NAVI_API_KEY is required in production");
+  }
 
   return {
     ...env,
+    HUNTERLITE_CSRF_SECRET: csrfSecret,
     AUTH_DEMO_FALLBACK:
       env.AUTH_DEMO_FALLBACK === undefined
         ? env.NODE_ENV !== "production"

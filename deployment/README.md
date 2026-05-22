@@ -15,7 +15,15 @@ cd deployment
 cp .env.production.example .env.production
 ```
 
-Edit `.env.production` and set real passwords, domain/CORS origin and NAVI API key.
+Edit `.env.production` and set real values before deployment:
+
+- `POSTGRES_PASSWORD`: long random database password.
+- `CORS_ORIGINS`: production frontend origin, for example `https://hunterlite.example.com`.
+- `HUNTERLITE_CSRF_SECRET`: at least 32 random characters; use 64+ characters in production.
+- `NAVI_API_KEY`: production API key.
+- `NAVI_CHAT_MODEL`, `NAVI_TTS_MODEL`, `NAVI_TTS_VOICE`, `NAVI_STT_MODEL`: keep the approved production models unless you intentionally change the provider config.
+
+Use `PRODUCTION_ENV_CHECKLIST.md` for the full domain, HTTPS, database and smoke-check list.
 
 ```sh
 sh deploy-prod.sh

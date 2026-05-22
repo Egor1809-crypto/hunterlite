@@ -3,7 +3,11 @@ import { sessionCookieName } from "./auth-handlers";
 
 export const csrfCookieName = "hunterlite_csrf";
 
-const csrfSecret = process.env.HUNTERLITE_CSRF_SECRET ?? "hunterlite-local-csrf-secret";
+let csrfSecret = process.env.HUNTERLITE_CSRF_SECRET ?? "hunterlite-local-csrf-secret";
+
+export const configureCsrfSecret = (secret: string) => {
+  csrfSecret = secret;
+};
 
 export const getCookieValue = (cookieHeader: string | undefined, name: string) => {
   const cookie = cookieHeader

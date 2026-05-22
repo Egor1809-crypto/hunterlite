@@ -29,6 +29,7 @@ services:
       CORS_ORIGINS: ${CORS_ORIGINS:-https://hunterlite.example.com}
       AUTH_DEMO_FALLBACK: "false"
       SESSION_COOKIE_NAME: ${SESSION_COOKIE_NAME:-hunterlite_session}
+      HUNTERLITE_CSRF_SECRET: ${HUNTERLITE_CSRF_SECRET:?HUNTERLITE_CSRF_SECRET is required}
       NAVI_API_KEY: ${NAVI_API_KEY:?NAVI_API_KEY is required}
       NAVI_BASE_URL: ${NAVI_BASE_URL:-https://api.navy}
       NAVI_CHAT_MODEL: ${NAVI_CHAT_MODEL:-gemini-3.5-flash}

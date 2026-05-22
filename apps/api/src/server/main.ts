@@ -6,6 +6,7 @@ import { parseEnv } from "../config/env";
 import { createAuthPrismaDataSource } from "../modules/auth/auth-prisma-data-source";
 import { createBackendDataSource } from "../modules/backend-data-source";
 import { createNavyAiClient } from "../modules/ai/navy-ai-client";
+import { configureCsrfSecret } from "../modules/auth/csrf";
 import { createApiHttpServer } from "./http-server";
 
 const env = parseEnv({
@@ -13,6 +14,8 @@ const env = parseEnv({
   DATABASE_URL:
     process.env.DATABASE_URL ?? "postgresql://hunterlite:hunterlite@localhost:5432/hunterlite",
 });
+
+configureCsrfSecret(env.HUNTERLITE_CSRF_SECRET);
 
 const pool = new Pool({ connectionString: env.DATABASE_URL });
 const adapter = new PrismaPg(pool);
