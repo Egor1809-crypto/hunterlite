@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   audioFileNameForMimeType,
+  extractSpeechRecognitionTranscript,
   maxTranscriptionAudioBytes,
   sanitizeSpeechText,
   isVoiceRecordingSupported,
@@ -54,5 +55,18 @@ describe("voice mode helpers", () => {
     expect(getBrowserSpeechRecognition(scope as never)).toBe(Recognition);
     expect(isBrowserSpeechRecognitionSupported(scope as never)).toBe(true);
     expect(isBrowserSpeechRecognitionSupported({})).toBe(false);
+  });
+
+  it("extracts interim and final browser speech transcripts", () => {
+    expect(extractSpeechRecognitionTranscript({
+      resultIndex: 0,
+      results: [
+        { isFinal: false, 0: { transcript: "  здравствуйте " } },
+        { isFinal: true, 0: { transcript: " у меня вопрос " } },
+      ],
+    })).toEqual({
+      latestTranscript: "у меня вопрос",
+      finalTranscript: "у меня вопрос",
+    });
   });
 });

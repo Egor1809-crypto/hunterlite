@@ -11,6 +11,7 @@ import { createLocalTrainingReply, defaultCallScripts } from "@/lib/default-trai
 import { calculateTrainingResult } from "@/lib/training-logic";
 import {
   audioFileNameForMimeType,
+  extractSpeechRecognitionTranscript,
   getBrowserSpeechRecognition,
   isVoiceRecordingSupported,
   selectRecordingMimeType,
@@ -109,8 +110,15 @@ export default function SessionChat({ mode }: Props) {
   const recordingTimeoutRef = useRef<number | null>(null);
   const browserSpeechTimeoutRef = useRef<number | null>(null);
   const speakRef = useRef<(text: string) => void>(() => undefined);
+  const sendRef = useRef<(text?: string) => void>(() => undefined);
+  const autoListenRef = useRef(autoListen);
+  const inputRef = useRef(input);
+  const skipNextTranscriptionRef = useRef(false);
 
   const total = Math.max(nodes.length, MIN_CONVERSATION_STEPS);
+
+  autoListenRef.current = autoListen;
+  inputRef.current = input;
 
   const markMicUnsupported = () => {
     setMicSupported(false);
@@ -244,9 +252,21 @@ export default function SessionChat({ mode }: Props) {
       const recognizedText = text?.trim() || transcript.trim();
       if (recognizedText) {
         setInput(recognizedText);
-        setVoiceStatus("Речь распознана. Проверьте текст и нажмите отправить.");
-        if (recorderRef.current?.state === "recording") recorderRef.current.stop();
+        inputRef.current = recognizedText;
+        setVoiceStatus(autoListenRef.current ? "Речь распознана. Отправляем ответ автоматически." : "Речь распознана. Проверьте текст и нажмите отправить.");
+        if (recorderRef.current?.state === "recording") {
+          skipNextTranscriptionRef.current = true;
+          recorderRef.current.stop();
+        } else {
+          setRecording(false);
+        }
+        if (autoListenRef.current) {
+          window.setTimeout(() => sendRef.current(recognizedText), 150);
+        }
       } else {
+        if (!recorderRef.current || recorderRef.current.state !== "recording") {
+          setRecording(false);
+        }
         setVoiceStatus("Браузер не дал текст, распознаём запись через внешний API.");
       }
     };
@@ -256,19 +276,16 @@ export default function SessionChat({ mode }: Props) {
     recognition.interimResults = true;
     recognition.maxAlternatives = 1;
     recognition.onresult = (event) => {
-      let finalText = "";
+      const { latestTranscript, finalTranscript } = extractSpeechRecognitionTranscript(event);
 
-      for (let index = event.resultIndex; index < event.results.length; index += 1) {
-        const result = event.results[index];
-        const text = result[0]?.transcript?.trim();
-        if (!text) continue;
-        transcript = text;
-        setInput(text);
+      if (latestTranscript) {
+        transcript = latestTranscript;
+        setInput(latestTranscript);
+        inputRef.current = latestTranscript;
         setVoiceStatus("Слышу речь, продолжаю распознавать.");
-        if (result.isFinal) finalText += `${text} `;
       }
 
-      if (finalText.trim()) finishRecognition(finalText);
+      if (finalTranscript) finishRecognition(finalTranscript);
     };
     recognition.onerror = (event) => {
       finished = true;
@@ -281,6 +298,9 @@ export default function SessionChat({ mode }: Props) {
           : "Браузер не дал текст, используем распознавание записи через внешний API.",
       );
       setVoiceStatus("Распознаём запись через внешний API.");
+      if (!recorderRef.current || recorderRef.current.state !== "recording") {
+        setRecording(false);
+      }
     };
     recognition.onend = () => {
       finishRecognition();
@@ -389,6 +409,7 @@ export default function SessionChat({ mode }: Props) {
         audioRef.current?.pause();
         setSpeaking(false);
         setAutoListen(false);
+        autoListenRef.current = false;
         recorderRef.current?.stop();
       }
       setVoiceStatus(next ? "Озвучка включена." : "Озвучка отключена.");
@@ -431,6 +452,12 @@ export default function SessionChat({ mode }: Props) {
           recordingTimeoutRef.current = null;
         }
         stream.getTracks().forEach((track) => track.stop());
+        recorderRef.current = null;
+
+        if (skipNextTranscriptionRef.current) {
+          skipNextTranscriptionRef.current = false;
+          return;
+        }
 
         void (async () => {
           const audioBlob = new Blob(chunksRef.current, { type: recorder.mimeType || "audio/webm" });
@@ -449,7 +476,13 @@ export default function SessionChat({ mode }: Props) {
 
           if (transcription.text) {
             setInput(transcription.text);
-            setVoiceStatus("Речь распознана через внешний API. Проверьте текст и нажмите отправить.");
+            inputRef.current = transcription.text;
+            if (autoListenRef.current) {
+              setVoiceStatus("Речь распознана через внешний API. Отправляем ответ автоматически.");
+              window.setTimeout(() => sendRef.current(transcription.text), 150);
+            } else {
+              setVoiceStatus("Речь распознана через внешний API. Проверьте текст и нажмите отправить.");
+            }
           } else {
             setVoiceError("Внешний API вернул пустую расшифровку. Попробуйте сказать ответ ближе к микрофону.");
             setVoiceStatus("Голос не распознан.");
@@ -491,6 +524,7 @@ export default function SessionChat({ mode }: Props) {
 
   const toggleRecording = async () => {
     if (recording) {
+      skipNextTranscriptionRef.current = Boolean(inputRef.current.trim());
       speechRecognitionRef.current?.stop();
       recorderRef.current?.stop();
       setRecording(false);
@@ -505,6 +539,12 @@ export default function SessionChat({ mode }: Props) {
     if (sessionEnded) return;
     const text = overrideText || input.trim();
     if (!text) return;
+    if (recording) {
+      skipNextTranscriptionRef.current = true;
+      speechRecognitionRef.current?.abort();
+      recorderRef.current?.stop();
+      setRecording(false);
+    }
 
     const sessionForPersistence = activeSessionId && activeSessionId !== "demo-session" ? activeSessionId : undefined;
     const userMessage: Msg = { from: "user", text };
@@ -585,6 +625,10 @@ export default function SessionChat({ mode }: Props) {
     } finally {
       setAiTyping(false);
     }
+  };
+
+  sendRef.current = (text?: string) => {
+    void send(text);
   };
 
   const finish = async () => {

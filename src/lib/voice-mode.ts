@@ -125,3 +125,22 @@ export const getBrowserSpeechRecognition = (scope?: SpeechRecognitionScope) => {
 
 export const isBrowserSpeechRecognitionSupported = (scope?: SpeechRecognitionScope) =>
   Boolean(getBrowserSpeechRecognition(scope));
+
+export const extractSpeechRecognitionTranscript = (event: BrowserSpeechRecognitionResultEvent) => {
+  const finalParts: string[] = [];
+  let latestTranscript = "";
+
+  for (let index = event.resultIndex; index < event.results.length; index += 1) {
+    const result = event.results[index];
+    const text = result[0]?.transcript?.trim();
+
+    if (!text) continue;
+    latestTranscript = text;
+    if (result.isFinal) finalParts.push(text);
+  }
+
+  return {
+    latestTranscript,
+    finalTranscript: finalParts.join(" ").trim(),
+  };
+};
