@@ -63,16 +63,18 @@ const AdminCallScripts = () => {
   const queryClient = useQueryClient();
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [editingScript, setEditingScript] = useState<CallScriptDto | null>(null);
+  const [formError, setFormError] = useState("");
   
   const [formData, setFormData] = useState<CallScriptForm>(initialForm);
 
-  const { data: scripts = [], isLoading } = useQuery({
+  const { data: scripts = [], isLoading, isError } = useQuery({
     queryKey: ["admin", "callScripts"],
     queryFn: () => frontendApi.getCallScripts(),
   });
 
   const resetForm = () => {
     setEditingScript(null);
+    setFormError("");
     setFormData(initialForm());
   };
 
@@ -129,7 +131,17 @@ const AdminCallScripts = () => {
   };
 
   const handleSave = () => {
-    if (!formData.title || formData.nodes.length === 0) return;
+    const invalidNode = formData.nodes.find((node) => !node.clientReplica.trim());
+
+    if (!formData.title.trim()) {
+      setFormError("Укажите название симуляции.");
+      return;
+    }
+    if (formData.nodes.length === 0 || invalidNode) {
+      setFormError("Каждый узел должен содержать реплику клиента.");
+      return;
+    }
+    setFormError("");
     
     const formattedNodes: CallScriptNodeCreateRequestDto[] = formData.nodes.map(node => {
       const rules = node.keywordRules;
@@ -143,7 +155,7 @@ const AdminCallScripts = () => {
     });
 
     const payload: CallScriptCreateRequestDto = {
-      title: formData.title,
+      title: formData.title.trim(),
       clientProfile: formData.clientProfile,
       nodes: formattedNodes,
     };
@@ -323,6 +335,7 @@ const AdminCallScripts = () => {
                 {editingScript ? "Сохранить изменения" : "Сохранить скрипт"}
               </Button>
             </DialogFooter>
+            {formError ? <p className="text-sm font-medium text-red-300">{formError}</p> : null}
           </DialogContent>
         </Dialog>
       </div>
@@ -332,6 +345,11 @@ const AdminCallScripts = () => {
           <div className="text-center py-12 text-muted-foreground flex flex-col items-center justify-center bg-white/5 rounded-xl border border-white/10">
             <Loader2 className="h-8 w-8 animate-spin mb-4 text-primary" />
             Загрузка скриптов...
+          </div>
+        ) : isError ? (
+          <div className="text-center py-12 border border-red-500/20 rounded-xl bg-red-500/5">
+            <p className="text-red-200 mb-4">Не удалось загрузить скрипты звонков.</p>
+            <Button variant="outline" onClick={() => queryClient.invalidateQueries({ queryKey: ["admin", "callScripts"] })}>Повторить</Button>
           </div>
         ) : scripts.length === 0 ? (
           <div className="text-center py-12 border border-white/10 rounded-xl bg-white/5">
@@ -376,7 +394,11 @@ const AdminCallScripts = () => {
                       size="sm"
                       className="w-full justify-start text-red-400 hover:text-red-300 hover:bg-red-500/20"
                       disabled={deleteMutation.isPending}
-                      onClick={() => deleteMutation.mutate(s.id)}
+                      onClick={() => {
+                        if (window.confirm(`Удалить скрипт «${s.title}»? Это действие нельзя отменить.`)) {
+                          deleteMutation.mutate(s.id);
+                        }
+                      }}
                     >
                       <Trash2 className="mr-2 h-4 w-4" />
                       Удалить

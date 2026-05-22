@@ -23,13 +23,14 @@ import { Textarea } from "@/components/ui/textarea";
 const AdminObjections = () => {
   const queryClient = useQueryClient();
   const [isAddOpen, setIsAddOpen] = useState(false);
+  const [formError, setFormError] = useState("");
   const [formData, setFormData] = useState<Partial<ObjectionTemplateCreateRequestDto>>({
     difficulty: "medium",
     targetRole: "all",
     answerFormat: "text",
   });
 
-  const { data: objections = [], isLoading } = useQuery({
+  const { data: objections = [], isLoading, isError } = useQuery({
     queryKey: ["admin", "objections"],
     queryFn: () => frontendApi.getObjectionTemplates(),
   });
@@ -39,18 +40,23 @@ const AdminObjections = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin", "objections"] });
       setIsAddOpen(false);
+      setFormError("");
       setFormData({ difficulty: "medium", targetRole: "all", answerFormat: "text" });
     },
   });
 
   const handleCreate = () => {
-    if (!formData.category || !formData.clientPhrase || !formData.referenceAnswer) return;
+    if (!formData.category?.trim() || !formData.clientPhrase?.trim() || !formData.referenceAnswer?.trim()) {
+      setFormError("Заполните категорию, фразу клиента и эталонный ответ.");
+      return;
+    }
+    setFormError("");
     createMutation.mutate({
-      category: formData.category,
-      clientPhrase: formData.clientPhrase,
+      category: formData.category.trim(),
+      clientPhrase: formData.clientPhrase.trim(),
       targetRole: formData.targetRole ?? "all",
       answerFormat: formData.answerFormat ?? "text",
-      referenceAnswer: formData.referenceAnswer,
+      referenceAnswer: formData.referenceAnswer.trim(),
       explanation: formData.explanation,
       difficulty: formData.difficulty ?? "medium",
     });
@@ -160,6 +166,7 @@ const AdminObjections = () => {
                 Сохранить
               </Button>
             </DialogFooter>
+            {formError ? <p className="text-sm font-medium text-red-300">{formError}</p> : null}
           </DialogContent>
         </Dialog>
       </div>
@@ -169,6 +176,11 @@ const AdminObjections = () => {
           <div className="text-center py-8 text-muted-foreground flex items-center justify-center">
             <Loader2 className="mr-2 h-6 w-6 animate-spin" />
             Загрузка возражений...
+          </div>
+        ) : isError ? (
+          <div className="text-center py-8 border border-red-500/20 rounded-xl bg-red-500/5">
+            <p className="text-red-200 mb-4">Не удалось загрузить возражения.</p>
+            <Button variant="outline" onClick={() => queryClient.invalidateQueries({ queryKey: ["admin", "objections"] })}>Повторить</Button>
           </div>
         ) : objections.length === 0 ? (
           <div className="text-center py-8 border border-white/10 rounded-xl bg-white/5">

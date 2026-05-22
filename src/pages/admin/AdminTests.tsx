@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Plus, Edit, Trash2, CheckCircle2, Loader2 } from "lucide-react";
+import { Plus, Edit, Trash2, Loader2 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { frontendApi } from "@/lib/frontend-api";
 import type { TestQuestionCreateRequestDto, TestQuestionDto } from "@/lib/api-contracts";
@@ -20,47 +20,19 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 
-// Временные типы для UI
 type QuestionType = TestQuestionDto["type"];
 type QuestionDifficulty = TestQuestionDto["difficulty"];
-
-interface TestQuestion {
-  id: string;
-  title: string;
-  text: string;
-  type: QuestionType;
-  difficulty: "basic" | "medium" | "hard";
-  needsUpdate: boolean;
-}
-
-const MOCK_QUESTIONS: TestQuestion[] = [
-  {
-    id: "1",
-    title: "Сумма долга для внесудебного банкротства",
-    text: "При какой сумме долга гражданин имеет право подать на внесудебное банкротство через МФЦ (по состоянию на 2026 год)?",
-    type: "single_choice",
-    difficulty: "basic",
-    needsUpdate: false,
-  },
-  {
-    id: "2",
-    title: "Последствия процедуры",
-    text: "Какие ограничения накладываются на гражданина после завершения процедуры банкротства?",
-    type: "multiple_choice",
-    difficulty: "medium",
-    needsUpdate: false,
-  },
-];
 
 const AdminTests = () => {
   const queryClient = useQueryClient();
   const [isAddOpen, setIsAddOpen] = useState(false);
+  const [formError, setFormError] = useState("");
   const [formData, setFormData] = useState<Partial<TestQuestionCreateRequestDto>>({
     type: "single_choice",
     difficulty: "medium",
   });
 
-  const { data: questions = [], isLoading } = useQuery({
+  const { data: questions = [], isLoading, isError } = useQuery({
     queryKey: ["admin", "testQuestions"],
     queryFn: () => frontendApi.getTestQuestions(),
   });
@@ -70,15 +42,20 @@ const AdminTests = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin", "testQuestions"] });
       setIsAddOpen(false);
+      setFormError("");
       setFormData({ type: "single_choice", difficulty: "medium" });
     },
   });
 
   const handleCreate = () => {
-    if (!formData.title || !formData.text) return; // Simple validation
+    if (!formData.title?.trim() || !formData.text?.trim()) {
+      setFormError("Заполните тему и текст вопроса.");
+      return;
+    }
+    setFormError("");
     createMutation.mutate({
-      title: formData.title,
-      text: formData.text,
+      title: formData.title.trim(),
+      text: formData.text.trim(),
       type: formData.type ?? "single_choice",
       difficulty: formData.difficulty ?? "medium",
       correctAnswer: {}, // Mock
@@ -184,6 +161,7 @@ const AdminTests = () => {
                 Сохранить в базу
               </Button>
             </DialogFooter>
+            {formError ? <p className="text-sm font-medium text-red-300">{formError}</p> : null}
           </DialogContent>
         </Dialog>
       </div>
@@ -193,6 +171,11 @@ const AdminTests = () => {
           <div className="text-center py-8 text-muted-foreground flex items-center justify-center">
             <Loader2 className="mr-2 h-6 w-6 animate-spin" />
             Загрузка вопросов...
+          </div>
+        ) : isError ? (
+          <div className="text-center py-8 border border-red-500/20 rounded-xl bg-red-500/5">
+            <p className="text-red-200 mb-4">Не удалось загрузить банк тестов.</p>
+            <Button variant="outline" onClick={() => queryClient.invalidateQueries({ queryKey: ["admin", "testQuestions"] })}>Повторить</Button>
           </div>
         ) : questions.length === 0 ? (
           <div className="text-center py-8 border border-white/10 rounded-xl bg-white/5">

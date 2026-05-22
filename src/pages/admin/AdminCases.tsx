@@ -23,12 +23,13 @@ import { Textarea } from "@/components/ui/textarea";
 const AdminCases = () => {
   const queryClient = useQueryClient();
   const [isAddOpen, setIsAddOpen] = useState(false);
+  const [formError, setFormError] = useState("");
   const [formData, setFormData] = useState<Partial<CaseTemplateCreateRequestDto>>({
     difficulty: "medium",
     steps: [{ question: "", answerFormat: "options", isRedFlag: false }],
   });
 
-  const { data: cases = [], isLoading } = useQuery({
+  const { data: cases = [], isLoading, isError } = useQuery({
     queryKey: ["admin", "cases"],
     queryFn: () => frontendApi.getCaseTemplates(),
   });
@@ -38,19 +39,30 @@ const AdminCases = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin", "cases"] });
       setIsAddOpen(false);
+      setFormError("");
       setFormData({ difficulty: "medium", steps: [{ question: "", answerFormat: "options", isRedFlag: false }] });
     },
   });
 
   const handleCreate = () => {
-    if (!formData.title || !formData.introText) return;
+    const steps = formData.steps ?? [];
+
+    if (!formData.title?.trim() || !formData.introText?.trim()) {
+      setFormError("Заполните название и вводную кейса.");
+      return;
+    }
+    if (steps.length === 0 || steps.some((step) => !step.question.trim())) {
+      setFormError("Добавьте хотя бы один шаг и заполните вопросы.");
+      return;
+    }
+    setFormError("");
     createMutation.mutate({
-      title: formData.title,
-      introText: formData.introText,
+      title: formData.title.trim(),
+      introText: formData.introText.trim(),
       difficulty: formData.difficulty ?? "medium",
       attachments: [],
       tags: [],
-      steps: formData.steps ?? [],
+      steps,
     });
   };
 
@@ -173,6 +185,7 @@ const AdminCases = () => {
                 Сохранить кейс
               </Button>
             </DialogFooter>
+            {formError ? <p className="text-sm font-medium text-red-300">{formError}</p> : null}
           </DialogContent>
         </Dialog>
       </div>
@@ -182,6 +195,11 @@ const AdminCases = () => {
           <div className="text-center py-8 text-muted-foreground flex items-center justify-center">
             <Loader2 className="mr-2 h-6 w-6 animate-spin" />
             Загрузка кейсов...
+          </div>
+        ) : isError ? (
+          <div className="text-center py-8 border border-red-500/20 rounded-xl bg-red-500/5">
+            <p className="text-red-200 mb-4">Не удалось загрузить ситуационные кейсы.</p>
+            <Button variant="outline" onClick={() => queryClient.invalidateQueries({ queryKey: ["admin", "cases"] })}>Повторить</Button>
           </div>
         ) : cases.length === 0 ? (
           <div className="text-center py-8 border border-white/10 rounded-xl bg-white/5">
