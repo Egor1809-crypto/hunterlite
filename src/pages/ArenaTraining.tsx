@@ -1,84 +1,48 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArenaShell } from "@/components/arena/ArenaShell";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
+import { arenaQuestions } from "@/lib/arena-questions";
 import { cn } from "@/lib/utils";
-import { CheckCircle2, HelpCircle, Lightbulb, RotateCcw, Send, ShieldAlert } from "lucide-react";
-
-const arenaRounds = [
-  {
-    topic: "Имущество должника",
-    question: "Клиент спрашивает: единственную квартиру точно не заберут?",
-    answer: "Нельзя обещать точно. Обычно единственное жильё защищено, но ипотека и злоупотребления требуют отдельной проверки.",
-    keywords: ["единственное жильё", "ипотека", "провер"],
-    hint: "Убери гарантию и добавь оговорку про документы.",
-  },
-  {
-    topic: "Несгораемые долги",
-    question: "Клиент хочет списать алименты вместе с кредитами. Что ответить?",
-    answer: "Алименты не списываются банкротством. Нужно отделить их от кредитных долгов и объяснить порядок дальнейших платежей.",
-    keywords: ["алименты", "не спис", "кредит"],
-    hint: "Назови исключение и не смешивай алименты с кредитами.",
-  },
-  {
-    topic: "Сделки перед процедурой",
-    question: "Клиент подарил машину родственнику за месяц до банкротства. Что важно сказать?",
-    answer: "Сделку могут проверить и оспорить, если она нарушает права кредиторов. Нужно заранее раскрыть факт и изучить документы.",
-    keywords: ["оспор", "кредитор", "документ"],
-    hint: "Сфокусируйся на риске оспаривания и прозрачности.",
-  },
-  {
-    topic: "Финансовый управляющий",
-    question: "Клиент боится, что управляющий сразу заблокирует всю жизнь. Как ответить безопасно?",
-    answer: "Управляющий контролирует процедуру и имущество, но базовые жизненные расходы учитываются. Нужно объяснить ограничения без запугивания.",
-    keywords: ["управляющ", "расход", "огранич"],
-    hint: "Баланс: контроль есть, но не драматизируем.",
-  },
-];
-
-const normalize = (value: string) => value.toLowerCase().replace(/ё/g, "е");
-
-const scoreAnswer = (answer: string, keywords: string[]) => {
-  const normalizedAnswer = normalize(answer);
-  const hits = keywords.filter((keyword) => normalizedAnswer.includes(normalize(keyword))).length;
-  return Math.round((hits / keywords.length) * 100);
-};
+import { CheckCircle2, HelpCircle, Lightbulb, RotateCcw, ShieldAlert, XCircle } from "lucide-react";
 
 export default function ArenaTraining() {
   const navigate = useNavigate();
   const [roundIndex, setRoundIndex] = useState(0);
-  const [answer, setAnswer] = useState("");
+  const [selectedOption, setSelectedOption] = useState<number | null>(null);
   const [score, setScore] = useState(0);
   const [streak, setStreak] = useState(0);
   const [revealed, setRevealed] = useState(false);
   const [roundScores, setRoundScores] = useState<number[]>([]);
 
-  const round = arenaRounds[roundIndex];
-  const roundScore = useMemo(() => scoreAnswer(answer, round.keywords), [answer, round.keywords]);
-  const complete = roundIndex >= arenaRounds.length - 1 && revealed;
-  const progress = Math.round(((roundIndex + (revealed ? 1 : 0)) / arenaRounds.length) * 100);
+  const round = arenaQuestions[roundIndex];
+  const selectedAnswer = selectedOption === null ? null : round.options[selectedOption];
+  const isCorrect = Boolean(selectedAnswer?.isCorrect);
+  const roundScore = revealed && isCorrect ? 100 : 0;
+  const complete = roundIndex >= arenaQuestions.length - 1 && revealed;
+  const progress = Math.round(((roundIndex + (revealed ? 1 : 0)) / arenaQuestions.length) * 100);
+  const correctAnswer = round.options.find((option) => option.isCorrect);
 
   const submit = () => {
-    if (!answer.trim() || revealed) return;
-    const earned = roundScore >= 67 ? 25 : roundScore >= 34 ? 12 : 0;
-    setScore((current) => current + earned);
-    setStreak((current) => (earned >= 25 ? current + 1 : 0));
-    setRoundScores((current) => [...current, roundScore]);
+    if (selectedOption === null || revealed) return;
+
+    setScore((current) => current + (isCorrect ? 25 : 0));
+    setStreak((current) => (isCorrect ? current + 1 : 0));
+    setRoundScores((current) => [...current, isCorrect ? 100 : 0]);
     setRevealed(true);
   };
 
   const nextRound = () => {
-    if (roundIndex >= arenaRounds.length - 1) return;
+    if (roundIndex >= arenaQuestions.length - 1) return;
     setRoundIndex((current) => current + 1);
-    setAnswer("");
+    setSelectedOption(null);
     setRevealed(false);
   };
 
   const reset = () => {
     setRoundIndex(0);
-    setAnswer("");
+    setSelectedOption(null);
     setScore(0);
     setStreak(0);
     setRevealed(false);
@@ -88,21 +52,22 @@ export default function ArenaTraining() {
   return (
     <ArenaShell
       title="Арена: тесты по БФЛ"
-      subtitle="Быстрые раунды"
+      subtitle="Выверенные вопросы"
       round={roundIndex + 1}
-      totalRounds={arenaRounds.length}
-      timeLeftSec={Math.max(0, 90 - answer.length)}
+      totalRounds={arenaQuestions.length}
+      timeLeftSec={revealed ? 0 : 90}
       score={score}
       streak={streak}
       onExit={() => navigate("/modes")}
       scoreboard={
         <div className="space-y-2">
-          {arenaRounds.map((item, index) => {
+          {arenaQuestions.map((item, index) => {
             const done = index < roundScores.length;
             const active = index === roundIndex;
+
             return (
               <div
-                key={item.question}
+                key={item.id}
                 className={cn(
                   "rounded-lg border p-3 text-sm",
                   active ? "border-violet-300/40 bg-violet-300/10" : "border-white/10 bg-white/[0.03]",
@@ -110,7 +75,11 @@ export default function ArenaTraining() {
               >
                 <div className="text-white/50 text-xs font-bold uppercase tracking-wider">Раунд {index + 1}</div>
                 <div className="mt-1 text-white/85">{item.topic}</div>
-                {done ? <div className="mt-1 text-xs text-emerald-200">{roundScores[index]}%</div> : null}
+                {done ? (
+                  <div className={cn("mt-1 text-xs", roundScores[index] === 100 ? "text-emerald-200" : "text-rose-200")}>
+                    {roundScores[index] === 100 ? "Верно" : "Ошибка"}
+                  </div>
+                ) : null}
               </div>
             );
           })}
@@ -125,13 +94,15 @@ export default function ArenaTraining() {
           <div className="rounded-lg border border-white/10 bg-white/[0.04] p-4">
             <div className="flex items-center gap-2 text-violet-100 font-bold">
               <Lightbulb className="h-4 w-4" />
-              Подсказка
+              Источник
             </div>
-            <p className="text-sm text-white/65 mt-2">{round.hint}</p>
+            <p className="text-sm text-white/65 mt-2">
+              Вопрос N {round.sourceQuestionNumber} из выверенного docx. Неправильные варианты взяты из {round.source}.
+            </p>
           </div>
           <div className="rounded-lg border border-amber-200/20 bg-amber-200/10 p-4 text-sm text-amber-50">
             <ShieldAlert className="h-4 w-4 mb-2" />
-            Арена оценивает не красоту текста, а наличие юридически важных опор.
+            Сейчас в арене только вопросы, которые удалось строго сопоставить со старшим проектом.
           </div>
         </div>
       }
@@ -143,7 +114,7 @@ export default function ArenaTraining() {
                 {round.topic}
               </span>
               <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-bold text-white/60">
-                Ответ одним сообщением
+                {round.law}
               </span>
             </div>
             <div className="flex gap-3">
@@ -154,15 +125,47 @@ export default function ArenaTraining() {
             </div>
           </div>
 
+          <div className="grid gap-3">
+            {round.options.map((option, optionIndex) => {
+              const selected = selectedOption === optionIndex;
+              const showCorrect = revealed && option.isCorrect;
+              const showWrong = revealed && selected && !option.isCorrect;
+
+              return (
+                <button
+                  key={option.text}
+                  type="button"
+                  disabled={revealed}
+                  onClick={() => setSelectedOption(optionIndex)}
+                  className={cn(
+                    "min-h-16 rounded-xl border px-4 py-3 text-left text-sm md:text-base font-semibold transition-colors",
+                    "border-white/10 bg-white/[0.04] text-white/78 hover:bg-white/[0.075]",
+                    selected && "border-violet-200/50 bg-violet-200/12 text-white",
+                    showCorrect && "border-emerald-200/50 bg-emerald-200/12 text-emerald-50",
+                    showWrong && "border-rose-200/50 bg-rose-200/12 text-rose-50",
+                  )}
+                >
+                  <span className="mr-2 text-white/35">{optionIndex + 1}.</span>
+                  {option.text}
+                </button>
+              );
+            })}
+          </div>
+
           {revealed ? (
-            <div className="rounded-xl border border-emerald-200/20 bg-emerald-200/10 p-5">
-              <div className="flex items-center gap-2 text-emerald-100 font-bold">
-                <CheckCircle2 className="h-5 w-5" />
-                Эталонный ответ
+            <div
+              className={cn(
+                "rounded-xl border p-5",
+                isCorrect ? "border-emerald-200/20 bg-emerald-200/10" : "border-rose-200/20 bg-rose-200/10",
+              )}
+            >
+              <div className={cn("flex items-center gap-2 font-bold", isCorrect ? "text-emerald-100" : "text-rose-100")}>
+                {isCorrect ? <CheckCircle2 className="h-5 w-5" /> : <XCircle className="h-5 w-5" />}
+                {isCorrect ? "Верно" : "Неверно"}
               </div>
-              <p className="text-sm md:text-base text-white/78 mt-3 leading-relaxed">{round.answer}</p>
+              <p className="text-sm md:text-base text-white/78 mt-3 leading-relaxed">{correctAnswer?.text}</p>
               <div className="mt-4 text-sm text-white/65">
-                Ваше покрытие ключевых опор: <span className="text-pixel-inline">{roundScore}%</span>
+                Результат раунда: <span className="text-pixel-inline">{roundScore}%</span>
               </div>
             </div>
           ) : null}
@@ -171,28 +174,25 @@ export default function ArenaTraining() {
             <div className="rounded-xl border border-violet-200/20 bg-violet-200/10 p-5">
               <h3 className="font-display text-xl font-bold text-white">Арена завершена</h3>
               <p className="text-white/65 mt-2">
-                Итоговый счёт: <span className="text-pixel-inline">{score}</span>. Следующий шаг — подключить сюда вопросы из админки и AI-разбор через NAVY.
+                Итоговый счёт: <span className="text-pixel-inline">{score}</span>. Следующий шаг — расширить банк только подтверждёнными совпадениями из старшего проекта.
               </p>
             </div>
           ) : null}
         </div>
       }
       footer={
-        <div className="max-w-4xl mx-auto flex flex-col md:flex-row gap-3">
-          <Input
-            value={answer}
-            onChange={(event) => setAnswer(event.target.value)}
-            disabled={revealed}
-            className="h-12 bg-black/30 border-white/10 text-white placeholder:text-white/35"
-            placeholder="Введите юридически безопасный ответ..."
-            onKeyDown={(event) => {
-              if (event.key === "Enter") submit();
-            }}
-          />
+        <div className="max-w-4xl mx-auto flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+          <div className="text-sm text-white/55">
+            Выберите один вариант ответа. Неправильные варианты перенесены из ошибок старшего проекта.
+          </div>
           {!revealed ? (
-            <Button type="button" className="h-12 bg-white text-slate-950 hover:bg-white/90" onClick={submit}>
-              <Send className="h-4 w-4 mr-1.5" />
-              Ответить
+            <Button
+              type="button"
+              className="h-12 bg-white text-slate-950 hover:bg-white/90"
+              disabled={selectedOption === null}
+              onClick={submit}
+            >
+              Проверить
             </Button>
           ) : complete ? (
             <Button type="button" className="h-12 bg-white text-slate-950 hover:bg-white/90" onClick={reset}>
