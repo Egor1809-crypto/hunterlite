@@ -11,6 +11,7 @@ export * from "./modules/ai/navy-ai-client";
 export * from "./modules/backend-data-source";
 export * from "./modules/module-registry";
 export * from "./modules/notifications/notifications-prisma-data-source";
+export * from "./modules/telegram/telegram-bot-client";
 export * from "./modules/trainings/trainings-prisma-data-source";
 export * from "./modules/users/users-prisma-data-source";
 export * from "./routes/frontend-api-handlers";

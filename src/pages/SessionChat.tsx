@@ -8,6 +8,7 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { ApiClientError } from "@/lib/api-client";
 import { frontendApi } from "@/lib/frontend-api";
 import { createLocalTrainingReply, defaultCallScripts } from "@/lib/default-training-content";
+import { buildConversationMemory } from "@/lib/conversation-memory";
 import { calculateTrainingResult } from "@/lib/training-logic";
 import {
   audioFileNameForMimeType,
@@ -558,6 +559,8 @@ export default function SessionChat({ mode }: Props) {
     try {
       const nextStep = step + 1;
       const nextNode = nodes[nextStep];
+      const conversation = [...messages, userMessage].map((message) => ({ from: message.from, text: message.text }));
+      const memory = buildConversationMemory(conversation);
       const trainingPayload: AiTrainingReplyRequestDto = {
         sessionId: sessionForPersistence,
         topic,
@@ -565,7 +568,11 @@ export default function SessionChat({ mode }: Props) {
         step,
         totalSteps: total,
         userMessage: text,
-        messages: [...messages, userMessage].map((message) => ({ from: message.from, text: message.text })),
+        messages: memory.recentMessages,
+        memory: {
+          summary: memory.summary,
+          facts: memory.facts,
+        },
         scriptContext: {
           title,
           nextClientReplica: nextNode?.clientReplica,
@@ -598,6 +605,8 @@ export default function SessionChat({ mode }: Props) {
     } catch {
       const nextStep = step + 1;
       const nextNode = nodes[nextStep];
+      const conversation = [...messages, userMessage].map((message) => ({ from: message.from, text: message.text }));
+      const memory = buildConversationMemory(conversation);
       const fallback = createLocalTrainingReply({
         sessionId: sessionForPersistence,
         topic,
@@ -605,7 +614,11 @@ export default function SessionChat({ mode }: Props) {
         step,
         totalSteps: total,
         userMessage: text,
-        messages: [...messages, userMessage].map((message) => ({ from: message.from, text: message.text })),
+        messages: memory.recentMessages,
+        memory: {
+          summary: memory.summary,
+          facts: memory.facts,
+        },
         scriptContext: {
           title,
           nextClientReplica: nextNode?.clientReplica,

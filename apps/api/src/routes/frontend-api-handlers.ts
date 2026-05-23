@@ -249,6 +249,7 @@ export const createFrontendApiHandlers = (source: FrontendApiDataSource = demoFr
       totalSteps: Number.isFinite(request.totalSteps) ? Math.max(1, Number(request.totalSteps)) : 1,
       userMessage: request.userMessage.trim(),
       messages: request.messages,
+      memory: request.memory,
       scriptContext: request.scriptContext,
     });
 

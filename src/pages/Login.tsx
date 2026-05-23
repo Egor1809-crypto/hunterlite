@@ -29,7 +29,7 @@ export default function Login() {
 
     try {
       const response = await frontendApi.requestTelegramCode({ phone: telegramPhone });
-      setTelegramStatus(response.devCode ? `Код отправлен. Тестовый код: ${response.devCode}` : "Код отправлен в Telegram-бот.");
+      setTelegramStatus(response.devCode ? `Код отправлен. Тестовый код: ${response.devCode}` : "Код отправлен в PravoSkill_Bot.");
     } catch {
       setTelegramStatus("Не удалось отправить код. Проверьте номер телефона.");
     }
@@ -141,7 +141,7 @@ export default function Login() {
               <div className="rounded-lg border border-border bg-card/70 p-3 space-y-3">
                 <div className="grid sm:grid-cols-[1fr_auto] gap-2">
                   <div className="space-y-1.5">
-                    <Label htmlFor="telegram-phone">Телефон Telegram</Label>
+                    <Label htmlFor="telegram-phone">Телефон или chat ID Telegram</Label>
                     <Input
                       id="telegram-phone"
                       type="tel"
@@ -157,7 +157,7 @@ export default function Login() {
                 </div>
                 <div className="grid sm:grid-cols-[1fr_auto] gap-2">
                   <div className="space-y-1.5">
-                    <Label htmlFor="telegram-code">SMS-код из Telegram</Label>
+                    <Label htmlFor="telegram-code">Код из Telegram</Label>
                     <Input
                       id="telegram-code"
                       inputMode="numeric"

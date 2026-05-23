@@ -36,7 +36,14 @@ describe("external AI client", () => {
       step: 0,
       totalSteps: 3,
       userMessage: "Здравствуйте",
-      messages: [{ from: "user", text: "Здравствуйте" }],
+      messages: [
+        { from: "ai", text: "Здравствуйте, у меня квартира и машина." },
+        { from: "user", text: "Здравствуйте" },
+      ],
+      memory: {
+        summary: "Клиент: у меня квартира и машина.\nСотрудник: Здравствуйте",
+        facts: ["имущество: квартира и машина"],
+      },
     })).resolves.toEqual({
       reply: "А что будет с ипотекой?",
       scoreDelta: 5,
@@ -50,6 +57,16 @@ describe("external AI client", () => {
       headers: expect.objectContaining({ Authorization: "Bearer test-key" }),
       body: expect.stringContaining('"model":"gemini-3.5-flash"'),
     }));
+    const body = JSON.parse(fetchMock.mock.calls[0][1]?.body as string) as {
+      messages: Array<{ role: string; content: string }>;
+    };
+    expect(body.messages).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ role: "system", content: expect.stringContaining("Краткая память текущего диалога") }),
+        expect.objectContaining({ role: "assistant", content: "Здравствуйте, у меня квартира и машина." }),
+        expect.objectContaining({ role: "user", content: "Здравствуйте" }),
+      ]),
+    );
   });
 
   it("uses AI speech and transcription endpoints with configured voice models", async () => {

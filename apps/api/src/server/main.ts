@@ -7,6 +7,7 @@ import { createAuthPrismaDataSource } from "../modules/auth/auth-prisma-data-sou
 import { createBackendDataSource } from "../modules/backend-data-source";
 import { createNavyAiClient } from "../modules/ai/navy-ai-client";
 import { configureCsrfSecret } from "../modules/auth/csrf";
+import { createTelegramBotClient } from "../modules/telegram/telegram-bot-client";
 import { createApiHttpServer } from "./http-server";
 
 const env = parseEnv({
@@ -20,13 +21,18 @@ configureCsrfSecret(env.HUNTERLITE_CSRF_SECRET);
 const pool = new Pool({ connectionString: env.DATABASE_URL });
 const adapter = new PrismaPg(pool);
 const prisma = new PrismaClient({ adapter });
+const telegram = createTelegramBotClient(env);
 
 const server = createApiHttpServer({
   source: createBackendDataSource({
     prisma,
     ai: createNavyAiClient(env),
+    telegram,
   }),
-  auth: createAuthPrismaDataSource(prisma),
+  auth: createAuthPrismaDataSource(prisma, {
+    telegramLoginEmail: env.TELEGRAM_LOGIN_EMAIL,
+    sendTelegramCode: ({ recipient, code }) => telegram.sendLoginCode({ recipient, code }),
+  }),
   authDemoFallback: env.AUTH_DEMO_FALLBACK,
   secureCookies: env.NODE_ENV === "production",
   corsOrigins: env.CORS_ORIGINS,

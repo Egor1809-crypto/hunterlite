@@ -36,6 +36,9 @@ services:
       NAVI_TTS_MODEL: ${NAVI_TTS_MODEL:-eleven_flash_v2_5}
       NAVI_TTS_VOICE: ${NAVI_TTS_VOICE:-aria}
       NAVI_STT_MODEL: ${NAVI_STT_MODEL:-scribe_v2}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_DEFAULT_CHAT_ID: ${TELEGRAM_DEFAULT_CHAT_ID:-}
+      TELEGRAM_LOGIN_EMAIL: ${TELEGRAM_LOGIN_EMAIL:-}
     depends_on:
       postgres:
         condition: service_healthy

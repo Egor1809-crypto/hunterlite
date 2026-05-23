@@ -12,6 +12,9 @@ Before running `sh deploy-prod.sh`, create `deployment/.env.production` from `.e
 - `NAVI_TTS_MODEL`: `eleven_flash_v2_5`.
 - `NAVI_TTS_VOICE`: approved production voice id.
 - `NAVI_STT_MODEL`: approved production STT model.
+- `TELEGRAM_BOT_TOKEN`: token for `PravoSkill_Bot`.
+- `TELEGRAM_DEFAULT_CHAT_ID`: chat id that receives login codes and pre-test reminders.
+- `TELEGRAM_LOGIN_EMAIL`: platform user email that Telegram code login opens.
 
 ## Domain And HTTPS
 

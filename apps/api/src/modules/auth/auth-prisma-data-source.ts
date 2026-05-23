@@ -6,6 +6,7 @@ import type { AuthDataSource } from "./auth-handlers";
 import { hashPassword, verifyPassword } from "./password-hash";
 
 type UserStatus = "active" | "blocked" | "invited" | string;
+type MaybePromise<T> = T | Promise<T>;
 
 type MembershipRecord = {
   role: string;
@@ -45,6 +46,11 @@ type PasswordResetRecord = {
   user: UserRecord & { authAccounts: UserAuthAccountRecord[] };
 };
 
+type TelegramCodeRecord = {
+  codeHash: string;
+  expiresAt: Date;
+};
+
 export type AuthPrismaClient = {
   authAccount: {
     findFirst: (args: {
@@ -72,16 +78,31 @@ export type AuthPrismaClient = {
     }) => Promise<SessionRecord | null>;
     update: (args: { where: { id: string }; data: { revokedAt: Date } }) => Promise<unknown>;
   };
+  user?: {
+    findFirst: (args: {
+      where: { email?: string; memberships?: { some: { role?: "employee"; status?: "active" } } };
+      include: { memberships: true };
+      orderBy?: { createdAt: "asc" | "desc" };
+    }) => Promise<UserRecord | null>;
+  };
 };
 
 export type AuthLockoutOptions = {
   maxFailedAttempts?: number;
   lockMs?: number;
   passwordResetTokenMs?: number;
+  telegramCodeMs?: number;
+  telegramLoginEmail?: string;
+  sendTelegramCode?: (payload: { recipient: string; code: string }) => MaybePromise<boolean>;
   now?: () => Date;
 };
 
 const hashResetToken = (token: string) => createHash("sha256").update(token).digest("hex");
+const hashTelegramCode = (phone: string, code: string) =>
+  createHash("sha256").update(`${phone}:${code}`).digest("hex");
+
+const createTelegramCode = () =>
+  String(Math.floor(100000 + Math.random() * 900000));
 
 const roleLabels: Record<AppRole, string> = {
   employee: "Юрист-консультант",
@@ -128,9 +149,15 @@ export const createAuthPrismaDataSource = (
     maxFailedAttempts = 5,
     lockMs = 15 * 60 * 1000,
     passwordResetTokenMs = 60 * 60 * 1000,
+    telegramCodeMs = 5 * 60 * 1000,
+    telegramLoginEmail,
+    sendTelegramCode,
     now = () => new Date(),
   }: AuthLockoutOptions = {},
-): AuthDataSource => ({
+): AuthDataSource => {
+  const telegramCodes = new Map<string, TelegramCodeRecord>();
+
+  return {
   login: async ({ email, password }) => {
     const normalizedEmail = email.trim().toLowerCase();
     const currentTime = now();
@@ -286,4 +313,63 @@ export const createAuthPrismaDataSource = (
 
     return true;
   },
-});
+
+  requestTelegramCode: async (phone) => {
+    const code = createTelegramCode();
+    telegramCodes.set(phone, {
+      codeHash: hashTelegramCode(phone, code),
+      expiresAt: new Date(now().getTime() + telegramCodeMs),
+    });
+
+    await sendTelegramCode?.({ recipient: phone, code });
+
+    return { code };
+  },
+
+  loginWithTelegramCode: async ({ phone, code }) => {
+    const record = telegramCodes.get(phone);
+    const currentTime = now();
+
+    if (!record || record.expiresAt.getTime() <= currentTime.getTime()) {
+      telegramCodes.delete(phone);
+      return null;
+    }
+
+    if (record.codeHash !== hashTelegramCode(phone, code)) return null;
+    telegramCodes.delete(phone);
+
+    const user = telegramLoginEmail
+      ? await prisma.user?.findFirst({
+          where: { email: telegramLoginEmail.trim().toLowerCase() },
+          include: { memberships: true },
+        })
+      : await prisma.user?.findFirst({
+          where: {
+            memberships: {
+              some: {
+                role: "employee",
+                status: "active",
+              },
+            },
+          },
+          include: { memberships: true },
+          orderBy: { createdAt: "asc" },
+        });
+    const session = user ? userToSession(user) : null;
+
+    if (!user || !session) return null;
+
+    const createdSession = await prisma.session.create({
+      data: {
+        userId: user.id,
+        expiresAt: new Date(currentTime.getTime() + 7 * 24 * 60 * 60 * 1000),
+      },
+    });
+
+    return {
+      sessionId: createdSession.id,
+      session,
+    };
+  },
+};
+};

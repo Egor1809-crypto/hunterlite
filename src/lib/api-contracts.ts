@@ -234,6 +234,10 @@ export type AiTrainingReplyRequestDto = {
   totalSteps: number;
   userMessage: string;
   messages: DialogMessageDto[];
+  memory?: {
+    summary?: string;
+    facts?: string[];
+  };
   scriptContext?: {
     title?: string;
     nextClientReplica?: string;

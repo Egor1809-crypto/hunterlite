@@ -88,6 +88,50 @@ describe("auth handlers", () => {
     });
   });
 
+  it("delegates Telegram codes to strict auth sources", async () => {
+    const auth = createAuthHandlers({
+      login: async () => null,
+      session: async () => null,
+      requestTelegramCode: async (phone) => (phone === "+79000000000" ? { code: "654321" } : null),
+      loginWithTelegramCode: async ({ code }) =>
+        code === "654321"
+          ? {
+              sessionId: "session-telegram",
+              session: {
+                user: {
+                  id: "user-telegram",
+                  name: "Анна Петрова",
+                  firstName: "Анна",
+                  role: "employee",
+                  roleLabel: "Юрист-консультант",
+                  email: "a.petrova@hunterlite.ru",
+                  status: "Допущен",
+                  avgScore: 82,
+                  examPassed: false,
+                  weeklyTrainings: 6,
+                },
+                homePath: "/dashboard",
+              },
+            }
+          : null,
+    }, { allowDemoFallback: false });
+
+    await expect(auth.requestTelegramCode({ phone: "+7 900 000-00-00" })).resolves.toEqual({
+      ok: true,
+      data: {
+        sent: true,
+        channel: "telegram",
+        devCode: "654321",
+      },
+    });
+    await expect(auth.loginWithTelegramCode({ phone: "+7 900 000-00-00", code: "654321" })).resolves.toEqual(
+      expect.objectContaining({
+        ok: true,
+        sessionCookie: expect.stringContaining("hunterlite_session=db:session-telegram"),
+      }),
+    );
+  });
+
   it("resolves Telegram auth HTTP routes with session and CSRF cookies", async () => {
     await expect(resolveApiRequest({
       method: "POST",

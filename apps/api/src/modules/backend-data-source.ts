@@ -24,10 +24,12 @@ import {
   type AdminPrismaClient,
 } from "./admin/admin-prisma-data-source";
 import type { NavyAiClient } from "./ai/navy-ai-client";
+import type { TelegramBotClient } from "./telegram/telegram-bot-client";
 
 export type BackendDataSourceOptions = {
   prisma?: UsersPrismaClient & TrainingsPrismaClient & NotificationsPrismaClient & AnalyticsPrismaClient & AdminPrismaClient;
   ai?: NavyAiClient;
+  telegram?: TelegramBotClient;
 };
 
 export const createBackendDataSource = (
@@ -36,7 +38,9 @@ export const createBackendDataSource = (
   if (!options.prisma) return demoFrontendApiDataSource;
 
   const users = createUsersPrismaDataSource(options.prisma, demoFrontendApiDataSource);
-  const trainings = createTrainingsPrismaDataSource(options.prisma, demoFrontendApiDataSource);
+  const trainings = createTrainingsPrismaDataSource(options.prisma, demoFrontendApiDataSource, {
+    telegram: options.telegram,
+  });
   const notifications = createNotificationsPrismaDataSource(options.prisma, demoFrontendApiDataSource);
   const analytics = createAnalyticsPrismaDataSource(options.prisma, demoFrontendApiDataSource);
   const admin = createAdminPrismaDataSource(options.prisma, demoFrontendApiDataSource);

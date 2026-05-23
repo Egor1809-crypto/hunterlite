@@ -72,6 +72,18 @@ const decodeBase64 = (value: string) => Buffer.from(value, "base64");
 const uniqueModels = (...models: Array<string | undefined>) =>
   Array.from(new Set(models.map((model) => model?.trim()).filter((model): model is string => Boolean(model))));
 
+const toNavyRole = (from: "ai" | "user") => from === "user" ? "user" : "assistant";
+
+const buildMemoryBlock = (payload: AiTrainingReplyRequestDto) => {
+  const facts = payload.memory?.facts?.filter((fact) => fact.trim()).slice(-8) ?? [];
+  const summary = payload.memory?.summary?.trim();
+
+  return [
+    summary ? `Краткая память текущего диалога:\n${summary}` : "",
+    facts.length ? `Факты, которые уже сообщил собеседник:\n${facts.map((fact) => `- ${fact}`).join("\n")}` : "",
+  ].filter(Boolean).join("\n\n");
+};
+
 export const createNavyAiClient = (
   env: Pick<ApiEnv, "NAVI_API_KEY" | "NAVI_BASE_URL" | "NAVI_CHAT_MODEL" | "NAVI_TTS_MODEL" | "NAVI_TTS_VOICE" | "NAVI_STT_MODEL">,
   fetchImpl: FetchLike = fetch,
@@ -109,10 +121,22 @@ export const createNavyAiClient = (
                 "Отвечай только валидным JSON без markdown.",
                 "Схема: {\"reply\":\"реплика клиента\",\"scoreDelta\":0,\"mistakes\":[],\"recommendations\":[],\"sessionEnded\":false}.",
                 "reply должен быть естественной короткой репликой клиента на русском.",
+                "Обязательно учитывай всю историю сообщений и не задавай заново то, что сотрудник уже объяснил.",
+                "Если сотрудник ответил на твой вопрос, реагируй именно на его ответ, а не продолжай сценарий вслепую.",
                 "scoreDelta — штраф 0-35 за неточность, рискованное обещание, отсутствие эмпатии или неполный ответ.",
                 "Не давай юридическую консультацию за сотрудника, задавай следующий вопрос как клиент.",
               ].join(" "),
             },
+            ...(buildMemoryBlock(payload)
+              ? [{
+                  role: "system",
+                  content: buildMemoryBlock(payload),
+                }]
+              : []),
+            ...payload.messages.slice(-16).map((message) => ({
+              role: toNavyRole(message.from),
+              content: message.text,
+            })),
             {
               role: "user",
               content: JSON.stringify({
@@ -121,8 +145,8 @@ export const createNavyAiClient = (
                 step: payload.step,
                 totalSteps: payload.totalSteps,
                 userMessage: payload.userMessage,
-                conversation: payload.messages.slice(-12),
                 scriptContext: payload.scriptContext,
+                task: "Ответь следующей репликой клиента с учетом текущего ответа сотрудника и всей памяти выше.",
               }),
             },
           ],
