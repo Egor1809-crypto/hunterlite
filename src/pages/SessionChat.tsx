@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { StatusBadge } from "@/components/StatusBadge";
+import { PhoneCallPanel } from "@/components/training/PhoneCallPanel";
 import { ApiClientError } from "@/lib/api-client";
 import { frontendApi } from "@/lib/frontend-api";
 import { createLocalTrainingReply, defaultCallScripts } from "@/lib/default-training-content";
@@ -675,6 +676,7 @@ export default function SessionChat({ mode }: Props) {
   };
 
   const title = activeScript?.title || "Симуляция звонка";
+  const clientProfile = activeScript?.clientProfile;
 
   const fmt = (s: number) => `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
 
@@ -708,6 +710,25 @@ export default function SessionChat({ mode }: Props) {
             </Button>
           </div>
         </div>
+
+        {mode === "talk" && (
+          <PhoneCallPanel
+            clientName={clientProfile?.name || "Клиент"}
+            clientSituation={clientProfile?.situation || topic}
+            clientCharacter={clientProfile?.character || "anxious"}
+            elapsed={fmt(secs)}
+            step={step}
+            total={total}
+            score={score}
+            recording={recording}
+            speaking={speaking || aiTyping}
+            voiceMode={voiceMode}
+            autoListen={autoListen}
+            onToggleVoice={toggleVoiceMode}
+            onToggleAutoListen={() => setAutoListen((enabled) => !enabled)}
+            onHangup={() => void finish()}
+          />
+        )}
 
         {/* Messages */}
         <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 md:px-8 py-6 space-y-5">
