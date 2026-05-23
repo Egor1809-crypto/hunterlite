@@ -162,14 +162,16 @@
     display: block;
     aspect-ratio: 1;
     border-radius: 3px;
+    isolation: isolate;
     background:
-      linear-gradient(135deg, hsl(210 40% 98% / 0.72), hsl(217 91% 60% / 0.5) 48%, hsl(262 83% 58% / 0.58)),
+      linear-gradient(135deg, hsl(210 40% 98% / 0.82), hsl(217 91% 60% / 0.58) 44%, hsl(262 83% 58% / 0.66)),
       hsl(222 47% 11% / 0.28);
     box-shadow:
-      8px 8px 0 hsl(217 38% 23% / 0.24),
-      0 0 22px hsl(217 91% 60% / 0.2),
-      0 0 44px hsl(262 83% 58% / 0.13);
-    opacity: 0.28;
+      10px 12px 0 hsl(222 47% 11% / 0.22),
+      14px 16px 24px hsl(222 47% 11% / 0.32),
+      0 0 22px hsl(217 91% 60% / 0.22),
+      0 0 44px hsl(262 83% 58% / 0.14);
+    opacity: 0.36;
     transform-style: preserve-3d;
     animation: pixel-cube-drift 8.8s ease-in-out infinite;
   }
@@ -185,13 +187,24 @@
   }
 
   .pixel-background__dot::before {
-    background: hsl(217 49% 22% / 0.42);
-    transform: translate3d(6px, 6px, -1px);
+    inset: auto -7px -7px 7px;
+    height: 7px;
+    border-radius: 0 0 3px 3px;
+    background: linear-gradient(90deg, hsl(222 47% 11% / 0.52), hsl(217 55% 28% / 0.4));
+    transform: skewX(45deg);
+    z-index: -1;
   }
 
   .pixel-background__dot::after {
+    inset: 7px -7px -7px auto;
+    width: 7px;
+    border-radius: 0 3px 3px 0;
     border: 1px solid hsl(210 40% 98% / 0.28);
-    background: linear-gradient(135deg, transparent 42%, hsl(210 40% 98% / 0.2));
+    border-left: 0;
+    border-top: 0;
+    background: linear-gradient(180deg, hsl(217 91% 60% / 0.32), hsl(262 83% 58% / 0.22));
+    transform: skewY(45deg);
+    z-index: -1;
   }
 
   .text-pixel-number {

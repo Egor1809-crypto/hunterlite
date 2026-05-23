@@ -80,6 +80,7 @@ export const accessRoutes = [
   { path: "/session/exam", allowedRoles: ["employee"] },
   { path: "/session/chat-test", allowedRoles: ["employee"] },
   { path: "/session/cases", allowedRoles: ["employee"] },
+  { path: "/session/arena", allowedRoles: ["employee"] },
   { path: "/session/answer-review", allowedRoles: ["employee"] },
   { path: "/session/result", allowedRoles: ["employee", "manager"] },
   { path: "/remedial-course", allowedRoles: ["employee"] },

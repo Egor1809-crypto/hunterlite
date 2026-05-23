@@ -13,6 +13,7 @@ const routes = [
   { path: "/session/exam", text: "Экзамен", role: "employee" },
   { path: "/session/chat-test", text: "Чат-тест", role: "employee" },
   { path: "/session/cases", text: "Кейсы по банкротству", role: "employee" },
+  { path: "/session/arena", text: "Арена: тесты по БФЛ", role: "employee" },
   { path: "/session/answer-review", text: "Разбор ответа", role: "employee" },
   { path: "/session/result", text: "Сессия завершена", role: "employee" },
   { path: "/remedial-course", text: "Назначен курс подготовки", role: "employee" },

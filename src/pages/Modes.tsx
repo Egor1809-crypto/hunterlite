@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
 import { Card } from "@/components/ui/card";
 import { IconBadge } from "@/components/IconBadge";
-import { MessageSquare, GraduationCap, ListChecks, ArrowRight, Clock, Target, BookOpen, BriefcaseBusiness } from "lucide-react";
+import { MessageSquare, GraduationCap, ListChecks, ArrowRight, Clock, Target, BookOpen, BriefcaseBusiness, Trophy } from "lucide-react";
 
 const modes = [
   {
@@ -40,6 +40,15 @@ const modes = [
     accent: "bg-warning-soft text-warning-soft-foreground",
     meta: [{ icon: Clock, t: "15–25 мин" }, { icon: Target, t: "Логика + порядок" }],
   },
+  {
+    to: "/session/arena",
+    icon: Trophy,
+    title: "Арена / тесты",
+    desc: "Быстрые раунды с таймером, счётом, серией правильных ответов и разбором по ключевым опорам.",
+    cta: "Войти на арену",
+    accent: "bg-success-soft text-success-soft-foreground",
+    meta: [{ icon: Clock, t: "5–10 мин" }, { icon: Target, t: "Раунды" }],
+  },
 ];
 
 export default function Modes() {
@@ -53,7 +62,7 @@ export default function Modes() {
         </div>
       </div>
 
-      <div className="grid md:grid-cols-2 xl:grid-cols-4 gap-4">
+      <div className="grid md:grid-cols-2 xl:grid-cols-5 gap-4">
         {modes.map((m) => (
           <Link key={m.to} to={m.to} className="group">
             <Card className="p-6 h-full flex flex-col shadow-card hover:shadow-elevated transition-all hover:-translate-y-1 border-border">

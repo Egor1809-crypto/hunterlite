@@ -19,6 +19,7 @@ const Modes = lazy(() => import("./pages/Modes"));
 const SessionSetup = lazy(() => import("./pages/SessionSetup"));
 const SessionChat = lazy(() => import("./pages/SessionChat"));
 const CaseTraining = lazy(() => import("./pages/CaseTraining"));
+const ArenaTraining = lazy(() => import("./pages/ArenaTraining"));
 const AnswerReview = lazy(() => import("./pages/AnswerReview"));
 const SessionResult = lazy(() => import("./pages/SessionResult"));
 const RemedialCourse = lazy(() => import("./pages/RemedialCourse"));
@@ -69,6 +70,7 @@ const App = () => (
                   <Route path="/session/exam" element={<SessionChat mode="exam" />} />
                   <Route path="/session/chat-test" element={<SessionChat mode="chat-test" />} />
                   <Route path="/session/cases" element={<CaseTraining />} />
+                  <Route path="/session/arena" element={<ArenaTraining />} />
                 </Route>
 
                 {/* Client surface */}
