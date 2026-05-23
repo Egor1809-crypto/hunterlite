@@ -149,7 +149,7 @@
     z-index: 0;
     overflow: hidden;
     pointer-events: none;
-    perspective: 920px;
+    perspective: 760px;
     background:
       radial-gradient(circle at 18% 8%, hsl(262 47% 19% / 0.24), transparent 28%),
       radial-gradient(circle at 80% 18%, hsl(217 58% 24% / 0.22), transparent 30%),
@@ -158,20 +158,21 @@
   }
 
   .pixel-background__dot {
+    --cube-depth: 10px;
     position: absolute;
     display: block;
     aspect-ratio: 1;
-    border-radius: 3px;
+    border-radius: 4px;
     isolation: isolate;
     background:
-      linear-gradient(135deg, hsl(210 40% 98% / 0.82), hsl(217 91% 60% / 0.58) 44%, hsl(262 83% 58% / 0.66)),
+      linear-gradient(135deg, hsl(210 40% 98% / 0.92), hsl(217 91% 60% / 0.68) 44%, hsl(262 83% 58% / 0.78)),
       hsl(222 47% 11% / 0.28);
     box-shadow:
-      10px 12px 0 hsl(222 47% 11% / 0.22),
-      14px 16px 24px hsl(222 47% 11% / 0.32),
-      0 0 22px hsl(217 91% 60% / 0.22),
-      0 0 44px hsl(262 83% 58% / 0.14);
-    opacity: 0.36;
+      calc(var(--cube-depth) * 0.7) calc(var(--cube-depth) * 1.05) 0 hsl(222 47% 7% / 0.34),
+      calc(var(--cube-depth) * 1.2) calc(var(--cube-depth) * 1.45) 28px hsl(222 47% 5% / 0.46),
+      0 0 24px hsl(217 91% 60% / 0.28),
+      0 0 52px hsl(262 83% 58% / 0.18);
+    opacity: 0.44;
     transform-style: preserve-3d;
     animation: pixel-cube-drift 8.8s ease-in-out infinite;
   }
@@ -187,22 +188,26 @@
   }
 
   .pixel-background__dot::before {
-    inset: auto -7px -7px 7px;
-    height: 7px;
+    inset: auto calc(var(--cube-depth) * -1) calc(var(--cube-depth) * -1) var(--cube-depth);
+    height: var(--cube-depth);
     border-radius: 0 0 3px 3px;
-    background: linear-gradient(90deg, hsl(222 47% 11% / 0.52), hsl(217 55% 28% / 0.4));
+    background:
+      linear-gradient(90deg, hsl(222 47% 8% / 0.72), hsl(217 55% 24% / 0.56)),
+      hsl(222 47% 9% / 0.48);
     transform: skewX(45deg);
     z-index: -1;
   }
 
   .pixel-background__dot::after {
-    inset: 7px -7px -7px auto;
-    width: 7px;
+    inset: var(--cube-depth) calc(var(--cube-depth) * -1) calc(var(--cube-depth) * -1) auto;
+    width: var(--cube-depth);
     border-radius: 0 3px 3px 0;
-    border: 1px solid hsl(210 40% 98% / 0.28);
+    border: 1px solid hsl(210 40% 98% / 0.32);
     border-left: 0;
     border-top: 0;
-    background: linear-gradient(180deg, hsl(217 91% 60% / 0.32), hsl(262 83% 58% / 0.22));
+    background:
+      linear-gradient(180deg, hsl(217 91% 60% / 0.5), hsl(262 83% 45% / 0.34)),
+      hsl(262 34% 10% / 0.38);
     transform: skewY(45deg);
     z-index: -1;
   }

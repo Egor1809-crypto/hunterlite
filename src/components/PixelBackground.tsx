@@ -1,3 +1,5 @@
+import type { CSSProperties } from "react";
+
 const cubes = [
   [7, 6, 18, -18, 0.2, 8.8],
   [22, 4, 11, 24, 2.4, 7.6],
@@ -35,10 +37,11 @@ export function PixelBackground() {
             left: `${left}%`,
             top: `${top}%`,
             width: `${size}px`,
+            "--cube-depth": `${Math.max(8, Math.round(size * 0.42))}px`,
             transform: `rotateX(58deg) rotateZ(${rotation}deg)`,
             animationDelay: `${delay}s`,
             animationDuration: `${duration}s`,
-          }}
+          } as CSSProperties}
         />
       ))}
     </div>
