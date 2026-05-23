@@ -104,24 +104,20 @@ describe("external AI client", () => {
     expect(fetchMock.mock.calls[1][0]).toBe("https://api.navy/v1/audio/transcriptions");
   });
 
-  it("tries backup STT models when the configured one fails", async () => {
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce(new Response(JSON.stringify({ error: "model unavailable" }), { status: 500 }))
-      .mockResolvedValueOnce(new Response(JSON.stringify({ text: "Запасная модель распознала речь" }), {
-        status: 200,
-        headers: { "content-type": "application/json" },
-      }));
+  it("uses only the configured NAVY STT model", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ text: "Речь распознана" }), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    }));
     const client = createNavyAiClient(env, fetchMock as typeof fetch);
 
     await expect(client.transcribeSpeech({
       audioBase64: "AQID",
       mimeType: "audio/mp4",
-    })).resolves.toEqual({ text: "Запасная модель распознала речь" });
+    })).resolves.toEqual({ text: "Речь распознана" });
 
-    const firstBody = fetchMock.mock.calls[0][1]?.body as FormData;
-    const secondBody = fetchMock.mock.calls[1][1]?.body as FormData;
-    expect(firstBody.get("model")).toBe("scribe_v2");
-    expect(secondBody.get("model")).toBe("whisper-1");
+    const body = fetchMock.mock.calls[0][1]?.body as FormData;
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(body.get("model")).toBe("scribe_v2");
   });
 });

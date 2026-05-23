@@ -69,9 +69,6 @@ const normalizeReply = (content: string, totalSteps: number, step: number): AiTr
 
 const decodeBase64 = (value: string) => Buffer.from(value, "base64");
 
-const uniqueModels = (...models: Array<string | undefined>) =>
-  Array.from(new Set(models.map((model) => model?.trim()).filter((model): model is string => Boolean(model))));
-
 const toNavyRole = (from: "ai" | "user") => from === "user" ? "user" : "assistant";
 
 const buildMemoryBlock = (payload: AiTrainingReplyRequestDto) => {
@@ -194,33 +191,27 @@ export const createNavyAiClient = (
       if (!authHeaders || !validation.ok) return null;
 
       const audioBuffer = decodeBase64(audioBase64);
-      const models = uniqueModels(env.NAVI_STT_MODEL, "whisper-1", "gpt-4o-transcribe");
+      const formData = new FormData();
+      formData.set("model", env.NAVI_STT_MODEL);
+      formData.set("language", "ru");
+      formData.set("response_format", "json");
+      formData.set("file", new Blob([audioBuffer], { type: mimeType }), fileName || audioFileNameForMimeType(mimeType));
 
-      for (const model of models) {
-        const formData = new FormData();
-        formData.set("model", model);
-        formData.set("language", "ru");
-        formData.set("response_format", "json");
-        formData.set("file", new Blob([audioBuffer], { type: mimeType }), fileName || audioFileNameForMimeType(mimeType));
+      const response = await fetchImpl(`${baseUrl}/v1/audio/transcriptions`, {
+        method: "POST",
+        headers: authHeaders,
+        body: formData,
+      });
 
-        const response = await fetchImpl(`${baseUrl}/v1/audio/transcriptions`, {
-          method: "POST",
-          headers: authHeaders,
-          body: formData,
-        });
+      if (!response.ok) return null;
 
-        if (!response.ok) continue;
+      const contentType = response.headers.get("content-type") ?? "";
+      const data = contentType.includes("application/json")
+        ? ((await response.json()) as NavyTranscriptionResponse | string)
+        : await response.text();
+      const text = (typeof data === "string" ? data : data.text)?.trim();
 
-        const contentType = response.headers.get("content-type") ?? "";
-        const data = contentType.includes("application/json")
-          ? ((await response.json()) as NavyTranscriptionResponse | string)
-          : await response.text();
-        const text = (typeof data === "string" ? data : data.text)?.trim();
-
-        if (text) return { text };
-      }
-
-      return null;
+      return text ? { text } : null;
     },
   };
 };
