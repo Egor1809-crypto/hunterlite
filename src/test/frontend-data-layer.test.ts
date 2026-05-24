@@ -1,158 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { apiGet, apiPost, ApiClientError } from "@/lib/api-client";
-import { frontendApi, withDemoFallback } from "@/lib/frontend-api";
-import {
-  getCurrentUser,
-  getDashboardSummary,
-  getEmployeeProfile,
-  getEmployees,
-  getManagerSummary,
-  getManagerReports,
-  getNotifications,
-  getProfileSummary,
-  getSessionOptions,
-  getTrainingHistory,
-  getWeakTopics,
-} from "@/lib/demo-api";
+import { frontendApi } from "@/lib/frontend-api";
 
 describe("frontend data layer", () => {
   afterEach(() => {
     vi.restoreAllMocks();
-  });
-
-  it("maps demo auth roles to API-shaped current users", () => {
-    expect(getCurrentUser("employee")).toMatchObject({
-      id: "employee",
-      name: "Анна Петрова",
-      role: "employee",
-      roleLabel: "Юрист-консультант",
-      avgScore: 82,
-    });
-
-    expect(getCurrentUser("manager")).toMatchObject({
-      id: "manager",
-      name: "Ольга Литвинова",
-      role: "manager",
-      roleLabel: "Руководитель",
-    });
-  });
-
-  it("returns profile data in one API-shaped payload", () => {
-    const profile = getProfileSummary("employee");
-
-    expect(profile.user.email).toBe("a.petrova@hunterlite.ru");
-    expect(profile.weakTopics.length).toBeGreaterThan(0);
-    expect(profile.weakTopics[0]).toEqual(
-      expect.objectContaining({
-        id: expect.any(String),
-        topic: expect.any(String),
-        errors: expect.any(Number),
-        recommendation: expect.any(String),
-      }),
-    );
-  });
-
-  it("returns notification DTOs with future action URLs", () => {
-    const notifications = getNotifications();
-
-    expect(notifications.length).toBeGreaterThan(0);
-    expect(notifications[0]).toEqual(
-      expect.objectContaining({
-        id: "daily-training",
-        title: "Ежедневная тренировка",
-        body: expect.any(String),
-        tone: "info",
-        unread: true,
-        actionUrl: "/session/setup?mode=talk",
-      }),
-    );
-  });
-
-  it("keeps weak topics API-shaped and stable", () => {
-    expect(getWeakTopics()).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          id: "1",
-          topic: "Имущество должника",
-          errors: 38,
-        }),
-      ]),
-    );
-  });
-
-  it("returns training history as typed DTOs", () => {
-    expect(getTrainingHistory()).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          id: "1",
-          date: "28.04.2026",
-          mode: "Экзамен",
-          score: 76,
-          status: "Не сдан",
-        }),
-      ]),
-    );
-  });
-
-  it("returns dashboard data in one API-shaped payload", () => {
-    const dashboard = getDashboardSummary("employee");
-
-    expect(dashboard.user.firstName).toBe("Анна");
-    expect(dashboard.lastSession).toEqual(
-      expect.objectContaining({
-        mode: "Тренировка",
-        topic: "Возражения клиента",
-      }),
-    );
-    expect(dashboard.nextTask).toEqual({
-      title: "Аттестация: Имущество должника",
-      dueDate: "до 5 мая 2026",
-      readiness: 74,
-    });
-    expect(dashboard.notifications.length).toBeLessThanOrEqual(3);
-  });
-
-  it("returns manager team data without exposing raw mocks to pages", () => {
-    const manager = getManagerSummary();
-    const reports = getManagerReports();
-
-    expect(manager.kpi.totalEmployees).toBe(getEmployees().length);
-    expect(manager.kpi.avgScore).toBeGreaterThan(0);
-    expect(manager.scoreTrend[0]).toEqual(expect.objectContaining({ week: "Н1", score: expect.any(Number) }));
-    expect(manager.topWeakTopics[0]).toEqual(
-      expect.objectContaining({
-        topic: "Имущество должника",
-        errors: 38,
-      }),
-    );
-    expect(reports.summary.avgScore).toBe(manager.kpi.avgScore);
-    expect(reports.scoreDistribution).toEqual(
-      expect.arrayContaining([expect.objectContaining({ range: "75-88", percent: expect.any(Number) })]),
-    );
-    expect(reports.attention[0]).toEqual(
-      expect.objectContaining({
-        employeeId: expect.any(String),
-        action: expect.stringContaining("Назначить курс"),
-      }),
-    );
-  });
-
-  it("returns employee profile data by id with fallback", () => {
-    expect(getEmployeeProfile("2").employee).toEqual(
-      expect.objectContaining({
-        id: "2",
-        name: "Иван Смирнов",
-        status: "Не допущен",
-      }),
-    );
-    expect(getEmployeeProfile("missing").employee.id).toBe("1");
-  });
-
-  it("returns session setup options", () => {
-    const options = getSessionOptions();
-
-    expect(options.topics).toContain("Имущество должника");
-    expect(options.difficulties).toContain("Средний");
   });
 
   it("reads successful API responses through apiGet", async () => {
@@ -204,9 +56,9 @@ describe("frontend data layer", () => {
     await frontendApi.completePasswordReset({ token: "reset-token", newPassword: "new-secret" });
     await frontendApi.session();
     await frontendApi.logout();
-    await frontendApi.currentUser("manager");
-    await frontendApi.profile("employee");
-    await frontendApi.dashboard("employee");
+    await frontendApi.currentUser();
+    await frontendApi.profile();
+    await frontendApi.dashboard();
     await frontendApi.notifications();
     await frontendApi.weakTopics();
     await frontendApi.trainingHistory();
@@ -249,9 +101,9 @@ describe("frontend data layer", () => {
       "/api/auth/password-reset/complete",
       "/api/auth/session",
       "/api/auth/logout",
-      "/api/users/me?role=manager",
-      "/api/users/profile?role=employee",
-      "/api/analytics/dashboard?role=employee",
+      "/api/users/me",
+      "/api/users/profile",
+      "/api/analytics/dashboard",
       "/api/notifications",
       "/api/trainings/weak-topics",
       "/api/trainings/history",
@@ -274,17 +126,6 @@ describe("frontend data layer", () => {
         body: JSON.stringify({ email: "manager@hunterlite.ru", password: "secret" }),
       }),
     );
-  });
-
-  it("falls back to demo data when API requests are unavailable", async () => {
-    await expect(
-      withDemoFallback(
-        async () => {
-          throw new TypeError("Network error");
-        },
-        () => ({ source: "demo" }),
-      ),
-    ).resolves.toEqual({ source: "demo" });
   });
 
   it("throws typed client errors for failed API responses", async () => {

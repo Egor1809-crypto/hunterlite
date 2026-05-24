@@ -6,11 +6,11 @@ import { ShieldAlert, FileText, Mic } from "lucide-react";
 import { useState } from "react";
 import { useDemoAuth } from "@/lib/demo-auth";
 import { getRoleHome } from "@/lib/demo-auth-state";
-import { frontendApi, withDemoFallback } from "@/lib/frontend-api";
+import { frontendApi } from "@/lib/frontend-api";
 
 export default function Consent() {
   const navigate = useNavigate();
-  const { user, setRole } = useDemoAuth();
+  const { role, setRole } = useDemoAuth();
   const [a, setA] = useState(true);
   const [b, setB] = useState(true);
 
@@ -68,12 +68,11 @@ export default function Consent() {
           <Button
             disabled={!a || !b}
             onClick={() => {
-              void withDemoFallback(
-                frontendApi.session,
-                () => ({ user, homePath: getRoleHome(user.role) }),
-              ).then((session) => {
+              void frontendApi.session().then((session) => {
                 setRole(session.user.role);
                 navigate(session.homePath);
+              }).catch(() => {
+                navigate(getRoleHome(role));
               });
             }}
             className="bg-primary hover:bg-primary/90 px-6"

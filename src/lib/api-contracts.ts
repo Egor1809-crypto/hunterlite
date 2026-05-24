@@ -230,6 +230,8 @@ export type AiTrainingReplyRequestDto = {
   sessionId?: string;
   topic: string;
   mode: TrainingModeDto;
+  difficulty?: TrainingDifficultyDto;
+  character?: AiClientCharacterDto;
   step: number;
   totalSteps: number;
   userMessage: string;
@@ -270,6 +272,12 @@ export type AiTranscriptionRequestDto = {
 
 export type AiTranscriptionDto = {
   text: string;
+};
+
+export type AuthRegisterRequestDto = {
+  email: string;
+  password: string;
+  fullName: string;
 };
 
 export type AuthLoginRequestDto = {

@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { Award, Calendar, CheckCircle2, Mail, ShieldCheck, TrendingUp, UserRound } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
@@ -10,17 +11,22 @@ import { IconBadge } from "@/components/IconBadge";
 import { ApiState } from "@/components/ApiState";
 import { useDemoAuth } from "@/lib/demo-auth";
 import { getRoleHome } from "@/lib/demo-auth-state";
-import { frontendApi, frontendFallbacks, useApiData } from "@/lib/frontend-api";
+import { frontendApi } from "@/lib/frontend-api";
 
 export default function Profile() {
-  const { user: authUser } = useDemoAuth();
-  const { data: profile, isFetching, isError } = useApiData({
-    queryKey: ["profile", authUser.role],
-    request: () => frontendApi.profile(authUser.role),
-    fallback: () => frontendFallbacks.profile(authUser.role),
+  const { role } = useDemoAuth();
+  const { data: profile, isFetching, isError, isLoading } = useQuery({
+    queryKey: ["profile"],
+    queryFn: () => frontendApi.profile(),
   });
+
+  const homePath = getRoleHome(role);
+
+  if (isLoading || !profile) {
+    return <div className="flex min-h-[50vh] items-center justify-center text-sm text-muted-foreground">Загрузка...</div>;
+  }
+
   const { user, weakTopics } = profile;
-  const homePath = getRoleHome(authUser.role);
 
   return (
     <div className="p-4 md:p-8 max-w-6xl mx-auto space-y-6 animate-fade-in">
@@ -38,9 +44,6 @@ export default function Profile() {
             </p>
           </div>
         </div>
-        <StatusBadge variant="success" dot className="text-sm py-1.5 px-3">
-          {user.status}
-        </StatusBadge>
       </div>
 
       <ApiState isFetching={isFetching} isError={isError} />
@@ -53,9 +56,6 @@ export default function Profile() {
             </div>
             <h2 className="font-display text-2xl font-bold text-primary mt-4">{user.name}</h2>
             <p className="text-muted-foreground">{user.roleLabel}</p>
-            <div className="mt-4">
-              <StatusBadge variant="success" dot>{user.status}</StatusBadge>
-            </div>
           </div>
 
           <div className="mt-6 space-y-3">
@@ -98,6 +98,9 @@ export default function Profile() {
               </Button>
             </div>
             <div className="space-y-3">
+              {weakTopics.length === 0 && (
+                <div className="text-sm text-muted-foreground">Нет данных</div>
+              )}
               {weakTopics.map((topic) => (
                 <div key={topic.topic} className="flex items-center justify-between gap-3 p-3 rounded-lg border border-border bg-card">
                   <div className="min-w-0">

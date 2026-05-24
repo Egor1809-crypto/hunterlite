@@ -1,7 +1,7 @@
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import App from "@/App";
-import { setDemoRole, type AppRole } from "@/lib/demo-auth-state";
+import { setRole, type AppRole } from "@/lib/demo-auth-state";
 
 const routes = [
   { path: "/login", text: "Вход в кабинет" },
@@ -39,7 +39,7 @@ afterEach(() => {
 
 describe("application routes", () => {
   it.each(routes)("renders $path", async ({ path, text, role }) => {
-    setDemoRole((role || "employee") as AppRole);
+    setRole((role || "employee") as AppRole);
     window.history.pushState({}, "", path);
     render(<App />);
 

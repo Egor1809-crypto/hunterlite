@@ -79,7 +79,7 @@ const weakLabel = (topics: WeakTopicDto[]) =>
 const lastActiveLabel = (date?: Date | null) => {
   if (!date) return "Нет данных";
 
-  const today = new Date("2026-05-15T00:00:00.000Z");
+  const today = new Date();
   const diffDays = Math.max(0, Math.round((today.getTime() - date.getTime()) / 86_400_000));
 
   if (diffDays === 0) return "Сегодня";
@@ -129,8 +129,7 @@ const historyStatus = (status: string): TrainingHistoryItemDto["status"] =>
 
 export const createAnalyticsPrismaDataSource = (
   prisma: AnalyticsPrismaClient,
-  fallback: FrontendApiDataSource,
-): Pick<FrontendApiDataSource, "getDashboardSummary" | "getManagerSummary" | "getManagerReports" | "getEmployeeProfile" | "assignEmployeeCourse"> => {
+): Pick<FrontendApiDataSource, "getDashboardSummary" | "getManagerSummary" | "getManagerReports" | "getEmployeeProfile" | "getEmployees" | "assignEmployeeCourse"> => {
   const loadCore = async () => {
     const [memberships, sessions, exams, weakTopics] = await Promise.all([
       prisma.membership.findMany({
@@ -189,13 +188,37 @@ export const createAnalyticsPrismaDataSource = (
   };
 
   const buildManagerReports = async (): Promise<ManagerReportsDto> => {
-    const [fallbackReports, employees, { sessions, exams, weakTopicDtos }] = await Promise.all([
-      fallback.getManagerReports(),
+    const [employees, { sessions, exams, weakTopicDtos }] = await Promise.all([
       buildEmployees(),
       loadCore(),
     ]);
 
-    if (!employees.length) return fallbackReports;
+    if (!employees.length) {
+      return {
+        periodLabel: new Intl.DateTimeFormat("ru-RU", { month: "long", year: "numeric" }).format(new Date()),
+        summary: {
+          passedExams: 0,
+          failedExams: 0,
+          reviewExams: 0,
+          avgScore: 0,
+          completedTrainings: 0,
+          activeEmployees: 0,
+        },
+        scoreDistribution: reportBuckets.map((bucket) => ({
+          range: bucket.range,
+          employees: 0,
+          percent: 0,
+          status: bucket.status,
+        })),
+        weakTopics: [],
+        attention: [],
+        recommendations: [
+          "Провести командный разбор по самой частой ошибке недели.",
+          `Сотрудникам с баллом ниже ${passingScore} назначить повторную тренировку и контрольный экзамен.`,
+          "Разобрать последние звонки сотрудников из зоны внимания перед следующей аттестацией.",
+        ],
+      };
+    }
 
     const scores = employees.map((employee) => employee.score).filter((score) => score > 0);
     const completedSessions = sessions.filter((session) => session.status === "completed" || session.score);
@@ -205,7 +228,7 @@ export const createAnalyticsPrismaDataSource = (
       .sort((left, right) => right.getTime() - left.getTime())[0];
     const periodLabel = latestActivity
       ? new Intl.DateTimeFormat("ru-RU", { month: "long", year: "numeric" }).format(latestActivity)
-      : fallbackReports.periodLabel;
+      : new Intl.DateTimeFormat("ru-RU", { month: "long", year: "numeric" }).format(new Date());
 
     return {
       periodLabel,
@@ -254,48 +277,119 @@ export const createAnalyticsPrismaDataSource = (
   };
 
   return {
-    getDashboardSummary: async (role?: AppRole): Promise<DashboardSummaryDto> => {
+    getEmployees: async (): Promise<EmployeeDto[]> => {
       try {
-        const fallbackDashboard = await fallback.getDashboardSummary(role);
+        return await buildEmployees();
+      } catch {
+        return [];
+      }
+    },
+
+    getDashboardSummary: async (userId: string): Promise<DashboardSummaryDto> => {
+      try {
         const { memberships, sessions, exams, weakTopicDtos } = await loadCore();
-        const membership = memberships[0];
+        const membership = memberships.find((m) => m.user.id === userId) ?? memberships[0];
 
-        if (!membership) return fallbackDashboard;
+        if (!membership) {
+          const defaultUser: CurrentUserDto = {
+            id: userId,
+            name: "Пользователь",
+            firstName: "Пользователь",
+            role: "employee",
+            roleLabel: roleLabels.employee,
+            email: "",
+            status: "Активен",
+            avgScore: 0,
+            examPassed: false,
+            weeklyTrainings: 0,
+          };
 
+          return {
+            user: defaultUser,
+            weakTopics: [],
+            notifications: [],
+            lastSession: { id: "", date: "", mode: "", topic: "", score: 0, status: "Завершено" },
+            nextTask: { title: "Нет заданий", dueDate: "—", readiness: 0 },
+          };
+        }
+
+        const userSessions = sessions.filter((session) => session.userId === membership.user.id);
+        const userExams = exams.filter((exam) => exam.userId === membership.user.id);
         const scores = [
-          ...sessions.map((session) => session.score ?? 0),
-          ...exams.map((exam) => exam.score ?? 0),
+          ...userSessions.map((session) => session.score ?? 0),
+          ...userExams.map((exam) => exam.score ?? 0),
         ].filter((score) => score > 0);
 
         const user = toCurrentUser(
           membership,
           average(scores),
-          sessions.filter((session) => session.userId === membership.user.id).length,
+          userSessions.length,
         );
 
+        const lastSessionRecord = userSessions[0];
+        const lastSession = lastSessionRecord
+          ? {
+              id: lastSessionRecord.id,
+              date: new Intl.DateTimeFormat("ru-RU").format(lastSessionRecord.completedAt ?? lastSessionRecord.startedAt),
+              mode: lastSessionRecord.mode === "exam_prep" ? "Экзамен" : "Тренировка",
+              topic: lastSessionRecord.topic.title,
+              score: lastSessionRecord.score ?? 0,
+              status: (lastSessionRecord.status === "failed" ? "Не сдан" : "Завершено") as "Завершено" | "Не сдан",
+            }
+          : { id: "", date: "", mode: "", topic: "", score: 0, status: "Завершено" as const };
+
         return {
-          ...fallbackDashboard,
           user,
-          weakTopics: weakTopicDtos.length ? weakTopicDtos : fallbackDashboard.weakTopics,
-          lastSession: fallbackDashboard.lastSession,
+          weakTopics: weakTopicDtos,
+          notifications: [],
+          lastSession,
+          nextTask: { title: "Нет заданий", dueDate: "—", readiness: 0 },
         };
       } catch {
-        return fallback.getDashboardSummary(role);
+        return {
+          user: {
+            id: userId,
+            name: "Пользователь",
+            firstName: "Пользователь",
+            role: "employee",
+            roleLabel: roleLabels.employee,
+            email: "",
+            status: "Активен",
+            avgScore: 0,
+            examPassed: false,
+            weeklyTrainings: 0,
+          },
+          weakTopics: [],
+          notifications: [],
+          lastSession: { id: "", date: "", mode: "", topic: "", score: 0, status: "Завершено" },
+          nextTask: { title: "Нет заданий", dueDate: "—", readiness: 0 },
+        };
       }
     },
 
     getManagerSummary: async (): Promise<ManagerSummaryDto> => {
       try {
-        const [fallbackManager, employees, { weakTopicDtos, exams }] = await Promise.all([
-          fallback.getManagerSummary(),
+        const [employees, { weakTopicDtos, exams }] = await Promise.all([
           buildEmployees(),
           loadCore(),
         ]);
 
-        if (!employees.length) return fallbackManager;
+        if (!employees.length) {
+          return {
+            employees: [],
+            kpi: {
+              totalEmployees: 0,
+              allowedEmployees: 0,
+              blockedEmployees: 0,
+              avgScore: 0,
+              weeklyExams: 0,
+              weakestTopic: "—",
+            },
+            topWeakTopics: [],
+          };
+        }
 
         return {
-          ...fallbackManager,
           employees,
           kpi: {
             totalEmployees: employees.length,
@@ -303,14 +397,23 @@ export const createAnalyticsPrismaDataSource = (
             blockedEmployees: employees.filter((employee) => employee.status === "Не допущен").length,
             avgScore: average(employees.map((employee) => employee.score).filter((score) => score > 0)),
             weeklyExams: exams.length,
-            weakestTopic: weakTopicDtos[0]?.topic.split(" ")[0] ?? fallbackManager.kpi.weakestTopic,
+            weakestTopic: weakTopicDtos[0]?.topic.split(" ")[0] ?? "—",
           },
-          topWeakTopics: weakTopicDtos.length
-            ? weakTopicDtos.slice(0, 5).map((topic) => ({ topic: topic.topic, errors: topic.errors }))
-            : fallbackManager.topWeakTopics,
+          topWeakTopics: weakTopicDtos.slice(0, 5).map((topic) => ({ topic: topic.topic, errors: topic.errors })),
         };
       } catch {
-        return fallback.getManagerSummary();
+        return {
+          employees: [],
+          kpi: {
+            totalEmployees: 0,
+            allowedEmployees: 0,
+            blockedEmployees: 0,
+            avgScore: 0,
+            weeklyExams: 0,
+            weakestTopic: "—",
+          },
+          topWeakTopics: [],
+        };
       }
     },
 
@@ -318,20 +421,53 @@ export const createAnalyticsPrismaDataSource = (
       try {
         return await buildManagerReports();
       } catch {
-        return fallback.getManagerReports();
+        return {
+          periodLabel: new Intl.DateTimeFormat("ru-RU", { month: "long", year: "numeric" }).format(new Date()),
+          summary: {
+            passedExams: 0,
+            failedExams: 0,
+            reviewExams: 0,
+            avgScore: 0,
+            completedTrainings: 0,
+            activeEmployees: 0,
+          },
+          scoreDistribution: reportBuckets.map((bucket) => ({
+            range: bucket.range,
+            employees: 0,
+            percent: 0,
+            status: bucket.status,
+          })),
+          weakTopics: [],
+          attention: [],
+          recommendations: [],
+        };
       }
     },
 
     getEmployeeProfile: async (id?: string): Promise<EmployeeProfileDto> => {
       try {
-        const [fallbackProfile, employees, { sessions, exams, weakTopicDtos }] = await Promise.all([
-          fallback.getEmployeeProfile(id),
+        const [employees, { sessions, exams, weakTopicDtos }] = await Promise.all([
           buildEmployees(),
           loadCore(),
         ]);
         const employee = employees.find((item) => item.id === id) ?? employees[0];
 
-        if (!employee) return fallbackProfile;
+        if (!employee) {
+          return {
+            employee: {
+              id: id ?? "",
+              name: "Не найден",
+              score: 0,
+              exam: "На проверке",
+              status: "Не допущен",
+              weak: "—",
+              lastActive: "Нет данных",
+            },
+            history: [],
+            weakTopics: [],
+            courses: [],
+          };
+        }
 
         const history = [
           ...sessions
@@ -357,13 +493,26 @@ export const createAnalyticsPrismaDataSource = (
         ];
 
         return {
-          ...fallbackProfile,
           employee,
-          history: history.length ? history : fallbackProfile.history,
-          weakTopics: weakTopicDtos.length ? weakTopicDtos : fallbackProfile.weakTopics,
+          history,
+          weakTopics: weakTopicDtos,
+          courses: [],
         };
       } catch {
-        return fallback.getEmployeeProfile(id);
+        return {
+          employee: {
+            id: id ?? "",
+            name: "Не найден",
+            score: 0,
+            exam: "На проверке",
+            status: "Не допущен",
+            weak: "—",
+            lastActive: "Нет данных",
+          },
+          history: [],
+          weakTopics: [],
+          courses: [],
+        };
       }
     },
 

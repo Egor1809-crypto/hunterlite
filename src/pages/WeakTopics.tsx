@@ -4,16 +4,22 @@ import { Progress } from "@/components/ui/progress";
 import { StatusBadge } from "@/components/StatusBadge";
 import { IconBadge } from "@/components/IconBadge";
 import { ApiState } from "@/components/ApiState";
-import { frontendApi, frontendFallbacks, useApiData } from "@/lib/frontend-api";
+import { useQuery } from "@tanstack/react-query";
+import { frontendApi } from "@/lib/frontend-api";
 import { AlertTriangle, RotateCcw, Sparkles } from "lucide-react";
 import { Link } from "react-router-dom";
 
 export default function WeakTopics() {
-  const { data: weakTopics, isFetching, isError } = useApiData({
+  const { data: weakTopics, isFetching, isError, isLoading } = useQuery({
     queryKey: ["weak-topics"],
-    request: frontendApi.weakTopics,
-    fallback: frontendFallbacks.weakTopics,
+    queryFn: frontendApi.weakTopics,
   });
+
+  if (isLoading) {
+    return <div className="flex min-h-[50vh] items-center justify-center text-sm text-muted-foreground">Загрузка...</div>;
+  }
+
+  const topics = weakTopics ?? [];
 
   return (
     <div className="p-4 md:p-8 max-w-5xl mx-auto animate-fade-in">
@@ -28,12 +34,12 @@ export default function WeakTopics() {
       <ApiState
         isFetching={isFetching}
         isError={isError}
-        isEmpty={weakTopics.length === 0}
+        isEmpty={topics.length === 0}
         emptyText="Слабых тем пока нет. После тренировок здесь появятся зоны роста."
       />
 
       <div className="space-y-3">
-        {weakTopics.map((w) => (
+        {topics.map((w) => (
           <Card key={w.topic} className="p-5 shadow-card">
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
               <div className="flex-1 min-w-0">

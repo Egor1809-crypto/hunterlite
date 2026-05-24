@@ -5,6 +5,106 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { bflMethodologyChapters, methodologyStats } from "@/lib/methodology";
 import { BookOpen, Bookmark, FileText, Search } from "lucide-react";
 
+function Book3D() {
+  return (
+    <div className="flex items-center justify-center py-8">
+      <div
+        className="relative group cursor-pointer"
+        style={{ perspective: "1200px" }}
+      >
+        <div
+          className="relative transition-transform duration-700 ease-out group-hover:[transform:rotateY(-25deg)]"
+          style={{
+            transformStyle: "preserve-3d",
+            width: "220px",
+            height: "300px",
+          }}
+        >
+          {/* Front cover */}
+          <div
+            className="absolute inset-0 rounded-r-lg rounded-l-sm shadow-2xl flex flex-col items-center justify-center overflow-hidden"
+            style={{
+              transformStyle: "preserve-3d",
+              backfaceVisibility: "hidden",
+              background: "linear-gradient(135deg, hsl(222 47% 16%), hsl(222 47% 24%), hsl(217 91% 25%))",
+            }}
+          >
+            <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,hsl(217_91%_60%/0.2),transparent_60%)]" />
+            <div className="absolute top-0 left-0 w-[3px] h-full bg-gradient-to-b from-white/20 via-white/5 to-white/20" />
+            <div className="relative flex flex-col items-center gap-4 px-6 text-center">
+              <div className="h-14 w-14 rounded-2xl bg-white/10 backdrop-blur flex items-center justify-center">
+                <BookOpen className="h-7 w-7 text-white" />
+              </div>
+              <div>
+                <div className="text-[10px] uppercase tracking-[0.2em] text-white/40 font-bold">HUNTERLITE</div>
+                <div className="font-display text-xl font-bold text-white mt-1 leading-tight">
+                  Банкротство<br />физических лиц
+                </div>
+              </div>
+              <div className="w-12 h-px bg-white/20" />
+              <div className="text-[11px] text-white/50">Краткий справочник</div>
+            </div>
+            <div className="absolute bottom-4 text-[10px] text-white/30 tracking-wider">2026</div>
+          </div>
+
+          {/* Spine */}
+          <div
+            className="absolute top-0 h-full rounded-l-sm"
+            style={{
+              width: "30px",
+              left: "0",
+              transform: "rotateY(-90deg) translateX(-15px)",
+              transformOrigin: "left center",
+              background: "linear-gradient(to right, hsl(222 47% 14%), hsl(222 47% 18%))",
+              boxShadow: "inset -2px 0 4px rgba(0,0,0,0.3)",
+            }}
+          >
+            <div className="h-full flex items-center justify-center">
+              <span
+                className="text-[9px] font-bold text-white/40 uppercase tracking-[0.15em] whitespace-nowrap"
+                style={{ writingMode: "vertical-rl", transform: "rotate(180deg)" }}
+              >
+                БФЛ Справочник
+              </span>
+            </div>
+          </div>
+
+          {/* Pages (visible when hovered) */}
+          {[1, 2, 3, 4].map((i) => (
+            <div
+              key={i}
+              className="absolute top-[2px] rounded-r-sm"
+              style={{
+                width: "216px",
+                height: "296px",
+                right: `${i}px`,
+                background: `hsl(40 30% ${94 - i}%)`,
+                transform: `translateZ(-${i * 1.5}px)`,
+                boxShadow: i === 4 ? "2px 0 8px rgba(0,0,0,0.15)" : "none",
+              }}
+            />
+          ))}
+
+          {/* Back cover */}
+          <div
+            className="absolute inset-0 rounded-r-lg rounded-l-sm"
+            style={{
+              transform: "translateZ(-8px)",
+              background: "linear-gradient(135deg, hsl(222 47% 14%), hsl(222 47% 20%))",
+              boxShadow: "4px 4px 16px rgba(0,0,0,0.3)",
+            }}
+          />
+        </div>
+
+        {/* Shadow */}
+        <div
+          className="absolute -bottom-4 left-1/2 -translate-x-1/2 w-[180px] h-[20px] bg-black/20 rounded-full blur-xl transition-all duration-700 group-hover:w-[200px] group-hover:translate-x-[-60%]"
+        />
+      </div>
+    </div>
+  );
+}
+
 export default function BflBook() {
   return (
     <div className="p-4 md:p-8 max-w-6xl mx-auto animate-fade-in space-y-5">
@@ -24,7 +124,8 @@ export default function BflBook() {
       </div>
 
       <Card className="p-5 shadow-card">
-        <div className="grid md:grid-cols-[1.2fr_0.8fr] gap-5">
+        <div className="grid md:grid-cols-[1fr_1.2fr] gap-5 items-center">
+          <Book3D />
           <div>
             <div className="text-xs uppercase tracking-wider font-semibold text-muted-foreground">Текущий фокус</div>
             <h2 className="font-display text-2xl font-bold text-primary mt-2">Банкротство физических лиц: краткий справочник</h2>
@@ -32,18 +133,18 @@ export default function BflBook() {
               Здесь будет храниться внутренняя книга: юридические основы, типовые вопросы клиентов,
               безопасные формулировки и разбор рисковых ситуаций.
             </p>
-          </div>
-          <div className="grid gap-2">
-            {[
-              { label: "Глав", value: methodologyStats.chapters },
-              { label: "Тем для консультаций", value: methodologyStats.topics },
-              { label: "Статус", value: "Черновик" },
-            ].map((item) => (
-              <div key={item.label} className="flex items-center justify-between rounded-lg border border-border bg-muted/30 p-3">
-                <span className="text-sm text-muted-foreground">{item.label}</span>
-                <span className="font-semibold text-primary">{item.value}</span>
-              </div>
-            ))}
+            <div className="grid gap-2 mt-4">
+              {[
+                { label: "Глав", value: methodologyStats.chapters },
+                { label: "Тем для консультаций", value: methodologyStats.topics },
+                { label: "Статус", value: "Черновик" },
+              ].map((item) => (
+                <div key={item.label} className="flex items-center justify-between rounded-lg border border-border bg-muted/30 p-3">
+                  <span className="text-sm text-muted-foreground">{item.label}</span>
+                  <span className="font-semibold text-primary">{item.value}</span>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </Card>

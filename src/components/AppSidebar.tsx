@@ -1,12 +1,12 @@
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard, MessageSquare, History, AlertTriangle, Bell,
-  Users, BarChart3, Settings, Shield, LogOut, FileText, Briefcase, MessageCircleWarning, PhoneCall, BookOpen
+  Users, BarChart3, Settings, Shield, LogOut, FileText, Briefcase, MessageCircleWarning, PhoneCall, BookOpen, GraduationCap
 } from "lucide-react";
 import {
   Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel,
   SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarHeader, SidebarFooter,
-  useSidebar,
+  SidebarTrigger, useSidebar,
 } from "@/components/ui/sidebar";
 import { BrandLogo } from "@/components/BrandLogo";
 import { useDemoAuth } from "@/lib/demo-auth";
@@ -16,6 +16,7 @@ import { cn } from "@/lib/utils";
 const employeeNav = [
   { title: "Главная", url: "/dashboard", icon: LayoutDashboard },
   { title: "Режимы", url: "/modes", icon: MessageSquare },
+  { title: "Курсы", url: "/courses", icon: GraduationCap },
   { title: "История", url: "/history", icon: History },
   { title: "Слабые темы", url: "/weak-topics", icon: AlertTriangle },
   { title: "Уведомления", url: "/notifications", icon: Bell },
@@ -49,9 +50,9 @@ export function AppSidebar() {
   const collapsed = state === "collapsed";
   const { pathname } = useLocation();
   const navigate = useNavigate();
-  const { user, logout } = useDemoAuth();
-  const nav = roleNavigation[user.role];
-  const visibleItems = nav.items.filter((item) => canAccessRoute(user.role, item.url));
+  const { role, logout } = useDemoAuth();
+  const nav = roleNavigation[role];
+  const visibleItems = nav.items.filter((item) => canAccessRoute(role, item.url));
 
   const isActive = (url: string) =>
     url === pathname || (url !== "/" && pathname.startsWith(url));
@@ -82,13 +83,22 @@ export function AppSidebar() {
   return (
     <Sidebar collapsible="icon" className="border-sidebar-border">
       <SidebarHeader className="border-b border-sidebar-border">
-        <div className="flex items-center gap-2.5 px-2 py-1.5">
-          <BrandLogo className="h-8 w-8 shrink-0" />
+        <div className={cn(
+          "flex items-center py-1.5",
+          collapsed ? "justify-center px-0" : "gap-2.5 px-2",
+        )}>
           {!collapsed && (
-            <div className="flex flex-col leading-tight">
-              <span className="text-sm font-bold text-sidebar-foreground tracking-tight">HUNTERLITE</span>
-              <span className="text-[10px] uppercase tracking-wider text-sidebar-foreground/50">Legal AI Trainer</span>
-            </div>
+            <>
+              <BrandLogo className="h-8 w-8 shrink-0" />
+              <div className="flex flex-col leading-tight flex-1 min-w-0">
+                <span className="text-sm font-bold text-sidebar-foreground tracking-tight">HUNTERLITE</span>
+                <span className="text-[10px] uppercase tracking-wider text-sidebar-foreground/50">Legal AI Trainer</span>
+              </div>
+              <SidebarTrigger className="shrink-0 text-sidebar-foreground/50 hover:text-sidebar-foreground" />
+            </>
+          )}
+          {collapsed && (
+            <SidebarTrigger className="text-sidebar-foreground/50 hover:text-sidebar-foreground" />
           )}
         </div>
       </SidebarHeader>

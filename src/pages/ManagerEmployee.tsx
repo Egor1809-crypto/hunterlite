@@ -4,17 +4,21 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { StatusBadge } from "@/components/StatusBadge";
 import { BackButton } from "@/components/BackButton";
-import { frontendApi, frontendFallbacks, useApiData } from "@/lib/frontend-api";
+import { frontendApi } from "@/lib/frontend-api";
 import { Sparkles } from "lucide-react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 
 export default function ManagerEmployee() {
   const { id } = useParams();
-  const { data: profile } = useApiData({
+  const { data: profile, isLoading } = useQuery({
     queryKey: ["employee-profile", id || "1"],
-    request: () => frontendApi.employeeProfile(id),
-    fallback: () => frontendFallbacks.employeeProfile(id),
+    queryFn: () => frontendApi.employeeProfile(id),
   });
+
+  if (isLoading || !profile) {
+    return <div className="flex min-h-[50vh] items-center justify-center text-sm text-muted-foreground">Загрузка...</div>;
+  }
+
   const { employee: e, history, weakTopics, strongTopics, recommendation } = profile;
   const latestResultId = history[0]?.id;
   const courseTopic = weakTopics[0]?.topic || e.weak || "Имущество должника";

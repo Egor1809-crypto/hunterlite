@@ -78,6 +78,7 @@ export type TrainingsPrismaClient = {
   };
   weakTopic: {
     findMany: (args: {
+      where?: { userId?: string };
       include: { topic: true };
       orderBy: { errorsCount: "asc" | "desc" };
       take?: number;
@@ -187,7 +188,6 @@ const examStatusLabel = (status: string): TrainingHistoryItemDto["status"] =>
 
 export const createTrainingsPrismaDataSource = (
   prisma: TrainingsPrismaClient,
-  fallback: FrontendApiDataSource,
   options: { telegram?: TelegramBotClient } = {},
 ): Pick<
   FrontendApiDataSource,
@@ -199,15 +199,16 @@ export const createTrainingsPrismaDataSource = (
   | "addTrainingMessage"
   | "completeTrainingSession"
 > => ({
-  getWeakTopics: async (): Promise<WeakTopicDto[]> => {
+  getWeakTopics: async (userId: string): Promise<WeakTopicDto[]> => {
     try {
       const records = await prisma.weakTopic.findMany({
+        where: { userId },
         include: { topic: true },
         orderBy: { errorsCount: "desc" },
         take: 10,
       });
 
-      if (!records.length) return fallback.getWeakTopics();
+      if (!records.length) return [];
 
       return records.map((record) => ({
         id: record.id,
@@ -216,13 +217,13 @@ export const createTrainingsPrismaDataSource = (
         recommendation: record.recommendation,
       }));
     } catch {
-      return fallback.getWeakTopics();
+      return [];
     }
   },
 
-  getTrainingHistory: async (userId?: string): Promise<TrainingHistoryItemDto[]> => {
+  getTrainingHistory: async (userId: string): Promise<TrainingHistoryItemDto[]> => {
     try {
-      const where = userId ? { userId } : undefined;
+      const where = { userId };
       const [sessions, exams] = await Promise.all([
         prisma.trainingSession.findMany({
           where,
@@ -261,9 +262,9 @@ export const createTrainingsPrismaDataSource = (
         .sort((a, b) => b.sortAt.getTime() - a.sortAt.getTime())
         .map(({ sortAt, ...item }) => item);
 
-      return history.length ? history : fallback.getTrainingHistory();
+      return history;
     } catch {
-      return fallback.getTrainingHistory();
+      return [];
     }
   },
 
@@ -335,20 +336,24 @@ export const createTrainingsPrismaDataSource = (
 
   getSessionOptions: async (): Promise<SessionOptionsDto> => {
     try {
-      const [topics, fallbackOptions] = await Promise.all([
-        prisma.trainingTopic.findMany({
-          where: { isActive: true },
-          orderBy: { createdAt: "asc" },
-        }),
-        fallback.getSessionOptions(),
-      ]);
+      const topics = await prisma.trainingTopic.findMany({
+        where: { isActive: true },
+        orderBy: { createdAt: "asc" },
+      });
 
       return {
-        ...fallbackOptions,
-        topics: topics.length ? topics.map((topic) => topic.title) : fallbackOptions.topics,
+        topics: topics.length ? topics.map((topic) => topic.title) : [],
+        difficulties: ["basic", "medium", "hard"],
+        characters: ["anxious", "aggressive", "skeptical", "distrustful", "rushed"],
+        formats: ["text", "voice", "sequence"],
       };
     } catch {
-      return fallback.getSessionOptions();
+      return {
+        topics: [],
+        difficulties: ["basic", "medium", "hard"],
+        characters: ["anxious", "aggressive", "skeptical", "distrustful", "rushed"],
+        formats: ["text", "voice", "sequence"],
+      };
     }
   },
 

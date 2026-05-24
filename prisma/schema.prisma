@@ -512,11 +512,25 @@ model TrainingProgram {
   organizationId  String       @map("organization_id") @db.Uuid
   title           String
   description     String?
-  
-  items           Json         
-  
+
+  items           Json
+
   organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@index([organizationId], map: "training_programs_organization_id_idx")
   @@map("training_programs")
+}
+
+model TelegramPhoneLink {
+  id        String   @id @default(uuid()) @db.Uuid
+  phone     String   @unique
+  chatId    BigInt   @map("chat_id")
+  username  String?
+  firstName String?  @map("first_name")
+  lastName  String?  @map("last_name")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([chatId], map: "telegram_phone_links_chat_id_idx")
+  @@map("telegram_phone_links")
 }

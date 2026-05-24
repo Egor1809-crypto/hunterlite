@@ -3,13 +3,85 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/StatusBadge";
 import { BackButton } from "@/components/BackButton";
-import { Trophy, RotateCcw, Home, Sparkles, Check, AlertTriangle, X } from "lucide-react";
+import { Trophy, RotateCcw, Home, Sparkles, Check, AlertTriangle, X, Award, Download } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { frontendApi } from "@/lib/frontend-api";
 import { isPassingScore, passingScore } from "@/lib/training-logic";
 import { useQuery } from "@tanstack/react-query";
 
-// Timeline will be generated dynamically
+function generateCertificate(studentName: string, topic: string, score: number, date: string) {
+  const canvas = document.createElement("canvas");
+  canvas.width = 1200;
+  canvas.height = 850;
+  const ctx = canvas.getContext("2d")!;
+
+  ctx.fillStyle = "#0f172a";
+  ctx.fillRect(0, 0, 1200, 850);
+
+  const grad = ctx.createLinearGradient(0, 0, 1200, 850);
+  grad.addColorStop(0, "rgba(59, 130, 246, 0.08)");
+  grad.addColorStop(1, "rgba(139, 92, 246, 0.08)");
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, 1200, 850);
+
+  ctx.strokeStyle = "rgba(255,255,255,0.08)";
+  ctx.lineWidth = 1;
+  ctx.strokeRect(40, 40, 1120, 770);
+  ctx.strokeRect(50, 50, 1100, 750);
+
+  ctx.fillStyle = "rgba(255,255,255,0.3)";
+  ctx.font = "bold 11px system-ui";
+  ctx.textAlign = "center";
+  ctx.fillText("HUNTERLITE · LEGAL AI TRAINER", 600, 100);
+
+  ctx.fillStyle = "rgba(59, 130, 246, 0.6)";
+  ctx.font = "bold 14px system-ui";
+  ctx.fillText("✦", 600, 140);
+
+  ctx.fillStyle = "rgba(255,255,255,0.5)";
+  ctx.font = "400 18px system-ui";
+  ctx.fillText("СЕРТИФИКАТ", 600, 200);
+
+  ctx.fillStyle = "#ffffff";
+  ctx.font = "bold 42px system-ui";
+  ctx.fillText("Экзамен сдан", 600, 280);
+
+  ctx.fillStyle = "rgba(255,255,255,0.2)";
+  ctx.fillRect(450, 310, 300, 1);
+
+  ctx.fillStyle = "rgba(255,255,255,0.5)";
+  ctx.font = "400 16px system-ui";
+  ctx.fillText("Настоящим удостоверяется, что", 600, 370);
+
+  ctx.fillStyle = "#60a5fa";
+  ctx.font = "bold 32px system-ui";
+  ctx.fillText(studentName, 600, 420);
+
+  ctx.fillStyle = "rgba(255,255,255,0.5)";
+  ctx.font = "400 16px system-ui";
+  ctx.fillText("успешно сдал(а) аттестационный экзамен по теме", 600, 480);
+
+  ctx.fillStyle = "#ffffff";
+  ctx.font = "bold 22px system-ui";
+  ctx.fillText(`«${topic}»`, 600, 520);
+
+  ctx.fillStyle = "rgba(255,255,255,0.5)";
+  ctx.font = "400 16px system-ui";
+  ctx.fillText(`с результатом ${score}/100 и допущен(а) к консультациям клиентов.`, 600, 570);
+
+  ctx.fillStyle = "rgba(255,255,255,0.25)";
+  ctx.font = "400 14px system-ui";
+  ctx.fillText(`Дата: ${date}`, 600, 660);
+
+  ctx.fillStyle = "rgba(255,255,255,0.15)";
+  ctx.font = "400 12px system-ui";
+  ctx.fillText("Сертификат сгенерирован платформой HUNTERLITE", 600, 780);
+
+  const link = document.createElement("a");
+  link.download = `certificate-${Date.now()}.png`;
+  link.href = canvas.toDataURL("image/png");
+  link.click();
+}
 
 export default function SessionResult() {
   const navigate = useNavigate();
@@ -26,13 +98,18 @@ export default function SessionResult() {
   const score = sessionDetail?.score ?? (
     params.has("score") && Number.isInteger(scoreParam) && scoreParam >= 0 && scoreParam <= 100 ? scoreParam : 76
   );
-  const passed = !isExam || isPassingScore(score);
+  const passed = isPassingScore(score);
   
   const { state } = useLocation();
   const mistakes: string[] = sessionDetail?.mistakes || state?.mistakes || ["Ошибок не обнаружено"];
   const recommendations: string[] = sessionDetail?.recommendations || state?.recommendations || ["Повторить слабые темы"];
+  const { data: currentUser } = useQuery({
+    queryKey: ["current-user"],
+    queryFn: () => frontendApi.currentUser(),
+  });
   const resultMode = sessionDetail?.mode ?? (isExam ? "Экзамен" : "Тренировка");
   const resultTopic = sessionDetail?.topic ?? "Имущество должника";
+  const today = new Date().toLocaleDateString("ru-RU");
   
   const dynamicTimeline = mistakes.map((m, idx) => ({
     idx: idx + 1,
@@ -65,7 +142,7 @@ export default function SessionResult() {
               {resultMode} · {resultTopic}
             </div>
             <h1 className="font-display text-3xl md:text-4xl font-bold mt-4 tracking-tight">
-              {passed ? (isExam ? "Экзамен сдан" : "Сессия завершена") : "Экзамен не сдан"}
+              {passed ? (isExam ? "Экзамен сдан" : "Сессия завершена") : (isExam ? "Экзамен не сдан" : "Тренировка не пройдена")}
             </h1>
             <p className="text-white/70 mt-2">
               {passed
@@ -97,6 +174,35 @@ export default function SessionResult() {
           </div>
         </div>
       </Card>
+
+      {/* Certificate */}
+      {passed && isExam && (
+        <Card className="mt-4 p-5 shadow-card border-l-4 border-l-success">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+            <div className="h-12 w-12 rounded-xl bg-success/10 flex items-center justify-center shrink-0">
+              <Award className="h-6 w-6 text-success" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="font-display font-bold text-lg text-primary">Сертификат готов</div>
+              <p className="text-sm text-muted-foreground mt-0.5">
+                Вы успешно сдали экзамен. Скачайте сертификат о прохождении аттестации.
+              </p>
+            </div>
+            <Button
+              onClick={() => generateCertificate(
+                currentUser?.name ?? "Сотрудник",
+                resultTopic,
+                score,
+                today,
+              )}
+              className="bg-success hover:bg-success/90 text-white shrink-0 rounded-xl"
+            >
+              <Download className="h-4 w-4 mr-1.5" />
+              Скачать сертификат
+            </Button>
+          </div>
+        </Card>
+      )}
 
       {/* Strong / weak */}
       <div className="grid md:grid-cols-2 gap-4 mt-4">

@@ -149,7 +149,6 @@ const mapMembershipToAdminUser = (membership: MembershipRecord): AdminUserDto =>
 
 export const createAdminPrismaDataSource = (
   prisma: AdminPrismaClient,
-  fallback: FrontendApiDataSource,
 ): Pick<FrontendApiDataSource, "getAdminUsers" | "createAdminUser" | "updateAdminUser" | "getTestQuestions" | "createTestQuestion" | "getCaseTemplates" | "createCaseTemplate" | "getObjectionTemplates" | "createObjectionTemplate" | "getCallScripts" | "createCallScript" | "updateCallScript" | "deleteCallScript"> => ({
   getAdminUsers: async (): Promise<AdminUserDto[]> => {
     try {
@@ -160,7 +159,7 @@ export const createAdminPrismaDataSource = (
 
       return records.map(mapMembershipToAdminUser);
     } catch {
-      return fallback.getAdminUsers();
+      return [];
     }
   },
 
@@ -198,7 +197,7 @@ export const createAdminPrismaDataSource = (
 
       return mapMembershipToAdminUser(membership);
     } catch {
-      return fallback.createAdminUser(payload);
+      return null;
     }
   },
 
@@ -230,7 +229,7 @@ export const createAdminPrismaDataSource = (
 
       return mapMembershipToAdminUser(updated);
     } catch {
-      return fallback.updateAdminUser(id, payload);
+      return null;
     }
   },
 
@@ -239,8 +238,6 @@ export const createAdminPrismaDataSource = (
       const records = await prisma.testQuestion.findMany({
         orderBy: { createdAt: "desc" },
       });
-
-      if (!records.length) return fallback.getTestQuestions();
 
       return records.map((r) => ({
         id: r.id,
@@ -255,7 +252,7 @@ export const createAdminPrismaDataSource = (
         tags: r.tags,
       }));
     } catch {
-      return fallback.getTestQuestions();
+      return [];
     }
   },
 
@@ -263,7 +260,6 @@ export const createAdminPrismaDataSource = (
     payload: TestQuestionCreateRequestDto,
   ): Promise<TestQuestionDto | null> => {
     try {
-      // Ищем дефолтную организацию (в MVP у нас одна)
       const org = await prisma.organization.findFirst();
       if (!org) return null;
 
@@ -294,7 +290,7 @@ export const createAdminPrismaDataSource = (
         tags: created.tags,
       };
     } catch {
-      return fallback.createTestQuestion(payload);
+      return null;
     }
   },
 
@@ -325,7 +321,7 @@ export const createAdminPrismaDataSource = (
         })),
       }));
     } catch {
-      return fallback.getCaseTemplates();
+      return [];
     }
   },
 
@@ -379,7 +375,7 @@ export const createAdminPrismaDataSource = (
         })),
       };
     } catch {
-      return fallback.createCaseTemplate(payload);
+      return null;
     }
   },
 
@@ -403,7 +399,7 @@ export const createAdminPrismaDataSource = (
         difficulty: r.difficulty,
       }));
     } catch {
-      return fallback.getObjectionTemplates();
+      return [];
     }
   },
 
@@ -444,7 +440,7 @@ export const createAdminPrismaDataSource = (
         difficulty: created.difficulty,
       };
     } catch {
-      return fallback.createObjectionTemplate(payload);
+      return null;
     }
   },
 
@@ -472,7 +468,7 @@ export const createAdminPrismaDataSource = (
         })),
       }));
     } catch {
-      return fallback.getCallScripts();
+      return [];
     }
   },
 
@@ -521,7 +517,7 @@ export const createAdminPrismaDataSource = (
       };
     } catch (error) {
       console.error("Prisma createCallScript error:", error);
-      return fallback.createCallScript(payload);
+      return null;
     }
   },
 
@@ -571,7 +567,7 @@ export const createAdminPrismaDataSource = (
         })),
       };
     } catch {
-      return fallback.updateCallScript(id, payload);
+      return null;
     }
   },
 
@@ -583,7 +579,7 @@ export const createAdminPrismaDataSource = (
 
       return true;
     } catch {
-      return fallback.deleteCallScript(id);
+      return false;
     }
   },
 });

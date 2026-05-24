@@ -1,32 +1,53 @@
 import { Link, Outlet, useLocation } from "react-router-dom";
 import { AlarmClock, Bell, CalendarCheck2, ChevronRight, Home, Sparkles } from "lucide-react";
-import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
+import { useQuery } from "@tanstack/react-query";
+import { SidebarProvider } from "@/components/ui/sidebar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { AppSidebar } from "./AppSidebar";
 import { useDemoAuth } from "@/lib/demo-auth";
 import { getRoleHome } from "@/lib/demo-auth-state";
-import { frontendApi, frontendFallbacks, useApiData } from "@/lib/frontend-api";
+import { frontendApi } from "@/lib/frontend-api";
 import { StatusBadge } from "./StatusBadge";
 
 const notificationIcons = [AlarmClock, CalendarCheck2, Sparkles];
 
 export default function AppLayout() {
   const { pathname } = useLocation();
-  const { user: authUser } = useDemoAuth();
-  const { data: user } = useApiData({
-    queryKey: ["current-user", authUser.role],
-    request: () => frontendApi.currentUser(authUser.role),
-    fallback: () => frontendFallbacks.currentUser(authUser.role),
+  const { role } = useDemoAuth();
+  const { data: user, isLoading: isLoadingUser } = useQuery({
+    queryKey: ["current-user"],
+    queryFn: () => frontendApi.currentUser(),
   });
-  const { data: notifications } = useApiData({
+  const { data: notifications } = useQuery({
     queryKey: ["notifications"],
-    request: frontendApi.notifications,
-    fallback: frontendFallbacks.notifications,
+    queryFn: frontendApi.notifications,
   });
-  const trainingNotifications = notifications.slice(0, 3);
-  const homePath = getRoleHome(user.role);
+  const trainingNotifications = (notifications ?? []).slice(0, 3);
+  const homePath = getRoleHome(user?.role ?? role);
   const isHome = pathname === homePath;
   const unreadCount = trainingNotifications.filter((item) => item.unread).length;
+
+  if (isLoadingUser || !user) {
+    return (
+      <SidebarProvider>
+        <div className="min-h-screen flex w-full bg-transparent">
+          <AppSidebar />
+          <div className="flex-1 flex flex-col min-w-0">
+            <header className="h-14 flex items-center justify-between border-b border-border bg-card px-3 md:px-6 sticky top-0 z-30">
+              <div className="flex items-center gap-3">
+                <div className="hidden md:block text-sm text-muted-foreground">
+                  Платформа аттестации юристов по банкротству физических лиц
+                </div>
+              </div>
+            </header>
+            <main className="flex-1 min-w-0">
+              <div className="flex min-h-[50vh] items-center justify-center text-sm text-muted-foreground">Загрузка...</div>
+            </main>
+          </div>
+        </div>
+      </SidebarProvider>
+    );
+  }
 
   return (
     <SidebarProvider>
@@ -35,7 +56,6 @@ export default function AppLayout() {
         <div className="flex-1 flex flex-col min-w-0">
           <header className="h-14 flex items-center justify-between border-b border-border bg-card px-3 md:px-6 sticky top-0 z-30">
             <div className="flex items-center gap-3">
-              <SidebarTrigger />
               {!isHome && (
                 <Link
                   to={homePath}
@@ -115,7 +135,6 @@ export default function AppLayout() {
                 <div className="h-9 w-9 rounded-full bg-gradient-ai flex items-center justify-center text-white text-sm font-semibold">
                   {user.firstName[0]}{user.name.split(" ")[1]?.[0] || ""}
                 </div>
-                <StatusBadge variant="success" dot className="hidden md:inline-flex">{user.status}</StatusBadge>
               </Link>
             </div>
           </header>

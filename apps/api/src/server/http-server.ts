@@ -53,7 +53,6 @@ export type ApiResolvedResponse = {
 export type ApiServerOptions = {
   source?: FrontendApiDataSource;
   auth?: AuthDataSource;
-  authDemoFallback?: boolean;
   secureCookies?: boolean;
   loginRateLimiter?: LoginRateLimiter;
   corsOrigins?: ApiEnv["CORS_ORIGINS"];
@@ -100,6 +99,7 @@ const getLoginRateLimitKey = (request: ApiRequest) =>
 
 const isAllowedPostRoute = (pathname: string) =>
   pathname === "/api/auth/login" ||
+  pathname === "/api/auth/register" ||
   pathname === "/api/auth/telegram/request-code" ||
   pathname === "/api/auth/telegram/login" ||
   pathname === "/api/auth/logout" ||
@@ -187,7 +187,6 @@ export const resolveApiRequest = async (
 
   const api = createFrontendApiHandlers(options.source);
   const auth = createAuthHandlers(options.auth, {
-    allowDemoFallback: options.authDemoFallback,
     secureCookies: options.secureCookies,
   });
   const rateLimiter = options.loginRateLimiter ?? loginRateLimiter;
@@ -215,6 +214,7 @@ export const resolveApiRequest = async (
   if (
     request.method === "POST" &&
     pathname !== "/api/auth/login" &&
+    pathname !== "/api/auth/register" &&
     pathname !== "/api/auth/telegram/request-code" &&
     pathname !== "/api/auth/telegram/login" &&
     pathname !== "/api/auth/password-reset/request" &&
@@ -282,6 +282,18 @@ export const resolveApiRequest = async (
               return body;
             });
           })
+        : pathname === "/api/auth/register" && request.method === "POST"
+          ? auth.register(request.body).then((body) => {
+              if (body.ok && body.sessionCookie) {
+                extraHeaders = {
+                  "Set-Cookie": [
+                    body.sessionCookie,
+                    options.secureCookies ? createSecureCsrfCookie(body.sessionCookie) : createCsrfCookie(body.sessionCookie),
+                  ].filter((cookie): cookie is string => Boolean(cookie)),
+                };
+              }
+              return body;
+            })
         : pathname === "/api/auth/logout" && request.method === "POST"
           ? auth.logout(request.cookie).then((body) => {
               extraHeaders = { "Set-Cookie": [clearSessionCookie(options.secureCookies), clearCsrfCookie(options.secureCookies)] };
@@ -323,22 +335,22 @@ export const resolveApiRequest = async (
                 ? api.completeTrainingSession(authenticatedUserId, decodeURIComponent(trainingCompleteMatch[1]), request.body)
           : pathname === "/api/auth/session"
             ? auth.session(request.cookie)
-            : pathname === "/api/users/me"
-              ? api.getMe(role)
-              : pathname === "/api/users/profile"
-                ? api.getProfile(role)
-                : pathname === "/api/analytics/dashboard"
-                  ? api.getDashboard(role)
+            : pathname === "/api/users/me" && authenticatedUserId
+              ? api.getMe(authenticatedUserId)
+              : pathname === "/api/users/profile" && authenticatedUserId
+                ? api.getProfile(authenticatedUserId)
+                : pathname === "/api/analytics/dashboard" && authenticatedUserId
+                  ? api.getDashboard(authenticatedUserId)
                   : pathname === "/api/analytics/manager"
                     ? api.getManagerSummary()
                     : pathname === "/api/analytics/manager/reports"
                       ? api.getManagerReports()
                     : employeeProfileMatch
                       ? api.getEmployeeProfile(decodeURIComponent(employeeProfileMatch[1]))
-                      : pathname === "/api/notifications"
-                        ? api.getNotifications()
-                        : pathname === "/api/trainings/weak-topics"
-                          ? api.getWeakTopics()
+                      : pathname === "/api/notifications" && authenticatedUserId
+                        ? api.getNotifications(authenticatedUserId)
+                        : pathname === "/api/trainings/weak-topics" && authenticatedUserId
+                          ? api.getWeakTopics(authenticatedUserId)
                           : pathname === "/api/trainings/history"
                             ? api.getTrainingHistory(authenticatedUserId)
                             : pathname === "/api/trainings/session-options"
@@ -420,7 +432,6 @@ export const createApiHttpServer = (options: ApiServerOptions = {}) =>
 
       if (request.method === "GET" && requestUrl.pathname === notificationStreamPath) {
         const auth = createAuthHandlers(options.auth, {
-          allowDemoFallback: options.authDemoFallback,
           secureCookies: options.secureCookies,
         });
         const authSession = await auth.session(request.headers.cookie);
@@ -432,11 +443,12 @@ export const createApiHttpServer = (options: ApiServerOptions = {}) =>
         }
 
         const api = createFrontendApiHandlers(options.source);
+        const sseUserId = authSession.data.user.id;
         response.writeHead(200, createStreamHeaders(origin, options.corsOrigins));
         response.write(": connected\n\n");
 
         const sendSnapshot = async () => {
-          const notifications = await api.getNotifications();
+          const notifications = await api.getNotifications(sseUserId);
 
           if (notifications.ok) {
             response.write(createNotificationSnapshotEvent(notifications.data));

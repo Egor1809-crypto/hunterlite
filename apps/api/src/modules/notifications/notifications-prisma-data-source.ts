@@ -13,6 +13,7 @@ type NotificationRecord = {
 export type NotificationsPrismaClient = {
   notification: {
     findMany: (args: {
+      where?: { userId?: string };
       orderBy: { createdAt: "asc" | "desc" };
       take?: number;
     }) => Promise<NotificationRecord[]>;
@@ -54,18 +55,18 @@ const mapNotification = (record: NotificationRecord): NotificationDto => ({
 
 export const createNotificationsPrismaDataSource = (
   prisma: NotificationsPrismaClient,
-  fallback: FrontendApiDataSource,
 ): Pick<FrontendApiDataSource, "getNotifications"> => ({
-  getNotifications: async (): Promise<NotificationDto[]> => {
+  getNotifications: async (userId: string): Promise<NotificationDto[]> => {
     try {
       const records = await prisma.notification.findMany({
+        where: { userId },
         orderBy: { createdAt: "desc" },
         take: 50,
       });
 
-      return records.length ? records.map(mapNotification) : fallback.getNotifications();
+      return records.map(mapNotification);
     } catch {
-      return fallback.getNotifications();
+      return [];
     }
   },
 });

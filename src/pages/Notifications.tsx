@@ -1,7 +1,7 @@
 import { Card } from "@/components/ui/card";
 import { IconBadge } from "@/components/IconBadge";
 import { ApiState } from "@/components/ApiState";
-import { frontendFallbacks } from "@/lib/frontend-api";
+import type { NotificationDto } from "@/lib/api-contracts";
 import { useLiveNotifications } from "@/lib/live-notifications";
 import { AlertTriangle, Bell, CalendarCheck2, CheckCircle2, Sparkles } from "lucide-react";
 
@@ -20,7 +20,7 @@ const notificationIconStyles = {
 } as const;
 
 export default function Notifications() {
-  const { data: notifications, isFetching, isError } = useLiveNotifications(frontendFallbacks.notifications());
+  const { data: notifications, isFetching, isError } = useLiveNotifications([] as NotificationDto[]);
 
   return (
     <div className="p-4 md:p-8 max-w-3xl mx-auto animate-fade-in">

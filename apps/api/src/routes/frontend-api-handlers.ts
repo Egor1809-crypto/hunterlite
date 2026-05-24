@@ -37,23 +37,10 @@ import type {
   AiTrainingReplyRequestDto,
   AiTranscriptionDto,
   AiTranscriptionRequestDto,
+  WeakTopicDto,
 } from "@/lib/api-contracts";
 import type { AppRole } from "@/lib/demo-auth-state";
-import { createLocalTrainingReply, defaultCallScripts } from "@/lib/default-training-content";
 import { validateTranscriptionAudioPayload } from "@/lib/voice-mode";
-import {
-  getCurrentUser,
-  getDashboardSummary,
-  getEmployeeProfile,
-  getEmployees,
-  getManagerSummary,
-  getManagerReports,
-  getNotifications,
-  getProfileSummary,
-  getSessionOptions,
-  getTrainingHistory,
-  getWeakTopics,
-} from "@/lib/demo-api";
 import type { ApiFailure, ApiResponse, ApiSuccess } from "../http/api-response";
 import { fail, ok } from "../http/api-response";
 import type { BackendModuleName } from "../modules/module-registry";
@@ -111,12 +98,12 @@ export const frontendApiRoutes = [
 ] as const satisfies readonly FrontendApiRoute[];
 
 export type FrontendApiDataSource = {
-  getCurrentUser: (role?: AppRole) => MaybePromise<CurrentUserDto>;
-  getProfileSummary: (role?: AppRole) => MaybePromise<ProfileSummaryDto>;
-  getDashboardSummary: (role?: AppRole) => MaybePromise<DashboardSummaryDto>;
-  getNotifications: () => MaybePromise<NotificationDto[]>;
-  getWeakTopics: () => MaybePromise<WeakTopicDto[]>;
-  getTrainingHistory: (userId?: string) => MaybePromise<TrainingHistoryItemDto[]>;
+  getCurrentUser: (userId: string) => MaybePromise<CurrentUserDto>;
+  getProfileSummary: (userId: string) => MaybePromise<ProfileSummaryDto>;
+  getDashboardSummary: (userId: string) => MaybePromise<DashboardSummaryDto>;
+  getNotifications: (userId: string) => MaybePromise<NotificationDto[]>;
+  getWeakTopics: (userId: string) => MaybePromise<WeakTopicDto[]>;
+  getTrainingHistory: (userId: string) => MaybePromise<TrainingHistoryItemDto[]>;
   getEmployees: () => MaybePromise<EmployeeDto[]>;
   getManagerSummary: () => MaybePromise<ManagerSummaryDto>;
   getManagerReports: () => MaybePromise<ManagerReportsDto>;
@@ -145,55 +132,20 @@ export type FrontendApiDataSource = {
   deleteCallScript: (id: string) => MaybePromise<boolean>;
 };
 
-export const demoFrontendApiDataSource: FrontendApiDataSource = {
-  getCurrentUser,
-  getProfileSummary,
-  getDashboardSummary,
-  getNotifications,
-  getWeakTopics,
-  getTrainingHistory,
-  getEmployees,
-  getManagerSummary,
-  getManagerReports,
-  getEmployeeProfile,
-  assignEmployeeCourse: async () => null,
-  getSessionOptions,
-  generateTrainingReply: async (payload) => createLocalTrainingReply(payload),
-  synthesizeSpeech: async () => null,
-  transcribeSpeech: async () => null,
-  createTrainingSession: async () => null,
-  getTrainingSessionDetail: async () => null,
-  addTrainingMessage: async () => null,
-  completeTrainingSession: async () => null,
-  getAdminUsers: async () => [],
-  createAdminUser: async () => null,
-  updateAdminUser: async () => null,
-  getTestQuestions: async () => [],
-  createTestQuestion: async () => null,
-  getCaseTemplates: async () => [],
-  createCaseTemplate: async () => null,
-  getObjectionTemplates: async () => [],
-  createObjectionTemplate: async () => null,
-  getCallScripts: async () => defaultCallScripts,
-  createCallScript: async () => null,
-  updateCallScript: async () => null,
-  deleteCallScript: async () => false,
-};
-
 type HandlerResult<TData> = ApiSuccess<TData> | ApiFailure;
 
-export const createFrontendApiHandlers = (source: FrontendApiDataSource = demoFrontendApiDataSource) => ({
-  getMe: async (role?: AppRole): Promise<ApiResponse<CurrentUserDto>> => ok(await source.getCurrentUser(role)),
+export const createFrontendApiHandlers = (source: FrontendApiDataSource) => ({
+  getMe: async (userId: string): Promise<ApiResponse<CurrentUserDto>> => ok(await source.getCurrentUser(userId)),
 
-  getProfile: async (role?: AppRole): Promise<ApiResponse<ProfileSummaryDto>> => ok(await source.getProfileSummary(role)),
+  getProfile: async (userId: string): Promise<ApiResponse<ProfileSummaryDto>> => ok(await source.getProfileSummary(userId)),
 
-  getDashboard: async (role?: AppRole): Promise<ApiResponse<DashboardSummaryDto>> => ok(await source.getDashboardSummary(role)),
+  getDashboard: async (userId: string): Promise<ApiResponse<DashboardSummaryDto>> => ok(await source.getDashboardSummary(userId)),
 
-  getNotifications: async (): Promise<ApiResponse<NotificationDto[]>> => ok(await source.getNotifications()),
+  getNotifications: async (userId: string): Promise<ApiResponse<NotificationDto[]>> => ok(await source.getNotifications(userId)),
 
-  getWeakTopics: async (): Promise<ApiResponse<WeakTopicDto[]>> => ok(await source.getWeakTopics()),
+  getWeakTopics: async (userId: string): Promise<ApiResponse<WeakTopicDto[]>> => ok(await source.getWeakTopics(userId)),
 
-  getTrainingHistory: async (userId?: string): Promise<ApiResponse<TrainingHistoryItemDto[]>> => ok(await source.getTrainingHistory(userId)),
+  getTrainingHistory: async (userId: string): Promise<ApiResponse<TrainingHistoryItemDto[]>> => ok(await source.getTrainingHistory(userId)),
 
   getManagerSummary: async (): Promise<ApiResponse<ManagerSummaryDto>> => ok(await source.getManagerSummary()),
 
@@ -245,6 +197,8 @@ export const createFrontendApiHandlers = (source: FrontendApiDataSource = demoFr
       sessionId: request.sessionId,
       topic: request.topic,
       mode: request.mode,
+      difficulty: request.difficulty,
+      character: request.character,
       step: Number.isFinite(request.step) ? Number(request.step) : 0,
       totalSteps: Number.isFinite(request.totalSteps) ? Math.max(1, Number(request.totalSteps)) : 1,
       userMessage: request.userMessage.trim(),

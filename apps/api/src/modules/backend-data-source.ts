@@ -1,8 +1,4 @@
-import {
-  demoFrontendApiDataSource,
-  type FrontendApiDataSource,
-} from "../routes/frontend-api-handlers";
-import { createLocalTrainingReply } from "@/lib/default-training-content";
+import { type FrontendApiDataSource } from "../routes/frontend-api-handlers";
 import {
   createUsersPrismaDataSource,
   type UsersPrismaClient,
@@ -27,41 +23,34 @@ import type { NavyAiClient } from "./ai/navy-ai-client";
 import type { TelegramBotClient } from "./telegram/telegram-bot-client";
 
 export type BackendDataSourceOptions = {
-  prisma?: UsersPrismaClient & TrainingsPrismaClient & NotificationsPrismaClient & AnalyticsPrismaClient & AdminPrismaClient;
+  prisma: UsersPrismaClient & TrainingsPrismaClient & NotificationsPrismaClient & AnalyticsPrismaClient & AdminPrismaClient;
   ai?: NavyAiClient;
   telegram?: TelegramBotClient;
 };
 
 export const createBackendDataSource = (
-  options: BackendDataSourceOptions = {},
+  options: BackendDataSourceOptions,
 ): FrontendApiDataSource => {
-  if (!options.prisma) return demoFrontendApiDataSource;
-
-  const users = createUsersPrismaDataSource(options.prisma, demoFrontendApiDataSource);
-  const trainings = createTrainingsPrismaDataSource(options.prisma, demoFrontendApiDataSource, {
+  const users = createUsersPrismaDataSource(options.prisma);
+  const trainings = createTrainingsPrismaDataSource(options.prisma, {
     telegram: options.telegram,
   });
-  const notifications = createNotificationsPrismaDataSource(options.prisma, demoFrontendApiDataSource);
-  const analytics = createAnalyticsPrismaDataSource(options.prisma, demoFrontendApiDataSource);
-  const admin = createAdminPrismaDataSource(options.prisma, demoFrontendApiDataSource);
+  const notifications = createNotificationsPrismaDataSource(options.prisma);
+  const analytics = createAnalyticsPrismaDataSource(options.prisma);
+  const admin = createAdminPrismaDataSource(options.prisma);
 
-  const source: FrontendApiDataSource = {
-    ...demoFrontendApiDataSource,
+  return {
     ...users,
     ...trainings,
     ...notifications,
     ...analytics,
     ...admin,
-    ...(options.ai ?? {}),
-  };
-
-  return {
-    ...source,
-    generateTrainingReply: async (payload) =>
-      (await source.generateTrainingReply(payload)) ?? createLocalTrainingReply(payload),
-    getProfileSummary: async (role) => ({
-      user: await users.getCurrentUser(role),
-      weakTopics: await trainings.getWeakTopics(),
+    generateTrainingReply: async (payload) => options.ai?.generateTrainingReply(payload) ?? null,
+    synthesizeSpeech: async (payload) => options.ai?.synthesizeSpeech(payload) ?? null,
+    transcribeSpeech: async (payload) => options.ai?.transcribeSpeech(payload) ?? null,
+    getProfileSummary: async (userId) => ({
+      user: await users.getCurrentUser(userId),
+      weakTopics: await trainings.getWeakTopics(userId),
     }),
   };
 };

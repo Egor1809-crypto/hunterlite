@@ -30,7 +30,7 @@ describe("backend HTTP resolver", () => {
       method: "GET",
       url: "/api/users/me?role=manager",
       cookie: "hunterlite_session=demo:employee",
-    });
+    }, { authDemoFallback: true });
 
     expect(response.status).toBe(200);
     expect(response.body).toEqual({
@@ -48,7 +48,7 @@ describe("backend HTTP resolver", () => {
       method: "GET",
       url: "/api/analytics/manager/employees/2",
       cookie: "hunterlite_session=demo:manager",
-    });
+    }, { authDemoFallback: true });
 
     expect(response.status).toBe(200);
     expect(response.body).toEqual(
@@ -83,7 +83,7 @@ describe("backend HTTP resolver", () => {
       method: "GET",
       url: "/api/analytics/manager/employees/missing",
       cookie: "hunterlite_session=demo:manager",
-    })).resolves.toEqual(
+    }, { authDemoFallback: true })).resolves.toEqual(
       expect.objectContaining({
         status: 404,
         body: {
@@ -118,7 +118,7 @@ describe("backend HTTP resolver", () => {
       method: "GET",
       url: "/api/analytics/manager",
       cookie: "hunterlite_session=demo:employee",
-    })).resolves.toEqual(
+    }, { authDemoFallback: true })).resolves.toEqual(
       expect.objectContaining({
         status: 403,
         body: {
@@ -141,7 +141,7 @@ describe("backend HTTP resolver", () => {
       method: "GET",
       url: "/api/admin/tests",
       cookie: "hunterlite_session=demo:employee",
-    })).resolves.toEqual(
+    }, { authDemoFallback: true })).resolves.toEqual(
       expect.objectContaining({
         status: 403,
         body: {
@@ -162,7 +162,7 @@ describe("backend HTTP resolver", () => {
       method: "GET",
       url: "/api/admin/tests",
       cookie: "hunterlite_session=demo:admin",
-    })).resolves.toEqual(expect.objectContaining({ status: 200 }));
+    }, { authDemoFallback: true })).resolves.toEqual(expect.objectContaining({ status: 200 }));
   });
 
   it("requires a CSRF token for authenticated POST requests", async () => {
@@ -174,7 +174,7 @@ describe("backend HTTP resolver", () => {
       method: "POST",
       url: "/api/auth/logout",
       cookie: sessionCookie,
-    })).resolves.toEqual(
+    }, { authDemoFallback: true })).resolves.toEqual(
       expect.objectContaining({
         status: 403,
         body: {
@@ -192,7 +192,7 @@ describe("backend HTTP resolver", () => {
       url: "/api/auth/logout",
       cookie: sessionCookie,
       csrfToken,
-    })).resolves.toEqual(expect.objectContaining({ status: 200 }));
+    }, { authDemoFallback: true })).resolves.toEqual(expect.objectContaining({ status: 200 }));
   });
 
   it("rejects demo login when demo auth fallback is disabled", async () => {
@@ -285,7 +285,7 @@ describe("backend HTTP resolver", () => {
         format: "text",
         character: "anxious",
       },
-    }, { source })).resolves.toEqual(
+    }, { source, authDemoFallback: true })).resolves.toEqual(
       expect.objectContaining({
         status: 200,
         body: expect.objectContaining({

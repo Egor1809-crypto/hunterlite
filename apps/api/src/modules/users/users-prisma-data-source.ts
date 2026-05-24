@@ -1,6 +1,5 @@
 import type { CurrentUserDto, ProfileSummaryDto } from "@/lib/api-contracts";
 import type { AppRole } from "@/lib/demo-auth-state";
-import { isPassingScore } from "@/lib/training-logic";
 import type { FrontendApiDataSource } from "../../routes/frontend-api-handlers";
 
 type PrismaUserRecord = {
@@ -20,6 +19,7 @@ export type UsersPrismaClient = {
   membership: {
     findFirst: (args: {
       where: {
+        userId?: string;
         role?: AppRole;
         user?: { email?: string };
       };
@@ -36,19 +36,6 @@ const roleLabels: Record<AppRole, string> = {
   client: "Клиент",
 };
 
-const scoreByRole: Record<AppRole, Pick<CurrentUserDto, "avgScore" | "examPassed" | "weeklyTrainings">> = {
-  employee: { avgScore: 82, examPassed: isPassingScore(82), weeklyTrainings: 6 },
-  manager: { avgScore: 88, examPassed: true, weeklyTrainings: 0 },
-  admin: { avgScore: 0, examPassed: true, weeklyTrainings: 0 },
-  client: { avgScore: 0, examPassed: false, weeklyTrainings: 0 },
-};
-
-const emailByRole: Partial<Record<AppRole, string>> = {
-  employee: "a.petrova@hunterlite.ru",
-  manager: "manager@hunterlite.ru",
-  admin: "admin@hunterlite.ru",
-};
-
 const firstNameOf = (fullName: string) => fullName.trim().split(/\s+/)[0] || fullName;
 
 const statusLabel = (status: string): CurrentUserDto["status"] =>
@@ -62,42 +49,43 @@ const mapMembershipToCurrentUser = (membership: PrismaMembershipRecord): Current
     name: membership.user.fullName,
     firstName: firstNameOf(membership.user.fullName),
     role,
-    roleLabel: roleLabels[role],
+    roleLabel: roleLabels[role] ?? role,
     email: membership.user.email,
     status: statusLabel(membership.status),
-    ...scoreByRole[role],
+    avgScore: 0,
+    examPassed: false,
+    weeklyTrainings: 0,
   };
 };
 
-const findMembershipByRole = async (prisma: UsersPrismaClient, role: AppRole) =>
-  prisma.membership.findFirst({
-    where: emailByRole[role] ? { role, user: { email: emailByRole[role] } } : { role },
-    include: { user: true },
-    orderBy: { createdAt: "asc" },
-  });
-
 export const createUsersPrismaDataSource = (
   prisma: UsersPrismaClient,
-  fallback: FrontendApiDataSource,
-): Pick<FrontendApiDataSource, "getCurrentUser" | "getProfileSummary"> => {
-  const getCurrentUser = async (role: AppRole = "employee"): Promise<CurrentUserDto> => {
-    if (role === "client") return fallback.getCurrentUser(role);
+): Pick<FrontendApiDataSource, "getCurrentUser"> => {
+  const getCurrentUser = async (userId: string): Promise<CurrentUserDto> => {
+    const membership = await prisma.membership.findFirst({
+      where: { userId },
+      include: { user: true },
+    });
 
-    try {
-      const membership = await findMembershipByRole(prisma, role);
-
-      if (!membership) return fallback.getCurrentUser(role);
-      return mapMembershipToCurrentUser(membership);
-    } catch {
-      return fallback.getCurrentUser(role);
+    if (!membership) {
+      return {
+        id: userId,
+        name: "Пользователь",
+        firstName: "Пользователь",
+        role: "employee",
+        roleLabel: roleLabels.employee,
+        email: "",
+        status: "Активен",
+        avgScore: 0,
+        examPassed: false,
+        weeklyTrainings: 0,
+      };
     }
+
+    return mapMembershipToCurrentUser(membership);
   };
 
   return {
     getCurrentUser,
-    getProfileSummary: async (role?: AppRole): Promise<ProfileSummaryDto> => ({
-      user: await getCurrentUser(role),
-      weakTopics: (await fallback.getProfileSummary(role)).weakTopics,
-    }),
   };
 };

@@ -2,72 +2,50 @@ import type { Role } from "@/lib/access-control";
 
 export type AppRole = Exclude<Role, "public">;
 
-export type DemoUser = {
-  name: string;
-  firstName: string;
-  role: AppRole;
-  roleLabel: string;
-  email: string;
-  status: "Допущен" | "Активен";
+const AUTH_STORAGE_KEY = "hunterlite_auth_role";
+const AUTH_FLAG_KEY = "hunterlite_authenticated";
+
+const roleValues = new Set<AppRole>(["employee", "manager", "admin", "client"]);
+
+const readStoredRole = (): AppRole => {
+  try {
+    const stored = sessionStorage.getItem(AUTH_STORAGE_KEY);
+    if (stored && roleValues.has(stored as AppRole)) return stored as AppRole;
+  } catch {}
+  return "employee";
 };
 
-const usersByRole: Record<AppRole, DemoUser> = {
-  employee: {
-    name: "Анна Петрова",
-    firstName: "Анна",
-    role: "employee",
-    roleLabel: "Юрист-консультант",
-    email: "a.petrova@hunterlite.ru",
-    status: "Допущен",
-  },
-  manager: {
-    name: "Ольга Литвинова",
-    firstName: "Ольга",
-    role: "manager",
-    roleLabel: "Руководитель",
-    email: "manager@hunterlite.ru",
-    status: "Активен",
-  },
-  admin: {
-    name: "Павел Громов",
-    firstName: "Павел",
-    role: "admin",
-    roleLabel: "Администратор",
-    email: "admin@hunterlite.ru",
-    status: "Активен",
-  },
-  client: {
-    name: "Клиент",
-    firstName: "Клиент",
-    role: "client",
-    roleLabel: "Клиент",
-    email: "client@hunterlite.ru",
-    status: "Активен",
-  },
+let currentRole: AppRole = readStoredRole();
+
+export const getRole = () => currentRole;
+
+export const isAuthenticated = (): boolean => {
+  try {
+    return sessionStorage.getItem(AUTH_FLAG_KEY) === "true";
+  } catch {
+    return false;
+  }
 };
 
-let demoRole: AppRole = "employee";
-
-export const getDemoRole = () => demoRole;
-
-export const setDemoRole = (role: AppRole) => {
-  demoRole = role;
+export const setRole = (role: AppRole) => {
+  currentRole = role;
+  try {
+    sessionStorage.setItem(AUTH_STORAGE_KEY, role);
+    sessionStorage.setItem(AUTH_FLAG_KEY, "true");
+  } catch {}
 };
 
-export const getDemoUser = (role = demoRole) => usersByRole[role];
+export const clearAuth = () => {
+  currentRole = "employee";
+  try {
+    sessionStorage.removeItem(AUTH_STORAGE_KEY);
+    sessionStorage.removeItem(AUTH_FLAG_KEY);
+  } catch {}
+};
 
 export const getRoleHome = (role: AppRole) => {
   if (role === "manager") return "/manager";
   if (role === "admin") return "/admin";
   if (role === "client") return "/client";
   return "/dashboard";
-};
-
-export const inferRoleFromEmail = (email: string): AppRole => {
-  const normalized = email.trim().toLowerCase();
-
-  if (normalized.includes("admin")) return "admin";
-  if (normalized.includes("manager") || normalized.includes("ruk")) return "manager";
-  if (normalized.includes("client")) return "client";
-  return "employee";
 };

@@ -7,6 +7,8 @@ export type TelegramBotClient = {
   sendMessage: (payload: { chatId?: string; text: string }) => Promise<boolean>;
   sendLoginCode: (payload: { recipient?: string; code: string }) => Promise<boolean>;
   sendTrainingReminder: (payload: { mode: "exam" | "chat_test"; topic: string }) => Promise<boolean>;
+  sendExamResult: (payload: { chatId?: string; score: number; topic: string; passed: boolean }) => Promise<boolean>;
+  sendDailyReminder: (payload: { chatId?: string }) => Promise<boolean>;
 };
 
 type FetchLike = typeof fetch;
@@ -57,6 +59,19 @@ export const createTelegramBotClient = (
     sendTrainingReminder: ({ mode, topic }) =>
       sendMessage({
         text: `Напоминание HUNTERLITE: перед вами ${modeLabel(mode)} по теме «${topic}». Убедитесь, что вы готовы и микрофон работает.`,
+      }),
+    sendExamResult: ({ chatId, score, topic, passed }) => {
+      const status = passed ? "Экзамен сдан!" : "Экзамен не сдан.";
+      const emoji = passed ? "🎉" : "😔";
+      return sendMessage({
+        chatId,
+        text: `${emoji} ${status}\n\nТема: ${topic}\nРезультат: ${score}/100\nПроходной балл: 88\n\n${passed ? "Поздравляем!" : "Попробуйте ещё раз после дополнительной подготовки."}`,
+      });
+    },
+    sendDailyReminder: ({ chatId }) =>
+      sendMessage({
+        chatId,
+        text: "🌅 Доброе утро! Не забудьте пройти тренировку сегодня на HUNTERLITE.",
       }),
   };
 };

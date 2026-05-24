@@ -19,21 +19,37 @@ import {
   selectRecordingMimeType,
   type BrowserSpeechRecognition,
 } from "@/lib/voice-mode";
-import { Mic, Send, X, Sparkles, Bot, User, Clock, Target, ChevronUp, Loader2, Volume2, VolumeX } from "lucide-react";
+import { Mic, Send, X, Bot, User, Clock, Target, ChevronUp, Loader2, Volume2, VolumeX } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useQuery } from "@tanstack/react-query";
-import type { AiTrainingReplyRequestDto, CallScriptDto } from "@/lib/api-contracts";
+import type { AiClientCharacterDto, AiTrainingReplyRequestDto, CallScriptDto, TrainingDifficultyDto } from "@/lib/api-contracts";
 
 type Props = { mode: "talk" | "exam" | "chat-test" };
 type Msg = { from: "ai" | "user"; text: string; isSystem?: boolean };
 const DEFAULT_SCRIPT_TOPIC = "Имущество должника";
 const MIN_CONVERSATION_STEPS = 5;
 const maxRecordingMs = 12_000;
-const unsupportedMicMessage = "Этот браузер не даёт доступ к микрофону. Откройте платформу в Chrome или Safari по адресу 127.0.0.1:8080.";
+const unsupportedMicMessage = "Микрофон недоступен. Убедитесь, что вы используете Chrome или Safari, и разрешите доступ к микрофону в настройках браузера (значок 🔒 слева от адресной строки).";
+
+const DIFFICULTY_LABELS: Record<string, string> = {
+  basic: "Базовый",
+  medium: "Средний",
+  hard: "Сложный",
+};
+
+const CHARACTER_LABELS: Record<string, string> = {
+  anxious: "Тревожный",
+  aggressive: "Агрессивный",
+  skeptical: "Скептичный",
+  distrustful: "Недоверчивый",
+  rushed: "Торопливый",
+};
 
 type SessionInfoPanelProps = {
   mode: Props["mode"];
   topic: string;
+  difficulty: string;
+  character: string;
   step: number;
   total: number;
   score: number;
@@ -70,6 +86,8 @@ export default function SessionChat({ mode }: Props) {
   const sessionIdParam = params.get("sessionId");
   const scriptId = params.get("scriptId");
   const topic = params.get("topic") ?? (mode === "chat-test" ? "Условия банкротства" : "Имущество должника");
+  const difficulty = (params.get("difficulty") as TrainingDifficultyDto) || "medium";
+  const character = (params.get("character") as AiClientCharacterDto) || "anxious";
   const { data: fetchedScripts = [], isLoading } = useQuery({
     queryKey: ["employee", "callScripts"],
     queryFn: () => frontendApi.getTrainingCallScripts(),
@@ -113,12 +131,15 @@ export default function SessionChat({ mode }: Props) {
   const browserSpeechTimeoutRef = useRef<number | null>(null);
   const speakRef = useRef<(text: string) => void>(() => undefined);
   const sendRef = useRef<(text?: string) => void>(() => undefined);
+  const isSendingRef = useRef(false);
+  const voiceModeRef = useRef(voiceMode);
   const autoListenRef = useRef(autoListen);
   const inputRef = useRef(input);
   const skipNextTranscriptionRef = useRef(false);
 
   const total = Math.max(nodes.length, MIN_CONVERSATION_STEPS);
 
+  voiceModeRef.current = voiceMode;
   autoListenRef.current = autoListen;
   inputRef.current = input;
 
@@ -152,9 +173,9 @@ export default function SessionChat({ mode }: Props) {
         const createSession = (sessionTopic: string) => frontendApi.createTrainingSession({
           topic: sessionTopic,
           mode: mode === "exam" ? "exam" : mode === "chat-test" ? "chat_test" : "talk",
-          difficulty: "medium",
+          difficulty,
           format: "text",
-          character: "anxious",
+          character,
         });
 
         try {
@@ -211,6 +232,13 @@ export default function SessionChat({ mode }: Props) {
     const id = setInterval(() => setSecs((s) => Math.max(0, s - 1)), 1000);
     return () => clearInterval(id);
   }, [mode]);
+
+  useEffect(() => {
+    if (mode === "exam" && secs === 0 && !sessionEnded) {
+      setSessionEnded(true);
+      void finish();
+    }
+  }, [mode, secs, sessionEnded]);
 
   useEffect(() => {
     const supported = isVoiceRecordingSupported(window.navigator?.mediaDevices, window.MediaRecorder);
@@ -326,7 +354,7 @@ export default function SessionChat({ mode }: Props) {
   };
 
   const speak = async (text: string) => {
-    if (!voiceMode || typeof window === "undefined") return;
+    if (!voiceModeRef.current || typeof window === "undefined") return;
 
     const finishSpeech = () => {
       setSpeaking(false);
@@ -409,10 +437,14 @@ export default function SessionChat({ mode }: Props) {
       const next = !enabled;
       if (!next) {
         audioRef.current?.pause();
+        window.speechSynthesis?.cancel();
         setSpeaking(false);
         setAutoListen(false);
         autoListenRef.current = false;
+        voiceModeRef.current = false;
         recorderRef.current?.stop();
+      } else {
+        voiceModeRef.current = true;
       }
       setVoiceStatus(next ? "Озвучка включена." : "Озвучка отключена.");
       return next;
@@ -538,9 +570,10 @@ export default function SessionChat({ mode }: Props) {
   };
 
   const send = async (overrideText?: string) => {
-    if (sessionEnded) return;
+    if (sessionEnded || isSendingRef.current) return;
+    isSendingRef.current = true;
     const text = overrideText || input.trim();
-    if (!text) return;
+    if (!text) { isSendingRef.current = false; return; }
     if (recording) {
       skipNextTranscriptionRef.current = true;
       speechRecognitionRef.current?.abort();
@@ -566,6 +599,8 @@ export default function SessionChat({ mode }: Props) {
         sessionId: sessionForPersistence,
         topic,
         mode: mode === "chat-test" ? "chat_test" : mode,
+        difficulty,
+        character,
         step,
         totalSteps: total,
         userMessage: text,
@@ -612,6 +647,8 @@ export default function SessionChat({ mode }: Props) {
         sessionId: sessionForPersistence,
         topic,
         mode: mode === "chat-test" ? "chat_test" : mode,
+        difficulty,
+        character,
         step,
         totalSteps: total,
         userMessage: text,
@@ -638,6 +675,7 @@ export default function SessionChat({ mode }: Props) {
       void speak(fallback.reply);
     } finally {
       setAiTyping(false);
+      isSendingRef.current = false;
     }
   };
 
@@ -647,10 +685,11 @@ export default function SessionChat({ mode }: Props) {
 
   const finish = async () => {
     const resultSessionId = activeSessionId && activeSessionId !== "demo-session" ? activeSessionId : undefined;
+    const userMessageCount = messages.filter((m) => m.from === "user").length;
     const result = calculateTrainingResult({
       score,
       mistakes: sessionMistakes,
-      answeredSteps: step + 1,
+      answeredSteps: userMessageCount,
       totalSteps: total,
     });
 
@@ -845,7 +884,7 @@ export default function SessionChat({ mode }: Props) {
 
       {/* Right panel desktop */}
       <aside className="hidden lg:flex w-[340px] shrink-0 flex-col bg-card overflow-y-auto">
-        <SessionInfoPanel mode={mode} topic={topic} step={step} total={total} score={score} secs={secs} fmt={fmt} />
+        <SessionInfoPanel mode={mode} topic={topic} difficulty={difficulty} character={character} step={step} total={total} score={score} secs={secs} fmt={fmt} />
       </aside>
 
       {/* Mobile drawer */}
@@ -853,7 +892,7 @@ export default function SessionChat({ mode }: Props) {
         <div className="lg:hidden fixed inset-0 z-50 bg-background/80 backdrop-blur" onClick={() => setPanelOpen(false)}>
           <div className="absolute bottom-0 inset-x-0 max-h-[80vh] overflow-y-auto bg-card rounded-t-2xl border-t border-border shadow-elevated" onClick={(e) => e.stopPropagation()}>
             <div className="p-3 flex justify-center"><div className="h-1 w-10 rounded-full bg-muted" /></div>
-            <SessionInfoPanel mode={mode} topic={topic} step={step} total={total} score={score} secs={secs} fmt={fmt} />
+            <SessionInfoPanel mode={mode} topic={topic} difficulty={difficulty} character={character} step={step} total={total} score={score} secs={secs} fmt={fmt} />
           </div>
         </div>
       )}
@@ -900,13 +939,15 @@ function Avatar({ from }: { from: "ai" | "user" }) {
   );
 }
 
-function SessionInfoPanel({ mode, topic, step, total, score, secs, fmt }: SessionInfoPanelProps) {
+function SessionInfoPanel({ mode, topic, difficulty, character, step, total, score, secs, fmt }: SessionInfoPanelProps) {
   return (
     <div className="p-5 space-y-5">
       <div>
         <div className="text-[11px] uppercase tracking-wider font-semibold text-muted-foreground">Тема</div>
         <div className="font-semibold text-primary mt-1">{topic}</div>
-        <div className="text-xs text-muted-foreground mt-0.5">Уровень: средний</div>
+        <div className="text-xs text-muted-foreground mt-0.5">
+          Уровень: {DIFFICULTY_LABELS[difficulty] ?? difficulty} · Клиент: {CHARACTER_LABELS[character] ?? character}
+        </div>
       </div>
 
       {mode === "exam" && (
@@ -934,36 +975,11 @@ function SessionInfoPanel({ mode, topic, step, total, score, secs, fmt }: Sessio
           <span className="text-pixel-number text-3xl">{score}</span>
           <span className="text-pixel-inline-muted text-sm">/100</span>
         </div>
-        <div className="mt-3 space-y-1.5">
-          {[
-            { l: "Правильность", v: 88 },
-            { l: "Полнота", v: 72 },
-            { l: "Понятность", v: 84 },
-            { l: "Тон", v: 90 },
-            { l: "Безопасность", v: 70 },
-          ].map((s) => (
-            <div key={s.l}>
-              <div className="flex justify-between text-[11px] text-muted-foreground">
-                <span>{s.l}</span><span>{s.v}</span>
-              </div>
-              <Progress value={s.v} className="h-1" />
-            </div>
-          ))}
-        </div>
-      </Card>
-
-      <div>
-        <div className="text-[11px] uppercase tracking-wider font-semibold text-muted-foreground mb-2">Статус ИИ-клиента</div>
-        <StatusBadge variant="warning" dot>Тревожный · сомневается</StatusBadge>
-      </div>
-
-      <Card className="p-3 bg-ai-soft border-ai/20">
-        <div className="flex gap-2">
-          <Sparkles className="h-4 w-4 text-ai-soft-foreground shrink-0 mt-0.5" />
-          <div className="text-xs text-ai-soft-foreground">
-            <span className="font-semibold">ИИ:</span> оценивает ответ через внешний API.
+        {mode === "exam" && (
+          <div className="mt-3 text-xs text-muted-foreground">
+            Проходной порог: <span className="font-semibold">88</span>
           </div>
-        </div>
+        )}
       </Card>
     </div>
   );

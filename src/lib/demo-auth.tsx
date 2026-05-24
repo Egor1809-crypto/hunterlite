@@ -1,58 +1,52 @@
 import * as React from "react";
 import {
-  getDemoRole,
-  getDemoUser,
-  inferRoleFromEmail,
-  setDemoRole,
+  clearAuth,
+  getRole,
+  isAuthenticated,
+  setRole as storeRole,
   type AppRole,
-  type DemoUser,
 } from "@/lib/demo-auth-state";
 
-type DemoAuthContextValue = {
-  user: DemoUser;
+type AuthContextValue = {
+  role: AppRole;
+  authenticated: boolean;
   setRole: (role: AppRole) => void;
-  loginWithEmail: (email: string) => DemoUser;
   logout: () => void;
 };
 
-const DemoAuthContext = React.createContext<DemoAuthContextValue | null>(null);
+const AuthContext = React.createContext<AuthContextValue | null>(null);
 
 export function DemoAuthProvider({ children }: { children: React.ReactNode }) {
-  const [role, setRoleState] = React.useState<AppRole>(() => getDemoRole());
+  const [role, setRoleState] = React.useState<AppRole>(() => getRole());
+  const [authed, setAuthed] = React.useState(() => isAuthenticated());
 
   const setRole = React.useCallback((nextRole: AppRole) => {
-    setDemoRole(nextRole);
+    storeRole(nextRole);
     setRoleState(nextRole);
+    setAuthed(true);
   }, []);
 
-  const loginWithEmail = React.useCallback(
-    (email: string) => {
-      const nextRole = inferRoleFromEmail(email);
-      setRole(nextRole);
-      return getDemoUser(nextRole);
-    },
-    [setRole],
-  );
-
   const logout = React.useCallback(() => {
-    setRole("employee");
-  }, [setRole]);
+    clearAuth();
+    setRoleState("employee");
+    setAuthed(false);
+  }, []);
 
-  const value = React.useMemo<DemoAuthContextValue>(
+  const value = React.useMemo<AuthContextValue>(
     () => ({
-      user: getDemoUser(role),
+      role,
+      authenticated: authed,
       setRole,
-      loginWithEmail,
       logout,
     }),
-    [loginWithEmail, logout, role, setRole],
+    [authed, logout, role, setRole],
   );
 
-  return <DemoAuthContext.Provider value={value}>{children}</DemoAuthContext.Provider>;
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
 export const useDemoAuth = () => {
-  const context = React.useContext(DemoAuthContext);
+  const context = React.useContext(AuthContext);
 
   if (!context) {
     throw new Error("useDemoAuth must be used within DemoAuthProvider");

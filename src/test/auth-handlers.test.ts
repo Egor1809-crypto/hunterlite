@@ -12,7 +12,7 @@ import {
 
 describe("auth handlers", () => {
   it("logs in by email and creates a demo session payload", async () => {
-    const auth = createAuthHandlers();
+    const auth = createAuthHandlers(undefined, { allowDemoFallback: true });
 
     await expect(auth.login({ email: "manager@hunterlite.ru", password: "secret" })).resolves.toEqual({
       ok: true,
@@ -44,7 +44,7 @@ describe("auth handlers", () => {
       session: async () => null,
       requestPasswordReset: async (email) => (email === "manager@hunterlite.ru" ? { token: "dev-token" } : null),
       completePasswordReset: async ({ token }) => token === "dev-token",
-    });
+    }, { allowDemoFallback: true });
 
     await expect(auth.requestPasswordReset({ email: "manager@hunterlite.ru" })).resolves.toEqual({
       ok: true,
@@ -60,23 +60,14 @@ describe("auth handlers", () => {
     });
   });
 
-  it("requests and verifies Telegram SMS codes in demo mode", async () => {
-    const auth = createAuthHandlers();
+  it("rejects Telegram login without a configured auth source", async () => {
+    const auth = createAuthHandlers(undefined, { allowDemoFallback: true });
 
     await expect(auth.requestTelegramCode({ phone: "+7 900 000-00-00" })).resolves.toEqual({
       ok: true,
-      data: {
+      data: expect.objectContaining({
         sent: true,
         channel: "telegram",
-        devCode: "1809",
-      },
-    });
-    await expect(auth.loginWithTelegramCode({ phone: "+7 900 000-00-00", code: "1809" })).resolves.toEqual({
-      ok: true,
-      sessionCookie: expect.stringContaining("hunterlite_session=demo:employee"),
-      data: expect.objectContaining({
-        homePath: "/dashboard",
-        user: expect.objectContaining({ role: "employee" }),
       }),
     });
     await expect(auth.loginWithTelegramCode({ phone: "+7 900 000-00-00", code: "0000" })).resolves.toEqual({
@@ -118,11 +109,10 @@ describe("auth handlers", () => {
 
     await expect(auth.requestTelegramCode({ phone: "+7 900 000-00-00" })).resolves.toEqual({
       ok: true,
-      data: {
+      data: expect.objectContaining({
         sent: true,
         channel: "telegram",
-        devCode: "654321",
-      },
+      }),
     });
     await expect(auth.loginWithTelegramCode({ phone: "+7 900 000-00-00", code: "654321" })).resolves.toEqual(
       expect.objectContaining({
@@ -132,12 +122,12 @@ describe("auth handlers", () => {
     );
   });
 
-  it("resolves Telegram auth HTTP routes with session and CSRF cookies", async () => {
+  it("resolves Telegram auth HTTP routes", async () => {
     await expect(resolveApiRequest({
       method: "POST",
       url: "/api/auth/telegram/request-code",
       body: { phone: "+7 900 000-00-00" },
-    })).resolves.toEqual(
+    }, { authDemoFallback: true })).resolves.toEqual(
       expect.objectContaining({
         status: 200,
         body: expect.objectContaining({
@@ -150,16 +140,10 @@ describe("auth handlers", () => {
     const login = await resolveApiRequest({
       method: "POST",
       url: "/api/auth/telegram/login",
-      body: { phone: "+7 900 000-00-00", code: "1809" },
-    });
+      body: { phone: "+7 900 000-00-00", code: "wrong" },
+    }, { authDemoFallback: true });
 
-    expect(login.status).toBe(200);
-    expect(login.headers?.["Set-Cookie"]).toEqual(
-      expect.arrayContaining([
-        expect.stringContaining("hunterlite_session=demo:employee"),
-        expect.stringContaining("hunterlite_csrf="),
-      ]),
-    );
+    expect(login.status).toBe(401);
   });
 
   it("can disable demo auth fallback for strict environments", async () => {
@@ -198,7 +182,7 @@ describe("auth handlers", () => {
       method: "POST",
       url: "/api/auth/login",
       body: { email: "admin@hunterlite.ru" },
-    });
+    }, { authDemoFallback: true });
 
     expect(login.status).toBe(200);
     expect(login.headers?.["Set-Cookie"]).toEqual(
@@ -221,7 +205,7 @@ describe("auth handlers", () => {
         method: "GET",
         url: "/api/auth/session",
         cookie: "hunterlite_session=demo:admin",
-      }),
+      }, { authDemoFallback: true }),
     ).resolves.toEqual(
       expect.objectContaining({
         status: 200,
@@ -239,7 +223,7 @@ describe("auth handlers", () => {
       url: "/api/auth/logout",
       cookie: sessionCookie,
       csrfToken: csrfCookie?.split(";")[0].slice("hunterlite_csrf=".length),
-    });
+    }, { authDemoFallback: true });
     expect(logout.headers?.["Set-Cookie"]).toEqual(
       expect.arrayContaining([
         expect.stringContaining("hunterlite_session=;"),

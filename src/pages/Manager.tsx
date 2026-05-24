@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,17 +8,21 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { IconBadge } from "@/components/IconBadge";
 import { ApiState } from "@/components/ApiState";
-import { frontendApi, frontendFallbacks, useApiData } from "@/lib/frontend-api";
+import { frontendApi } from "@/lib/frontend-api";
 import { Users, CheckCircle2, XCircle, TrendingUp, GraduationCap, AlertTriangle, Search, Download, ChevronDown } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts";
 
 export default function Manager() {
-  const { data: manager, isFetching, isError } = useApiData({
+  const { data: manager, isFetching, isError, isLoading } = useQuery({
     queryKey: ["manager-summary"],
-    request: frontendApi.managerSummary,
-    fallback: frontendFallbacks.managerSummary,
+    queryFn: frontendApi.managerSummary,
   });
+
+  if (isLoading || !manager) {
+    return <div className="flex min-h-[50vh] items-center justify-center text-sm text-muted-foreground">Загрузка...</div>;
+  }
+
   const { employees, kpi, scoreTrend, topWeakTopics } = manager;
 
   return (
@@ -102,6 +107,9 @@ export default function Manager() {
         <Card className="p-5 shadow-card">
           <h3 className="font-display font-bold text-primary mb-4">Топ-5 слабых тем</h3>
           <div className="space-y-3">
+            {topWeakTopics.length === 0 && (
+              <div className="text-sm text-muted-foreground">Нет данных</div>
+            )}
             {topWeakTopics.map((x) => (
               <div key={x.topic}>
                 <div className="flex justify-between text-xs mb-1">
@@ -120,9 +128,8 @@ export default function Manager() {
           <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
           <Input placeholder="Поиск сотрудника…" className="pl-9" />
         </div>
-        {["Все периоды", "Все темы", "Любая сложность", "Все статусы"].map((f) => (
-          <SelectBox key={f} options={[f]} />
-        ))}
+        <SelectBox options={["За месяц", "За неделю", "За квартал", "За всё время"]} />
+        <SelectBox options={["Все статусы", "Допущен", "Не допущен", "Требуется курс"]} />
       </Card>
 
       {/* Employees */}

@@ -13,6 +13,7 @@ import { DemoAuthProvider } from "@/lib/demo-auth";
 const queryClient = new QueryClient();
 
 const Login = lazy(() => import("./pages/Login"));
+const Register = lazy(() => import("./pages/Register"));
 const Consent = lazy(() => import("./pages/Consent"));
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const Modes = lazy(() => import("./pages/Modes"));
@@ -23,6 +24,7 @@ const ArenaTraining = lazy(() => import("./pages/ArenaTraining"));
 const AnswerReview = lazy(() => import("./pages/AnswerReview"));
 const SessionResult = lazy(() => import("./pages/SessionResult"));
 const RemedialCourse = lazy(() => import("./pages/RemedialCourse"));
+const Courses = lazy(() => import("./pages/Courses"));
 const History = lazy(() => import("./pages/History"));
 const WeakTopics = lazy(() => import("./pages/WeakTopics"));
 const Notifications = lazy(() => import("./pages/Notifications"));
@@ -62,13 +64,13 @@ const App = () => (
               <Routes>
                 <Route path="/" element={<Navigate to="/login" replace />} />
                 <Route path="/login" element={<Login />} />
+                <Route path="/register" element={<Register />} />
                 <Route path="/consent" element={<Consent />} />
 
                 {/* Full-screen session screens (no sidebar) */}
                 <Route element={<ProtectedRoute />}>
                   <Route path="/session/talk" element={<SessionChat mode="talk" />} />
                   <Route path="/session/exam" element={<SessionChat mode="exam" />} />
-                  <Route path="/session/chat-test" element={<SessionChat mode="chat-test" />} />
                   <Route path="/session/cases" element={<CaseTraining />} />
                   <Route path="/session/arena" element={<ArenaTraining />} />
                 </Route>
@@ -84,6 +86,7 @@ const App = () => (
                     <Route path="/dashboard" element={<Dashboard />} />
                     <Route path="/modes" element={<Modes />} />
                     <Route path="/session/setup" element={<SessionSetup />} />
+                    <Route path="/courses" element={<Courses />} />
                     <Route path="/session/answer-review" element={<AnswerReview />} />
                     <Route path="/session/result" element={<SessionResult />} />
                     <Route path="/remedial-course" element={<RemedialCourse />} />

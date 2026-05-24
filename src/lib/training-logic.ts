@@ -98,11 +98,28 @@ export const calculateTrainingResult = ({
   answeredSteps = 0,
   totalSteps = 0,
 }: TrainingScoringInput): TrainingResult => {
-  const normalizedScore = clampScore(score);
   const cleanMistakes = mistakes.filter((mistake) => mistake.trim().length > 0);
   const cleanRecommendations = recommendations.filter((recommendation) => recommendation.trim().length > 0);
-  const completionPenalty =
-    totalSteps > 0 ? Math.max(0, Math.round(((totalSteps - answeredSteps) / totalSteps) * 14)) : 0;
+
+  if (answeredSteps <= 0) {
+    return {
+      score: 0,
+      passed: false,
+      criteria: trainingEvaluationCriteria.map((criterion) => ({
+        criterion,
+        score: 0,
+        comment: "Сотрудник не дал ни одного ответа.",
+      })),
+      mistakes: ["Диалог завершён без единого ответа."],
+      recommendations: ["Пройдите тренировку полностью, отвечая на вопросы клиента."],
+    };
+  }
+
+  const normalizedScore = clampScore(score);
+  const completionRatio = totalSteps > 0 ? Math.min(1, answeredSteps / totalSteps) : 1;
+  const globalCompletionPenalty = Math.round((1 - completionRatio) * 60);
+
+  const baseScore = clampScore(normalizedScore - globalCompletionPenalty);
 
   const legalIssues = countByKeywords(cleanMistakes, ["закон", "срок", "суд", "имуще", "долг", "ипотек", "спис"]);
   const structureIssues = countByKeywords(cleanMistakes, ["структур", "шаг", "логик", "непол", "пропущ"]);
@@ -110,31 +127,33 @@ export const calculateTrainingResult = ({
   const empathyIssues = countByKeywords(cleanMistakes, ["эмпат", "тон", "груб", "давлен", "тревог"]);
   const objectionIssues = countByKeywords(cleanMistakes, ["возраж", "сомнен", "дорог", "подума", "недовер"]);
 
+  const incompleteComment = completionRatio < 1 ? " Диалог не завершён — балл снижен." : "";
+
   const criteria: EvaluationScore[] = [
     {
       criterion: "legal_accuracy",
-      score: clampScore(normalizedScore - legalIssues * 9),
-      comment: legalIssues ? "Есть юридические неточности или неполные пояснения." : "Юридическая логика выдержана.",
+      score: clampScore(baseScore - legalIssues * 9),
+      comment: legalIssues ? "Есть юридические неточности или неполные пояснения." + incompleteComment : completionRatio < 0.5 ? "Недостаточно ответов для оценки юридической точности." : "Юридическая логика выдержана.",
     },
     {
       criterion: "answer_structure",
-      score: clampScore(normalizedScore - structureIssues * 7 - completionPenalty),
-      comment: structureIssues || completionPenalty ? "Ответ нужно вести по более полной последовательности шагов." : "Ответ структурирован и понятен клиенту.",
+      score: clampScore(baseScore - structureIssues * 7),
+      comment: structureIssues || completionRatio < 1 ? "Ответ нужно вести по более полной последовательности шагов." + incompleteComment : "Ответ структурирован и понятен клиенту.",
     },
     {
       criterion: "safe_wording",
-      score: clampScore(normalizedScore - safeWordingIssues * 12),
-      comment: safeWordingIssues ? "Есть рискованные обещания, их нужно заменить безопасными формулировками." : "Формулировки юридически безопасны.",
+      score: clampScore(baseScore - safeWordingIssues * 12),
+      comment: safeWordingIssues ? "Есть рискованные обещания, их нужно заменить безопасными формулировками." : completionRatio < 0.5 ? "Недостаточно ответов для оценки формулировок." : "Формулировки юридически безопасны.",
     },
     {
       criterion: "empathy",
-      score: clampScore(normalizedScore - empathyIssues * 8),
-      comment: empathyIssues ? "Нужно мягче отработать тревогу клиента и подтвердить понимание ситуации." : "Тон консультации спокойный и поддерживающий.",
+      score: clampScore(baseScore - empathyIssues * 8),
+      comment: empathyIssues ? "Нужно мягче отработать тревогу клиента и подтвердить понимание ситуации." : completionRatio < 0.5 ? "Недостаточно ответов для оценки эмпатии." : "Тон консультации спокойный и поддерживающий.",
     },
     {
       criterion: "objection_handling",
-      score: clampScore(normalizedScore - objectionIssues * 8),
-      comment: objectionIssues ? "Возражение клиента раскрыто не полностью." : "Возражения обработаны без давления.",
+      score: clampScore(baseScore - objectionIssues * 8),
+      comment: objectionIssues ? "Возражение клиента раскрыто не полностью." : completionRatio < 0.5 ? "Недостаточно ответов для оценки работы с возражениями." : "Возражения обработаны без давления.",
     },
   ];
 

@@ -61,6 +61,9 @@ export type AuthPrismaClient = {
       where: { id: string };
       data: { passwordHash?: string; failedLoginAttempts?: number; lockedUntil?: Date | null };
     }) => Promise<unknown>;
+    create: (args: {
+      data: { userId: string; provider: "password"; providerUserId: string; passwordHash: string; failedLoginAttempts: 0; lockedUntil: null };
+    }) => Promise<{ id: string }>;
   };
   passwordResetToken: {
     create: (args: { data: { userId: string; tokenHash: string; expiresAt: Date } }) => Promise<{ id: string }>;
@@ -84,6 +87,20 @@ export type AuthPrismaClient = {
       include: { memberships: true };
       orderBy?: { createdAt: "asc" | "desc" };
     }) => Promise<UserRecord | null>;
+    create: (args: {
+      data: { email: string; fullName: string; status: "active" };
+    }) => Promise<UserRecord>;
+  };
+  membership?: {
+    create: (args: {
+      data: { organizationId: string; userId: string; role: "employee"; status: "active" };
+    }) => Promise<{ id: string }>;
+  };
+  organization?: {
+    findFirst: (args: {
+      where: { status: "active" };
+      orderBy: { createdAt: "asc" };
+    }) => Promise<{ id: string } | null>;
   };
 };
 
@@ -94,6 +111,8 @@ export type AuthLockoutOptions = {
   telegramCodeMs?: number;
   telegramLoginEmail?: string;
   sendTelegramCode?: (payload: { recipient: string; code: string }) => MaybePromise<boolean>;
+  resolveTelegramChatId?: (phone: string) => number | undefined | Promise<number | undefined>;
+  resolveTelegramUserName?: (phone: string) => string | undefined | Promise<string | undefined>;
   now?: () => Date;
 };
 
@@ -152,6 +171,8 @@ export const createAuthPrismaDataSource = (
     telegramCodeMs = 5 * 60 * 1000,
     telegramLoginEmail,
     sendTelegramCode,
+    resolveTelegramChatId,
+    resolveTelegramUserName,
     now = () => new Date(),
   }: AuthLockoutOptions = {},
 ): AuthDataSource => {
@@ -321,9 +342,16 @@ export const createAuthPrismaDataSource = (
       expiresAt: new Date(now().getTime() + telegramCodeMs),
     });
 
-    await sendTelegramCode?.({ recipient: phone, code });
+    const isNumericChatId = /^\d{5,}$/.test(phone) && !phone.includes("+");
+    const resolvedChatId = isNumericChatId ? undefined : await resolveTelegramChatId?.(phone);
+    const chatId = isNumericChatId ? phone : resolvedChatId?.toString();
 
-    return { code };
+    if (chatId && sendTelegramCode) {
+      const sent = await sendTelegramCode({ recipient: chatId, code });
+      if (sent) return { code: undefined, sent: true };
+    }
+
+    return { code, sent: false };
   },
 
   loginWithTelegramCode: async ({ phone, code }) => {
@@ -338,23 +366,41 @@ export const createAuthPrismaDataSource = (
     if (record.codeHash !== hashTelegramCode(phone, code)) return null;
     telegramCodes.delete(phone);
 
-    const user = telegramLoginEmail
-      ? await prisma.user?.findFirst({
-          where: { email: telegramLoginEmail.trim().toLowerCase() },
-          include: { memberships: true },
-        })
-      : await prisma.user?.findFirst({
-          where: {
-            memberships: {
-              some: {
-                role: "employee",
-                status: "active",
-              },
-            },
-          },
-          include: { memberships: true },
+    let user: UserRecord | null = null;
+
+    if (telegramLoginEmail) {
+      user = await prisma.user?.findFirst({
+        where: { email: telegramLoginEmail.trim().toLowerCase() },
+        include: { memberships: true },
+      }) ?? null;
+    } else {
+      const tgEmail = `tg-${phone.replace(/\D/g, "")}@hunterlite.tg`;
+      user = await prisma.user?.findFirst({
+        where: { email: tgEmail },
+        include: { memberships: true },
+      }) ?? null;
+
+      if (!user && prisma.user && prisma.organization && prisma.membership) {
+        const tgName = await resolveTelegramUserName?.(phone) || "Пользователь";
+        const org = await prisma.organization.findFirst({
+          where: { status: "active" },
           orderBy: { createdAt: "asc" },
         });
+        if (org) {
+          const created = await prisma.user.create({
+            data: { email: tgEmail, fullName: tgName, status: "active" },
+          });
+          await prisma.membership.create({
+            data: { organizationId: org.id, userId: created.id, role: "employee", status: "active" },
+          });
+          user = await prisma.user.findFirst({
+            where: { email: tgEmail },
+            include: { memberships: true },
+          }) ?? null;
+        }
+      }
+    }
+
     const session = user ? userToSession(user) : null;
 
     if (!user || !session) return null;
@@ -363,6 +409,84 @@ export const createAuthPrismaDataSource = (
       data: {
         userId: user.id,
         expiresAt: new Date(currentTime.getTime() + 7 * 24 * 60 * 60 * 1000),
+      },
+    });
+
+    return {
+      sessionId: createdSession.id,
+      session,
+    };
+  },
+
+  register: async ({ email, password, fullName }: { email: string; password: string; fullName: string }) => {
+    const normalizedEmail = email.trim().toLowerCase();
+
+    const existingAccount = await prisma.authAccount.findFirst({
+      where: {
+        provider: "password",
+        providerUserId: normalizedEmail,
+      },
+      include: {
+        user: {
+          include: {
+            memberships: true,
+          },
+        },
+      },
+    });
+
+    if (existingAccount) return null;
+
+    const org = await prisma.organization?.findFirst({
+      where: { status: "active" },
+      orderBy: { createdAt: "asc" },
+    });
+
+    if (!org) return null;
+
+    const user = await prisma.user?.create({
+      data: {
+        email: normalizedEmail,
+        fullName,
+        status: "active",
+      },
+    });
+
+    if (!user) return null;
+
+    await prisma.membership?.create({
+      data: {
+        organizationId: org.id,
+        userId: user.id,
+        role: "employee",
+        status: "active",
+      },
+    });
+
+    const hashedPassword = await hashPassword(password);
+    await prisma.authAccount.create({
+      data: {
+        userId: user.id,
+        provider: "password",
+        providerUserId: normalizedEmail,
+        passwordHash: hashedPassword,
+        failedLoginAttempts: 0,
+        lockedUntil: null,
+      },
+    });
+
+    const userWithMemberships = await prisma.user?.findFirst({
+      where: { email: normalizedEmail },
+      include: { memberships: true },
+    });
+
+    const session = userWithMemberships ? userToSession(userWithMemberships) : null;
+    if (!session) return null;
+
+    const createdSession = await prisma.session.create({
+      data: {
+        userId: user.id,
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
       },
     });
 

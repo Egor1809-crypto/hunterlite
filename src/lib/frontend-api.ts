@@ -1,4 +1,3 @@
-import { useQuery, type QueryKey } from "@tanstack/react-query";
 import type {
   CurrentUserDto,
   DashboardSummaryDto,
@@ -20,6 +19,7 @@ import type {
   TrainingSessionDetailDto,
   WeakTopicDto,
   AuthLoginRequestDto,
+  AuthRegisterRequestDto,
   AuthPasswordResetCompleteDto,
   AuthPasswordResetCompletedDto,
   AuthPasswordResetRequestDto,
@@ -49,23 +49,9 @@ import type {
   CallScriptUpdateRequestDto,
 } from "@/lib/api-contracts";
 import { apiGet, apiPost } from "@/lib/api-client";
-import type { AppRole } from "@/lib/demo-auth-state";
-import {
-  getCurrentUser,
-  getDashboardSummary,
-  getEmployeeProfile,
-  getManagerSummary,
-  getManagerReports,
-  getNotifications,
-  getProfileSummary,
-  getSessionOptions,
-  getTrainingHistory,
-  getWeakTopics,
-} from "@/lib/demo-api";
-
-const roleQuery = (role?: AppRole) => (role ? `?role=${encodeURIComponent(role)}` : "");
 
 export const frontendApi = {
+  register: (payload: AuthRegisterRequestDto) => apiPost<AuthSessionDto, AuthRegisterRequestDto>("/auth/register", payload),
   login: (payload: AuthLoginRequestDto) => apiPost<AuthSessionDto, AuthLoginRequestDto>("/auth/login", payload),
   requestTelegramCode: (payload: AuthTelegramCodeRequestDto) =>
     apiPost<AuthTelegramCodeRequestedDto, AuthTelegramCodeRequestDto>("/auth/telegram/request-code", payload),
@@ -77,9 +63,9 @@ export const frontendApi = {
     apiPost<AuthPasswordResetCompletedDto, AuthPasswordResetCompleteDto>("/auth/password-reset/complete", payload),
   logout: () => apiPost<{ loggedOut: true }>("/auth/logout"),
   session: () => apiGet<AuthSessionDto>("/auth/session"),
-  currentUser: (role?: AppRole) => apiGet<CurrentUserDto>(`/users/me${roleQuery(role)}`),
-  profile: (role?: AppRole) => apiGet<ProfileSummaryDto>(`/users/profile${roleQuery(role)}`),
-  dashboard: (role?: AppRole) => apiGet<DashboardSummaryDto>(`/analytics/dashboard${roleQuery(role)}`),
+  currentUser: () => apiGet<CurrentUserDto>("/users/me"),
+  profile: () => apiGet<ProfileSummaryDto>("/users/profile"),
+  dashboard: () => apiGet<DashboardSummaryDto>("/analytics/dashboard"),
   notifications: () => apiGet<NotificationDto[]>("/notifications"),
   weakTopics: () => apiGet<WeakTopicDto[]>("/trainings/weak-topics"),
   trainingHistory: () => apiGet<TrainingHistoryItemDto[]>("/trainings/history"),
@@ -135,46 +121,4 @@ export const frontendApi = {
     apiPost<CallScriptDto, CallScriptUpdateRequestDto>(`/admin/call-scripts/${encodeURIComponent(id)}`, payload),
   deleteCallScript: (id: string) =>
     apiPost<CallScriptDeletedDto>(`/admin/call-scripts/${encodeURIComponent(id)}/delete`),
-};
-
-export async function withDemoFallback<TData>(
-  request: () => Promise<TData>,
-  fallback: () => TData,
-): Promise<TData> {
-  try {
-    return await request();
-  } catch {
-    return fallback();
-  }
-}
-
-export function useApiData<TData>({
-  queryKey,
-  request,
-  fallback,
-}: {
-  queryKey: QueryKey;
-  request: () => Promise<TData>;
-  fallback: () => TData;
-}) {
-  return useQuery({
-    queryKey,
-    queryFn: request,
-    initialData: fallback,
-    retry: false,
-    refetchOnWindowFocus: false,
-  });
-}
-
-export const frontendFallbacks = {
-  currentUser: getCurrentUser,
-  profile: getProfileSummary,
-  dashboard: getDashboardSummary,
-  notifications: getNotifications,
-  weakTopics: getWeakTopics,
-  trainingHistory: getTrainingHistory,
-  managerSummary: getManagerSummary,
-  managerReports: getManagerReports,
-  employeeProfile: getEmployeeProfile,
-  sessionOptions: getSessionOptions,
 };

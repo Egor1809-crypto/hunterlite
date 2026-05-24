@@ -6,7 +6,6 @@ export const envSchema = z.object({
   DATABASE_URL: z.string().min(1, "DATABASE_URL is required"),
   SESSION_COOKIE_NAME: z.string().min(1).default("hunterlite_session"),
   CORS_ORIGINS: z.string().min(1).default("http://127.0.0.1:8080,http://localhost:8080"),
-  AUTH_DEMO_FALLBACK: z.enum(["true", "false"]).optional(),
   HUNTERLITE_CSRF_SECRET: z.string().optional(),
   NAVI_API_KEY: z.string().optional(),
   NAVI_BASE_URL: z.string().url().default("https://api.navy"),
@@ -16,14 +15,14 @@ export const envSchema = z.object({
   NAVI_STT_MODEL: z.string().min(1).default("scribe_v2"),
   TELEGRAM_BOT_TOKEN: z.string().optional(),
   TELEGRAM_DEFAULT_CHAT_ID: z.string().optional(),
-  TELEGRAM_LOGIN_EMAIL: z.string().email().optional(),
+  TELEGRAM_LOGIN_EMAIL: z.string().transform((v) => v.trim() || undefined).pipe(z.string().email().optional()),
+  PLATFORM_URL: z.string().url().optional(),
 });
 
 const localCsrfSecret = "hunterlite-local-csrf-secret";
 const minProductionSecretLength = 32;
 
-export type ApiEnv = Omit<z.infer<typeof envSchema>, "AUTH_DEMO_FALLBACK"> & {
-  AUTH_DEMO_FALLBACK: boolean;
+export type ApiEnv = z.infer<typeof envSchema> & {
   HUNTERLITE_CSRF_SECRET: string;
 };
 
@@ -42,10 +41,6 @@ export const parseEnv = (source: Record<string, string | undefined>): ApiEnv => 
   return {
     ...env,
     HUNTERLITE_CSRF_SECRET: csrfSecret,
-    AUTH_DEMO_FALLBACK:
-      env.AUTH_DEMO_FALLBACK === undefined
-        ? env.NODE_ENV !== "production"
-        : env.AUTH_DEMO_FALLBACK === "true",
   };
 };
 

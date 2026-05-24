@@ -1,19 +1,23 @@
+import { useQuery } from "@tanstack/react-query";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { StatusBadge } from "@/components/StatusBadge";
 import { BackButton } from "@/components/BackButton";
 import { IconBadge } from "@/components/IconBadge";
-import { frontendApi, frontendFallbacks, useApiData } from "@/lib/frontend-api";
+import { frontendApi } from "@/lib/frontend-api";
 import { passingScore } from "@/lib/training-logic";
 import { AlertTriangle, BarChart3, Download, ListChecks } from "lucide-react";
 
 export default function ManagerReports() {
-  const { data: report, isFetching, isError } = useApiData({
+  const { data: report, isFetching, isError, isLoading } = useQuery({
     queryKey: ["manager-reports"],
-    request: frontendApi.managerReports,
-    fallback: frontendFallbacks.managerReports,
+    queryFn: frontendApi.managerReports,
   });
+
+  if (isLoading || !report) {
+    return <div className="flex min-h-[50vh] items-center justify-center text-sm text-muted-foreground">Загрузка...</div>;
+  }
 
   return (
     <div className="p-4 md:p-8 max-w-6xl mx-auto animate-fade-in space-y-5">
@@ -25,7 +29,7 @@ export default function ManagerReports() {
           <div>
             <h1 className="font-display text-3xl font-bold text-primary tracking-tight">Отчёты</h1>
             <p className="text-muted-foreground mt-1">
-              {isError ? "Показаны резервные данные." : isFetching ? "Обновляем статистику команды..." : `Период: ${report.periodLabel}`}
+              {isError ? "Не удалось загрузить данные." : isFetching ? "Обновляем статистику команды..." : `Период: ${report.periodLabel}`}
             </p>
           </div>
         </div>
@@ -71,6 +75,9 @@ export default function ManagerReports() {
       <Card className="p-5 shadow-card">
         <h3 className="font-display font-bold text-primary mb-4">Слабые темы команды</h3>
         <div className="grid sm:grid-cols-2 gap-2">
+          {report.weakTopics.length === 0 && (
+            <div className="text-sm text-muted-foreground">Нет данных</div>
+          )}
           {report.weakTopics.map((w) => (
             <div key={w.topic} className="p-3 rounded-lg bg-warning-soft/40 border border-warning/20">
               <div className="flex items-center justify-between gap-3">
@@ -113,6 +120,9 @@ export default function ManagerReports() {
             <h3 className="font-display font-bold text-primary">Рекомендации</h3>
           </div>
           <div className="space-y-2">
+            {report.recommendations.length === 0 && (
+              <div className="text-sm text-muted-foreground">Нет рекомендаций</div>
+            )}
             {report.recommendations.map((recommendation) => (
               <div key={recommendation} className="text-sm p-3 rounded-lg border bg-muted/30">
                 {recommendation}

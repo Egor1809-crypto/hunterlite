@@ -1,7 +1,17 @@
 import type { ApiResponse } from "../../apps/api/src/http/api-response";
+import { clearAuth } from "@/lib/demo-auth-state";
 
 const API_BASE_URL = "/api";
 const CSRF_COOKIE_NAME = "hunterlite_csrf";
+
+let redirectingToLogin = false;
+
+function handleUnauthorized() {
+  if (redirectingToLogin) return;
+  redirectingToLogin = true;
+  clearAuth();
+  window.location.href = "/login";
+}
 
 export class ApiClientError extends Error {
   constructor(
@@ -22,6 +32,10 @@ export async function apiGet<TData>(path: string): Promise<TData> {
       Accept: "application/json",
     },
   });
+
+  if (response.status === 401 && path !== "/auth/session") {
+    handleUnauthorized();
+  }
 
   const payload = (await response.json()) as ApiResponse<TData>;
 
@@ -47,6 +61,7 @@ const readCookie = (name: string) => {
 export async function apiPost<TData, TBody = unknown>(path: string, body?: TBody): Promise<TData> {
   const csrfFreePaths = new Set([
     "/auth/login",
+    "/auth/register",
     "/auth/telegram/request-code",
     "/auth/telegram/login",
   ]);

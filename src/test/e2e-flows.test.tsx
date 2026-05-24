@@ -2,8 +2,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { afterEach, describe, expect, it, vi } from "vitest";
 import App from "@/App";
 import { defaultCallScripts } from "@/lib/default-training-content";
-import { setDemoRole, type AppRole } from "@/lib/demo-auth-state";
-import { getCurrentUser } from "@/lib/demo-api";
+import { setRole, type AppRole } from "@/lib/demo-auth-state";
 
 const apiOk = <TData,>(data: TData, status = 200) =>
   Promise.resolve(new Response(JSON.stringify({ ok: true, data }), {
@@ -18,19 +17,35 @@ const installFetchMock = () => {
 
     if (url.endsWith("/api/auth/login")) {
       return apiOk({
-        user: getCurrentUser("employee"),
+        user: {
+          id: "employee",
+          name: "Анна Петрова",
+          firstName: "Анна",
+          role: "employee" as AppRole,
+          roleLabel: "Юрист-консультант",
+          email: "a.petrova@hunterlite.ru",
+          status: "Допущен",
+          avgScore: 82,
+          examPassed: false,
+          weeklyTrainings: 6,
+        },
         homePath: "/dashboard",
       });
     }
 
     if (url.includes("/api/users/me")) {
-      const currentRole: AppRole = url.includes("role=admin")
-        ? "admin"
-        : url.includes("role=manager")
-          ? "manager"
-          : "employee";
-
-      return apiOk(getCurrentUser(currentRole));
+      return apiOk({
+        id: "employee",
+        name: "Анна Петрова",
+        firstName: "Анна",
+        role: "employee" as AppRole,
+        roleLabel: "Юрист-консультант",
+        email: "a.petrova@hunterlite.ru",
+        status: "Допущен",
+        avgScore: 82,
+        examPassed: false,
+        weeklyTrainings: 6,
+      });
     }
 
     if (url.endsWith("/api/trainings/call-scripts")) {
@@ -124,7 +139,7 @@ describe("e2e smoke flows", () => {
 
   it("runs a talk training turn from client replica to employee answer", async () => {
     installFetchMock();
-    setDemoRole("employee");
+    setRole("employee");
     window.history.pushState({}, "", "/session/talk");
 
     render(<App />);
@@ -142,7 +157,7 @@ describe("e2e smoke flows", () => {
   });
 
   it("shows an exam pass result at the 88 point threshold", async () => {
-    setDemoRole("employee");
+    setRole("employee");
     window.history.pushState({}, "", "/session/result?score=88&mode=exam");
 
     render(<App />);
@@ -153,7 +168,7 @@ describe("e2e smoke flows", () => {
 
   it("renders live notifications from the backend feed", async () => {
     installFetchMock();
-    setDemoRole("employee");
+    setRole("employee");
     window.history.pushState({}, "", "/notifications");
 
     render(<App />);
@@ -164,7 +179,7 @@ describe("e2e smoke flows", () => {
 
   it("lets an admin create a call script", async () => {
     const fetchMock = installFetchMock();
-    setDemoRole("admin");
+    setRole("admin");
     document.cookie = "hunterlite_csrf=token-123; Path=/";
     window.history.pushState({}, "", "/admin/scripts");
 

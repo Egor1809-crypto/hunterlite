@@ -5,10 +5,14 @@ import { getRoleHome } from "@/lib/demo-auth-state";
 
 export function ProtectedRoute() {
   const location = useLocation();
-  const { user } = useDemoAuth();
+  const { role, authenticated } = useDemoAuth();
 
-  if (!canAccessRoute(user.role, location.pathname)) {
-    return <Navigate to={getRoleHome(user.role)} replace />;
+  if (!authenticated) {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (!canAccessRoute(role, location.pathname)) {
+    return <Navigate to={getRoleHome(role)} replace />;
   }
 
   return <Outlet />;

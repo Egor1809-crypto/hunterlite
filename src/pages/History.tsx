@@ -1,19 +1,25 @@
 import { Link } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { StatusBadge } from "@/components/StatusBadge";
 import { IconBadge } from "@/components/IconBadge";
 import { ApiState } from "@/components/ApiState";
-import { frontendApi, frontendFallbacks, useApiData } from "@/lib/frontend-api";
+import { frontendApi } from "@/lib/frontend-api";
 import { FileClock, Search, ExternalLink } from "lucide-react";
 
 export default function History() {
-  const { data: history, isFetching, isError } = useApiData({
+  const { data: history, isFetching, isError, isLoading } = useQuery({
     queryKey: ["training-history"],
-    request: frontendApi.trainingHistory,
-    fallback: frontendFallbacks.trainingHistory,
+    queryFn: frontendApi.trainingHistory,
   });
+
+  if (isLoading) {
+    return <div className="flex min-h-[50vh] items-center justify-center text-sm text-muted-foreground">Загрузка...</div>;
+  }
+
+  const items = history ?? [];
 
   return (
     <div className="p-4 md:p-8 max-w-7xl mx-auto animate-fade-in">
@@ -28,7 +34,7 @@ export default function History() {
       <ApiState
         isFetching={isFetching}
         isError={isError}
-        isEmpty={history.length === 0}
+        isEmpty={items.length === 0}
         emptyText="История пока пустая. После первой тренировки здесь появятся результаты."
       />
 
@@ -38,7 +44,7 @@ export default function History() {
           <Input placeholder="Поиск по теме…" className="pl-9" />
         </div>
         <select className="h-10 rounded-md border border-input bg-background px-3 text-sm">
-          <option>Все режимы</option><option>Тренировка</option><option>Экзамен</option><option>Чат-тест</option>
+          <option>Все режимы</option><option>Тренировка</option><option>Экзамен</option>
         </select>
         <select className="h-10 rounded-md border border-input bg-background px-3 text-sm">
           <option>За месяц</option><option>За неделю</option><option>За всё время</option>
@@ -59,7 +65,7 @@ export default function History() {
               </tr>
             </thead>
             <tbody>
-              {history.map((h) => (
+              {items.map((h) => (
                 <tr key={h.id} className="border-t border-border hover:bg-muted/30 transition-colors">
                   <td className="p-3 text-muted-foreground tabular-nums"><span className="text-pixel-inline text-pixel-inline-muted">{h.date}</span></td>
                   <td className="p-3">{h.mode}</td>

@@ -3,13 +3,13 @@ import type {
   AuthPasswordResetCompleteDto,
   AuthPasswordResetCompletedDto,
   AuthPasswordResetRequestedDto,
+  AuthRegisterRequestDto,
   AuthSessionDto,
   AuthTelegramCodeRequestDto,
   AuthTelegramCodeRequestedDto,
   AuthTelegramLoginRequestDto,
 } from "@/lib/api-contracts";
-import { getCurrentUser } from "@/lib/demo-api";
-import { getRoleHome, inferRoleFromEmail, type AppRole } from "@/lib/demo-auth-state";
+import { getRoleHome, type AppRole } from "@/lib/demo-auth-state";
 import type { ApiResponse } from "../../http/api-response";
 import { fail, ok } from "../../http/api-response";
 
@@ -22,16 +22,14 @@ export type AuthDataSource = {
   logout?: (sessionId: string) => MaybePromise<void>;
   requestPasswordReset?: (email: string) => MaybePromise<{ token?: string } | null>;
   completePasswordReset?: (payload: AuthPasswordResetCompleteDto) => MaybePromise<boolean>;
-  requestTelegramCode?: (phone: string) => MaybePromise<{ code?: string } | null>;
+  requestTelegramCode?: (phone: string) => MaybePromise<{ code?: string; sent?: boolean } | null>;
   loginWithTelegramCode?: (payload: AuthTelegramLoginRequestDto) => MaybePromise<{ sessionId: string; session: AuthSessionDto } | null>;
+  register?: (payload: AuthRegisterRequestDto) => MaybePromise<{ sessionId: string; session: AuthSessionDto } | null>;
 };
 
 export type AuthHandlerOptions = {
-  allowDemoFallback?: boolean;
   secureCookies?: boolean;
 };
-
-const roleValues = new Set<AppRole>(["employee", "manager", "admin", "client"]);
 
 const cookieAttributes = (secure = false) =>
   `Path=/; HttpOnly; SameSite=Lax; Max-Age=604800${secure ? "; Secure" : ""}`;
@@ -39,25 +37,11 @@ const cookieAttributes = (secure = false) =>
 const expiredCookieAttributes = (secure = false) =>
   `Path=/; HttpOnly; SameSite=Lax; Max-Age=0${secure ? "; Secure" : ""}`;
 
-export const createSessionCookie = (role: AppRole, secure = false) =>
-  `${sessionCookieName}=demo:${role}; ${cookieAttributes(secure)}`;
-
 export const createDatabaseSessionCookie = (sessionId: string, secure = false) =>
   `${sessionCookieName}=db:${sessionId}; ${cookieAttributes(secure)}`;
 
 export const clearSessionCookie = (secure = false) =>
   `${sessionCookieName}=; ${expiredCookieAttributes(secure)}`;
-
-export const parseSessionRole = (cookieHeader?: string): AppRole | undefined => {
-  const cookie = cookieHeader
-    ?.split(";")
-    .map((part) => part.trim())
-    .find((part) => part.startsWith(`${sessionCookieName}=`));
-  const value = cookie?.slice(sessionCookieName.length + 1);
-  const role = value?.startsWith("demo:") ? value.slice(5) : undefined;
-
-  return roleValues.has(role as AppRole) ? (role as AppRole) : undefined;
-};
 
 export const parseDatabaseSessionId = (cookieHeader?: string): string | undefined => {
   const cookie = cookieHeader
@@ -69,16 +53,20 @@ export const parseDatabaseSessionId = (cookieHeader?: string): string | undefine
   return value?.startsWith("db:") ? value.slice(3) : undefined;
 };
 
-const createSession = (role: AppRole): AuthSessionDto => ({
-  user: getCurrentUser(role),
-  homePath: getRoleHome(role),
-});
+export const hasSessionCookie = (cookieHeader?: string): boolean => {
+  const cookie = cookieHeader
+    ?.split(";")
+    .map((part) => part.trim())
+    .find((part) => part.startsWith(`${sessionCookieName}=`));
+  const value = cookie?.slice(sessionCookieName.length + 1);
+
+  return Boolean(value && value.length > 0);
+};
 
 const normalizePhone = (phone: unknown) =>
   typeof phone === "string" ? phone.replace(/[^\d+]/g, "").trim() : "";
 
-export const createAuthHandlers = (source?: AuthDataSource, options: AuthHandlerOptions = {}) => {
-  const allowDemoFallback = options.allowDemoFallback ?? true;
+export const createAuthHandlers = (source: AuthDataSource, options: AuthHandlerOptions = {}) => {
   const secureCookies = options.secureCookies ?? false;
 
   return {
@@ -90,7 +78,7 @@ export const createAuthHandlers = (source?: AuthDataSource, options: AuthHandler
         return fail("VALIDATION_ERROR", "Email is required", { field: "email" });
       }
 
-      const login = await source?.login({ email, password: request?.password });
+      const login = await source.login({ email, password: request?.password });
 
       if (login) {
         return {
@@ -99,39 +87,24 @@ export const createAuthHandlers = (source?: AuthDataSource, options: AuthHandler
         };
       }
 
-      if (!allowDemoFallback) {
-        return fail("UNAUTHORIZED", "Invalid email or password");
-      }
-
-      const role = inferRoleFromEmail(email);
-
-      return {
-        ...ok(createSession(role)),
-        sessionCookie: createSessionCookie(role, secureCookies),
-      };
+      return fail("UNAUTHORIZED", "Email или пароль не подошли");
     },
 
     session: async (cookieHeader?: string): Promise<ApiResponse<AuthSessionDto>> => {
       const sessionId = parseDatabaseSessionId(cookieHeader);
 
       if (sessionId) {
-        const session = await source?.session(sessionId);
+        const session = await source.session(sessionId);
 
         if (session) return ok(session);
       }
 
-      const role = parseSessionRole(cookieHeader);
-
-      if (!role || !allowDemoFallback) {
-        return fail("UNAUTHORIZED", "Authentication required");
-      }
-
-      return ok(createSession(role));
+      return fail("UNAUTHORIZED", "Authentication required");
     },
 
     logout: async (cookieHeader?: string): Promise<ApiResponse<{ loggedOut: true }>> => {
       const sessionId = parseDatabaseSessionId(cookieHeader);
-      if (sessionId) await source?.logout?.(sessionId);
+      if (sessionId) await source.logout?.(sessionId);
 
       return ok({ loggedOut: true });
     },
@@ -143,12 +116,9 @@ export const createAuthHandlers = (source?: AuthDataSource, options: AuthHandler
         return fail("VALIDATION_ERROR", "Email is required", { field: "email" });
       }
 
-      const reset = await source?.requestPasswordReset?.(email.trim().toLowerCase());
+      await source.requestPasswordReset?.(email.trim().toLowerCase());
 
-      return ok({
-        sent: true,
-        ...(reset?.token ? { devToken: reset.token } : {}),
-      });
+      return ok({ sent: true });
     },
 
     completePasswordReset: async (payload: unknown): Promise<ApiResponse<AuthPasswordResetCompletedDto>> => {
@@ -162,7 +132,7 @@ export const createAuthHandlers = (source?: AuthDataSource, options: AuthHandler
         return fail("VALIDATION_ERROR", "Password must contain at least 8 characters", { field: "newPassword" });
       }
 
-      const reset = await source?.completePasswordReset?.({
+      const reset = await source.completePasswordReset?.({
         token: request.token,
         newPassword: request.newPassword,
       });
@@ -180,12 +150,16 @@ export const createAuthHandlers = (source?: AuthDataSource, options: AuthHandler
         return fail("VALIDATION_ERROR", "Phone number is required", { field: "phone" });
       }
 
-      const requested = await source?.requestTelegramCode?.(phone);
+      const result = await source.requestTelegramCode?.(phone);
+
+      if (result?.sent) {
+        return ok({ sent: true, channel: "telegram" });
+      }
 
       return ok({
         sent: true,
         channel: "telegram",
-        ...(requested?.code ? { devCode: requested.code } : allowDemoFallback ? { devCode: "1809" } : {}),
+        devCode: result?.code,
       });
     },
 
@@ -202,7 +176,7 @@ export const createAuthHandlers = (source?: AuthDataSource, options: AuthHandler
         return fail("VALIDATION_ERROR", "SMS code is required", { field: "code" });
       }
 
-      const login = await source?.loginWithTelegramCode?.({ phone, code });
+      const login = await source.loginWithTelegramCode?.({ phone, code });
 
       if (login) {
         return {
@@ -211,13 +185,36 @@ export const createAuthHandlers = (source?: AuthDataSource, options: AuthHandler
         };
       }
 
-      if (!allowDemoFallback || code !== "1809") {
-        return fail("UNAUTHORIZED", "Telegram code is invalid or expired");
+      return fail("UNAUTHORIZED", "Telegram code is invalid or expired");
+    },
+
+    register: async (payload: unknown): Promise<ApiResponse<AuthSessionDto> & { sessionCookie?: string }> => {
+      const request = payload as Partial<AuthRegisterRequestDto> | undefined;
+      const email = request?.email?.trim().toLowerCase();
+      const fullName = request?.fullName?.trim();
+      const password = request?.password;
+
+      if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        return fail("VALIDATION_ERROR", "Введите корректный email", { field: "email" });
+      }
+
+      if (!fullName || fullName.length < 2) {
+        return fail("VALIDATION_ERROR", "Введите ФИО (минимум 2 символа)", { field: "fullName" });
+      }
+
+      if (!password || password.length < 8) {
+        return fail("VALIDATION_ERROR", "Пароль должен содержать минимум 8 символов", { field: "password" });
+      }
+
+      const result = await source.register?.({ email, password, fullName });
+
+      if (!result) {
+        return fail("CONFLICT", "Пользователь с таким email уже зарегистрирован");
       }
 
       return {
-        ...ok(createSession("employee")),
-        sessionCookie: createSessionCookie("employee", secureCookies),
+        ...ok(result.session),
+        sessionCookie: createDatabaseSessionCookie(result.sessionId, secureCookies),
       };
     },
   };
