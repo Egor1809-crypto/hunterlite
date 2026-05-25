@@ -100,11 +100,10 @@ const getLoginRateLimitKey = (request: ApiRequest) =>
 const isAllowedPostRoute = (pathname: string) =>
   pathname === "/api/auth/login" ||
   pathname === "/api/auth/register" ||
-  pathname === "/api/auth/telegram/request-code" ||
-  pathname === "/api/auth/telegram/login" ||
   pathname === "/api/auth/logout" ||
   pathname === "/api/auth/password-reset/request" ||
   pathname === "/api/auth/password-reset/complete" ||
+  pathname === "/api/client/lead" ||
   /^\/api\/ai\/.*$/.test(pathname) ||
   pathname === "/api/trainings/sessions" ||
   /^\/api\/analytics\/manager\/employees\/[^/]+\/course$/.test(pathname) ||
@@ -215,10 +214,9 @@ export const resolveApiRequest = async (
     request.method === "POST" &&
     pathname !== "/api/auth/login" &&
     pathname !== "/api/auth/register" &&
-    pathname !== "/api/auth/telegram/request-code" &&
-    pathname !== "/api/auth/telegram/login" &&
     pathname !== "/api/auth/password-reset/request" &&
     pathname !== "/api/auth/password-reset/complete" &&
+    pathname !== "/api/client/lead" &&
     hasSessionCookie(request.cookie) &&
     !verifyCsrfToken(request.cookie, request.csrfToken)
   ) {
@@ -299,20 +297,6 @@ export const resolveApiRequest = async (
               extraHeaders = { "Set-Cookie": [clearSessionCookie(options.secureCookies), clearCsrfCookie(options.secureCookies)] };
               return body;
             })
-          : pathname === "/api/auth/telegram/request-code" && request.method === "POST"
-            ? auth.requestTelegramCode(request.body)
-          : pathname === "/api/auth/telegram/login" && request.method === "POST"
-            ? auth.loginWithTelegramCode(request.body).then((body) => {
-                if (body.ok && body.sessionCookie) {
-                  extraHeaders = {
-                    "Set-Cookie": [
-                      body.sessionCookie,
-                      options.secureCookies ? createSecureCsrfCookie(body.sessionCookie) : createCsrfCookie(body.sessionCookie),
-                    ].filter((cookie): cookie is string => Boolean(cookie)),
-                  };
-                }
-                return body;
-              })
           : pathname === "/api/auth/password-reset/request" && request.method === "POST"
             ? auth.requestPasswordReset(request.body)
             : pathname === "/api/auth/password-reset/complete" && request.method === "POST"
@@ -383,6 +367,8 @@ export const resolveApiRequest = async (
                                                 ? api.deleteCallScript(decodeURIComponent(callScriptDeleteMatch[1]))
                                                 : callScriptMatch && request.method === "POST"
                                                   ? api.updateCallScript(decodeURIComponent(callScriptMatch[1]), request.body)
+                                              : pathname === "/api/client/lead" && request.method === "POST"
+                                                ? api.submitClientLead(request.body)
                                               : Promise.resolve(fail("NOT_FOUND", "Route not found", { path: pathname }));
 
   return bodyPromise.then((body) => ({

@@ -13,9 +13,6 @@ export const envSchema = z.object({
   NAVI_TTS_MODEL: z.string().min(1).default("eleven_flash_v2_5"),
   NAVI_TTS_VOICE: z.string().min(1).default("aria"),
   NAVI_STT_MODEL: z.string().min(1).default("scribe_v2"),
-  TELEGRAM_BOT_TOKEN: z.string().optional(),
-  TELEGRAM_DEFAULT_CHAT_ID: z.string().optional(),
-  TELEGRAM_LOGIN_EMAIL: z.string().transform((v) => v.trim() || undefined).pipe(z.string().email().optional()),
   PLATFORM_URL: z.string().url().optional(),
 });
 

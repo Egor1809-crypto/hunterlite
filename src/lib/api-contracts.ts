@@ -303,21 +303,6 @@ export type AuthPasswordResetCompletedDto = {
   reset: true;
 };
 
-export type AuthTelegramCodeRequestDto = {
-  phone: string;
-};
-
-export type AuthTelegramCodeRequestedDto = {
-  sent: true;
-  channel: "telegram";
-  devCode?: string;
-};
-
-export type AuthTelegramLoginRequestDto = {
-  phone: string;
-  code: string;
-};
-
 export type AuthSessionDto = {
   user: CurrentUserDto;
   homePath: string;

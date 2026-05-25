@@ -5,9 +5,6 @@ import type {
   AuthPasswordResetRequestedDto,
   AuthRegisterRequestDto,
   AuthSessionDto,
-  AuthTelegramCodeRequestDto,
-  AuthTelegramCodeRequestedDto,
-  AuthTelegramLoginRequestDto,
 } from "@/lib/api-contracts";
 import { getRoleHome, type AppRole } from "@/lib/demo-auth-state";
 import type { ApiResponse } from "../../http/api-response";
@@ -22,8 +19,6 @@ export type AuthDataSource = {
   logout?: (sessionId: string) => MaybePromise<void>;
   requestPasswordReset?: (email: string) => MaybePromise<{ token?: string } | null>;
   completePasswordReset?: (payload: AuthPasswordResetCompleteDto) => MaybePromise<boolean>;
-  requestTelegramCode?: (phone: string) => MaybePromise<{ code?: string; sent?: boolean } | null>;
-  loginWithTelegramCode?: (payload: AuthTelegramLoginRequestDto) => MaybePromise<{ sessionId: string; session: AuthSessionDto } | null>;
   register?: (payload: AuthRegisterRequestDto) => MaybePromise<{ sessionId: string; session: AuthSessionDto } | null>;
 };
 
@@ -62,9 +57,6 @@ export const hasSessionCookie = (cookieHeader?: string): boolean => {
 
   return Boolean(value && value.length > 0);
 };
-
-const normalizePhone = (phone: unknown) =>
-  typeof phone === "string" ? phone.replace(/[^\d+]/g, "").trim() : "";
 
 export const createAuthHandlers = (source: AuthDataSource, options: AuthHandlerOptions = {}) => {
   const secureCookies = options.secureCookies ?? false;
@@ -140,52 +132,6 @@ export const createAuthHandlers = (source: AuthDataSource, options: AuthHandlerO
       if (!reset) return fail("UNAUTHORIZED", "Reset token is invalid or expired");
 
       return ok({ reset: true });
-    },
-
-    requestTelegramCode: async (payload: unknown): Promise<ApiResponse<AuthTelegramCodeRequestedDto>> => {
-      const request = payload as Partial<AuthTelegramCodeRequestDto> | undefined;
-      const phone = normalizePhone(request?.phone);
-
-      if (!phone || phone.replace(/\D/g, "").length < 10) {
-        return fail("VALIDATION_ERROR", "Phone number is required", { field: "phone" });
-      }
-
-      const result = await source.requestTelegramCode?.(phone);
-
-      if (result?.sent) {
-        return ok({ sent: true, channel: "telegram" });
-      }
-
-      return ok({
-        sent: true,
-        channel: "telegram",
-        devCode: result?.code,
-      });
-    },
-
-    loginWithTelegramCode: async (payload: unknown): Promise<ApiResponse<AuthSessionDto> & { sessionCookie?: string }> => {
-      const request = payload as Partial<AuthTelegramLoginRequestDto> | undefined;
-      const phone = normalizePhone(request?.phone);
-      const code = request?.code?.trim();
-
-      if (!phone || phone.replace(/\D/g, "").length < 10) {
-        return fail("VALIDATION_ERROR", "Phone number is required", { field: "phone" });
-      }
-
-      if (!code) {
-        return fail("VALIDATION_ERROR", "SMS code is required", { field: "code" });
-      }
-
-      const login = await source.loginWithTelegramCode?.({ phone, code });
-
-      if (login) {
-        return {
-          ...ok(login.session),
-          sessionCookie: createDatabaseSessionCookie(login.sessionId, secureCookies),
-        };
-      }
-
-      return fail("UNAUTHORIZED", "Telegram code is invalid or expired");
     },
 
     register: async (payload: unknown): Promise<ApiResponse<AuthSessionDto> & { sessionCookie?: string }> => {

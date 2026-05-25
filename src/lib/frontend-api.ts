@@ -25,9 +25,6 @@ import type {
   AuthPasswordResetRequestDto,
   AuthPasswordResetRequestedDto,
   AuthSessionDto,
-  AuthTelegramCodeRequestDto,
-  AuthTelegramCodeRequestedDto,
-  AuthTelegramLoginRequestDto,
   AiSpeechDto,
   AiSpeechRequestDto,
   AiTrainingReplyDto,
@@ -53,10 +50,6 @@ import { apiGet, apiPost } from "@/lib/api-client";
 export const frontendApi = {
   register: (payload: AuthRegisterRequestDto) => apiPost<AuthSessionDto, AuthRegisterRequestDto>("/auth/register", payload),
   login: (payload: AuthLoginRequestDto) => apiPost<AuthSessionDto, AuthLoginRequestDto>("/auth/login", payload),
-  requestTelegramCode: (payload: AuthTelegramCodeRequestDto) =>
-    apiPost<AuthTelegramCodeRequestedDto, AuthTelegramCodeRequestDto>("/auth/telegram/request-code", payload),
-  loginWithTelegramCode: (payload: AuthTelegramLoginRequestDto) =>
-    apiPost<AuthSessionDto, AuthTelegramLoginRequestDto>("/auth/telegram/login", payload),
   requestPasswordReset: (payload: AuthPasswordResetRequestDto) =>
     apiPost<AuthPasswordResetRequestedDto, AuthPasswordResetRequestDto>("/auth/password-reset/request", payload),
   completePasswordReset: (payload: AuthPasswordResetCompleteDto) =>
@@ -76,7 +69,8 @@ export const frontendApi = {
   transcribeSpeech: (payload: AiTranscriptionRequestDto) =>
     apiPost<AiTranscriptionDto, AiTranscriptionRequestDto>("/ai/transcriptions", payload),
   managerSummary: () => apiGet<ManagerSummaryDto>("/analytics/manager"),
-  managerReports: () => apiGet<ManagerReportsDto>("/analytics/manager/reports"),
+  managerReports: (days?: string) =>
+    apiGet<ManagerReportsDto>(`/analytics/manager/reports${days ? `?days=${days}` : ""}`),
   employeeProfile: (id?: string) =>
     apiGet<EmployeeProfileDto>(`/analytics/manager/employees/${encodeURIComponent(id || "1")}`),
   assignEmployeeCourse: (id: string, payload: EmployeeCourseAssignRequestDto) =>

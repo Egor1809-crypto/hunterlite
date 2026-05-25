@@ -50,8 +50,6 @@ describe("frontend data layer", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     await frontendApi.login({ email: "manager@hunterlite.ru", password: "secret" });
-    await frontendApi.requestTelegramCode({ phone: "+79000000000" });
-    await frontendApi.loginWithTelegramCode({ phone: "+79000000000", code: "1809" });
     await frontendApi.requestPasswordReset({ email: "manager@hunterlite.ru" });
     await frontendApi.completePasswordReset({ token: "reset-token", newPassword: "new-secret" });
     await frontendApi.session();
@@ -95,8 +93,6 @@ describe("frontend data layer", () => {
 
     expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
       "/api/auth/login",
-      "/api/auth/telegram/request-code",
-      "/api/auth/telegram/login",
       "/api/auth/password-reset/request",
       "/api/auth/password-reset/complete",
       "/api/auth/session",

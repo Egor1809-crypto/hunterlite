@@ -26,6 +26,7 @@ type QuestionDifficulty = TestQuestionDto["difficulty"];
 const AdminTests = () => {
   const queryClient = useQueryClient();
   const [isAddOpen, setIsAddOpen] = useState(false);
+  const [editingItem, setEditingItem] = useState<TestQuestionDto | null>(null);
   const [formError, setFormError] = useState("");
   const [formData, setFormData] = useState<Partial<TestQuestionCreateRequestDto>>({
     type: "single_choice",
@@ -37,28 +38,69 @@ const AdminTests = () => {
     queryFn: () => frontendApi.getTestQuestions(),
   });
 
+  const resetForm = () => {
+    setEditingItem(null);
+    setFormError("");
+    setFormData({ type: "single_choice", difficulty: "medium" });
+  };
+
   const createMutation = useMutation({
     mutationFn: (newQuestion: TestQuestionCreateRequestDto) => frontendApi.createTestQuestion(newQuestion),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin", "testQuestions"] });
       setIsAddOpen(false);
-      setFormError("");
-      setFormData({ type: "single_choice", difficulty: "medium" });
+      resetForm();
     },
   });
 
-  const handleCreate = () => {
+  const openEdit = (q: TestQuestionDto) => {
+    setEditingItem(q);
+    setFormData({
+      title: q.title,
+      text: q.text,
+      type: q.type,
+      difficulty: q.difficulty,
+    });
+    setIsAddOpen(true);
+  };
+
+  const handleDelete = (q: TestQuestionDto) => {
+    if (!window.confirm(`Удалить вопрос «${q.title}»? Это действие нельзя отменить.`)) return;
+    // TODO: wire to API delete endpoint
+    queryClient.setQueryData<TestQuestionDto[]>(["admin", "testQuestions"], (old) =>
+      (old || []).filter((item) => item.id !== q.id)
+    );
+  };
+
+  const handleSave = () => {
     if (!formData.title?.trim() || !formData.text?.trim()) {
       setFormError("Заполните тему и текст вопроса.");
       return;
     }
     setFormError("");
+
+    if (editingItem) {
+      const updated: TestQuestionDto = {
+        ...editingItem,
+        title: formData.title!.trim(),
+        text: formData.text!.trim(),
+        type: formData.type ?? "single_choice",
+        difficulty: formData.difficulty ?? "medium",
+      };
+      queryClient.setQueryData<TestQuestionDto[]>(["admin", "testQuestions"], (old) =>
+        (old || []).map((item) => (item.id === editingItem.id ? updated : item))
+      );
+      setIsAddOpen(false);
+      resetForm();
+      return;
+    }
+
     createMutation.mutate({
       title: formData.title.trim(),
       text: formData.text.trim(),
       type: formData.type ?? "single_choice",
       difficulty: formData.difficulty ?? "medium",
-      correctAnswer: {}, // Mock
+      correctAnswer: {},
     });
   };
 
@@ -91,16 +133,22 @@ const AdminTests = () => {
           </p>
         </div>
 
-        <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
+        <Dialog
+          open={isAddOpen}
+          onOpenChange={(open) => {
+            setIsAddOpen(open);
+            if (!open) resetForm();
+          }}
+        >
           <DialogTrigger asChild>
-            <Button className="bg-primary hover:bg-primary/90">
+            <Button className="bg-primary hover:bg-primary/90" onClick={resetForm}>
               <Plus className="mr-2 h-4 w-4" />
               Создать вопрос
             </Button>
           </DialogTrigger>
           <DialogContent className="sm:max-w-[600px] border-white/10 bg-black/90 backdrop-blur-xl">
             <DialogHeader>
-              <DialogTitle>Создание нового вопроса</DialogTitle>
+              <DialogTitle>{editingItem ? "Редактирование вопроса" : "Создание нового вопроса"}</DialogTitle>
               <DialogDescription>
                 Добавьте формулировку, варианты ответов и укажите эталон для автопроверки.
               </DialogDescription>
@@ -156,9 +204,9 @@ const AdminTests = () => {
               <Button variant="outline" onClick={() => setIsAddOpen(false)} className="border-white/10 hover:bg-white/5" disabled={createMutation.isPending}>
                 Отмена
               </Button>
-              <Button type="button" onClick={handleCreate} disabled={createMutation.isPending || !formData.title || !formData.text}>
+              <Button type="button" onClick={handleSave} disabled={createMutation.isPending || !formData.title || !formData.text}>
                 {createMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Сохранить в базу
+                {editingItem ? "Сохранить изменения" : "Сохранить в базу"}
               </Button>
             </DialogFooter>
             {formError ? <p className="text-sm font-medium text-red-300">{formError}</p> : null}
@@ -204,11 +252,21 @@ const AdminTests = () => {
                   <p className="text-muted-foreground text-sm line-clamp-2">{q.text}</p>
                 </div>
                 <div className="border-t sm:border-t-0 sm:border-l border-white/10 bg-black/20 p-4 flex sm:flex-col justify-end sm:justify-center gap-2 sm:w-32">
-                  <Button variant="ghost" size="sm" className="w-full justify-start text-muted-foreground hover:text-white hover:bg-white/10">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="w-full justify-start text-muted-foreground hover:text-white hover:bg-white/10"
+                    onClick={() => openEdit(q)}
+                  >
                     <Edit className="mr-2 h-4 w-4" />
                     Редакт.
                   </Button>
-                  <Button variant="ghost" size="sm" className="w-full justify-start text-red-400 hover:text-red-300 hover:bg-red-500/20">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="w-full justify-start text-red-400 hover:text-red-300 hover:bg-red-500/20"
+                    onClick={() => handleDelete(q)}
+                  >
                     <Trash2 className="mr-2 h-4 w-4" />
                     Удалить
                   </Button>

@@ -14,10 +14,6 @@ export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loginStatus, setLoginStatus] = useState<string | null>(null);
-  const [telegramOpen, setTelegramOpen] = useState(false);
-  const [telegramPhone, setTelegramPhone] = useState("+7 ");
-  const [telegramCode, setTelegramCode] = useState("");
-  const [telegramStatus, setTelegramStatus] = useState<string | null>(null);
   const [resetStatus, setResetStatus] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const completeLogin = (role: string, homePath: string) => {
@@ -25,60 +21,6 @@ export default function Login() {
     navigate(homePath === "/dashboard" ? "/consent" : homePath);
   };
 
-  const requestTelegramCode = async () => {
-    setTelegramStatus("Отправляем код в Telegram...");
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 5000);
-
-    try {
-      const res = await fetch("/api/auth/telegram/request-code", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Accept: "application/json" },
-        body: JSON.stringify({ phone: telegramPhone }),
-        signal: controller.signal,
-      });
-      clearTimeout(timeout);
-      const payload = await res.json();
-      if (payload.ok) {
-        setTelegramStatus(
-          payload.data.devCode
-            ? `Код не удалось доставить в Telegram. Убедитесь, что вы запустили @PravoSkill_Bot и поделились номером телефона.\n\nТестовый код: ${payload.data.devCode}`
-            : "Код отправлен в PravoSkill_Bot. Проверьте Telegram.",
-        );
-      } else {
-        throw new Error();
-      }
-    } catch {
-      clearTimeout(timeout);
-      setTelegramStatus("Не удалось отправить код. Проверьте номер телефона.");
-    }
-  };
-
-  const loginWithTelegram = async () => {
-    setTelegramStatus("Проверяем код...");
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 5000);
-
-    try {
-      const res = await fetch("/api/auth/telegram/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Accept: "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ phone: telegramPhone, code: telegramCode }),
-        signal: controller.signal,
-      });
-      clearTimeout(timeout);
-      const payload = await res.json();
-      if (payload.ok) {
-        completeLogin(payload.data.user.role, payload.data.homePath);
-        return;
-      }
-      throw new Error();
-    } catch {
-      clearTimeout(timeout);
-      setTelegramStatus("Код не подошёл или истёк. Запросите новый код.");
-    }
-  };
 
   return (
     <div className="min-h-screen grid lg:grid-cols-2 bg-transparent">
@@ -173,64 +115,6 @@ export default function Login() {
               {isSubmitting ? "Вход..." : "Войти"}
             </Button>
 
-            <div className="relative py-1">
-              <div className="absolute inset-0 flex items-center">
-                <span className="w-full border-t border-border" />
-              </div>
-              <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-background px-3 text-muted-foreground">или</span>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 gap-3">
-              <Button
-                type="button"
-                variant="outline"
-                className="h-11 bg-card font-semibold text-foreground hover:bg-secondary"
-                onClick={() => setTelegramOpen((open) => !open)}
-                aria-label="Войти через Telegram"
-              >
-                <img src="/pravoskill-bot.png" alt="" className="h-5 w-5 rounded-full object-cover" />
-                Telegram
-              </Button>
-            </div>
-
-            {telegramOpen ? (
-              <div className="rounded-lg border border-border bg-card/70 p-3 space-y-3">
-                <div className="grid sm:grid-cols-[1fr_auto] gap-2">
-                  <div className="space-y-1.5">
-                    <Label htmlFor="telegram-phone">Телефон или chat ID Telegram</Label>
-                    <Input
-                      id="telegram-phone"
-                      type="tel"
-                      inputMode="tel"
-                      value={telegramPhone}
-                      onChange={(event) => setTelegramPhone(event.target.value)}
-                      placeholder="+7 900 000-00-00"
-                    />
-                  </div>
-                  <Button type="button" variant="outline" className="sm:self-end h-11" onClick={requestTelegramCode}>
-                    Получить код
-                  </Button>
-                </div>
-                <div className="grid sm:grid-cols-[1fr_auto] gap-2">
-                  <div className="space-y-1.5">
-                    <Label htmlFor="telegram-code">Код из Telegram</Label>
-                    <Input
-                      id="telegram-code"
-                      inputMode="numeric"
-                      value={telegramCode}
-                      onChange={(event) => setTelegramCode(event.target.value.replace(/\D/g, "").slice(0, 6))}
-                      placeholder="000000"
-                    />
-                  </div>
-                  <Button type="button" className="sm:self-end h-11 bg-primary hover:bg-primary/90" onClick={loginWithTelegram}>
-                    Войти по коду
-                  </Button>
-                </div>
-                {telegramStatus ? <p className="text-xs font-medium text-muted-foreground">{telegramStatus}</p> : null}
-              </div>
-            ) : null}
 
             <p className="text-sm text-center text-muted-foreground">
               Нет аккаунта?{" "}
@@ -243,17 +127,6 @@ export default function Login() {
               Защищённый вход. Соответствие 152-ФЗ о персональных данных.
             </p>
 
-            <div className="flex items-center justify-center gap-2 pt-1">
-              <a
-                href="https://t.me/PravoSkill_Bot"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
-              >
-                <img src="/pravoskill-bot.png" alt="" className="h-4 w-4 rounded-full object-cover" />
-                PravoSkill Bot в Telegram
-              </a>
-            </div>
           </form>
         </div>
 

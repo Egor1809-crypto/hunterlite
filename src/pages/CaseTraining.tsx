@@ -1,112 +1,93 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { StatusBadge } from "@/components/StatusBadge";
 import { BackButton } from "@/components/BackButton";
 import { IconBadge } from "@/components/IconBadge";
+import { ApiState } from "@/components/ApiState";
 import { cn } from "@/lib/utils";
-import { ArrowDownUp, BriefcaseBusiness, CheckCircle2, GripVertical, RotateCcw } from "lucide-react";
+import { frontendApi } from "@/lib/frontend-api";
+import type { CaseTemplateDto, CaseStepDto } from "@/lib/api-contracts";
+import { BriefcaseBusiness, CheckCircle2, RotateCcw } from "lucide-react";
 
-const caseScenario = {
-  title: "Ипотечная квартира и просрочки по кредитам",
-  client:
-    "Клиент платит ипотеку без просрочек, но перестал справляться с потребительскими кредитами. Есть автомобиль, алименты и перевод денег родственнику за 2 месяца до обращения.",
-  steps: [
-    {
-      question: "Что нужно уточнить в первую очередь?",
-      options: [
-        "Только сумму долга по потребительским кредитам",
-        "Состав долгов, имущество, алименты, сделки за последние годы и статус ипотеки",
-        "Готов ли клиент сразу перестать платить ипотеку",
-      ],
-      correct: 1,
-      explanation: "Для оценки банкротства важно собрать полную картину: долги, имущество, обязательства, сделки и залоговые риски.",
-    },
-    {
-      question: "Как безопасно ответить про ипотечную квартиру?",
-      options: [
-        "Ипотечную квартиру точно сохранят, если клиент платит банку",
-        "Залоговое жильё всегда продают без исключений",
-        "Ипотека требует отдельного анализа: залоговый кредитор имеет особый статус, риск реализации нужно объяснить заранее",
-      ],
-      correct: 2,
-      explanation: "Нельзя обещать сохранение ипотечного жилья. Нужно обозначить риск и анализировать документы.",
-    },
-    {
-      question: "Что сказать про алименты?",
-      options: [
-        "Алименты не списываются при банкротстве",
-        "Алименты можно списать вместе с кредитами",
-        "Алименты списываются, если нет имущества",
-      ],
-      correct: 0,
-      explanation: "Алиментные обязательства относятся к долгам, которые не прекращаются банкротством.",
-    },
-    {
-      question: "Какой риск есть в переводе денег родственнику перед процедурой?",
-      options: [
-        "Никакого риска, личные переводы не проверяются",
-        "Сделку могут проверить и оспорить, если она нарушает права кредиторов",
-        "Этот перевод автоматически делает банкротство невозможным",
-      ],
-      correct: 1,
-      explanation: "Подозрительные сделки перед банкротством могут быть предметом проверки и оспаривания.",
-    },
-  ],
-  procedure: [
-    "Первичная консультация и сбор документов",
-    "Анализ долгов, имущества и сделок",
-    "Подготовка заявления в арбитражный суд",
-    "Принятие заявления и введение процедуры",
-    "Работа финансового управляющего и формирование конкурсной массы",
-    "Завершение процедуры и решение о списании долгов",
-  ],
-};
+type CaseOption = { id: string; text: string };
 
-const initialOrder = [
-  caseScenario.procedure[2],
-  caseScenario.procedure[0],
-  caseScenario.procedure[4],
-  caseScenario.procedure[1],
-  caseScenario.procedure[5],
-  caseScenario.procedure[3],
-];
+function parseOptions(step: CaseStepDto): CaseOption[] {
+  if (!step.options) return [];
+  if (Array.isArray(step.options)) {
+    return (step.options as Array<{ id: string; text: string }>).map((o) => ({
+      id: String(o.id),
+      text: String(o.text),
+    }));
+  }
+  return [];
+}
 
-export default function CaseTraining() {
+function CaseSelection({
+  cases,
+  onSelect,
+}: {
+  cases: CaseTemplateDto[];
+  onSelect: (c: CaseTemplateDto) => void;
+}) {
+  return (
+    <div className="p-4 md:p-8 max-w-6xl mx-auto animate-fade-in space-y-5">
+      <BackButton label="Назад к режимам" fallback="/modes" />
+
+      <div className="flex items-start gap-4">
+        <IconBadge icon={BriefcaseBusiness} />
+        <div>
+          <div className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">Практическая тренировка</div>
+          <h1 className="font-display text-3xl font-bold text-primary tracking-tight mt-1">Кейсы по банкротству</h1>
+          <p className="text-muted-foreground mt-2 max-w-2xl">Выберите кейс для прохождения.</p>
+        </div>
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {cases.map((c) => (
+          <Card key={c.id} className="p-5 shadow-card hover:border-accent transition-colors cursor-pointer" onClick={() => onSelect(c)}>
+            <div className="flex flex-wrap items-center gap-2 mb-2">
+              <StatusBadge variant="info">{c.difficulty}</StatusBadge>
+              {c.tags.map((tag) => (
+                <StatusBadge key={tag} variant="warning">{tag}</StatusBadge>
+              ))}
+            </div>
+            <h3 className="font-display font-bold text-primary">{c.title}</h3>
+            <p className="text-sm text-muted-foreground mt-2 line-clamp-3">{c.introText}</p>
+            {c.steps && (
+              <p className="text-xs text-muted-foreground mt-2">{c.steps.length} шагов</p>
+            )}
+          </Card>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function CaseQuiz({ caseData }: { caseData: CaseTemplateDto }) {
   const navigate = useNavigate();
-  const [answers, setAnswers] = useState<Record<number, number>>({});
-  const [submittedSteps, setSubmittedSteps] = useState(false);
-  const [order, setOrder] = useState(initialOrder);
-  const [submittedOrder, setSubmittedOrder] = useState(false);
+  const steps = caseData.steps || [];
+  const [answers, setAnswers] = useState<Record<number, string>>({});
+  const [submitted, setSubmitted] = useState(false);
 
-  const correctAnswers = caseScenario.steps.filter((step, index) => answers[index] === step.correct).length;
-  const orderScore = order.filter((item, index) => item === caseScenario.procedure[index]).length;
-  const totalTasks = caseScenario.steps.length + caseScenario.procedure.length;
-  const totalCorrect = (submittedSteps ? correctAnswers : 0) + (submittedOrder ? orderScore : 0);
-  const finalScore = Math.round((totalCorrect / totalTasks) * 100);
+  const correctAnswers = steps.filter((step, index) => {
+    if (!step.correctOptionId) return false;
+    return answers[index] === step.correctOptionId;
+  }).length;
+
+  const totalTasks = steps.length;
   const answeredCount = Object.keys(answers).length;
-
-  const canSubmitSteps = answeredCount === caseScenario.steps.length;
-  const canSubmitOrder = submittedSteps;
-  const finished = submittedSteps && submittedOrder;
-
-  const moveItem = (index: number, direction: -1 | 1) => {
-    const target = index + direction;
-    if (target < 0 || target >= order.length || submittedOrder) return;
-
-    setOrder((current) => {
-      const next = [...current];
-      [next[index], next[target]] = [next[target], next[index]];
-      return next;
-    });
-  };
+  const canSubmit = answeredCount === totalTasks && totalTasks > 0;
+  const finalScore = totalTasks > 0 ? Math.round((correctAnswers / totalTasks) * 100) : 0;
 
   const progress = useMemo(() => {
-    if (finished) return 100;
-    return Math.round(((submittedSteps ? caseScenario.steps.length : answeredCount) / totalTasks) * 100);
-  }, [answeredCount, finished, submittedSteps, totalTasks]);
+    if (submitted) return 100;
+    if (totalTasks === 0) return 0;
+    return Math.round((answeredCount / totalTasks) * 100);
+  }, [answeredCount, submitted, totalTasks]);
 
   return (
     <div className="p-4 md:p-8 max-w-6xl mx-auto animate-fade-in space-y-5">
@@ -119,13 +100,13 @@ export default function CaseTraining() {
             <div className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">Практическая тренировка</div>
             <h1 className="font-display text-3xl font-bold text-primary tracking-tight mt-1">Кейсы по банкротству</h1>
             <p className="text-muted-foreground mt-2 max-w-2xl">
-              Ответьте на шаги ситуации, затем соберите процедуру банкротства в правильной хронологии.
+              Ответьте на вопросы кейса, выбирая юридически безопасный вариант.
             </p>
           </div>
         </div>
         <Card className="p-4 min-w-[220px]">
           <div className="text-xs uppercase tracking-wider font-semibold text-muted-foreground">Итоговый балл</div>
-          <div className="text-pixel-number text-3xl mt-1">{finished ? finalScore : "--"}</div>
+          <div className="text-pixel-number text-3xl mt-1">{submitted ? finalScore : "--"}</div>
           <Progress value={progress} className="h-1.5 mt-3" />
         </Card>
       </div>
@@ -133,123 +114,102 @@ export default function CaseTraining() {
       <Card className="p-5 shadow-card">
         <div className="flex flex-wrap items-center gap-2 mb-3">
           <StatusBadge variant="info">Ситуация клиента</StatusBadge>
-          <StatusBadge variant="warning">Ипотека</StatusBadge>
-          <StatusBadge variant="warning">Сделка с родственником</StatusBadge>
+          {caseData.tags.map((tag) => (
+            <StatusBadge key={tag} variant="warning">{tag}</StatusBadge>
+          ))}
         </div>
-        <h2 className="font-display font-bold text-xl text-primary">{caseScenario.title}</h2>
-        <p className="text-sm text-muted-foreground mt-2 leading-relaxed">{caseScenario.client}</p>
+        <h2 className="font-display font-bold text-xl text-primary">{caseData.title}</h2>
+        <p className="text-sm text-muted-foreground mt-2 leading-relaxed">{caseData.introText}</p>
       </Card>
 
       <Card className="p-5 shadow-card">
         <div className="flex items-center justify-between gap-3 mb-4">
           <div>
-            <h3 className="font-display font-bold text-primary">1. Ответы по шагам кейса</h3>
+            <h3 className="font-display font-bold text-primary">Ответы по шагам кейса</h3>
             <p className="text-sm text-muted-foreground mt-1">Выберите юридически безопасный вариант на каждом шаге.</p>
           </div>
-          {submittedSteps ? <StatusBadge variant="success">{correctAnswers}/{caseScenario.steps.length}</StatusBadge> : null}
+          {submitted && <StatusBadge variant="success">{correctAnswers}/{totalTasks}</StatusBadge>}
         </div>
 
         <div className="space-y-4">
-          {caseScenario.steps.map((step, stepIndex) => {
+          {steps.map((step, stepIndex) => {
+            const options = parseOptions(step);
             const selected = answers[stepIndex];
-            const isCorrect = selected === step.correct;
+            const isCorrect = selected === step.correctOptionId;
+            const isRedFlag = step.isRedFlag;
 
             return (
-              <div key={step.question} className="rounded-lg border border-border p-4">
-                <div className="font-semibold text-sm text-primary">{stepIndex + 1}. {step.question}</div>
-                <div className="grid gap-2 mt-3">
-                  {step.options.map((option, optionIndex) => {
-                    const active = selected === optionIndex;
-                    const showCorrect = submittedSteps && optionIndex === step.correct;
-                    const showWrong = submittedSteps && active && !isCorrect;
-
-                    return (
-                      <button
-                        key={option}
-                        type="button"
-                        disabled={submittedSteps}
-                        onClick={() => setAnswers((current) => ({ ...current, [stepIndex]: optionIndex }))}
-                        className={cn(
-                          "text-left text-sm rounded-lg border px-3 py-2 transition-colors",
-                          active ? "border-accent bg-accent/10" : "border-border hover:bg-muted/40",
-                          showCorrect && "border-success bg-success/10",
-                          showWrong && "border-destructive bg-destructive/10",
-                        )}
-                      >
-                        {option}
-                      </button>
-                    );
-                  })}
+              <div key={step.id} className={cn("rounded-lg border border-border p-4", isRedFlag && "border-destructive/30")}>
+                <div className="flex items-start gap-2">
+                  <div className="font-semibold text-sm text-primary flex-1">
+                    {stepIndex + 1}. {step.question}
+                  </div>
+                  {isRedFlag && <StatusBadge variant="destructive">Red flag</StatusBadge>}
                 </div>
-                {submittedSteps ? (
-                  <p className={cn("text-xs mt-3", isCorrect ? "text-success" : "text-destructive")}>
-                    {isCorrect ? "Верно. " : "Нужно исправить логику. "}{step.explanation}
-                  </p>
-                ) : null}
-              </div>
-            );
-          })}
-        </div>
+                {step.answerFormat === "options" && options.length > 0 && (
+                  <div className="grid gap-2 mt-3">
+                    {options.map((option) => {
+                      const active = selected === option.id;
+                      const showCorrect = submitted && option.id === step.correctOptionId;
+                      const showWrong = submitted && active && !isCorrect;
 
-        {!submittedSteps ? (
-          <Button onClick={() => setSubmittedSteps(true)} disabled={!canSubmitSteps} className="mt-4 bg-primary hover:bg-primary/90">
-            Проверить ответы
-          </Button>
-        ) : null}
-      </Card>
-
-      <Card className={cn("p-5 shadow-card", !submittedSteps && "opacity-60")}>
-        <div className="flex items-center justify-between gap-3 mb-4">
-          <div>
-            <h3 className="font-display font-bold text-primary">2. Хронология процедуры</h3>
-            <p className="text-sm text-muted-foreground mt-1">Расставьте этапы банкротства физлица в правильном порядке.</p>
-          </div>
-          {submittedOrder ? <StatusBadge variant="success">{orderScore}/{caseScenario.procedure.length}</StatusBadge> : null}
-        </div>
-
-        <div className="space-y-2">
-          {order.map((item, index) => {
-            const isCorrect = submittedOrder && item === caseScenario.procedure[index];
-
-            return (
-              <div
-                key={item}
-                className={cn(
-                  "grid grid-cols-[auto_1fr_auto] items-center gap-3 rounded-lg border border-border p-3 bg-card",
-                  submittedOrder && (isCorrect ? "border-success bg-success/10" : "border-warning bg-warning-soft/40"),
+                      return (
+                        <button
+                          key={option.id}
+                          type="button"
+                          disabled={submitted}
+                          onClick={() => setAnswers((current) => ({ ...current, [stepIndex]: option.id }))}
+                          className={cn(
+                            "text-left text-sm rounded-lg border px-3 py-2 transition-colors",
+                            active ? "border-accent bg-accent/10" : "border-border hover:bg-muted/40",
+                            showCorrect && "border-success bg-success/10",
+                            showWrong && "border-destructive bg-destructive/10",
+                          )}
+                        >
+                          {option.text}
+                        </button>
+                      );
+                    })}
+                  </div>
                 )}
-              >
-                <div className="flex items-center gap-2 text-muted-foreground">
-                  <GripVertical className="h-4 w-4" />
-                  <span className="text-xs font-mono">{index + 1}</span>
-                </div>
-                <div className="text-sm">{item}</div>
-                <div className="flex items-center gap-1">
-                  <Button variant="ghost" size="sm" disabled={!canSubmitOrder || submittedOrder || index === 0} onClick={() => moveItem(index, -1)}>
-                    ↑
-                  </Button>
-                  <Button variant="ghost" size="sm" disabled={!canSubmitOrder || submittedOrder || index === order.length - 1} onClick={() => moveItem(index, 1)}>
-                    ↓
-                  </Button>
-                </div>
+                {step.answerFormat === "text" && (
+                  <div className="mt-3">
+                    <textarea
+                      disabled={submitted}
+                      placeholder="Введите ваш ответ..."
+                      className="w-full rounded-lg border border-border px-3 py-2 text-sm bg-card resize-none min-h-[80px] focus:outline-none focus:ring-2 focus:ring-accent"
+                      value={typeof answers[stepIndex] === "string" ? answers[stepIndex] : ""}
+                      onChange={(e) => setAnswers((current) => ({ ...current, [stepIndex]: e.target.value }))}
+                    />
+                    {submitted && step.referenceAnswer && (
+                      <p className="text-xs mt-2 text-muted-foreground">
+                        Эталонный ответ: {step.referenceAnswer}
+                      </p>
+                    )}
+                  </div>
+                )}
+                {submitted && step.answerFormat === "options" && (
+                  <p className={cn("text-xs mt-3", isCorrect ? "text-success" : "text-destructive")}>
+                    {isCorrect ? "Верно." : "Неправильный ответ."}
+                    {step.referenceAnswer && ` ${step.referenceAnswer}`}
+                  </p>
+                )}
               </div>
             );
           })}
         </div>
 
         <div className="flex flex-wrap gap-2 mt-4">
-          {!submittedOrder ? (
-            <Button onClick={() => setSubmittedOrder(true)} disabled={!canSubmitOrder} className="bg-primary hover:bg-primary/90">
-              <ArrowDownUp className="h-4 w-4 mr-1.5" /> Проверить порядок
+          {!submitted && (
+            <Button onClick={() => setSubmitted(true)} disabled={!canSubmit} className="bg-primary hover:bg-primary/90">
+              Проверить ответы
             </Button>
-          ) : null}
+          )}
           <Button
             variant="outline"
             onClick={() => {
               setAnswers({});
-              setSubmittedSteps(false);
-              setSubmittedOrder(false);
-              setOrder(initialOrder);
+              setSubmitted(false);
             }}
           >
             <RotateCcw className="h-4 w-4 mr-1.5" /> Пройти заново
@@ -257,7 +217,7 @@ export default function CaseTraining() {
         </div>
       </Card>
 
-      {finished ? (
+      {submitted && (
         <Card className="p-5 shadow-card bg-ai-soft border-ai/20">
           <div className="flex gap-3">
             <CheckCircle2 className="h-5 w-5 text-ai-soft-foreground shrink-0 mt-0.5" />
@@ -265,7 +225,7 @@ export default function CaseTraining() {
               <h3 className="font-display font-bold text-ai-soft-foreground">Разбор завершён</h3>
               <p className="text-sm text-ai-soft-foreground/90 mt-1">
                 {finalScore >= 80
-                  ? "Хорошая работа: логика кейса и порядок процедуры в целом собраны правильно."
+                  ? "Хорошая работа: логика кейса в целом собрана правильно."
                   : "Повторите книгу БФЛ по имуществу, неснимаемым долгам и этапам судебной процедуры."}
               </p>
               <Button onClick={() => navigate("/bfl-book")} variant="outline" className="mt-3 bg-card">
@@ -274,7 +234,58 @@ export default function CaseTraining() {
             </div>
           </div>
         </Card>
-      ) : null}
+      )}
     </div>
+  );
+}
+
+export default function CaseTraining() {
+  const [selectedCase, setSelectedCase] = useState<CaseTemplateDto | null>(null);
+
+  const { data: cases, isFetching, isError, isLoading } = useQuery({
+    queryKey: ["caseTemplates"],
+    queryFn: frontendApi.getCaseTemplates,
+  });
+
+  if (isLoading) {
+    return (
+      <div className="p-4 md:p-8 max-w-6xl mx-auto animate-fade-in space-y-5">
+        <BackButton label="Назад к режимам" fallback="/modes" />
+        <ApiState isFetching loadingText="Загружаем кейсы..." />
+      </div>
+    );
+  }
+
+  if (isError || !cases) {
+    return (
+      <div className="p-4 md:p-8 max-w-6xl mx-auto animate-fade-in space-y-5">
+        <BackButton label="Назад к режимам" fallback="/modes" />
+        <ApiState isError errorText="Не удалось загрузить кейсы. Попробуйте позже." />
+      </div>
+    );
+  }
+
+  if (cases.length === 0) {
+    return (
+      <div className="p-4 md:p-8 max-w-6xl mx-auto animate-fade-in space-y-5">
+        <BackButton label="Назад к режимам" fallback="/modes" />
+        <ApiState isEmpty emptyText="Пока нет доступных кейсов для тренировки." />
+      </div>
+    );
+  }
+
+  if (selectedCase) {
+    return <CaseQuiz caseData={selectedCase} />;
+  }
+
+  if (cases.length === 1) {
+    return <CaseQuiz caseData={cases[0]} />;
+  }
+
+  return (
+    <>
+      {isFetching && <ApiState isFetching loadingText="Обновляем список кейсов..." />}
+      <CaseSelection cases={cases} onSelect={setSelectedCase} />
+    </>
   );
 }

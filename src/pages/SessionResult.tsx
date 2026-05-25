@@ -96,7 +96,7 @@ export default function SessionResult() {
   });
   const scoreParam = Number(params.get("score"));
   const score = sessionDetail?.score ?? (
-    params.has("score") && Number.isInteger(scoreParam) && scoreParam >= 0 && scoreParam <= 100 ? scoreParam : 76
+    params.has("score") && Number.isInteger(scoreParam) && scoreParam >= 0 && scoreParam <= 100 ? scoreParam : 0
   );
   const passed = isPassingScore(score);
   
@@ -108,7 +108,7 @@ export default function SessionResult() {
     queryFn: () => frontendApi.currentUser(),
   });
   const resultMode = sessionDetail?.mode ?? (isExam ? "Экзамен" : "Тренировка");
-  const resultTopic = sessionDetail?.topic ?? "Имущество должника";
+  const resultTopic = sessionDetail?.topic ?? params.get("topic") ?? "Тренировка";
   const today = new Date().toLocaleDateString("ru-RU");
   
   const dynamicTimeline = mistakes.map((m, idx) => ({
@@ -212,12 +212,18 @@ export default function SessionResult() {
             <h3 className="font-display font-bold text-primary">Сильные темы</h3>
           </div>
           <div className="space-y-2">
-            {["Последствия банкротства", "Тон коммуникации с клиентом", "Условия процедуры"].map((t) => (
-              <div key={t} className="flex items-center justify-between p-2.5 rounded-lg bg-success-soft/40 border border-success/20">
-                <span className="text-sm">{t}</span>
-                <StatusBadge variant="success">90+</StatusBadge>
-              </div>
-            ))}
+            {sessionDetail?.criteria?.length ? (
+              sessionDetail.criteria
+                .filter((c) => c.score >= 80)
+                .map((c) => (
+                  <div key={c.criterion} className="flex items-center justify-between p-2.5 rounded-lg bg-success-soft/40 border border-success/20">
+                    <span className="text-sm">{c.criterion}</span>
+                    <StatusBadge variant="success">{c.score}</StatusBadge>
+                  </div>
+                ))
+            ) : (
+              <p className="text-sm text-muted-foreground">Данные оценки недоступны для этой сессии.</p>
+            )}
           </div>
         </Card>
         <Card className="p-5 shadow-card">
@@ -226,12 +232,24 @@ export default function SessionResult() {
             <h3 className="font-display font-bold text-primary">Слабые темы</h3>
           </div>
           <div className="space-y-2">
-            {[{ t: "Имущество должника", v: "62" }, { t: "Ипотечное жильё", v: "58" }, { t: "Долги, которые не списываются", v: "65" }].map((x) => (
-              <div key={x.t} className="flex items-center justify-between p-2.5 rounded-lg bg-warning-soft/40 border border-warning/20">
-                <span className="text-sm">{x.t}</span>
-                <StatusBadge variant="warning">{x.v}</StatusBadge>
-              </div>
-            ))}
+            {sessionDetail?.criteria?.length ? (
+              sessionDetail.criteria
+                .filter((c) => c.score < 80)
+                .map((c) => (
+                  <div key={c.criterion} className="flex items-center justify-between p-2.5 rounded-lg bg-warning-soft/40 border border-warning/20">
+                    <span className="text-sm">{c.criterion}</span>
+                    <StatusBadge variant="warning">{c.score}</StatusBadge>
+                  </div>
+                ))
+            ) : sessionDetail?.mistakes && sessionDetail.mistakes[0] !== "Ошибок не обнаружено" ? (
+              sessionDetail.mistakes.map((m) => (
+                <div key={m} className="flex items-center justify-between p-2.5 rounded-lg bg-warning-soft/40 border border-warning/20">
+                  <span className="text-sm">{m}</span>
+                </div>
+              ))
+            ) : (
+              <p className="text-sm text-muted-foreground">Данные оценки недоступны для этой сессии.</p>
+            )}
           </div>
         </Card>
       </div>

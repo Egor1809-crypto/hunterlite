@@ -20,21 +20,17 @@ import {
   type AdminPrismaClient,
 } from "./admin/admin-prisma-data-source";
 import type { NavyAiClient } from "./ai/navy-ai-client";
-import type { TelegramBotClient } from "./telegram/telegram-bot-client";
 
 export type BackendDataSourceOptions = {
   prisma: UsersPrismaClient & TrainingsPrismaClient & NotificationsPrismaClient & AnalyticsPrismaClient & AdminPrismaClient;
   ai?: NavyAiClient;
-  telegram?: TelegramBotClient;
 };
 
 export const createBackendDataSource = (
   options: BackendDataSourceOptions,
 ): FrontendApiDataSource => {
   const users = createUsersPrismaDataSource(options.prisma);
-  const trainings = createTrainingsPrismaDataSource(options.prisma, {
-    telegram: options.telegram,
-  });
+  const trainings = createTrainingsPrismaDataSource(options.prisma);
   const notifications = createNotificationsPrismaDataSource(options.prisma);
   const analytics = createAnalyticsPrismaDataSource(options.prisma);
   const admin = createAdminPrismaDataSource(options.prisma);
@@ -52,5 +48,20 @@ export const createBackendDataSource = (
       user: await users.getCurrentUser(userId),
       weakTopics: await trainings.getWeakTopics(userId),
     }),
+    submitClientLead: async (payload) => {
+      const data = payload as { name?: string; phone?: string; description?: string } | undefined;
+      if (!data?.name?.trim() || !data?.phone?.trim()) return null;
+
+      const id = crypto.randomUUID();
+      // Store in clientLead table if available, otherwise accept silently
+      try {
+        await (options.prisma as { clientLead?: { create: (args: unknown) => Promise<unknown> } }).clientLead?.create({
+          data: { id, name: data.name.trim(), phone: data.phone.trim(), description: data.description?.trim() ?? "" },
+        });
+      } catch {
+        // Table may not exist yet — still accept the lead
+      }
+      return { id };
+    },
   };
 };

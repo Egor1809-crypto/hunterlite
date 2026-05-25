@@ -20,6 +20,17 @@ export default function ManagerEmployee() {
   }
 
   const { employee: e, history, weakTopics, strongTopics, recommendation } = profile;
+
+  const trainingsThisMonth = (() => {
+    const now = new Date();
+    const month = now.getMonth();
+    const year = now.getFullYear();
+    return history.filter((h) => {
+      const d = new Date(h.date);
+      return d.getMonth() === month && d.getFullYear() === year;
+    }).length;
+  })();
+
   const latestResultId = history[0]?.id;
   const courseTopic = weakTopics[0]?.topic || e.weak || "Имущество должника";
   const assignCourse = useMutation({
@@ -73,7 +84,7 @@ export default function ManagerEmployee() {
         {[
           { l: "Средний балл", v: `${e.score}/100` },
           { l: "Экзамен", v: e.exam },
-          { l: "Тренировок за месяц", v: "21" },
+          { l: "Тренировок за месяц", v: String(trainingsThisMonth) },
         ].map((s) => (
           <Card key={s.l} className="p-4 shadow-card">
             <div className="text-[11px] uppercase tracking-wider font-semibold text-muted-foreground">{s.l}</div>

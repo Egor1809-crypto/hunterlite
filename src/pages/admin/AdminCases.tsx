@@ -23,6 +23,7 @@ import { Textarea } from "@/components/ui/textarea";
 const AdminCases = () => {
   const queryClient = useQueryClient();
   const [isAddOpen, setIsAddOpen] = useState(false);
+  const [editingItem, setEditingItem] = useState<CaseTemplateDto | null>(null);
   const [formError, setFormError] = useState("");
   const [formData, setFormData] = useState<Partial<CaseTemplateCreateRequestDto>>({
     difficulty: "medium",
@@ -34,17 +35,45 @@ const AdminCases = () => {
     queryFn: () => frontendApi.getCaseTemplates(),
   });
 
+  const resetForm = () => {
+    setEditingItem(null);
+    setFormError("");
+    setFormData({ difficulty: "medium", steps: [{ question: "", answerFormat: "options", isRedFlag: false }] });
+  };
+
   const createMutation = useMutation({
     mutationFn: (newCase: CaseTemplateCreateRequestDto) => frontendApi.createCaseTemplate(newCase),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin", "cases"] });
       setIsAddOpen(false);
-      setFormError("");
-      setFormData({ difficulty: "medium", steps: [{ question: "", answerFormat: "options", isRedFlag: false }] });
+      resetForm();
     },
   });
 
-  const handleCreate = () => {
+  const openEdit = (c: CaseTemplateDto) => {
+    setEditingItem(c);
+    setFormData({
+      title: c.title,
+      introText: c.introText,
+      difficulty: c.difficulty,
+      steps: (c.steps || []).map((s) => ({
+        question: s.question,
+        answerFormat: s.answerFormat,
+        isRedFlag: s.isRedFlag ?? false,
+      })),
+    });
+    setIsAddOpen(true);
+  };
+
+  const handleDelete = (c: CaseTemplateDto) => {
+    if (!window.confirm(`Удалить кейс «${c.title}»? Это действие нельзя отменить.`)) return;
+    // TODO: wire to API delete endpoint
+    queryClient.setQueryData<CaseTemplateDto[]>(["admin", "cases"], (old) =>
+      (old || []).filter((item) => item.id !== c.id)
+    );
+  };
+
+  const handleSave = () => {
     const steps = formData.steps ?? [];
 
     if (!formData.title?.trim() || !formData.introText?.trim()) {
@@ -56,6 +85,29 @@ const AdminCases = () => {
       return;
     }
     setFormError("");
+
+    if (editingItem) {
+      const updated: CaseTemplateDto = {
+        ...editingItem,
+        title: formData.title!.trim(),
+        introText: formData.introText!.trim(),
+        difficulty: formData.difficulty ?? "medium",
+        steps: steps.map((s, idx) => ({
+          id: editingItem.steps?.[idx]?.id ?? `step-${idx}`,
+          question: s.question,
+          answerFormat: s.answerFormat,
+          isRedFlag: s.isRedFlag ?? false,
+          options: editingItem.steps?.[idx]?.options,
+        })),
+      };
+      queryClient.setQueryData<CaseTemplateDto[]>(["admin", "cases"], (old) =>
+        (old || []).map((item) => (item.id === editingItem.id ? updated : item))
+      );
+      setIsAddOpen(false);
+      resetForm();
+      return;
+    }
+
     createMutation.mutate({
       title: formData.title.trim(),
       introText: formData.introText.trim(),
@@ -85,16 +137,22 @@ const AdminCases = () => {
           </p>
         </div>
 
-        <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
+        <Dialog
+          open={isAddOpen}
+          onOpenChange={(open) => {
+            setIsAddOpen(open);
+            if (!open) resetForm();
+          }}
+        >
           <DialogTrigger asChild>
-            <Button className="bg-primary hover:bg-primary/90">
+            <Button className="bg-primary hover:bg-primary/90" onClick={resetForm}>
               <Plus className="mr-2 h-4 w-4" />
               Создать кейс
             </Button>
           </DialogTrigger>
           <DialogContent className="sm:max-w-[700px] border-white/10 bg-black/90 backdrop-blur-xl">
             <DialogHeader>
-              <DialogTitle>Создание ситуационного кейса</DialogTitle>
+              <DialogTitle>{editingItem ? "Редактирование кейса" : "Создание ситуационного кейса"}</DialogTitle>
               <DialogDescription>
                 Опишите вводную часть ситуации и добавьте шаги для пользователя.
               </DialogDescription>
@@ -180,9 +238,9 @@ const AdminCases = () => {
               <Button variant="outline" onClick={() => setIsAddOpen(false)} className="border-white/10 hover:bg-white/5" disabled={createMutation.isPending}>
                 Отмена
               </Button>
-              <Button type="button" onClick={handleCreate} disabled={createMutation.isPending || !formData.title || !formData.introText}>
+              <Button type="button" onClick={handleSave} disabled={createMutation.isPending || !formData.title || !formData.introText}>
                 {createMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Сохранить кейс
+                {editingItem ? "Сохранить изменения" : "Сохранить кейс"}
               </Button>
             </DialogFooter>
             {formError ? <p className="text-sm font-medium text-red-300">{formError}</p> : null}
@@ -223,11 +281,21 @@ const AdminCases = () => {
                   <p className="text-muted-foreground text-sm line-clamp-2 mb-3">{c.introText}</p>
                 </div>
                 <div className="border-t sm:border-t-0 sm:border-l border-white/10 bg-black/20 p-4 flex sm:flex-col justify-end sm:justify-center gap-2 sm:w-32">
-                  <Button variant="ghost" size="sm" className="w-full justify-start text-muted-foreground hover:text-white hover:bg-white/10">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="w-full justify-start text-muted-foreground hover:text-white hover:bg-white/10"
+                    onClick={() => openEdit(c)}
+                  >
                     <Edit className="mr-2 h-4 w-4" />
                     Редакт.
                   </Button>
-                  <Button variant="ghost" size="sm" className="w-full justify-start text-red-400 hover:text-red-300 hover:bg-red-500/20">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="w-full justify-start text-red-400 hover:text-red-300 hover:bg-red-500/20"
+                    onClick={() => handleDelete(c)}
+                  >
                     <Trash2 className="mr-2 h-4 w-4" />
                     Удалить
                   </Button>

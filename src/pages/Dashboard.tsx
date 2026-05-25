@@ -221,23 +221,6 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* ── Telegram bot ── */}
-      <Card className="p-5 glass-card-solid rounded-2xl border-l-4 border-l-[#2AABEE] flex flex-col sm:flex-row items-start sm:items-center gap-4">
-        <div className="h-12 w-12 rounded-xl bg-[#2AABEE]/10 flex items-center justify-center shrink-0">
-          <img src="/pravoskill-bot.png" alt="PravoSkill Bot" className="h-9 w-9 rounded-lg object-cover" />
-        </div>
-        <div className="flex-1 min-w-0">
-          <div className="font-bold text-sm">PravoSkill Bot в Telegram</div>
-          <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
-            Тренируйтесь в дороге: быстрые тесты, мини-диалоги с AI-клиентом и подсказки прямо в Telegram.
-          </p>
-        </div>
-        <Button asChild variant="outline" size="sm" className="shrink-0 rounded-xl">
-          <a href="https://t.me/PravoSkill_Bot" target="_blank" rel="noopener noreferrer">
-            Открыть бот
-          </a>
-        </Button>
-      </Card>
 
       {/* ── Bottom row ── */}
       <div className="grid lg:grid-cols-2 gap-4 stagger-in">

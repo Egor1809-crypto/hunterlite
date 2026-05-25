@@ -1,3 +1,4 @@
+import { useState, useMemo } from "react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Card } from "@/components/ui/card";
@@ -15,11 +16,25 @@ export default function History() {
     queryFn: frontendApi.trainingHistory,
   });
 
+  const [searchQuery, setSearchQuery] = useState("");
+  const [modeFilter, setModeFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+
+  const items = history ?? [];
+
+  const filteredItems = useMemo(() => {
+    return items.filter((h) => {
+      const matchesSearch =
+        !searchQuery || h.topic.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesMode = !modeFilter || h.mode === modeFilter;
+      const matchesStatus = !statusFilter || h.status === statusFilter;
+      return matchesSearch && matchesMode && matchesStatus;
+    });
+  }, [items, searchQuery, modeFilter, statusFilter]);
+
   if (isLoading) {
     return <div className="flex min-h-[50vh] items-center justify-center text-sm text-muted-foreground">Загрузка...</div>;
   }
-
-  const items = history ?? [];
 
   return (
     <div className="p-4 md:p-8 max-w-7xl mx-auto animate-fade-in">
@@ -41,13 +56,31 @@ export default function History() {
       <Card className="p-4 mb-4 shadow-card flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
           <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-          <Input placeholder="Поиск по теме…" className="pl-9" />
+          <Input
+            placeholder="Поиск по теме…"
+            className="pl-9"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
         </div>
-        <select className="h-10 rounded-md border border-input bg-background px-3 text-sm">
-          <option>Все режимы</option><option>Тренировка</option><option>Экзамен</option>
+        <select
+          className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+          value={modeFilter}
+          onChange={(e) => setModeFilter(e.target.value)}
+        >
+          <option value="">Все режимы</option>
+          <option value="Тренировка">Тренировка</option>
+          <option value="Экзамен">Экзамен</option>
         </select>
-        <select className="h-10 rounded-md border border-input bg-background px-3 text-sm">
-          <option>За месяц</option><option>За неделю</option><option>За всё время</option>
+        <select
+          className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value)}
+        >
+          <option value="">Все статусы</option>
+          <option value="Завершено">Завершено</option>
+          <option value="Не сдан">Не сдан</option>
+          <option value="Сдан">Сдан</option>
         </select>
       </Card>
 
@@ -65,7 +98,7 @@ export default function History() {
               </tr>
             </thead>
             <tbody>
-              {items.map((h) => (
+              {filteredItems.map((h) => (
                 <tr key={h.id} className="border-t border-border hover:bg-muted/30 transition-colors">
                   <td className="p-3 text-muted-foreground tabular-nums"><span className="text-pixel-inline text-pixel-inline-muted">{h.date}</span></td>
                   <td className="p-3">{h.mode}</td>

@@ -57,8 +57,6 @@ export type FrontendApiRoute = {
 
 export const frontendApiRoutes = [
   { method: "POST", path: "/api/auth/login", module: "auth", requiresAuth: false },
-  { method: "POST", path: "/api/auth/telegram/request-code", module: "auth", requiresAuth: false },
-  { method: "POST", path: "/api/auth/telegram/login", module: "auth", requiresAuth: false },
   { method: "POST", path: "/api/auth/password-reset/request", module: "auth", requiresAuth: false },
   { method: "POST", path: "/api/auth/password-reset/complete", module: "auth", requiresAuth: false },
   { method: "GET", path: "/api/auth/session", module: "auth", requiresAuth: true },
@@ -95,6 +93,7 @@ export const frontendApiRoutes = [
   { method: "POST", path: "/api/admin/call-scripts", module: "admin", requiresAuth: true },
   { method: "POST", path: "/api/admin/call-scripts/:id", module: "admin", requiresAuth: true },
   { method: "POST", path: "/api/admin/call-scripts/:id/delete", module: "admin", requiresAuth: true },
+  { method: "POST", path: "/api/client/lead", module: "client", requiresAuth: false },
 ] as const satisfies readonly FrontendApiRoute[];
 
 export type FrontendApiDataSource = {
@@ -130,6 +129,7 @@ export type FrontendApiDataSource = {
   createCallScript: (payload: CallScriptCreateRequestDto) => MaybePromise<CallScriptDto | null>;
   updateCallScript: (id: string, payload: CallScriptUpdateRequestDto) => MaybePromise<CallScriptDto | null>;
   deleteCallScript: (id: string) => MaybePromise<boolean>;
+  submitClientLead: (payload: unknown) => MaybePromise<{ id: string } | null>;
 };
 
 type HandlerResult<TData> = ApiSuccess<TData> | ApiFailure;
@@ -451,5 +451,12 @@ export const createFrontendApiHandlers = (source: FrontendApiDataSource) => ({
     if (!deleted) return fail("NOT_FOUND", "Call script not found", { id });
 
     return ok({ deleted: true, id });
+  },
+
+  submitClientLead: async (payload: unknown): Promise<HandlerResult<{ id: string }>> => {
+    const result = await source.submitClientLead(payload);
+    if (!result) return fail("VALIDATION_ERROR", "Invalid lead data");
+
+    return ok(result);
   },
 });

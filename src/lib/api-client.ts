@@ -62,8 +62,6 @@ export async function apiPost<TData, TBody = unknown>(path: string, body?: TBody
   const csrfFreePaths = new Set([
     "/auth/login",
     "/auth/register",
-    "/auth/telegram/request-code",
-    "/auth/telegram/login",
   ]);
   const csrfToken = csrfFreePaths.has(path) ? undefined : readCookie(CSRF_COOKIE_NAME);
   const response = await fetch(`${API_BASE_URL}${path}`, {

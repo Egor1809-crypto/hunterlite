@@ -50,7 +50,8 @@ describe("application routes", () => {
     window.history.pushState({}, "", "/login");
     render(<App />);
 
-    expect(await screen.findByRole("button", { name: /Telegram/i })).toBeInTheDocument();
+    expect(await screen.findByText("Вход в кабинет", { exact: false })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Telegram/i })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Сотрудник" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Руководитель" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Админ" })).not.toBeInTheDocument();

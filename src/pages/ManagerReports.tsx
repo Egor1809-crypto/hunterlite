@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -9,10 +10,13 @@ import { frontendApi } from "@/lib/frontend-api";
 import { passingScore } from "@/lib/training-logic";
 import { AlertTriangle, BarChart3, Download, ListChecks } from "lucide-react";
 
+type ReportPeriod = "7" | "30" | "90";
+
 export default function ManagerReports() {
+  const [period, setPeriod] = useState<ReportPeriod>("30");
   const { data: report, isFetching, isError, isLoading } = useQuery({
-    queryKey: ["manager-reports"],
-    queryFn: frontendApi.managerReports,
+    queryKey: ["manager-reports", period],
+    queryFn: () => frontendApi.managerReports(period),
   });
 
   if (isLoading || !report) {
@@ -34,8 +38,14 @@ export default function ManagerReports() {
           </div>
         </div>
         <div className="flex gap-2">
-          <select className="h-10 rounded-md border border-input bg-background px-3 text-sm" value={report.periodLabel} disabled>
-            <option>{report.periodLabel}</option>
+          <select
+            className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+            value={period}
+            onChange={(e) => setPeriod(e.target.value as ReportPeriod)}
+          >
+            <option value="7">Последние 7 дней</option>
+            <option value="30">Последние 30 дней</option>
+            <option value="90">Последние 90 дней</option>
           </select>
           <Button className="bg-primary hover:bg-primary/90"><Download className="h-4 w-4 mr-1.5" /> Экспорт XLSX</Button>
         </div>

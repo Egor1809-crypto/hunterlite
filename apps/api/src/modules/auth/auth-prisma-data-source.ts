@@ -46,11 +46,6 @@ type PasswordResetRecord = {
   user: UserRecord & { authAccounts: UserAuthAccountRecord[] };
 };
 
-type TelegramCodeRecord = {
-  codeHash: string;
-  expiresAt: Date;
-};
-
 export type AuthPrismaClient = {
   authAccount: {
     findFirst: (args: {
@@ -108,21 +103,10 @@ export type AuthLockoutOptions = {
   maxFailedAttempts?: number;
   lockMs?: number;
   passwordResetTokenMs?: number;
-  telegramCodeMs?: number;
-  telegramLoginEmail?: string;
-  sendTelegramCode?: (payload: { recipient: string; code: string }) => MaybePromise<boolean>;
-  resolveTelegramChatId?: (phone: string) => number | undefined | Promise<number | undefined>;
-  resolveTelegramUserName?: (phone: string) => string | undefined | Promise<string | undefined>;
   now?: () => Date;
 };
 
 const hashResetToken = (token: string) => createHash("sha256").update(token).digest("hex");
-const hashTelegramCode = (phone: string, code: string) =>
-  createHash("sha256").update(`${phone}:${code}`).digest("hex");
-
-const createTelegramCode = () =>
-  String(Math.floor(100000 + Math.random() * 900000));
-
 const roleLabels: Record<AppRole, string> = {
   employee: "Юрист-консультант",
   manager: "Руководитель",
@@ -168,16 +152,9 @@ export const createAuthPrismaDataSource = (
     maxFailedAttempts = 5,
     lockMs = 15 * 60 * 1000,
     passwordResetTokenMs = 60 * 60 * 1000,
-    telegramCodeMs = 5 * 60 * 1000,
-    telegramLoginEmail,
-    sendTelegramCode,
-    resolveTelegramChatId,
-    resolveTelegramUserName,
     now = () => new Date(),
   }: AuthLockoutOptions = {},
 ): AuthDataSource => {
-  const telegramCodes = new Map<string, TelegramCodeRecord>();
-
   return {
   login: async ({ email, password }) => {
     const normalizedEmail = email.trim().toLowerCase();
@@ -333,89 +310,6 @@ export const createAuthPrismaDataSource = (
     });
 
     return true;
-  },
-
-  requestTelegramCode: async (phone) => {
-    const code = createTelegramCode();
-    telegramCodes.set(phone, {
-      codeHash: hashTelegramCode(phone, code),
-      expiresAt: new Date(now().getTime() + telegramCodeMs),
-    });
-
-    const isNumericChatId = /^\d{5,}$/.test(phone) && !phone.includes("+");
-    const resolvedChatId = isNumericChatId ? undefined : await resolveTelegramChatId?.(phone);
-    const chatId = isNumericChatId ? phone : resolvedChatId?.toString();
-
-    if (chatId && sendTelegramCode) {
-      const sent = await sendTelegramCode({ recipient: chatId, code });
-      if (sent) return { code: undefined, sent: true };
-    }
-
-    return { code, sent: false };
-  },
-
-  loginWithTelegramCode: async ({ phone, code }) => {
-    const record = telegramCodes.get(phone);
-    const currentTime = now();
-
-    if (!record || record.expiresAt.getTime() <= currentTime.getTime()) {
-      telegramCodes.delete(phone);
-      return null;
-    }
-
-    if (record.codeHash !== hashTelegramCode(phone, code)) return null;
-    telegramCodes.delete(phone);
-
-    let user: UserRecord | null = null;
-
-    if (telegramLoginEmail) {
-      user = await prisma.user?.findFirst({
-        where: { email: telegramLoginEmail.trim().toLowerCase() },
-        include: { memberships: true },
-      }) ?? null;
-    } else {
-      const tgEmail = `tg-${phone.replace(/\D/g, "")}@hunterlite.tg`;
-      user = await prisma.user?.findFirst({
-        where: { email: tgEmail },
-        include: { memberships: true },
-      }) ?? null;
-
-      if (!user && prisma.user && prisma.organization && prisma.membership) {
-        const tgName = await resolveTelegramUserName?.(phone) || "Пользователь";
-        const org = await prisma.organization.findFirst({
-          where: { status: "active" },
-          orderBy: { createdAt: "asc" },
-        });
-        if (org) {
-          const created = await prisma.user.create({
-            data: { email: tgEmail, fullName: tgName, status: "active" },
-          });
-          await prisma.membership.create({
-            data: { organizationId: org.id, userId: created.id, role: "employee", status: "active" },
-          });
-          user = await prisma.user.findFirst({
-            where: { email: tgEmail },
-            include: { memberships: true },
-          }) ?? null;
-        }
-      }
-    }
-
-    const session = user ? userToSession(user) : null;
-
-    if (!user || !session) return null;
-
-    const createdSession = await prisma.session.create({
-      data: {
-        userId: user.id,
-        expiresAt: new Date(currentTime.getTime() + 7 * 24 * 60 * 60 * 1000),
-      },
-    });
-
-    return {
-      sessionId: createdSession.id,
-      session,
-    };
   },
 
   register: async ({ email, password, fullName }: { email: string; password: string; fullName: string }) => {

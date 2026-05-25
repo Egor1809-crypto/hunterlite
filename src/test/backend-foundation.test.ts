@@ -23,9 +23,6 @@ describe("block 3 backend foundation", () => {
       AUTH_DEMO_FALLBACK: "true",
       HUNTERLITE_CSRF_SECRET: "test-csrf-secret",
       NAVI_API_KEY: "test-key",
-      TELEGRAM_BOT_TOKEN: "telegram-token",
-      TELEGRAM_DEFAULT_CHAT_ID: "123456",
-      TELEGRAM_LOGIN_EMAIL: "a.petrova@hunterlite.ru",
     });
 
     expect(env).toEqual({
@@ -42,9 +39,6 @@ describe("block 3 backend foundation", () => {
       NAVI_TTS_MODEL: "eleven_flash_v2_5",
       NAVI_TTS_VOICE: "aria",
       NAVI_STT_MODEL: "scribe_v2",
-      TELEGRAM_BOT_TOKEN: "telegram-token",
-      TELEGRAM_DEFAULT_CHAT_ID: "123456",
-      TELEGRAM_LOGIN_EMAIL: "a.petrova@hunterlite.ru",
     });
   });
 

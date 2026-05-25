@@ -1,3 +1,4 @@
+import { useState, useMemo } from "react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Card } from "@/components/ui/card";
@@ -19,11 +20,23 @@ export default function Manager() {
     queryFn: frontendApi.managerSummary,
   });
 
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+
   if (isLoading || !manager) {
     return <div className="flex min-h-[50vh] items-center justify-center text-sm text-muted-foreground">Загрузка...</div>;
   }
 
   const { employees, kpi, scoreTrend, topWeakTopics } = manager;
+
+  const filteredEmployees = useMemo(() => {
+    return employees.filter((e) => {
+      const matchesSearch =
+        !searchQuery || e.name.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesStatus = !statusFilter || e.status === statusFilter;
+      return matchesSearch && matchesStatus;
+    });
+  }, [employees, searchQuery, statusFilter]);
 
   return (
     <div className="p-4 md:p-8 max-w-7xl mx-auto animate-fade-in space-y-6">
@@ -126,10 +139,18 @@ export default function Manager() {
       <Card className="p-4 shadow-card flex flex-wrap gap-3 items-center">
         <div className="relative flex-1 min-w-[200px]">
           <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-          <Input placeholder="Поиск сотрудника…" className="pl-9" />
+          <Input
+            placeholder="Поиск сотрудника…"
+            className="pl-9"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
         </div>
-        <SelectBox options={["За месяц", "За неделю", "За квартал", "За всё время"]} />
-        <SelectBox options={["Все статусы", "Допущен", "Не допущен", "Требуется курс"]} />
+        <SelectBox
+          options={["Все статусы", "Допущен", "Не допущен", "Требуется курс"]}
+          value={statusFilter ? statusFilter : "Все статусы"}
+          onChange={(val) => setStatusFilter(val === "Все статусы" ? "" : val)}
+        />
       </Card>
 
       {/* Employees */}
@@ -148,7 +169,7 @@ export default function Manager() {
               </tr>
             </thead>
             <tbody>
-              {employees.map((e) => {
+              {filteredEmployees.map((e) => {
                 const sv = e.status === "Допущен" ? "success" : e.status === "Не допущен" ? "destructive" : e.status === "Требуется курс" ? "warning" : "info";
                 const ev = e.exam === "Сдан" ? "success" : e.exam === "Не сдан" ? "destructive" : "info";
                 return (
@@ -182,7 +203,17 @@ export default function Manager() {
   );
 }
 
-function SelectBox({ options, size = "default" }: { options: string[]; size?: "default" | "sm" }) {
+function SelectBox({
+  options,
+  size = "default",
+  value,
+  onChange,
+}: {
+  options: string[];
+  size?: "default" | "sm";
+  value?: string;
+  onChange?: (value: string) => void;
+}) {
   return (
     <div className="relative shrink-0">
       <select
@@ -191,6 +222,8 @@ function SelectBox({ options, size = "default" }: { options: string[]; size?: "d
             ? "h-9 w-36 appearance-none rounded-md border border-input bg-background px-4 pr-8 text-center text-xs font-medium text-foreground"
             : "h-10 w-40 appearance-none rounded-md border border-input bg-background px-4 pr-8 text-center text-sm text-foreground"
         }
+        value={value}
+        onChange={onChange ? (e) => onChange(e.target.value) : undefined}
       >
         {options.map((option) => (
           <option key={option}>{option}</option>

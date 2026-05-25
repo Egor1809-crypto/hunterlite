@@ -197,12 +197,7 @@ describe("trainings Prisma data source", () => {
 
   it("creates training sessions with normalized question counts", async () => {
     const prisma = createPrisma();
-    const telegram = {
-      sendMessage: vi.fn(async () => true),
-      sendLoginCode: vi.fn(async () => true),
-      sendTrainingReminder: vi.fn(async () => true),
-    };
-    const source = createTrainingsPrismaDataSource(prisma, demoFrontendApiDataSource, { telegram });
+    const source = createTrainingsPrismaDataSource(prisma, demoFrontendApiDataSource);
 
     await expect(source.createTrainingSession("user-1", {
       topic: "Имущество должника",
@@ -229,10 +224,6 @@ describe("trainings Prisma data source", () => {
         }),
       }),
     );
-    expect(telegram.sendTrainingReminder).toHaveBeenCalledWith({
-      mode: "exam",
-      topic: "Имущество должника",
-    });
   });
 
   it("saves training messages for the current user's session", async () => {

@@ -17,7 +17,6 @@ describe("backend frontend API handlers", () => {
       expect(route.path.startsWith(getBackendModule(route.module)?.exposesApiPrefix ?? "")).toBe(true);
       expect(route.requiresAuth).toBe(
         !route.path.startsWith("/api/auth/password-reset") &&
-        !route.path.startsWith("/api/auth/telegram") &&
         route.path !== "/api/auth/login",
       );
     });

@@ -1,9 +1,12 @@
+import { useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { IconBadge } from "@/components/IconBadge";
 import { StatusBadge } from "@/components/StatusBadge";
 import { bflMethodologyChapters, methodologyStats } from "@/lib/methodology";
-import { BookOpen, Bookmark, FileText, Search } from "lucide-react";
+import { BookOpen, Bookmark, FileText, Search, ChevronDown, ChevronRight } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 function Book3D() {
   return (
@@ -20,7 +23,6 @@ function Book3D() {
             height: "300px",
           }}
         >
-          {/* Front cover */}
           <div
             className="absolute inset-0 rounded-r-lg rounded-l-sm shadow-2xl flex flex-col items-center justify-center overflow-hidden"
             style={{
@@ -47,7 +49,6 @@ function Book3D() {
             <div className="absolute bottom-4 text-[10px] text-white/30 tracking-wider">2026</div>
           </div>
 
-          {/* Spine */}
           <div
             className="absolute top-0 h-full rounded-l-sm"
             style={{
@@ -69,7 +70,6 @@ function Book3D() {
             </div>
           </div>
 
-          {/* Pages (visible when hovered) */}
           {[1, 2, 3, 4].map((i) => (
             <div
               key={i}
@@ -85,7 +85,6 @@ function Book3D() {
             />
           ))}
 
-          {/* Back cover */}
           <div
             className="absolute inset-0 rounded-r-lg rounded-l-sm"
             style={{
@@ -96,7 +95,6 @@ function Book3D() {
           />
         </div>
 
-        {/* Shadow */}
         <div
           className="absolute -bottom-4 left-1/2 -translate-x-1/2 w-[180px] h-[20px] bg-black/20 rounded-full blur-xl transition-all duration-700 group-hover:w-[200px] group-hover:translate-x-[-60%]"
         />
@@ -106,6 +104,18 @@ function Book3D() {
 }
 
 export default function BflBook() {
+  const [search, setSearch] = useState("");
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  const filteredChapters = bflMethodologyChapters.filter((chapter) =>
+    chapter.title.toLowerCase().includes(search.toLowerCase()) ||
+    chapter.items.some((item) => item.toLowerCase().includes(search.toLowerCase()))
+  );
+
+  const toggle = (id: string) => {
+    setExpandedId((prev) => (prev === id ? null : id));
+  };
+
   return (
     <div className="p-4 md:p-8 max-w-6xl mx-auto animate-fade-in space-y-5">
       <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
@@ -118,9 +128,15 @@ export default function BflBook() {
             </p>
           </div>
         </div>
-        <Button variant="outline" className="bg-card">
-          <Search className="h-4 w-4 mr-1.5" /> Поиск по книге
-        </Button>
+        <div className="relative w-full md:w-64">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Поиск по книге..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-9 bg-card"
+          />
+        </div>
       </div>
 
       <Card className="p-5 shadow-card">
@@ -149,26 +165,55 @@ export default function BflBook() {
         </div>
       </Card>
 
+      {filteredChapters.length === 0 && (
+        <Card className="p-8 shadow-card text-center">
+          <Search className="h-10 w-10 text-muted-foreground/40 mx-auto" />
+          <p className="text-muted-foreground mt-3">Ничего не найдено по запросу "{search}"</p>
+        </Card>
+      )}
+
       <div className="grid md:grid-cols-2 gap-3">
-        {bflMethodologyChapters.map((chapter) => (
-          <Card key={chapter.title} className="p-5 shadow-card">
-            <div className="flex items-start justify-between gap-3">
-              <div className="flex items-center gap-2">
-                <FileText className="h-4 w-4 text-accent" />
-                <h3 className="font-display font-bold text-primary">{chapter.title}</h3>
-              </div>
-              <StatusBadge variant={chapter.status === "Риск" ? "warning" : "info"}>{chapter.status}</StatusBadge>
-            </div>
-            <div className="mt-4 space-y-2">
-              {chapter.items.map((item) => (
-                <div key={item} className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Bookmark className="h-3.5 w-3.5 text-muted-foreground/70" />
-                  <span>{item}</span>
+        {filteredChapters.map((chapter) => {
+          const isExpanded = expandedId === chapter.id;
+
+          return (
+            <Card key={chapter.id} className="p-5 shadow-card">
+              <button
+                type="button"
+                className="w-full text-left"
+                onClick={() => toggle(chapter.id)}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-2">
+                    {isExpanded ? (
+                      <ChevronDown className="h-4 w-4 text-accent shrink-0" />
+                    ) : (
+                      <ChevronRight className="h-4 w-4 text-accent shrink-0" />
+                    )}
+                    <h3 className="font-display font-bold text-primary">{chapter.title}</h3>
+                  </div>
+                  <StatusBadge variant={chapter.status === "Риск" ? "warning" : "info"}>{chapter.status}</StatusBadge>
                 </div>
-              ))}
-            </div>
-          </Card>
-        ))}
+              </button>
+              <div className={cn("mt-4 space-y-2", !isExpanded && "hidden")}>
+                {chapter.items.map((item) => (
+                  <div key={item} className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Bookmark className="h-3.5 w-3.5 text-muted-foreground/70" />
+                    <span>{item}</span>
+                  </div>
+                ))}
+                <div className="mt-3 pt-3 border-t border-border">
+                  <p className="text-sm text-muted-foreground italic">Материал в разработке</p>
+                </div>
+              </div>
+              {!isExpanded && (
+                <div className="mt-3 text-xs text-muted-foreground">
+                  {chapter.items.length} тем
+                </div>
+              )}
+            </Card>
+          );
+        })}
       </div>
     </div>
   );

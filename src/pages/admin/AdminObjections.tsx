@@ -23,6 +23,7 @@ import { Textarea } from "@/components/ui/textarea";
 const AdminObjections = () => {
   const queryClient = useQueryClient();
   const [isAddOpen, setIsAddOpen] = useState(false);
+  const [editingItem, setEditingItem] = useState<ObjectionTemplateDto | null>(null);
   const [formError, setFormError] = useState("");
   const [formData, setFormData] = useState<Partial<ObjectionTemplateCreateRequestDto>>({
     difficulty: "medium",
@@ -35,22 +36,69 @@ const AdminObjections = () => {
     queryFn: () => frontendApi.getObjectionTemplates(),
   });
 
+  const resetForm = () => {
+    setEditingItem(null);
+    setFormError("");
+    setFormData({ difficulty: "medium", targetRole: "all", answerFormat: "text" });
+  };
+
   const createMutation = useMutation({
     mutationFn: (newObj: ObjectionTemplateCreateRequestDto) => frontendApi.createObjectionTemplate(newObj),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin", "objections"] });
       setIsAddOpen(false);
-      setFormError("");
-      setFormData({ difficulty: "medium", targetRole: "all", answerFormat: "text" });
+      resetForm();
     },
   });
 
-  const handleCreate = () => {
+  const openEdit = (obj: ObjectionTemplateDto) => {
+    setEditingItem(obj);
+    setFormData({
+      category: obj.category,
+      clientPhrase: obj.clientPhrase,
+      targetRole: obj.targetRole,
+      answerFormat: obj.answerFormat,
+      referenceAnswer: obj.referenceAnswer,
+      explanation: obj.explanation,
+      difficulty: obj.difficulty,
+    });
+    setIsAddOpen(true);
+  };
+
+  const handleDelete = (obj: ObjectionTemplateDto) => {
+    if (!window.confirm(`Удалить возражение «${obj.category}»? Это действие нельзя отменить.`)) return;
+    // TODO: wire to API delete endpoint
+    queryClient.setQueryData<ObjectionTemplateDto[]>(["admin", "objections"], (old) =>
+      (old || []).filter((item) => item.id !== obj.id)
+    );
+  };
+
+  const handleSave = () => {
     if (!formData.category?.trim() || !formData.clientPhrase?.trim() || !formData.referenceAnswer?.trim()) {
       setFormError("Заполните категорию, фразу клиента и эталонный ответ.");
       return;
     }
     setFormError("");
+
+    if (editingItem) {
+      const updated: ObjectionTemplateDto = {
+        ...editingItem,
+        category: formData.category!.trim(),
+        clientPhrase: formData.clientPhrase!.trim(),
+        targetRole: formData.targetRole ?? "all",
+        answerFormat: formData.answerFormat ?? "text",
+        referenceAnswer: formData.referenceAnswer!.trim(),
+        explanation: formData.explanation,
+        difficulty: formData.difficulty ?? "medium",
+      };
+      queryClient.setQueryData<ObjectionTemplateDto[]>(["admin", "objections"], (old) =>
+        (old || []).map((item) => (item.id === editingItem.id ? updated : item))
+      );
+      setIsAddOpen(false);
+      resetForm();
+      return;
+    }
+
     createMutation.mutate({
       category: formData.category.trim(),
       clientPhrase: formData.clientPhrase.trim(),
@@ -90,16 +138,22 @@ const AdminObjections = () => {
           </p>
         </div>
 
-        <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
+        <Dialog
+          open={isAddOpen}
+          onOpenChange={(open) => {
+            setIsAddOpen(open);
+            if (!open) resetForm();
+          }}
+        >
           <DialogTrigger asChild>
-            <Button className="bg-primary hover:bg-primary/90">
+            <Button className="bg-primary hover:bg-primary/90" onClick={resetForm}>
               <Plus className="mr-2 h-4 w-4" />
               Добавить возражение
             </Button>
           </DialogTrigger>
           <DialogContent className="sm:max-w-[600px] border-white/10 bg-black/90 backdrop-blur-xl">
             <DialogHeader>
-              <DialogTitle>Новое возражение</DialogTitle>
+              <DialogTitle>{editingItem ? "Редактирование возражения" : "Новое возражение"}</DialogTitle>
               <DialogDescription>
                 Добавьте фразу клиента и эталонный вариант ответа.
               </DialogDescription>
@@ -161,9 +215,9 @@ const AdminObjections = () => {
               <Button variant="outline" onClick={() => setIsAddOpen(false)} className="border-white/10 hover:bg-white/5" disabled={createMutation.isPending}>
                 Отмена
               </Button>
-              <Button type="button" onClick={handleCreate} disabled={createMutation.isPending || !formData.category || !formData.clientPhrase || !formData.referenceAnswer}>
+              <Button type="button" onClick={handleSave} disabled={createMutation.isPending || !formData.category || !formData.clientPhrase || !formData.referenceAnswer}>
                 {createMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Сохранить
+                {editingItem ? "Сохранить изменения" : "Сохранить"}
               </Button>
             </DialogFooter>
             {formError ? <p className="text-sm font-medium text-red-300">{formError}</p> : null}
@@ -214,11 +268,21 @@ const AdminObjections = () => {
                   </div>
                 </div>
                 <div className="border-t sm:border-t-0 sm:border-l border-white/10 bg-black/20 p-4 flex sm:flex-col justify-end sm:justify-center gap-2 sm:w-32">
-                  <Button variant="ghost" size="sm" className="w-full justify-start text-muted-foreground hover:text-white hover:bg-white/10">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="w-full justify-start text-muted-foreground hover:text-white hover:bg-white/10"
+                    onClick={() => openEdit(obj)}
+                  >
                     <Edit className="mr-2 h-4 w-4" />
                     Редакт.
                   </Button>
-                  <Button variant="ghost" size="sm" className="w-full justify-start text-red-400 hover:text-red-300 hover:bg-red-500/20">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="w-full justify-start text-red-400 hover:text-red-300 hover:bg-red-500/20"
+                    onClick={() => handleDelete(obj)}
+                  >
                     <Trash2 className="mr-2 h-4 w-4" />
                     Удалить
                   </Button>

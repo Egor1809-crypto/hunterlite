@@ -1,9 +1,55 @@
+import { useQuery } from "@tanstack/react-query";
 import { Card } from "@/components/ui/card";
 import { StatusBadge } from "@/components/StatusBadge";
 import { IconBadge } from "@/components/IconBadge";
-import { Activity, Users, GraduationCap, AlertCircle, Shield } from "lucide-react";
+import { ApiState } from "@/components/ApiState";
+import { frontendApi } from "@/lib/frontend-api";
+import { Users, GraduationCap, Shield, FileText, MessageSquareWarning, PhoneCall } from "lucide-react";
 
 export default function Admin() {
+  const { data: users, isFetching: usersFetching, isError: usersError } = useQuery({
+    queryKey: ["admin-users"],
+    queryFn: () => frontendApi.getAdminUsers(),
+  });
+
+  const { data: tests, isFetching: testsFetching, isError: testsError } = useQuery({
+    queryKey: ["admin-tests"],
+    queryFn: () => frontendApi.getTestQuestions(),
+  });
+
+  const { data: cases, isFetching: casesFetching, isError: casesError } = useQuery({
+    queryKey: ["admin-cases"],
+    queryFn: () => frontendApi.getCaseTemplates(),
+  });
+
+  const { data: objections, isFetching: objectionsFetching, isError: objectionsError } = useQuery({
+    queryKey: ["admin-objections"],
+    queryFn: () => frontendApi.getObjectionTemplates(),
+  });
+
+  const { data: scripts, isFetching: scriptsFetching, isError: scriptsError } = useQuery({
+    queryKey: ["admin-scripts"],
+    queryFn: () => frontendApi.getCallScripts(),
+  });
+
+  const { data: notifications, isFetching: notifFetching, isError: notifError } = useQuery({
+    queryKey: ["notifications"],
+    queryFn: () => frontendApi.notifications(),
+  });
+
+  const isFetching = usersFetching || testsFetching || casesFetching || objectionsFetching || scriptsFetching || notifFetching;
+  const isError = usersError || testsError || casesError || objectionsError || scriptsError || notifError;
+
+  const metrics = [
+    { l: "Пользователей", v: users ? String(users.length) : "—", icon: Users },
+    { l: "Тестовых вопросов", v: tests ? String(tests.length) : "—", icon: GraduationCap },
+    { l: "Кейсов", v: cases ? String(cases.length) : "—", icon: FileText },
+    { l: "Возражений", v: objections ? String(objections.length) : "—", icon: MessageSquareWarning },
+    { l: "Скриптов звонков", v: scripts ? String(scripts.length) : "—", icon: PhoneCall },
+  ];
+
+  const recentNotifications = (notifications ?? []).slice(0, 5);
+
   return (
     <div className="p-4 md:p-8 max-w-6xl mx-auto animate-fade-in space-y-5">
       <div className="flex items-start gap-4">
@@ -14,13 +60,10 @@ export default function Admin() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        {[
-          { l: "Активных пользователей", v: "187", icon: Users },
-          { l: "Экзаменов сегодня", v: "34", icon: GraduationCap },
-          { l: "Аптайм", v: "99.98%", icon: Activity },
-          { l: "Ошибок за сутки", v: "2", icon: AlertCircle },
-        ].map((s) => (
+      <ApiState isFetching={isFetching} isError={isError} />
+
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+        {metrics.map((s) => (
           <Card key={s.l} className="p-4 shadow-card">
             <div className="flex items-center justify-between">
               <span className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold">{s.l}</span>
@@ -34,15 +77,14 @@ export default function Admin() {
       <Card className="p-5 shadow-card">
         <h3 className="font-display font-bold text-primary mb-3">Системные уведомления</h3>
         <div className="space-y-2 text-sm">
-          {[
-            { t: "Обновление ИИ-модуля оценки до v2.4", time: "сегодня, 09:14", v: "info" as const },
-            { t: "Плановое обслуживание БД 02.05 03:00–03:30 МСК", time: "вчера", v: "warning" as const },
-            { t: "Все юридические шаблоны актуализированы", time: "3 дня назад", v: "success" as const },
-          ].map((n, i) => (
-            <div key={i} className="flex items-center justify-between p-3 rounded-lg border border-border">
+          {recentNotifications.length === 0 && !notifFetching && (
+            <p className="text-muted-foreground py-2">Нет уведомлений</p>
+          )}
+          {recentNotifications.map((n, i) => (
+            <div key={n.id ?? i} className="flex items-center justify-between p-3 rounded-lg border border-border">
               <div className="flex items-center gap-3">
-                <StatusBadge variant={n.v} dot> </StatusBadge>
-                <span>{n.t}</span>
+                <StatusBadge variant={n.tone === "destructive" ? "destructive" : n.tone === "warning" ? "warning" : n.tone === "success" ? "success" : "info"} dot> </StatusBadge>
+                <span>{n.title}</span>
               </div>
               <span className="text-xs text-muted-foreground">{n.time}</span>
             </div>

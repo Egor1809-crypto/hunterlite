@@ -20,8 +20,9 @@ const topics = [
   "Долги, которые не списываются",
 ];
 
+// Password: Demo1234!
 const demoPasswordHash =
-  "scrypt:hunterlite-demo-salt:9ab4b8fc3f6510c3c97b524a88a9cc2ae544e23c6dbbe6044e2df4d942995d9864a01719ad150610c936979e55f4be23c4f217ff5854b81ef2cea4d3c23ec623";
+  "scrypt:hunterlite-demo-salt:2be71dedd5a8cc4ef9bb389111e1d511bf362f8906735a879186c173d0b0b48c913f060d485ad1a90393e8e5f5909f50c8b999ebb3820712446bd289543544a8";
 
 async function main() {
   const organization = await prisma.organization.upsert({

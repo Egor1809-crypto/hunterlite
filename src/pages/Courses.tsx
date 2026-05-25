@@ -1,90 +1,28 @@
 import { Link } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { StatusBadge } from "@/components/StatusBadge";
 import { IconBadge } from "@/components/IconBadge";
+import { frontendApi } from "@/lib/frontend-api";
 import {
   GraduationCap, BookOpen, Clock, CheckCircle2, Lock, ArrowRight,
-  Scale, Home, FileText, AlertTriangle, Shield,
+  Scale, Home, FileText, AlertTriangle, Shield, Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-type Course = {
-  id: string;
-  title: string;
-  description: string;
-  icon: typeof Scale;
-  lessons: number;
-  durationMin: number;
-  progress: number;
-  status: "available" | "in_progress" | "completed" | "locked";
-  color: string;
-  iconBg: string;
+const topicIcons: Record<string, { icon: typeof Scale; color: string; iconBg: string }> = {
+  "Основания для банкротства": { icon: Scale, color: "text-emerald-500", iconBg: "bg-emerald-500/15" },
+  "Имущество должника": { icon: Home, color: "text-blue-500", iconBg: "bg-blue-500/15" },
+  "Долги, которые не списываются": { icon: AlertTriangle, color: "text-amber-500", iconBg: "bg-amber-500/15" },
+  "Последствия процедуры": { icon: FileText, color: "text-violet-500", iconBg: "bg-violet-500/15" },
+  "Коммуникация с клиентом": { icon: Shield, color: "text-slate-400", iconBg: "bg-slate-500/15" },
 };
 
-const courses: Course[] = [
-  {
-    id: "bfl-basics",
-    title: "Основы банкротства физлиц",
-    description: "Признаки неплатёжеспособности, условия подачи заявления, пороги сумм и сроков. Базовый курс для старта.",
-    icon: Scale,
-    lessons: 8,
-    durationMin: 45,
-    progress: 100,
-    status: "completed",
-    color: "text-emerald-500",
-    iconBg: "bg-emerald-500/15",
-  },
-  {
-    id: "property",
-    title: "Имущество должника",
-    description: "Единственное жильё, ипотека, автомобиль, счета. Что можно сохранить и как объяснить клиенту.",
-    icon: Home,
-    lessons: 6,
-    durationMin: 35,
-    progress: 60,
-    status: "in_progress",
-    color: "text-blue-500",
-    iconBg: "bg-blue-500/15",
-  },
-  {
-    id: "non-dischargeable",
-    title: "Несписываемые долги",
-    description: "Алименты, вред здоровью, субсидиарная ответственность. Риски и безопасные формулировки.",
-    icon: AlertTriangle,
-    lessons: 5,
-    durationMin: 30,
-    progress: 0,
-    status: "available",
-    color: "text-amber-500",
-    iconBg: "bg-amber-500/15",
-  },
-  {
-    id: "consequences",
-    title: "Последствия процедуры",
-    description: "Кредитная история, ограничения, повторное банкротство. Что говорить клиенту о жизни после процедуры.",
-    icon: FileText,
-    lessons: 7,
-    durationMin: 40,
-    progress: 0,
-    status: "available",
-    color: "text-violet-500",
-    iconBg: "bg-violet-500/15",
-  },
-  {
-    id: "client-communication",
-    title: "Коммуникация с клиентом",
-    description: "Работа с возражениями, эмоциональные типы клиентов, безопасные и запрещённые фразы.",
-    icon: Shield,
-    lessons: 6,
-    durationMin: 35,
-    progress: 0,
-    status: "locked",
-    color: "text-slate-400",
-    iconBg: "bg-slate-500/15",
-  },
-];
+const defaultIcon = { icon: BookOpen, color: "text-primary", iconBg: "bg-primary/15" };
+
+type CourseStatus = "available" | "in_progress" | "completed" | "locked";
 
 const statusConfig = {
   completed: { label: "Пройден", variant: "success" as const, icon: CheckCircle2 },
@@ -94,8 +32,72 @@ const statusConfig = {
 };
 
 export default function Courses() {
+  const { data: sessionOptions, isLoading: loadingOptions } = useQuery({
+    queryKey: ["sessionOptions"],
+    queryFn: () => frontendApi.sessionOptions(),
+  });
+
+  const { data: history, isLoading: loadingHistory } = useQuery({
+    queryKey: ["trainingHistory"],
+    queryFn: () => frontendApi.trainingHistory(),
+  });
+
+  const isLoading = loadingOptions || loadingHistory;
+
+  const courses = (sessionOptions?.topics ?? []).map((topic, idx) => {
+    const topicHistory = (history ?? []).filter((h) => h.topic === topic);
+    const completedSessions = topicHistory.filter((h) => h.status === "Сдан" || h.status === "Завершено").length;
+    const totalNeeded = 5;
+    const progress = Math.min(100, Math.round((completedSessions / totalNeeded) * 100));
+
+    let status: CourseStatus = "available";
+    if (progress >= 100) status = "completed";
+    else if (progress > 0) status = "in_progress";
+
+    const iconConfig = topicIcons[topic] ?? defaultIcon;
+
+    return {
+      id: `topic-${idx}`,
+      title: topic,
+      progress,
+      status,
+      sessionsCompleted: completedSessions,
+      ...iconConfig,
+    };
+  });
+
   const completedCount = courses.filter((c) => c.status === "completed").length;
-  const totalLessons = courses.reduce((sum, c) => sum + c.lessons, 0);
+  const overallProgress = courses.length > 0
+    ? Math.round(courses.reduce((s, c) => s + c.progress, 0) / courses.length)
+    : 0;
+
+  if (isLoading) {
+    return (
+      <div className="p-4 md:p-8 max-w-6xl mx-auto flex items-center justify-center min-h-[50vh]">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (courses.length === 0) {
+    return (
+      <div className="p-4 md:p-8 max-w-6xl mx-auto animate-fade-in space-y-6">
+        <div className="flex items-start gap-4">
+          <IconBadge icon={GraduationCap} />
+          <div>
+            <h1 className="font-display text-3xl font-bold text-primary tracking-tight">Курсы подготовки</h1>
+            <p className="text-muted-foreground mt-1">
+              Пройдите обучение перед тренировками и экзаменами.
+            </p>
+          </div>
+        </div>
+        <Card className="p-8 shadow-card text-center">
+          <BookOpen className="h-12 w-12 text-muted-foreground/40 mx-auto" />
+          <p className="text-muted-foreground mt-4">Курсы пока не добавлены. Обратитесь к руководителю.</p>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="p-4 md:p-8 max-w-6xl mx-auto animate-fade-in space-y-6">
@@ -127,8 +129,8 @@ export default function Courses() {
               <BookOpen className="h-5 w-5 text-accent" />
             </div>
             <div>
-              <div className="text-2xl font-bold text-primary">{totalLessons}</div>
-              <div className="text-xs text-muted-foreground">Уроков всего</div>
+              <div className="text-2xl font-bold text-primary">{courses.length}</div>
+              <div className="text-xs text-muted-foreground">Тем всего</div>
             </div>
           </div>
           <div className="flex items-center gap-3">
@@ -136,9 +138,7 @@ export default function Courses() {
               <CheckCircle2 className="h-5 w-5 text-success" />
             </div>
             <div>
-              <div className="text-2xl font-bold text-primary">
-                {Math.round(courses.reduce((s, c) => s + c.progress, 0) / courses.length)}%
-              </div>
+              <div className="text-2xl font-bold text-primary">{overallProgress}%</div>
               <div className="text-xs text-muted-foreground">Общий прогресс</div>
             </div>
           </div>
@@ -166,7 +166,9 @@ export default function Courses() {
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <h3 className="font-display font-bold text-lg text-primary">{course.title}</h3>
-                      <p className="text-sm text-muted-foreground mt-1 leading-relaxed">{course.description}</p>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        {course.sessionsCompleted} тренировок завершено
+                      </p>
                     </div>
                     <StatusBadge variant={cfg.variant}>
                       <cfg.icon className="h-3 w-3 mr-1" />
@@ -174,14 +176,6 @@ export default function Courses() {
                     </StatusBadge>
                   </div>
                   <div className="flex flex-wrap items-center gap-4 mt-3">
-                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                      <BookOpen className="h-3.5 w-3.5" />
-                      {course.lessons} уроков
-                    </div>
-                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                      <Clock className="h-3.5 w-3.5" />
-                      ~{course.durationMin} мин
-                    </div>
                     {course.progress > 0 && course.status !== "completed" && (
                       <div className="flex items-center gap-2 flex-1 min-w-[120px] max-w-[200px]">
                         <Progress value={course.progress} className="h-1.5" />
@@ -198,7 +192,7 @@ export default function Courses() {
                       size="sm"
                       className="rounded-xl w-full justify-center h-9"
                     >
-                      <Link to={`/courses/${course.id}`}>
+                      <Link to={`/session/setup?topic=${encodeURIComponent(course.title)}`}>
                         {course.status === "completed" ? "Повторить" : course.status === "in_progress" ? "Продолжить" : "Начать"}
                         <ArrowRight className="h-4 w-4 ml-1.5" />
                       </Link>

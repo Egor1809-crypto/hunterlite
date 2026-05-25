@@ -13,7 +13,6 @@ import type {
 import { getMaxQuestionCount, isPassingScore, validateScore, type TrainingDifficulty } from "@/lib/training-logic";
 import type { AppRole } from "@/lib/demo-auth-state";
 import type { FrontendApiDataSource } from "../../routes/frontend-api-handlers";
-import type { TelegramBotClient } from "../telegram/telegram-bot-client";
 
 type TopicRecord = {
   id: string;
@@ -188,7 +187,6 @@ const examStatusLabel = (status: string): TrainingHistoryItemDto["status"] =>
 
 export const createTrainingsPrismaDataSource = (
   prisma: TrainingsPrismaClient,
-  options: { telegram?: TelegramBotClient } = {},
 ): Pick<
   FrontendApiDataSource,
   | "getWeakTopics"
@@ -387,13 +385,6 @@ export const createTrainingsPrismaDataSource = (
       },
       include: { topic: true },
     });
-
-    if (payload.mode === "exam" || payload.mode === "chat_test") {
-      void options.telegram?.sendTrainingReminder({
-        mode: payload.mode,
-        topic: session.topic.title,
-      }).catch(() => undefined);
-    }
 
     return {
       id: session.id,
