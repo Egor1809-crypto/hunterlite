@@ -4,8 +4,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { BrandLogo } from "@/components/BrandLogo";
+import { PixelBackground } from "@/components/PixelBackground";
 import { useDemoAuth } from "@/lib/demo-auth";
-import { GraduationCap, ShieldCheck, Scale } from "lucide-react";
+import { GraduationCap, ShieldCheck, Scale, Zap } from "lucide-react";
 
 export default function Register() {
   const navigate = useNavigate();
@@ -75,123 +76,143 @@ export default function Register() {
   };
 
   return (
-    <div className="min-h-screen grid lg:grid-cols-2 bg-transparent">
-      {/* Left - form */}
-      <div className="flex flex-col justify-between p-6 sm:p-10 lg:p-14">
-        <div className="flex items-center gap-2.5">
-          <BrandLogo />
-          <div className="leading-tight">
-            <div className="font-bold tracking-tight">HUNTERLITE</div>
-            <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Legal AI Trainer</div>
-          </div>
-        </div>
-
-        <div className="max-w-md w-full mx-auto lg:mx-0">
-          <h1 className="font-display text-3xl sm:text-4xl font-bold text-primary tracking-tight">
-            Регистрация
-          </h1>
-          <p className="text-muted-foreground mt-2">
-            Создайте аккаунт для тренировки и аттестации.
-          </p>
-
-          <form className="mt-8 space-y-5" onSubmit={handleSubmit}>
-            <div className="space-y-1.5">
-              <Label htmlFor="fullName">ФИО</Label>
-              <Input
-                id="fullName"
-                type="text"
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-                placeholder="Иванов Иван Иванович"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="ivan@example.com"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="password">Пароль</Label>
-              <Input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="Минимум 8 символов"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="confirmPassword">Подтвердите пароль</Label>
-              <Input
-                id="confirmPassword"
-                type="password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                placeholder="Повторите пароль"
-              />
-            </div>
-
-            {status ? <p className="text-sm font-medium text-muted-foreground">{status}</p> : null}
-
-            <Button
-              type="submit"
-              disabled={isSubmitting}
-              className="w-full h-11 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold"
-            >
-              {isSubmitting ? "Регистрация..." : "Зарегистрироваться"}
-            </Button>
-
-            <p className="text-sm text-center text-muted-foreground">
-              Уже есть аккаунт?{" "}
-              <Link to="/login" className="font-semibold text-accent hover:underline">
-                Войти
-              </Link>
-            </p>
-
-            <p className="text-xs text-muted-foreground text-center">
-              Защищённый вход. Соответствие 152-ФЗ о персональных данных.
-            </p>
-          </form>
-        </div>
-
-        <div className="text-xs text-muted-foreground">© 2026 HUNTERLITE</div>
+    <div className="relative min-h-screen flex items-center justify-center overflow-hidden" style={{ background: "#0D0520" }}>
+      {/* Animated background cubes */}
+      <div className="absolute inset-0 z-0">
+        <PixelBackground />
       </div>
 
-      {/* Right - value */}
-      <div className="hidden lg:flex relative bg-gradient-hero text-white p-14 flex-col justify-between overflow-hidden">
-        <div className="relative">
-          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/10 backdrop-blur border border-white/15 text-xs font-medium">
-            <GraduationCap className="h-3.5 w-3.5" /> Тренажёр для юристов
+      {/* Subtle vignette — does NOT hide cubes */}
+      <div className="absolute inset-0 z-[1]" style={{ background: "radial-gradient(ellipse at center, transparent 40%, #0D0520 95%)" }} />
+
+      {/* Main content */}
+      <div className="relative z-10 w-full max-w-md mx-4 sm:mx-auto flex flex-col items-center py-8">
+        {/* Logo with orange glow halo */}
+        <div className="relative mb-6">
+          <div className="absolute inset-0 rounded-full blur-2xl opacity-40" style={{ background: "#F97316", transform: "scale(2.5)" }} />
+          <div className="relative flex items-center gap-3">
+            <BrandLogo className="h-12 w-12 !rounded-xl border-orange-500/50 shadow-[0_0_20px_rgba(249,115,22,0.3)]" />
+            <div className="leading-tight">
+              <div className="text-xl font-extrabold tracking-tight text-white">HUNTERLITE</div>
+              <div className="text-[11px] uppercase tracking-[0.2em] text-orange-300/70">Legal AI Trainer</div>
+            </div>
           </div>
-          <h2 className="font-display text-4xl font-bold mt-6 leading-tight max-w-md">
-            Тренируйте юридические консультации с&nbsp;ИИ-клиентом
-          </h2>
-          <p className="text-white/70 mt-4 max-w-md">
-            Симуляции диалогов, аттестация, разбор формулировок и контроль качества консультаций по банкротству физлиц.
-          </p>
         </div>
 
-        <div className="relative grid gap-3 max-w-md">
+        {/* Glass card */}
+        <div className="relative w-full">
+          {/* Subtle glow under card */}
+          <div className="absolute -inset-1 rounded-2xl opacity-30" style={{ background: "linear-gradient(135deg, #F97316 0%, #7C3AED 100%)", filter: "blur(20px)" }} />
+
+          <div
+            className="relative rounded-2xl border border-white/[0.08] p-8 sm:p-10"
+            style={{
+              background: "rgba(13, 5, 32, 0.85)",
+              backdropFilter: "blur(32px) saturate(1.2)",
+              boxShadow: "0 0 60px rgba(124, 58, 237, 0.08), inset 0 1px 0 rgba(255,255,255,0.04)",
+            }}
+          >
+            <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight text-center">
+              Создать аккаунт
+            </h1>
+            <p className="text-sm text-white/50 mt-2 text-center">
+              Присоединяйтесь к платформе аттестации юристов
+            </p>
+
+            <form className="mt-7 space-y-4" onSubmit={handleSubmit}>
+              <div className="space-y-1.5">
+                <Label htmlFor="fullName" className="text-sm font-medium text-white/80">ФИО</Label>
+                <Input
+                  id="fullName"
+                  type="text"
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  placeholder="Иванов Иван Иванович"
+                  className="h-11 bg-[#1a0a35] border-white/10 text-white placeholder:text-white/30 focus:border-orange-500 focus:ring-2 focus:ring-orange-500/30 transition-all duration-200"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="email" className="text-sm font-medium text-white/80">Email</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="ivan@company.ru"
+                  className="h-11 bg-[#1a0a35] border-white/10 text-white placeholder:text-white/30 focus:border-orange-500 focus:ring-2 focus:ring-orange-500/30 transition-all duration-200"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="password" className="text-sm font-medium text-white/80">Пароль</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Минимум 8 символов"
+                  className="h-11 bg-[#1a0a35] border-white/10 text-white placeholder:text-white/30 focus:border-orange-500 focus:ring-2 focus:ring-orange-500/30 transition-all duration-200"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="confirmPassword" className="text-sm font-medium text-white/80">Подтвердите пароль</Label>
+                <Input
+                  id="confirmPassword"
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="Повторите пароль"
+                  className="h-11 bg-[#1a0a35] border-white/10 text-white placeholder:text-white/30 focus:border-orange-500 focus:ring-2 focus:ring-orange-500/30 transition-all duration-200"
+                />
+              </div>
+
+              {status ? <p className="text-sm font-medium text-orange-300/80">{status}</p> : null}
+
+              <Button
+                type="submit"
+                disabled={isSubmitting}
+                className="w-full h-12 font-bold text-white border-0 rounded-xl transition-all duration-200 hover:scale-[1.02] hover:shadow-[0_0_24px_rgba(249,115,22,0.4)] disabled:opacity-50 disabled:hover:scale-100"
+                style={{ background: "linear-gradient(135deg, #F97316 0%, #EA580C 100%)" }}
+              >
+                {isSubmitting ? "Регистрация..." : "Зарегистрироваться"}
+              </Button>
+
+              <p className="text-sm text-center text-white/50">
+                Уже есть аккаунт?{" "}
+                <Link to="/login" className="font-semibold text-orange-400 hover:text-orange-300 hover:underline transition-colors">
+                  Войти
+                </Link>
+              </p>
+            </form>
+          </div>
+        </div>
+
+        {/* Feature badges */}
+        <div className="flex flex-wrap justify-center gap-2 mt-6">
           {[
-            { icon: Scale, title: "Юридически безопасные формулировки", text: "ИИ подсвечивает рискованные обещания и неточности." },
-            { icon: ShieldCheck, title: "Экзамен и допуск", text: "Аттестация с проходным баллом 88% и итоговым статусом." },
-            { icon: GraduationCap, title: "Персональные слабые темы", text: "Разбор пробелов и обязательный курс при провале." },
-          ].map((f) => (
-            <div key={f.title} className="flex gap-3 p-4 rounded-xl bg-white/5 border border-white/10 backdrop-blur">
-              <div className="h-9 w-9 rounded-lg bg-white/10 flex items-center justify-center shrink-0">
-                <f.icon className="h-4 w-4" />
-              </div>
-              <div>
-                <div className="font-semibold text-sm">{f.title}</div>
-                <div className="text-xs text-white/60 mt-0.5">{f.text}</div>
-              </div>
+            { icon: Scale, label: "Безопасные формулировки" },
+            { icon: ShieldCheck, label: "Аттестация 88%" },
+            { icon: GraduationCap, label: "Разбор слабых тем" },
+            { icon: Zap, label: "ИИ-симуляции" },
+          ].map((badge) => (
+            <div
+              key={badge.label}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-medium text-white/70 border border-white/10"
+              style={{ background: "rgba(124, 58, 237, 0.15)", backdropFilter: "blur(8px)" }}
+            >
+              <badge.icon className="h-3 w-3 text-orange-400/80" />
+              {badge.label}
             </div>
           ))}
+        </div>
+
+        {/* Social proof + compliance */}
+        <div className="mt-6 text-center space-y-1">
+          <p className="text-xs text-white/40 font-medium">
+            Более 200 юристов уже тренируются на платформе
+          </p>
+          <p className="text-[10px] text-white/25">
+            Защищённый вход. Соответствие 152-ФЗ о персональных данных.
+          </p>
         </div>
       </div>
     </div>
