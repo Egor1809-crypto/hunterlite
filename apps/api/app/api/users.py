@@ -1,0 +1,1075 @@
+"""User CRUD endpoints: profile, password change, listing, stats, avatar."""
+
+import glob as globmod
+import io
+import os
+import uuid
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+
+from app.core.rate_limit import limiter
+from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, File, Query, status
+from pydantic import BaseModel, Field, field_validator
+from sqlalchemy import and_, func, or_, select
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
+
+from app.core import errors as err
+from app.core.deps import get_current_user, require_role
+from app.core.security import hash_password, verify_password
+from app.database import get_db
+from app.models.analytics import UserAchievement
+from app.models.training import SESSION_PURPOSE_CLIENT_CALL, TrainingSession
+from app.models.user import User, UserFriendship
+from app.services.profile_gate import is_profile_complete
+
+UPLOAD_DIR = Path(__file__).resolve().parent.parent.parent / "uploads" / "avatars"
+ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp", "image/gif"}
+ALLOWED_VIDEO_TYPES = {"video/mp4", "video/webm"}
+MAX_IMAGE_SIZE = 10 * 1024 * 1024  # 10MB
+MAX_VIDEO_SIZE = 15 * 1024 * 1024  # 15MB
+
+router = APIRouter()
+
+
+# ── Schemas ──────────────────────────────────────────────────────────────────
+
+
+class UserProfileResponse(BaseModel):
+    id: uuid.UUID
+    email: str
+    full_name: str
+    role: str
+    team_name: str | None = None
+    is_active: bool
+    avatar_url: str | None = None
+    created_at: datetime
+    total_sessions: int = 0
+    avg_score: float | None = None
+
+    model_config = {"from_attributes": True}
+
+
+class UpdateProfileRequest(BaseModel):
+    """Fields a user can edit in their own profile via PATCH /me/profile."""
+    full_name: str = Field(..., min_length=2, max_length=100)
+
+    @field_validator("full_name")
+    @classmethod
+    def _strip_full_name(cls, v: str) -> str:
+        v = v.strip()
+        if not v:
+            raise ValueError("Имя не может быть пустым")
+        return v
+
+
+class ChangePasswordRequest(BaseModel):
+    old_password: str = Field(..., min_length=1)
+    new_password: str = Field(..., min_length=8, max_length=128)
+
+    @field_validator("new_password")
+    @classmethod
+    def validate_password_strength(cls, v: str) -> str:
+        from app.schemas.auth import _check_password_strength
+        return _check_password_strength(v)
+
+
+class UserPreferencesRequest(BaseModel):
+    team: str | None = Field(None, max_length=200)
+    role: str | None = Field(None, pattern="^(manager|rop)$")
+    gender: str | None = Field(None, pattern="^(male|female|neutral)$")
+    role_title: str | None = Field(None, min_length=2, max_length=120)
+    lead_source: str | None = Field(None, max_length=100)
+    primary_contact: str | None = Field(None, min_length=3, max_length=120)
+    specialization: str | None = Field(None, max_length=100)
+    experience_level: str | None = Field(None, pattern="^(beginner|intermediate|advanced)$")
+    tts_enabled: bool | None = None
+    # 2026-05-02 audit: legacy single `notifications` flag kept for back-compat
+    # but the FE settings page sends three split fields below — previously these
+    # were dropped silently because Pydantic defaults to extra=ignore. Now they
+    # round-trip correctly so /settings actually persists what the user picked.
+    notifications: bool | None = None
+    notify_email: bool | None = None
+    notify_push: bool | None = None
+    notify_frequency: str | None = Field(None, pattern="^(realtime|daily|weekly)$")
+    training_mode: str | None = Field(None, pattern="^(voice|text|mixed|structured|freestyle|challenge)$")
+    # 2026-05-02 — audio prefs (TTS + mic). Used by /settings → "Звук и микрофон"
+    # section. None means "leave unchanged"; client passes only what user touched.
+    tts_voice: str | None = Field(None, max_length=64)
+    tts_volume: float | None = Field(None, ge=0.0, le=1.0)
+    tts_rate: float | None = Field(None, ge=0.5, le=1.5)
+    mic_device_id: str | None = Field(None, max_length=200)
+    speaker_device_id: str | None = Field(None, max_length=200)
+    noise_suppression: bool | None = None
+    echo_cancellation: bool | None = None
+    # UI customization
+    pipeline_columns: list[str] | None = None
+    pipeline_layout: str | None = Field(None, pattern="^(grid|board)$")
+    pipeline_card_fields: list[str] | None = None
+    compact_mode: bool | None = None
+    accent_color: str | None = Field(None, pattern="^(violet|blue|emerald|amber|rose)$")
+
+    model_config = {"from_attributes": True}
+
+    @field_validator("role_title", "lead_source", "primary_contact", "specialization", "training_mode")
+    @classmethod
+    def strip_optional_text(cls, v: str | None) -> str | None:
+        if v is None:
+            return None
+        v = v.strip()
+        return v or None
+
+
+class TeamStatsResponse(BaseModel):
+    team_name: str
+    total_members: int
+    active_members: int
+    total_sessions: int
+    completed_sessions: int
+    avg_score: float | None
+    best_performer: str | None
+    sessions_this_week: int
+
+
+class UserListItem(BaseModel):
+    id: uuid.UUID
+    email: str
+    full_name: str
+    role: str
+    team_id: uuid.UUID | None = None
+    team_name: str | None = None
+    is_active: bool
+    avatar_url: str | None = None
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class UserStatsResponse(BaseModel):
+    total_sessions: int
+    completed_sessions: int
+    avg_score: float | None = None
+    best_score: float | None = None
+    sessions_this_week: int = 0
+    total_duration_minutes: int = 0
+    achievements_count: int = 0
+
+
+class FriendItemResponse(BaseModel):
+    friendship_id: uuid.UUID
+    user_id: uuid.UUID
+    full_name: str
+    email: str
+    avatar_url: str | None = None
+    role: str
+    status: str
+    direction: str
+    created_at: datetime
+    accepted_at: datetime | None = None
+
+
+class FriendRequestBody(BaseModel):
+    user_id: uuid.UUID
+
+
+class FriendSearchResponse(BaseModel):
+    items: list[FriendItemResponse]
+
+
+def _friend_to_response(friendship: UserFriendship, viewer_id: uuid.UUID) -> FriendItemResponse:
+    other_user = friendship.addressee if friendship.requester_id == viewer_id else friendship.requester
+    direction = "outgoing" if friendship.requester_id == viewer_id else "incoming"
+    return FriendItemResponse(
+        friendship_id=friendship.id,
+        user_id=other_user.id,
+        full_name=other_user.full_name,
+        email=other_user.email,
+        avatar_url=other_user.avatar_url,
+        role=other_user.role.value,
+        status=friendship.status,
+        direction=direction,
+        created_at=friendship.created_at,
+        accepted_at=friendship.accepted_at,
+    )
+
+
+# ── Endpoints ────────────────────────────────────────────────────────────────
+
+
+@router.get("/me/profile", response_model=UserProfileResponse)
+async def get_my_profile(
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return the current user's detailed profile with team name and basic stats."""
+    # Reload with team relationship
+    result = await db.execute(
+        select(User).options(selectinload(User.team)).where(User.id == user.id)
+    )
+    user_with_team = result.scalar_one_or_none()
+    if not user_with_team:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=err.USER_NOT_FOUND)
+
+    # Basic stats
+    stats_result = await db.execute(
+        select(
+            func.count(TrainingSession.id),
+            func.avg(TrainingSession.score_total),
+        ).where(TrainingSession.user_id == user.id)
+    )
+    row = stats_result.one()
+    total_sessions = row[0] or 0
+    avg_score = round(float(row[1]), 1) if row[1] else None
+
+    return UserProfileResponse(
+        id=user_with_team.id,
+        email=user_with_team.email,
+        full_name=user_with_team.full_name,
+        role=user_with_team.role.value,
+        team_name=user_with_team.team.name if user_with_team.team else None,
+        is_active=user_with_team.is_active,
+        avatar_url=user_with_team.avatar_url,
+        created_at=user_with_team.created_at,
+        total_sessions=total_sessions,
+        avg_score=avg_score,
+    )
+
+
+@router.patch("/me/profile", response_model=UserProfileResponse)
+async def update_my_profile(
+    payload: UpdateProfileRequest,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Update editable fields of the current user's profile. Currently: full_name only."""
+    # Reload with team relationship to build response
+    result = await db.execute(
+        select(User).options(selectinload(User.team)).where(User.id == user.id)
+    )
+    user_with_team = result.scalar_one_or_none()
+    if not user_with_team:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=err.USER_NOT_FOUND)
+
+    user_with_team.full_name = payload.full_name
+    await db.commit()
+
+    # Re-query with eager load (refresh drops the team relationship).
+    reload = await db.execute(
+        select(User).options(selectinload(User.team)).where(User.id == user.id)
+    )
+    fresh = reload.scalar_one()
+
+    # Return fresh stats too (same shape as GET /me/profile)
+    stats_result = await db.execute(
+        select(
+            func.count(TrainingSession.id),
+            func.avg(TrainingSession.score_total),
+        ).where(TrainingSession.user_id == user.id)
+    )
+    row = stats_result.one()
+    total_sessions = row[0] or 0
+    avg_score = round(float(row[1]), 1) if row[1] else None
+
+    return UserProfileResponse(
+        id=fresh.id,
+        email=fresh.email,
+        full_name=fresh.full_name,
+        role=fresh.role.value,
+        team_name=fresh.team.name if fresh.team else None,
+        is_active=fresh.is_active,
+        avatar_url=fresh.avatar_url,
+        created_at=fresh.created_at,
+        total_sessions=total_sessions,
+        avg_score=avg_score,
+    )
+
+
+@router.get("/friends", response_model=list[FriendItemResponse])
+async def get_my_friends(
+    status_filter: str = Query(default="accepted", pattern="^(accepted|pending|all)$"),
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    stmt = (
+        select(UserFriendship)
+        .options(
+            selectinload(UserFriendship.requester),
+            selectinload(UserFriendship.addressee),
+        )
+        .where(
+            or_(
+                UserFriendship.requester_id == user.id,
+                UserFriendship.addressee_id == user.id,
+            )
+        )
+        .order_by(UserFriendship.created_at.desc())
+    )
+    if status_filter != "all":
+        stmt = stmt.where(UserFriendship.status == status_filter)
+
+    friendships = (await db.execute(stmt)).scalars().all()
+    return [_friend_to_response(friendship, user.id) for friendship in friendships]
+
+
+@router.get("/friends/search", response_model=FriendSearchResponse)
+async def search_users_for_friends(
+    q: str = Query(min_length=1, max_length=80),
+    limit: int = Query(default=8, ge=1, le=20),
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    term = f"%{q.strip()}%"
+    stmt = (
+        select(User)
+        .where(
+            User.id != user.id,
+            User.is_active.is_(True),
+            or_(
+                User.full_name.ilike(term),
+                User.email.ilike(term),
+            ),
+        )
+        .order_by(User.full_name.asc())
+        .limit(limit)
+    )
+    users = (await db.execute(stmt)).scalars().all()
+    if not users:
+        return FriendSearchResponse(items=[])
+
+    user_ids = [u.id for u in users]
+    friendship_stmt = (
+        select(UserFriendship)
+        .options(
+            selectinload(UserFriendship.requester),
+            selectinload(UserFriendship.addressee),
+        )
+        .where(
+            or_(
+                and_(UserFriendship.requester_id == user.id, UserFriendship.addressee_id.in_(user_ids)),
+                and_(UserFriendship.addressee_id == user.id, UserFriendship.requester_id.in_(user_ids)),
+            )
+        )
+    )
+    existing = (await db.execute(friendship_stmt)).scalars().all()
+    existing_map: dict[uuid.UUID, UserFriendship] = {}
+    for friendship in existing:
+        other_id = friendship.addressee_id if friendship.requester_id == user.id else friendship.requester_id
+        existing_map[other_id] = friendship
+
+    items: list[FriendItemResponse] = []
+    for found in users:
+        friendship = existing_map.get(found.id)
+        if friendship:
+            items.append(_friend_to_response(friendship, user.id))
+            continue
+        items.append(FriendItemResponse(
+            friendship_id=uuid.uuid4(),
+            user_id=found.id,
+            full_name=found.full_name,
+            email=found.email,
+            avatar_url=found.avatar_url,
+            role=found.role.value,
+            status="none",
+            direction="none",
+            created_at=found.created_at,
+            accepted_at=None,
+        ))
+    return FriendSearchResponse(items=items)
+
+
+@router.post("/friends", response_model=FriendItemResponse)
+@limiter.limit("10/minute")
+async def send_friend_request(
+    request: Request,
+    body: FriendRequestBody,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    if body.user_id == user.id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Нельзя добавить себя")
+
+    target = (await db.execute(select(User).where(User.id == body.user_id, User.is_active.is_(True)))).scalar_one_or_none()
+    if not target:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Пользователь не найден")
+
+    existing = (
+        await db.execute(
+            select(UserFriendship)
+            .options(
+                selectinload(UserFriendship.requester),
+                selectinload(UserFriendship.addressee),
+            )
+            .where(
+                or_(
+                    and_(UserFriendship.requester_id == user.id, UserFriendship.addressee_id == body.user_id),
+                    and_(UserFriendship.requester_id == body.user_id, UserFriendship.addressee_id == user.id),
+                )
+            )
+        )
+    ).scalar_one_or_none()
+    if existing:
+        if existing.status == "accepted":
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Уже в друзьях")
+        if existing.addressee_id == user.id:
+            existing.status = "accepted"
+            existing.accepted_at = datetime.now(timezone.utc)
+            db.add(existing)
+            await db.flush()
+            await db.refresh(existing)
+            return _friend_to_response(existing, user.id)
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Заявка уже отправлена")
+
+    friendship = UserFriendship(
+        requester_id=user.id,
+        addressee_id=body.user_id,
+        status="pending",
+    )
+    db.add(friendship)
+    await db.flush()
+    await db.refresh(friendship)
+    friendship = (
+        await db.execute(
+            select(UserFriendship)
+            .options(
+                selectinload(UserFriendship.requester),
+                selectinload(UserFriendship.addressee),
+            )
+            .where(UserFriendship.id == friendship.id)
+        )
+    ).scalar_one()
+    return _friend_to_response(friendship, user.id)
+
+
+@router.post("/friends/{friendship_id}/accept", response_model=FriendItemResponse)
+async def accept_friend_request(
+    friendship_id: uuid.UUID,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    friendship = (
+        await db.execute(
+            select(UserFriendship)
+            .options(
+                selectinload(UserFriendship.requester),
+                selectinload(UserFriendship.addressee),
+            )
+            .where(UserFriendship.id == friendship_id)
+        )
+    ).scalar_one_or_none()
+    if not friendship:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Заявка не найдена")
+    if friendship.addressee_id != user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Недостаточно прав")
+
+    friendship.status = "accepted"
+    friendship.accepted_at = datetime.now(timezone.utc)
+    db.add(friendship)
+    await db.flush()
+    return _friend_to_response(friendship, user.id)
+
+
+@router.delete("/friends/{friendship_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def remove_friend(
+    friendship_id: uuid.UUID,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    friendship = (
+        await db.execute(
+            select(UserFriendship).where(UserFriendship.id == friendship_id)
+        )
+    ).scalar_one_or_none()
+    if not friendship:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Связь не найдена")
+    if friendship.requester_id != user.id and friendship.addressee_id != user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Недостаточно прав")
+    await db.delete(friendship)
+    await db.flush()
+    # 204 No Content — nothing to return
+
+
+@router.put("/me/password", status_code=status.HTTP_204_NO_CONTENT)
+@limiter.limit("3/minute")
+async def change_password(
+    request: Request,
+    body: ChangePasswordRequest,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Change the current user's password. Requires the old password for verification."""
+    if not verify_password(body.old_password, user.hashed_password):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=err.CURRENT_PASSWORD_INCORRECT,
+        )
+
+    user.hashed_password = hash_password(body.new_password)
+    user.must_change_password = False
+    db.add(user)
+    await db.commit()  # Explicit commit — password change is critical, don't rely on implicit
+
+    # Blacklist all existing tokens so user must re-login with new password
+    from app.core.redis_pool import get_redis
+    r = get_redis()
+    await r.setex(f"blacklist:user:{user.id}", 7 * 24 * 3600, "password_changed")
+
+
+@router.get("/", response_model=list[UserListItem])
+async def list_users(
+    skip: int = 0,
+    limit: int = Query(default=None, ge=1),
+    role: str | None = None,
+    user: User = Depends(require_role("rop", "admin")),
+    db: AsyncSession = Depends(get_db),
+):
+    """List all users. Only accessible by ROP and admin roles.
+
+    Optional filter: ?role=manager to get only managers.
+    Limit defaults to settings.pagination_default_limit, capped at settings.pagination_max_limit.
+    """
+    from app.config import settings
+    effective_limit = min(limit or settings.pagination_default_limit, settings.pagination_max_limit)
+    query = (
+        select(User)
+        .options(selectinload(User.team))
+        .order_by(User.created_at.desc())
+        .offset(skip)
+        .limit(effective_limit)
+    )
+    # Filter by role if specified
+    if role:
+        from app.models.user import UserRole
+        try:
+            role_enum = UserRole(role)
+            query = query.where(User.role == role_enum)
+        except ValueError:
+            pass  # ignore invalid role values
+    # ROP can only see users from their own team.
+    # SECURITY: If ROP has no team assigned, return empty — NOT all users.
+    if user.role.value == "rop":
+        if not user.team_id:
+            return []
+        query = query.where(User.team_id == user.team_id)
+
+    result = await db.execute(query)
+    users = result.scalars().all()
+
+    return [
+        UserListItem(
+            id=u.id,
+            email=u.email,
+            full_name=u.full_name,
+            role=u.role.value,
+            team_id=u.team_id,
+            team_name=u.team.name if u.team else None,
+            is_active=u.is_active,
+            avatar_url=u.avatar_url,
+            created_at=u.created_at,
+        )
+        for u in users
+    ]
+
+
+@router.get("/{user_id}/stats", response_model=UserStatsResponse)
+async def get_user_stats(
+    user_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get stats for a user.
+
+    Visibility rules:
+      - Self: всегда OK
+      - admin: видит все команды
+      - rop: видит ТОЛЬКО свою команду (FIND-001 audit fix 2026-05-10)
+      - manager и ниже: только себя
+
+    2026-05-10 BUG-FIX (FIND-001 P2 — cross-team scope leakage): до
+    этого фикса любой `rop` мог прочитать stats `rop`-а из другой
+    команды. rop2 (Отдел B2B) видел KPI rop1/manager1 в Отдел продаж
+    и наоборот. Privacy-leak между командами руководителей.
+    """
+    # ── Verify target user exists (нужен team_id для проверки ниже) ──
+    target_result = await db.execute(select(User).where(User.id == user_id))
+    target = target_result.scalar_one_or_none()
+    if target is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=err.USER_NOT_FOUND)
+
+    # ── Permission check: self / admin / same-team-rop ──
+    if current_user.id != user_id:
+        role_value = current_user.role.value
+        if role_value == "admin":
+            pass  # admin sees all teams
+        elif role_value == "rop":
+            # rop ограничен своей командой — FIND-001 fix
+            if target.team_id is None or target.team_id != current_user.team_id:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=err.OWN_STATS_ONLY,
+                )
+        else:
+            # manager и ниже — только свои stats
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=err.OWN_STATS_ONLY,
+            )
+
+    # Aggregate session stats
+    stats_result = await db.execute(
+        select(
+            func.count(TrainingSession.id),
+            func.avg(TrainingSession.score_total),
+            func.max(TrainingSession.score_total),
+            func.sum(TrainingSession.duration_seconds),
+        ).where(TrainingSession.user_id == user_id)
+    )
+    row = stats_result.one()
+    total_sessions = row[0] or 0
+    avg_score = round(float(row[1]), 1) if row[1] is not None else None
+    best_score = round(float(row[2]), 1) if row[2] is not None else None
+    total_duration_sec = row[3] or 0
+
+    # Completed sessions
+    completed_result = await db.execute(
+        select(func.count(TrainingSession.id)).where(
+            TrainingSession.user_id == user_id,
+            TrainingSession.status == "completed",
+        )
+    )
+    completed_sessions = completed_result.scalar() or 0
+
+    # Sessions this week
+    week_start = datetime.now(timezone.utc) - timedelta(days=7)
+    week_result = await db.execute(
+        select(func.count(TrainingSession.id)).where(
+            TrainingSession.user_id == user_id,
+            TrainingSession.started_at >= week_start,
+        )
+    )
+    sessions_this_week = week_result.scalar() or 0
+
+    # Achievements count
+    achievements_result = await db.execute(
+        select(func.count(UserAchievement.id)).where(UserAchievement.user_id == user_id)
+    )
+    achievements_count = achievements_result.scalar() or 0
+
+    return UserStatsResponse(
+        total_sessions=total_sessions,
+        completed_sessions=completed_sessions,
+        avg_score=avg_score,
+        best_score=best_score,
+        sessions_this_week=sessions_this_week,
+        total_duration_minutes=total_duration_sec // 60,
+        achievements_count=achievements_count,
+    )
+
+
+@router.post("/me/avatar")
+@limiter.limit("5/minute")
+async def upload_avatar(
+    request: Request,
+    file: UploadFile = File(...),
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Upload an avatar image (JPEG/PNG/WebP/GIF) or short video (MP4/WebM)."""
+    content_type = file.content_type or ""
+    is_image = content_type in ALLOWED_IMAGE_TYPES
+    is_video = content_type in ALLOWED_VIDEO_TYPES
+
+    if not is_image and not is_video:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Формат не поддерживается. Допустимы: JPEG, PNG, WebP, GIF, MP4, WebM",
+        )
+
+    max_size = MAX_VIDEO_SIZE if is_video else MAX_IMAGE_SIZE
+    data = await file.read()
+
+    # Validate file magic bytes to prevent content-type spoofing
+    _MAGIC_BYTES = {
+        b"\xff\xd8\xff": "image/jpeg",
+        b"\x89PNG": "image/png",
+        b"RIFF": "image/webp",  # WebP starts with RIFF
+        b"GIF8": "image/gif",
+        b"\x00\x00\x00": "video",  # MP4/WebM ftyp box
+    }
+    header = data[:8]
+    magic_match = False
+    for magic, expected in _MAGIC_BYTES.items():
+        if header.startswith(magic):
+            if expected == "video" and is_video:
+                magic_match = True
+            elif expected == content_type:
+                magic_match = True
+            break
+    if not magic_match:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Содержимое файла не соответствует заявленному формату",
+        )
+
+    if len(data) > max_size:
+        limit_mb = max_size // (1024 * 1024)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Файл слишком большой. Максимум {limit_mb}MB",
+        )
+
+    import asyncio
+    import tempfile
+
+    def _process_avatar_sync(user_id: uuid.UUID, data: bytes, content_type: str, is_image: bool) -> str:
+        """Synchronous avatar processing — runs in executor to avoid blocking event loop.
+
+        Handles PIL resize, atomic writes, and FD cleanup for all branches.
+        Returns the file extension used.
+        """
+        UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+
+        # Remove old avatar files for this user
+        for old in globmod.glob(str(UPLOAD_DIR / f"{user_id}.*")):
+            Path(old).unlink(missing_ok=True)
+
+        if is_image and content_type != "image/gif":
+            from PIL import Image
+
+            img = Image.open(io.BytesIO(data))
+            img = img.convert("RGB")
+            img.thumbnail((256, 256), Image.LANCZOS)
+            ext = "webp"
+            out_path = UPLOAD_DIR / f"{user_id}.{ext}"
+            fd, tmp = tempfile.mkstemp(dir=UPLOAD_DIR, suffix=f".{ext}")
+            try:
+                with open(fd, "wb") as f:  # open(fd) takes ownership of fd
+                    img.save(f, "WEBP", quality=85)
+                Path(tmp).replace(out_path)
+            except BaseException:
+                Path(tmp).unlink(missing_ok=True)
+                raise
+        elif content_type == "image/gif":
+            ext = "gif"
+            out_path = UPLOAD_DIR / f"{user_id}.{ext}"
+            fd, tmp = tempfile.mkstemp(dir=UPLOAD_DIR, suffix=f".{ext}")
+            try:
+                os.write(fd, data)      # write via fd
+                os.close(fd)            # close fd explicitly — was previously leaked!
+                Path(tmp).replace(out_path)
+            except BaseException:
+                try:
+                    os.close(fd)
+                except OSError:
+                    pass  # already closed
+                Path(tmp).unlink(missing_ok=True)
+                raise
+        else:
+            ext = content_type.split("/")[1]  # mp4 or webm
+            out_path = UPLOAD_DIR / f"{user_id}.{ext}"
+            fd, tmp = tempfile.mkstemp(dir=UPLOAD_DIR, suffix=f".{ext}")
+            try:
+                os.write(fd, data)      # write via fd
+                os.close(fd)            # close fd explicitly — was previously leaked!
+                Path(tmp).replace(out_path)
+            except BaseException:
+                try:
+                    os.close(fd)
+                except OSError:
+                    pass  # already closed
+                Path(tmp).unlink(missing_ok=True)
+                raise
+
+        return ext
+
+    # Run all blocking I/O + PIL in a thread to avoid blocking the event loop
+    ext = await asyncio.to_thread(_process_avatar_sync, user.id, data, content_type, is_image)
+
+    # 2026-04-18 fix: append cache-buster so browser re-fetches after re-upload.
+    # Filename path is stable (user.id.ext), so without ?v= the browser serves
+    # stale image from disk cache after a user changes their avatar.
+    import time as _time
+    avatar_url = f"/api/uploads/avatars/{user.id}.{ext}?v={int(_time.time())}"
+    user.avatar_url = avatar_url
+    db.add(user)
+    await db.commit()
+    return {"avatar_url": avatar_url}
+
+
+@router.delete("/me/avatar", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_avatar(
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Delete the current user's avatar."""
+    for old in globmod.glob(str(UPLOAD_DIR / f"{user.id}.*")):
+        Path(old).unlink(missing_ok=True)
+
+    user.avatar_url = None
+    db.add(user)
+    await db.commit()
+
+
+@router.post("/me/preferences", status_code=status.HTTP_200_OK)
+async def update_preferences(
+    body: UserPreferencesRequest,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Save user preferences from onboarding or profile settings.
+
+    If team name is provided, creates or links to existing team.
+    """
+    from app.models.user import Team
+
+    # Handle role change (only allowed during onboarding, not for admin/rop change post-onboarding)
+    if body.role and not user.onboarding_completed:
+        from app.models.user import UserRole
+        allowed_roles = {"manager", "rop"}
+        if body.role in allowed_roles:
+            user.role = UserRole(body.role)
+            # S4-01: Invalidate tokens with old role claim
+            from app.core.security import bump_role_version
+            await bump_role_version(str(user.id))
+
+    # Handle team assignment. Two writers racing on the same team name
+    # would otherwise both INSERT (select-then-insert is not atomic under
+    # asyncpg with REPEATABLE READ isolation), tripping the unique
+    # constraint. Catch the collision, rollback the nested scope, then
+    # re-read the now-existing team.
+    if body.team:
+        team_result = await db.execute(select(Team).where(Team.name == body.team))
+        team = team_result.scalar_one_or_none()
+        if not team:
+            team = Team(name=body.team)
+            db.add(team)
+            try:
+                await db.flush()
+            except IntegrityError:
+                await db.rollback()
+                team_result = await db.execute(
+                    select(Team).where(Team.name == body.team)
+                )
+                team = team_result.scalar_one_or_none()
+                # User is expired after rollback — reattach by id so
+                # subsequent mutations hit the live session.
+                user = await db.get(User, user.id)
+        if team is not None:
+            user.team_id = team.id
+
+    current_prefs = dict(user.preferences or {})
+    update_data = body.model_dump(exclude_none=True, exclude={"team", "role"})
+    current_prefs.update(update_data)
+    user.preferences = current_prefs
+    user.onboarding_completed = is_profile_complete(user, preferences=current_prefs)
+    db.add(user)
+    # RC-6: previously this handler returned without commit, so a parallel
+    # GET /me from another connection still saw the old preferences and
+    # the onboarding gate re-fired. Commit before we answer the client.
+    await db.commit()
+    return {
+        "preferences": current_prefs,
+        "onboarding_completed": user.onboarding_completed,
+    }
+
+
+class ActivityDay(BaseModel):
+    date: str  # ISO date "YYYY-MM-DD"
+    sessions: int
+    avg_score: float | None = None
+
+
+class ActivityResponse(BaseModel):
+    days: list[ActivityDay]
+    total_days_active: int
+    total_sessions: int
+    streak_current: int  # consecutive days with ≥1 session ending today
+    streak_best: int  # longest streak in the requested window
+
+
+@router.get("/me/activity", response_model=ActivityResponse)
+async def get_my_activity(
+    days: int = Query(180, ge=7, le=365),
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Daily training-activity for the requesting user — feeds the
+    GitHub-style heatmap on /profile (added 2026-05-08).
+
+    Returns one entry per calendar day with at least one completed
+    training session. The frontend fills in zero-days client-side
+    (more efficient than shipping ~365 zeros over the wire).
+
+    Streak counters are computed in the same query window — anchored
+    to today's UTC date for `streak_current`, and the longest
+    consecutive run for `streak_best`.
+
+    Window is bounded to [7, 365] days to keep the SQL plan cheap;
+    queried on `idx_training_session_user_started` (already exists).
+    """
+    from app.models.training import SessionStatus
+
+    now = datetime.now(timezone.utc)
+    since = now - timedelta(days=days)
+
+    rows = await db.execute(
+        select(
+            func.date(TrainingSession.started_at).label("day"),
+            func.count(TrainingSession.id).label("sessions"),
+            func.avg(TrainingSession.score_total).label("avg_score"),
+        )
+        .where(
+            TrainingSession.user_id == user.id,
+            TrainingSession.status == SessionStatus.completed,
+            TrainingSession.started_at >= since,
+        )
+        .group_by(func.date(TrainingSession.started_at))
+        .order_by(func.date(TrainingSession.started_at))
+    )
+
+    daily: list[ActivityDay] = []
+    by_date: dict[str, int] = {}
+    total_sessions = 0
+    for row in rows.all():
+        if row.day is None:
+            continue
+        iso = row.day.isoformat() if hasattr(row.day, "isoformat") else str(row.day)
+        sessions_n = int(row.sessions or 0)
+        avg = round(float(row.avg_score), 1) if row.avg_score is not None else None
+        daily.append(ActivityDay(date=iso, sessions=sessions_n, avg_score=avg))
+        by_date[iso] = sessions_n
+        total_sessions += sessions_n
+
+    # ── Streak computation ────────────────────────────────────────
+    # current streak: walk backwards from today; stop on first gap
+    today = now.date()
+    streak_current = 0
+    cursor = today
+    while cursor >= since.date():
+        if by_date.get(cursor.isoformat(), 0) > 0:
+            streak_current += 1
+            cursor -= timedelta(days=1)
+        else:
+            # Gap found — but if today itself has no activity yet, allow
+            # a 1-day grace (yesterday-ending streak still counts).
+            if cursor == today and streak_current == 0:
+                cursor -= timedelta(days=1)
+                continue
+            break
+
+    # best streak: scan all days in window, track longest run.
+    streak_best = 0
+    run = 0
+    d = since.date()
+    while d <= today:
+        if by_date.get(d.isoformat(), 0) > 0:
+            run += 1
+            if run > streak_best:
+                streak_best = run
+        else:
+            run = 0
+        d += timedelta(days=1)
+
+    return ActivityResponse(
+        days=daily,
+        total_days_active=len(daily),
+        total_sessions=total_sessions,
+        streak_current=streak_current,
+        streak_best=streak_best,
+    )
+
+
+@router.get("/me/team-stats", response_model=TeamStatsResponse)
+async def get_team_stats(
+    user: User = Depends(require_role("rop", "admin")),
+    db: AsyncSession = Depends(get_db),
+):
+    """ROP dashboard: aggregated team statistics."""
+    from app.models.user import Team
+
+    if not user.team_id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=err.NO_TEAM_ASSIGNED)
+
+    # Team info
+    team_result = await db.execute(select(Team).where(Team.id == user.team_id))
+    team = team_result.scalar_one_or_none()
+    if not team:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=err.TEAM_NOT_FOUND)
+
+    # Team members
+    members_result = await db.execute(
+        select(func.count(User.id)).where(User.team_id == user.team_id)
+    )
+    total_members = members_result.scalar() or 0
+
+    active_result = await db.execute(
+        select(func.count(User.id)).where(User.team_id == user.team_id, User.is_active == True)  # noqa: E712
+    )
+    active_members = active_result.scalar() or 0
+
+    # Team sessions
+    team_user_ids = select(User.id).where(User.team_id == user.team_id)
+
+    # Audit FIND-005: ROP team-stats represent pipeline performance.
+    # Practice/legacy_orphan sessions are excluded from totals/avg/best
+    # so the dashboard isn't inflated by free-practice runs.
+    sessions_result = await db.execute(
+        select(
+            func.count(TrainingSession.id),
+            func.avg(TrainingSession.score_total),
+        ).where(
+            TrainingSession.user_id.in_(team_user_ids),
+            TrainingSession.session_purpose == SESSION_PURPOSE_CLIENT_CALL,
+        )
+    )
+    row = sessions_result.one()
+    total_sessions = row[0] or 0
+    avg_score = round(float(row[1]), 1) if row[1] is not None else None
+
+    completed_result = await db.execute(
+        select(func.count(TrainingSession.id)).where(
+            TrainingSession.user_id.in_(team_user_ids),
+            TrainingSession.status == "completed",
+            TrainingSession.session_purpose == SESSION_PURPOSE_CLIENT_CALL,
+        )
+    )
+    completed_sessions = completed_result.scalar() or 0
+
+    # Sessions this week
+    week_start = datetime.now(timezone.utc) - timedelta(days=7)
+    week_result = await db.execute(
+        select(func.count(TrainingSession.id)).where(
+            TrainingSession.user_id.in_(team_user_ids),
+            TrainingSession.started_at >= week_start,
+            TrainingSession.session_purpose == SESSION_PURPOSE_CLIENT_CALL,
+        )
+    )
+    sessions_this_week = week_result.scalar() or 0
+
+    # Best performer — pipeline-only avg, otherwise practice winners
+    # would top the team leaderboard.
+    best_result = await db.execute(
+        select(User.full_name, func.avg(TrainingSession.score_total).label("avg"))
+        .join(TrainingSession, TrainingSession.user_id == User.id)
+        .where(
+            User.team_id == user.team_id,
+            TrainingSession.status == "completed",
+            TrainingSession.session_purpose == SESSION_PURPOSE_CLIENT_CALL,
+        )
+        .group_by(User.full_name)
+        .order_by(func.avg(TrainingSession.score_total).desc())
+        .limit(1)
+    )
+    best_row = best_result.one_or_none()
+    best_performer = best_row[0] if best_row else None
+
+    return TeamStatsResponse(
+        team_name=team.name,
+        total_members=total_members,
+        active_members=active_members,
+        total_sessions=total_sessions,
+        completed_sessions=completed_sessions,
+        avg_score=avg_score,
+        best_performer=best_performer,
+        sessions_this_week=sessions_this_week,
+    )

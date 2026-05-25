@@ -1,0 +1,1302 @@
+"use client";
+
+// ---------------------------------------------------------------------------
+// Deferred blob revoke pattern (prod incident 2026-05-04):
+// `URL.revokeObjectURL(url)` must NOT fire before the <audio> element has
+// actually opened the blob (i.e. before `loadeddata`). Eager revoke racing
+// `routeThroughPhoneBand` (MediaElementAudioSourceNode) caused
+// `ERR_FILE_NOT_FOUND` on `blob:` URLs and ~10% of sentences silently
+// dropped with "[TTS] ✗ chunk media error 1". `safeRevoke()` below defers
+// the revoke to `loadeddata` if the element hasn't loaded yet, with a
+// hard 30s safety timeout to prevent leaks. See MDN:
+// https://developer.mozilla.org/docs/Web/API/URL/createObjectURL#memory_management
+// ---------------------------------------------------------------------------
+
+import { useCallback, useEffect, useRef, useState } from "react";
+import { logger } from "@/lib/logger";
+import {
+  getEffectiveVolume,
+  subscribeVolume,
+} from "@/hooks/useSound";
+
+/**
+ * TTS hook with dual mode + voice modulation support (ТЗ-04):
+ * - "elevenlabs" — plays mp3 audio from backend (via WS tts.audio message)
+ * - "browser" — fallback to window.speechSynthesis (Russian voice)
+ *
+ * New in ТЗ-04:
+ *   - Accepts emotion + voice_params from backend tts.audio message
+ *   - Exposes currentEmotion for Avatar3D color/animation binding
+ *   - Uses duration_ms for animation synchronization
+ *   - Handles couple mode (sequential playback of utterances array)
+ *
+ * Flow (single voice):
+ *   1. Backend sends character.response (text) → shown in chat immediately
+ *   2. Backend sends tts.audio { audio, format, emotion, voice_params, duration_ms }
+ *   3. playAudioMessage() → decode → play → expose emotion for Avatar3D
+ *   4. If tts.audio doesn't arrive within 3s → auto-fallback to speak()
+ *
+ * Flow (couple mode):
+ *   1. Backend sends tts.couple_audio { utterances: [{ speaker, audio, emotion, ... }] }
+ *   2. playCoupleAudio() → sequential playback of each utterance
+ *   3. currentSpeaker / currentEmotion update with each segment
+ */
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
+export type TTSMode = "elevenlabs" | "browser";
+
+// Reasons we can fail to play TTS audio. Distinct from
+// `needsAudioUnlock` (autoplay block — recoverable via user gesture).
+// Each terminal failure should produce a user-visible surface so the
+// app doesn't silently appear to be "mute".
+export type TTSPlaybackError =
+  | { kind: "decode"; message: string }   // base64 → blob → audio decode failed
+  | { kind: "media"; message: string }    // <audio> onerror — codec / corrupt data
+  | { kind: "fallback_active"; message: string } // backend said tts.fallback (ElevenLabs down)
+  | { kind: "unknown"; message: string };
+
+/** Re-export canonical EmotionState (10 states + legacy aliases) from types. */
+import type { EmotionState } from "@/types";
+export type { EmotionState };
+
+/** Human factor types from Factor Activation Engine. */
+export type HumanFactor = "anger" | "fatigue" | "anxiety" | "sarcasm";
+
+/** Voice synthesis parameters (mirrors backend VoiceParams). */
+export interface VoiceParams {
+  stability: number;
+  similarity_boost: number;
+  style: number;
+  speed: number;
+}
+
+/** Single-voice TTS message from backend (tts.audio). */
+export interface TTSAudioMessage {
+  audio: string;            // base64 mp3
+  format?: string;          // "mp3" (default)
+  emotion?: EmotionState;
+  voice_params?: VoiceParams;
+  duration_ms?: number;
+  active_factors?: HumanFactor[];
+}
+
+/** One utterance in couple mode. */
+export interface CoupleUtterance {
+  speaker: "A" | "B" | "AB";
+  audio: string;            // base64 mp3
+  emotion?: EmotionState;
+  voice_params?: VoiceParams;
+  duration_ms?: number;
+  is_whisper?: boolean;
+  active_factors?: HumanFactor[];
+}
+
+/** Couple-mode TTS message from backend (tts.couple_audio). */
+export interface TTSCoupleMessage {
+  utterances: CoupleUtterance[];
+  total_duration_ms?: number;
+}
+
+interface UseTTSOptions {
+  lang?: string;
+  rate?: number;
+  pitch?: number;
+  /** Callback fired when emotion changes (for Avatar3D binding). */
+  onEmotionChange?: (emotion: EmotionState | null) => void;
+  /** Callback fired when voice params change. */
+  onVoiceParamsChange?: (params: VoiceParams | null) => void;
+  /** Callback fired when couple-mode speaker changes. */
+  onSpeakerChange?: (speaker: "A" | "B" | "AB" | null) => void;
+  /** Callback fired when active human factors change (for Avatar3D effects). */
+  onActiveFactorsChange?: (factors: HumanFactor[]) => void;
+  /**
+   * 2026-05-01 — Phone-band realism filter on every TTS playback.
+   * Routes audio through Web Audio API: highpass 300 Hz, lowpass 3400 Hz,
+   * compressor (4:1 / -18dB), makeup gain — the canonical PSTN narrowband.
+   * Sounds unmistakably "telephone" instead of studio-clean. Only useful
+   * on the call page; chat / arena should leave it false.
+   */
+  phoneBandFilter?: boolean;
+}
+
+interface UseTTSReturn {
+  /** Play mp3 audio from base64 (legacy — still works). */
+  playAudio: (audioB64: string) => void;
+
+  /** Play full TTS message with emotion/params (preferred for ТЗ-04).
+   *  Phase F (2026-05-08): default behavior is now QUEUE — successive
+   *  calls play sequentially instead of cutting each other off. Pass
+   *  `{ interrupt: true }` for immediate-play (used by barge-reactions
+   *  in /training/[id]/call where the AI's surprise/anger reaction
+   *  must land within the perceptual window). */
+  playAudioMessage: (msg: TTSAudioMessage, opts?: { interrupt?: boolean }) => void;
+
+  /** Play couple-mode utterances sequentially. */
+  playCoupleAudio: (msg: TTSCoupleMessage) => void;
+
+  /** Speak text via browser speechSynthesis (fallback). */
+  speak: (text: string) => void;
+
+  /** Schedule fallback: if playAudio isn't called within timeout, auto-speak. */
+  scheduleFallback: (text: string, timeoutMs?: number) => void;
+
+  /** Queue audio chunk for sentence-level TTS pipelining (Phase 2). */
+  queueAudioChunk: (chunk: { audio: string; index: number; isLast: boolean }) => void;
+
+  /** Reset the chunk queue state (call between sessions or on barge-in). */
+  resetChunkQueue: () => void;
+
+  /** Cancel scheduled fallback (call when tts.audio arrives). */
+  cancelFallback: () => void;
+
+  /** Switch permanently to browser TTS (call on tts.fallback WS message). */
+  enableFallbackMode: () => void;
+
+  /** Stop all audio playback (barge-in). */
+  stop: () => void;
+
+  /** Is audio currently playing. */
+  speaking: boolean;
+
+  /** Is TTS enabled by user. */
+  enabled: boolean;
+  setEnabled: (v: boolean) => void;
+
+  /** Current TTS mode. */
+  mode: TTSMode;
+
+  /** Simulated audio level for Avatar3D animation (0-1). */
+  audioLevel: number;
+
+  /** Current emotion state from last TTS message (null when idle). */
+  currentEmotion: EmotionState | null;
+
+  /** Current voice params from last TTS message. */
+  currentVoiceParams: VoiceParams | null;
+
+  /** Current speaker in couple mode (null if single voice). */
+  currentSpeaker: "A" | "B" | "AB" | null;
+
+  /** Remaining duration of current audio in ms (for animation sync). */
+  remainingDurationMs: number;
+
+  /** Active human factors from last TTS message (for Avatar3D visual effects). */
+  activeFactors: HumanFactor[];
+
+  /** Ref to current HTMLAudioElement for TalkingHead lip sync. */
+  audioRef: React.RefObject<HTMLAudioElement | null>;
+
+  /**
+   * True when browser blocked autoplay (NotAllowedError). UI should render
+   * a user-gesture prompt; clicking it must call `unlock()` to replay the
+   * pending audio and resume normal flow.
+   */
+  needsAudioUnlock: boolean;
+
+  /**
+   * Replay the last audio that was blocked by autoplay policy. Must be
+   * invoked from within a user-gesture handler (onClick / onPointerDown).
+   */
+  unlock: () => void;
+
+  /**
+   * Last non-recoverable playback error (decode failed, media format
+   * not supported, audio.onerror fired). Cleared on next successful
+   * play. Distinct from `needsAudioUnlock` which is recoverable.
+   * Caller should surface this to the user (toast / banner) — earlier
+   * these errors went to console.warn only and the UI silently said
+   * "AI is mute" with no explanation.
+   */
+  playbackError: TTSPlaybackError | null;
+
+  /** Current output volume (0-1). Applied to all subsequent audio plays. */
+  volume: number;
+
+  /** Set output volume (0=mute, 1=max). Affects current + future playbacks. */
+  setVolume: (v: number) => void;
+}
+
+// ---------------------------------------------------------------------------
+// Hook
+// ---------------------------------------------------------------------------
+
+export function useTTS(options: UseTTSOptions = {}): UseTTSReturn {
+  const {
+    lang = "ru-RU",
+    rate = 0.95,
+    pitch = 1.0,
+    onEmotionChange,
+    onVoiceParamsChange,
+    onSpeakerChange,
+    onActiveFactorsChange,
+    phoneBandFilter = false,
+  } = options;
+
+  // 2026-05-01 — Phone-band realism filter chain.
+  // Lazily-allocated AudioContext shared across all TTS playbacks in
+  // this hook lifecycle. Each new HTMLAudioElement is wrapped in a
+  // MediaElementAudioSourceNode → highpass(300Hz) → lowpass(3400Hz) →
+  // compressor → makeup-gain → destination, mimicking the PSTN
+  // narrowband bandpass + companding profile (G.711, 300-3400 Hz). Result:
+  // every TTS reply sounds unmistakably "telephone" instead of studio.
+  const phoneBandCtxRef = useRef<AudioContext | null>(null);
+
+  const getOrCreatePhoneBandCtx = useCallback((): AudioContext | null => {
+    if (!phoneBandFilter || typeof window === "undefined") return null;
+    if (phoneBandCtxRef.current) {
+      // If the context is suspended (auto-play policy), try to resume on
+      // first use — caller should already have done a gesture-driven
+      // unlock by the time we get here.
+      if (phoneBandCtxRef.current.state === "suspended") {
+        phoneBandCtxRef.current.resume().catch(() => {});
+      }
+      return phoneBandCtxRef.current;
+    }
+    try {
+      const AC = (window.AudioContext ||
+        (window as unknown as { webkitAudioContext?: typeof AudioContext })
+          .webkitAudioContext) as typeof AudioContext | undefined;
+      if (!AC) return null;
+      phoneBandCtxRef.current = new AC();
+      return phoneBandCtxRef.current;
+    } catch {
+      return null;
+    }
+  }, [phoneBandFilter]);
+
+  /**
+   * Wire ``audio`` through the phone-band filter chain. MUST be called
+   * BEFORE ``audio.play()`` because MediaElementAudioSourceNode can be
+   * created at most ONCE per HTMLAudioElement. Returns true on success.
+   * Callers fall through to the default direct path on false.
+   */
+  const routeThroughPhoneBand = useCallback(
+    (audio: HTMLAudioElement): boolean => {
+      const ctx = getOrCreatePhoneBandCtx();
+      if (!ctx) return false;
+      try {
+        const source = ctx.createMediaElementSource(audio);
+        const hp = ctx.createBiquadFilter();
+        hp.type = "highpass";
+        hp.frequency.value = 300;
+        hp.Q.value = 0.7;
+        const lp = ctx.createBiquadFilter();
+        lp.type = "lowpass";
+        lp.frequency.value = 3400;
+        lp.Q.value = 0.7;
+        const comp = ctx.createDynamicsCompressor();
+        comp.threshold.value = -18;
+        comp.knee.value = 12;
+        comp.ratio.value = 4;
+        comp.attack.value = 0.005;
+        comp.release.value = 0.05;
+        // Bandpass + compression both shave loudness; +4 dB makeup gain
+        // restores perceptual level without clipping the destination.
+        const makeup = ctx.createGain();
+        makeup.gain.value = 1.6;
+        source.connect(hp).connect(lp).connect(comp).connect(makeup).connect(ctx.destination);
+        return true;
+      } catch (err) {
+        console.warn("[TTS] phone-band routing failed:", err);
+        return false;
+      }
+    },
+    [getOrCreatePhoneBandCtx],
+  );
+
+  // --- Core state ---
+  const [speaking, setSpeaking] = useState(false);
+  const [enabled, setEnabled] = useState(true);
+  const [mode, setMode] = useState<TTSMode>("elevenlabs");
+  const [audioLevel, setAudioLevel] = useState(0);
+
+  // --- ТЗ-04 state ---
+  const [currentEmotion, setCurrentEmotion] = useState<EmotionState | null>(null);
+  const [currentVoiceParams, setCurrentVoiceParams] = useState<VoiceParams | null>(null);
+  const [currentSpeaker, setCurrentSpeaker] = useState<"A" | "B" | "AB" | null>(null);
+  const [remainingDurationMs, setRemainingDurationMs] = useState(0);
+  const [activeFactors, setActiveFactors] = useState<HumanFactor[]>([]);
+
+  // Autoplay-unlock state. Set true when audio.play() rejects with
+  // NotAllowedError (browser autoplay policy). UI surfaces a user-gesture
+  // button which calls unlock() to retry playback within the click handler.
+  const [needsAudioUnlock, setNeedsAudioUnlock] = useState(false);
+  // Last terminal playback error surfaced to UI. Set whenever a non-
+  // recoverable failure happens (decode, media error, fallback signal).
+  // UI toasts on transitions null → non-null.
+  const [playbackError, setPlaybackError] = useState<TTSPlaybackError | null>(null);
+  const pendingPlaybackRef = useRef<
+    | { audio: HTMLAudioElement; url: string; onEnded?: () => void }
+    | null
+  >(null);
+
+  // Volume control (0..1).
+  //
+  // 2026-05-08: финальная громкость = (per-call volume) × master × voice.
+  // - per-call volume — то, что эта компонента контролирует сама
+  //   (`setVolume(v)`, ducking при мини-играх, и т. п.).
+  // - master × voice читается из глобальных `/settings`-слайдеров.
+  // До этой правки TTS использовал только локальный volume и игнорил
+  // настройки пользователя — пользователь жал «выключить» в /settings,
+  // а наставник продолжал говорить. Теперь подписываемся на
+  // vh-volume-change и пересчитываем .volume на каждом изменении.
+  const [volume, setVolumeState] = useState<number>(1);
+  const volumeRef = useRef<number>(1);
+
+  /** Live multiplier read from global sliders (recomputed on every change). */
+  const computeEffective = useCallback(
+    () => getEffectiveVolume("voice", volumeRef.current),
+    [],
+  );
+
+  const setVolume = useCallback((v: number) => {
+    const clamped = Math.max(0, Math.min(1, v));
+    volumeRef.current = clamped;
+    setVolumeState(clamped);
+    // Apply to currently-playing element so the change is heard instantly.
+    if (audioRef.current) {
+      audioRef.current.volume = computeEffective();
+    }
+  }, [computeEffective]);
+
+  // Subscribe to global slider changes — propagate to currently playing
+  // audio so the user hears slider movement without restarting playback.
+  useEffect(() => {
+    return subscribeVolume(() => {
+      if (audioRef.current) {
+        audioRef.current.volume = computeEffective();
+      }
+    });
+  }, [computeEffective]);
+
+  // --- Refs ---
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const objectUrlRef = useRef<string | null>(null);
+  const voiceRef = useRef<SpeechSynthesisVoice | null>(null);
+  const fallbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const animationFrameRef = useRef<number | null>(null);
+  const durationTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const coupleQueueRef = useRef<CoupleUtterance[]>([]);
+  const couplePlayingRef = useRef(false);
+
+  // Phase F (2026-05-08): playAudioMessage queue. Pre-fix, every
+  // playAudioMessage call ran `stop()` first → if the backend sent a
+  // multi-sentence reply as N separate `tts.audio` events, each one
+  // cut off the previous (pilot complaint: «ИИ сам обрывает себе
+  // фразы»). Now successive playAudioMessage calls QUEUE; the next
+  // one starts after the current `onEnded` fires. Barge-reactions
+  // (and any caller with intent to interrupt) pass `interrupt: true`
+  // to bypass the queue and play immediately.
+  // Phase G (2026-05-08): added watchdog ref + max-queue cap so a
+  // stuck `onEnded` callback (autoplay reject, decode failure, codec
+  // hiccup) never leaves the queue frozen, and a runaway backend
+  // can't grow the queue without bound.
+  const audioMessageQueueRef = useRef<TTSAudioMessage[]>([]);
+  const playingMessageRef = useRef(false);
+  const queueWatchdogRef = useRef<number | null>(null);
+  /** Max queued playAudioMessage items. Backend never sends > 4 sentences
+   *  per reply; 8 leaves headroom but bounds runaway state. */
+  const AUDIO_QUEUE_MAX = 8;
+
+  // Stable callback refs (avoid stale closures)
+  const onEmotionChangeRef = useRef(onEmotionChange);
+  const onVoiceParamsChangeRef = useRef(onVoiceParamsChange);
+  const onSpeakerChangeRef = useRef(onSpeakerChange);
+  const onActiveFactorsChangeRef = useRef(onActiveFactorsChange);
+  useEffect(() => { onEmotionChangeRef.current = onEmotionChange; }, [onEmotionChange]);
+  useEffect(() => { onVoiceParamsChangeRef.current = onVoiceParamsChange; }, [onVoiceParamsChange]);
+  useEffect(() => { onSpeakerChangeRef.current = onSpeakerChange; }, [onSpeakerChange]);
+  useEffect(() => { onActiveFactorsChangeRef.current = onActiveFactorsChange; }, [onActiveFactorsChange]);
+
+  // ---------------------------------------------------------------------------
+  // Pick Russian voice for browser fallback
+  // ---------------------------------------------------------------------------
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.speechSynthesis) return;
+
+    const pickVoice = () => {
+      const voices = window.speechSynthesis.getVoices();
+      voiceRef.current =
+        voices.find((v) => v.lang.startsWith("ru") && v.localService) ||
+        voices.find((v) => v.lang.startsWith("ru")) ||
+        voices[0] || null;
+    };
+
+    pickVoice();
+    window.speechSynthesis.onvoiceschanged = pickVoice;
+
+    return () => {
+      window.speechSynthesis.cancel();
+    };
+  }, []);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current = null;
+      }
+      if (objectUrlRef.current) {
+        URL.revokeObjectURL(objectUrlRef.current);
+        objectUrlRef.current = null;
+      }
+      if (fallbackTimerRef.current) {
+        clearTimeout(fallbackTimerRef.current);
+      }
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
+      if (durationTimerRef.current) {
+        clearInterval(durationTimerRef.current);
+      }
+      coupleQueueRef.current = [];
+      couplePlayingRef.current = false;
+      window.speechSynthesis?.cancel();
+    };
+  }, []);
+
+  // ---------------------------------------------------------------------------
+  // Audio level simulation for Avatar3D
+  // ---------------------------------------------------------------------------
+  const startAudioLevelSimulation = useCallback(() => {
+    let phase = 0;
+    const animate = () => {
+      phase += 0.15;
+      const level =
+        0.3 +
+        Math.sin(phase) * 0.2 +
+        Math.sin(phase * 2.7) * 0.15 +
+        Math.sin(phase * 0.5) * 0.1 +
+        Math.random() * 0.1;
+      setAudioLevel(Math.max(0, Math.min(1, level)));
+      animationFrameRef.current = requestAnimationFrame(animate);
+    };
+    animationFrameRef.current = requestAnimationFrame(animate);
+  }, []);
+
+  const stopAudioLevelSimulation = useCallback(() => {
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = null;
+    }
+    setAudioLevel(0);
+  }, []);
+
+  // ---------------------------------------------------------------------------
+  // Duration countdown (for animation sync)
+  // ---------------------------------------------------------------------------
+  const startDurationCountdown = useCallback((durationMs: number) => {
+    if (durationTimerRef.current) {
+      clearInterval(durationTimerRef.current);
+    }
+    setRemainingDurationMs(durationMs);
+    const startTime = Date.now();
+    durationTimerRef.current = setInterval(() => {
+      const elapsed = Date.now() - startTime;
+      const remaining = Math.max(0, durationMs - elapsed);
+      setRemainingDurationMs(remaining);
+      if (remaining <= 0 && durationTimerRef.current) {
+        clearInterval(durationTimerRef.current);
+        durationTimerRef.current = null;
+      }
+    }, 100); // Update every 100ms for smooth animation
+  }, []);
+
+  const stopDurationCountdown = useCallback(() => {
+    if (durationTimerRef.current) {
+      clearInterval(durationTimerRef.current);
+      durationTimerRef.current = null;
+    }
+    setRemainingDurationMs(0);
+  }, []);
+
+  // ---------------------------------------------------------------------------
+  // Update emotion/params state + fire callbacks
+  // ---------------------------------------------------------------------------
+  const updateEmotion = useCallback((emotion: EmotionState | null) => {
+    setCurrentEmotion(emotion);
+    onEmotionChangeRef.current?.(emotion);
+  }, []);
+
+  const updateVoiceParams = useCallback((params: VoiceParams | null) => {
+    setCurrentVoiceParams(params);
+    onVoiceParamsChangeRef.current?.(params);
+  }, []);
+
+  const updateSpeaker = useCallback((speaker: "A" | "B" | "AB" | null) => {
+    setCurrentSpeaker(speaker);
+    onSpeakerChangeRef.current?.(speaker);
+  }, []);
+
+  const updateFactors = useCallback((factors: HumanFactor[]) => {
+    setActiveFactors(factors);
+    onActiveFactorsChangeRef.current?.(factors);
+  }, []);
+
+  const clearModulationState = useCallback(() => {
+    updateEmotion(null);
+    updateVoiceParams(null);
+    updateSpeaker(null);
+    updateFactors([]);
+    stopDurationCountdown();
+  }, [updateEmotion, updateVoiceParams, updateSpeaker, updateFactors, stopDurationCountdown]);
+
+  // ---------------------------------------------------------------------------
+  // Stop everything
+  // ---------------------------------------------------------------------------
+  const stop = useCallback(() => {
+    // Stop mp3
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+      audioRef.current = null;
+    }
+    // Revoke ObjectURL to prevent memory leak
+    if (objectUrlRef.current) {
+      URL.revokeObjectURL(objectUrlRef.current);
+      objectUrlRef.current = null;
+    }
+    // Stop browser TTS
+    if (typeof window !== "undefined" && window.speechSynthesis) {
+      window.speechSynthesis.cancel();
+    }
+    // Stop couple queue
+    coupleQueueRef.current = [];
+    couplePlayingRef.current = false;
+    // Stop streaming TTS chunk queue
+    if (pendingChunksRef.current) {
+      pendingChunksRef.current.clear();
+    }
+    nextExpectedIndexRef.current = 0;
+    playingChunkRef.current = false;
+    chunkFailureStreakRef.current = 0;
+    // Phase D (2026-05-08, Bug 2 fix): also discard any audio that was
+    // stashed for a deferred autoplay-unlock. Previously stop() left
+    // pendingPlaybackRef populated, so a tts.unlock() that fired AFTER
+    // hangup (e.g., user tapped during the CallEndingTransition) would
+    // play the stashed audio out loud — voice continued past the visual
+    // hangup. Nulling it here is safe because stop() means "discard
+    // everything pending"; any genuine future audio comes via a fresh
+    // playAudioMessage call.
+    pendingPlaybackRef.current = null;
+    // Phase F (2026-05-08): also clear the new playAudioMessage queue
+    // and reset the playing flag so a hangup mid-queue doesn't leave
+    // stale messages waiting to fire on next play.
+    audioMessageQueueRef.current = [];
+    playingMessageRef.current = false;
+    // Phase G (2026-05-08): also kill the queue watchdog timer or it
+    // would force-advance an already-cleared queue and recurse into
+    // an empty pop.
+    if (queueWatchdogRef.current) {
+      clearTimeout(queueWatchdogRef.current);
+      queueWatchdogRef.current = null;
+    }
+    // Stop animation + modulation
+    stopAudioLevelSimulation();
+    clearModulationState();
+    setSpeaking(false);
+  }, [stopAudioLevelSimulation, clearModulationState]);
+
+  // ---------------------------------------------------------------------------
+  // Core: decode base64 → Audio element → play with callbacks
+  // ---------------------------------------------------------------------------
+  const decodeAndPlay = useCallback(
+    (
+      audioB64: string,
+      opts?: {
+        emotion?: EmotionState;
+        voiceParams?: VoiceParams;
+        durationMs?: number;
+        speaker?: "A" | "B" | "AB";
+        activeFactors?: HumanFactor[];
+        onEnded?: () => void;
+      }
+    ): HTMLAudioElement | null => {
+      try {
+        const binaryString = atob(audioB64);
+        const bytes = new Uint8Array(binaryString.length);
+        for (let i = 0; i < binaryString.length; i++) {
+          bytes[i] = binaryString.charCodeAt(i);
+        }
+        const blob = new Blob([bytes], { type: "audio/mpeg" });
+        const url = URL.createObjectURL(blob);
+        objectUrlRef.current = url;
+
+        const audio = new Audio(url);
+        audio.volume = computeEffective();
+        audioRef.current = audio;
+
+        // Deferred-revoke bookkeeping (see top-of-file comment).
+        let loaded = false;
+        audio.onloadeddata = () => {
+          loaded = true;
+        };
+        const safeRevoke = () => {
+          if (loaded) {
+            URL.revokeObjectURL(url);
+          } else {
+            audio.addEventListener(
+              "loadeddata",
+              () => URL.revokeObjectURL(url),
+              { once: true },
+            );
+            // Hard safety: revoke after 30s no matter what so we don't leak.
+            setTimeout(() => URL.revokeObjectURL(url), 30_000);
+          }
+        };
+
+        // Phone-band filter (call mode only) — must run BEFORE audio.play()
+        // since MediaElementAudioSourceNode can be created exactly once per
+        // HTMLAudioElement. Falls through silently if Web Audio is unavailable.
+        if (phoneBandFilter) {
+          routeThroughPhoneBand(audio);
+        }
+
+        // Set modulation state
+        if (opts?.emotion) updateEmotion(opts.emotion);
+        if (opts?.voiceParams) updateVoiceParams(opts.voiceParams);
+        if (opts?.speaker !== undefined) updateSpeaker(opts.speaker);
+        if (opts?.activeFactors) updateFactors(opts.activeFactors);
+
+        audio.onplay = () => {
+          setSpeaking(true);
+          startAudioLevelSimulation();
+          if (opts?.durationMs && opts.durationMs > 0) {
+            startDurationCountdown(opts.durationMs);
+          }
+        };
+
+        audio.onended = () => {
+          setSpeaking(false);
+          stopAudioLevelSimulation();
+          stopDurationCountdown();
+          safeRevoke();
+          objectUrlRef.current = null;
+          audioRef.current = null;
+          opts?.onEnded?.();
+        };
+
+        audio.onerror = () => {
+          // Media element error — codec mismatch, corrupted data,
+          // CSP-blocked blob URL. Pre-fix this went to default (no
+          // log) and the UI just stayed silent; now we surface.
+          const code = audio.error?.code ?? 0;
+          const codeNames: Record<number, string> = {
+            1: "MEDIA_ERR_ABORTED",
+            2: "MEDIA_ERR_NETWORK",
+            3: "MEDIA_ERR_DECODE",
+            4: "MEDIA_ERR_SRC_NOT_SUPPORTED",
+          };
+          const msg = `${codeNames[code] || "MEDIA_ERR_UNKNOWN"} (code ${code})`;
+          console.warn("[TTS] ✗ media element error:", msg);
+          setPlaybackError({ kind: "media", message: msg });
+          setSpeaking(false);
+          stopAudioLevelSimulation();
+          stopDurationCountdown();
+          safeRevoke();
+          objectUrlRef.current = null;
+          audioRef.current = null;
+          opts?.onEnded?.();
+        };
+
+        audio.play().then(() => {
+          // 2026-04-22: use console directly — logger.log is stripped in
+          // production builds, so users troubleshooting silent-audio bugs
+          // couldn't see whether play() succeeded. This log is critical
+          // for distinguishing "TTS arrived but browser silenced it" vs
+          // "TTS arrived and played — speakers are just muted".
+          console.log(
+            `[TTS] ▶ play STARTED | emotion=${opts?.emotion ?? "none"} | speaker=${opts?.speaker ?? "single"} | blob=${url.slice(0, 45)}`
+          );
+          // Successful play resets any stale playback error so the UI
+          // toast doesn't linger after recovery.
+          setPlaybackError(null);
+        }).catch((err) => {
+          console.warn("[TTS] ✗ play FAILED:", err.name, "|", err.message);
+          // Autoplay blocked (NotAllowedError) — keep the prepared Audio
+          // element and blob URL alive so the user-gesture unlock() can
+          // replay the exact utterance they missed instead of skipping it.
+          // Any other error (decode failure, media format) is terminal.
+          if (err && (err.name === "NotAllowedError" || err.name === "AbortError")) {
+            pendingPlaybackRef.current = {
+              audio,
+              url,
+              onEnded: opts?.onEnded,
+            };
+            setNeedsAudioUnlock(true);
+            return;
+          }
+          // Terminal: surface so UI can toast. Audit Pattern 3 #9 —
+          // previously these errors went to console.warn only and the
+          // user just heard "AI is mute" with no explanation.
+          setPlaybackError({
+            kind: "media",
+            message: `${err?.name || "Error"}: ${err?.message || "play failed"}`,
+          });
+          setSpeaking(false);
+          stopAudioLevelSimulation();
+          stopDurationCountdown();
+          safeRevoke();
+          objectUrlRef.current = null;
+          audioRef.current = null;
+          opts?.onEnded?.();
+        });
+
+        return audio;
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.warn("[TTS] ✗ decode FAILED:", msg);
+        setPlaybackError({ kind: "decode", message: msg });
+        opts?.onEnded?.();
+        return null;
+      }
+    },
+    [
+      updateEmotion,
+      updateVoiceParams,
+      updateSpeaker,
+      updateFactors,
+      startAudioLevelSimulation,
+      stopAudioLevelSimulation,
+      startDurationCountdown,
+      stopDurationCountdown,
+    ]
+  );
+
+  // ---------------------------------------------------------------------------
+  // Play mp3 from base64 (legacy API — backward compatible)
+  // ---------------------------------------------------------------------------
+  const playAudio = useCallback(
+    (audioB64: string) => {
+      logger.log(
+        `[TTS] playAudio called | enabled=${enabled} | mode=${mode} | b64_len=${audioB64?.length || 0}`
+      );
+      if (!enabled) {
+        logger.warn("[TTS] playAudio skipped — TTS disabled by user");
+        return;
+      }
+      stop();
+      decodeAndPlay(audioB64);
+    },
+    [enabled, mode, stop, decodeAndPlay]
+  );
+
+  // ---------------------------------------------------------------------------
+  // Play full TTS message with emotion + params (ТЗ-04 API)
+  // ---------------------------------------------------------------------------
+  const playAudioMessage = useCallback(
+    (msg: TTSAudioMessage, opts?: { interrupt?: boolean }) => {
+      // 2026-04-22: console (not logger) so prod users can diagnose silence.
+      const isInterrupt = !!opts?.interrupt;
+      console.log(
+        `[TTS] ► playAudioMessage | enabled=${enabled} | emotion=${msg.emotion} | duration=${msg.duration_ms}ms | b64_len=${msg.audio?.length || 0} | interrupt=${isInterrupt}`
+      );
+      if (!enabled) {
+        console.warn("[TTS] playAudioMessage skipped — TTS disabled");
+        return;
+      }
+
+      // Phase F (2026-05-08): inner play helper — wraps decodeAndPlay
+      // and chains the next queued message via onEnded. Defined inline
+      // so we can recurse without naming a top-level function.
+      // Phase G (2026-05-08): added safety watchdog. If onEnded never
+      // fires (autoplay reject silently, MediaError 4 codec mismatch,
+      // suspended AudioContext after tab switch) the queue would
+      // freeze forever and the AI would seem mute. Watchdog computes
+      // an expected wall-time (durationMs + 1500ms slack) and force-
+      // pops the queue if onEnded hasn't run by then.
+      const advanceQueue = () => {
+        if (queueWatchdogRef.current) {
+          clearTimeout(queueWatchdogRef.current);
+          queueWatchdogRef.current = null;
+        }
+        const next = audioMessageQueueRef.current.shift();
+        if (next) {
+          playMessage(next);
+          return;
+        }
+        playingMessageRef.current = false;
+        setTimeout(() => {
+          if (!couplePlayingRef.current && !playingMessageRef.current) {
+            clearModulationState();
+          }
+        }, 500);
+      };
+      const playMessage = (m: TTSAudioMessage) => {
+        playingMessageRef.current = true;
+        // Arm the watchdog. If duration_ms is unknown, give 8s default
+        // (enough for a typical 3-4 sentence reply at ~14 chars/s).
+        const expectedMs = (m.duration_ms ?? 8000) + 1500;
+        if (queueWatchdogRef.current) clearTimeout(queueWatchdogRef.current);
+        queueWatchdogRef.current = window.setTimeout(() => {
+          console.warn(
+            `[TTS] queue watchdog fired — onEnded did not fire within ${expectedMs}ms; force-advancing`,
+          );
+          advanceQueue();
+        }, expectedMs);
+        decodeAndPlay(m.audio, {
+          emotion: m.emotion,
+          voiceParams: m.voice_params,
+          durationMs: m.duration_ms,
+          activeFactors: m.active_factors,
+          onEnded: () => {
+            // Pop the next queued message and play it. If queue is
+            // empty, mark idle and let modulation fade out.
+            advanceQueue();
+          },
+        });
+      };
+
+      if (isInterrupt) {
+        // Barge-reactions and any caller with `interrupt: true` cut
+        // through: clear the queue, stop the active audio, and play
+        // the new message immediately. This is the SAME behavior as
+        // pre-Phase-F default but now opt-in.
+        if (queueWatchdogRef.current) {
+          clearTimeout(queueWatchdogRef.current);
+          queueWatchdogRef.current = null;
+        }
+        audioMessageQueueRef.current = [];
+        playingMessageRef.current = false;
+        stop();
+        playMessage(msg);
+        return;
+      }
+
+      // Default: QUEUE if a message is currently playing, else play.
+      // This fixes the «ИИ сам обрывает себе фразы» bug — backend
+      // multi-sentence replies arriving as N separate `tts.audio`
+      // events no longer cut each other off.
+      // Phase G (2026-05-08): cap the queue at AUDIO_QUEUE_MAX. If
+      // backend goes runaway and pushes more, drop the OLDEST queued
+      // item (FIFO) to keep latency bounded — losing the start of an
+      // overlong reply is preferable to compounding 30s of audio.
+      if (playingMessageRef.current) {
+        if (audioMessageQueueRef.current.length >= AUDIO_QUEUE_MAX) {
+          const dropped = audioMessageQueueRef.current.shift();
+          console.warn(
+            `[TTS] audio queue at cap (${AUDIO_QUEUE_MAX}) — dropping oldest (b64_len=${dropped?.audio?.length || 0})`,
+          );
+        }
+        audioMessageQueueRef.current.push(msg);
+        return;
+      }
+      playMessage(msg);
+    },
+    [enabled, stop, decodeAndPlay, clearModulationState]
+  );
+
+  // ---------------------------------------------------------------------------
+  // Couple mode: sequential playback of utterances
+  // ---------------------------------------------------------------------------
+  const playCoupleAudio = useCallback(
+    (msg: TTSCoupleMessage) => {
+      logger.log(
+        `[TTS] playCoupleAudio | utterances=${msg.utterances.length} | total=${msg.total_duration_ms}ms`
+      );
+      if (!enabled) {
+        logger.warn("[TTS] playCoupleAudio skipped — TTS disabled");
+        return;
+      }
+      stop();
+
+      coupleQueueRef.current = [...msg.utterances];
+      couplePlayingRef.current = true;
+
+      // Total duration countdown
+      if (msg.total_duration_ms && msg.total_duration_ms > 0) {
+        startDurationCountdown(msg.total_duration_ms);
+      }
+
+      const playNext = () => {
+        const next = coupleQueueRef.current.shift();
+        if (!next) {
+          // Queue exhausted
+          couplePlayingRef.current = false;
+          setSpeaking(false);
+          stopAudioLevelSimulation();
+          clearModulationState();
+          return;
+        }
+
+        decodeAndPlay(next.audio, {
+          emotion: next.emotion,
+          voiceParams: next.voice_params,
+          durationMs: next.duration_ms,
+          speaker: next.speaker,
+          activeFactors: next.active_factors,
+          onEnded: () => {
+            // Small gap between couple utterances (natural turn-taking)
+            if (coupleQueueRef.current.length > 0) {
+              setTimeout(playNext, 120);
+            } else {
+              couplePlayingRef.current = false;
+              setTimeout(clearModulationState, 500);
+            }
+          },
+        });
+      };
+
+      playNext();
+    },
+    [
+      enabled,
+      stop,
+      decodeAndPlay,
+      startDurationCountdown,
+      stopAudioLevelSimulation,
+      clearModulationState,
+    ]
+  );
+
+  // ---------------------------------------------------------------------------
+  // Browser speech synthesis (fallback)
+  // ---------------------------------------------------------------------------
+  const speak = useCallback(
+    (text: string) => {
+      if (!enabled || typeof window === "undefined" || !window.speechSynthesis) return;
+      if (!text.trim()) return;
+
+      stop();
+
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = lang;
+      utterance.rate = rate;
+      utterance.pitch = pitch;
+      if (voiceRef.current) {
+        utterance.voice = voiceRef.current;
+      }
+
+      utterance.onstart = () => {
+        setSpeaking(true);
+        startAudioLevelSimulation();
+      };
+      utterance.onend = () => {
+        setSpeaking(false);
+        stopAudioLevelSimulation();
+      };
+      utterance.onerror = () => {
+        setSpeaking(false);
+        stopAudioLevelSimulation();
+      };
+
+      window.speechSynthesis.speak(utterance);
+    },
+    [enabled, lang, rate, pitch, stop, startAudioLevelSimulation, stopAudioLevelSimulation]
+  );
+
+  // ---------------------------------------------------------------------------
+  // Schedule / cancel fallback
+  // ---------------------------------------------------------------------------
+  const scheduleFallback = useCallback(
+    (text: string, timeoutMs: number = 3000) => {
+      logger.log(`[TTS] scheduleFallback | mode=${mode} | timeout=${timeoutMs}ms`);
+      if (fallbackTimerRef.current) {
+        clearTimeout(fallbackTimerRef.current);
+      }
+
+      if (mode === "browser") {
+        logger.log("[TTS] Already in browser mode — speaking immediately");
+        speak(text);
+        return;
+      }
+
+      fallbackTimerRef.current = setTimeout(() => {
+        if (!audioRef.current) {
+          logger.warn(
+            "[TTS] Fallback timer fired — ElevenLabs audio didn't arrive, using browser TTS"
+          );
+          speak(text);
+        } else {
+          logger.log(
+            "[TTS] Fallback timer fired but ElevenLabs audio already playing — skipping"
+          );
+        }
+        fallbackTimerRef.current = null;
+      }, timeoutMs);
+    },
+    [mode, speak]
+  );
+
+  const cancelFallback = useCallback(() => {
+    if (fallbackTimerRef.current) {
+      clearTimeout(fallbackTimerRef.current);
+      fallbackTimerRef.current = null;
+    }
+  }, []);
+
+  // ---------------------------------------------------------------------------
+  // Autoplay unlock (must be invoked from a user-gesture handler).
+  // ---------------------------------------------------------------------------
+  const unlock = useCallback(() => {
+    const pending = pendingPlaybackRef.current;
+    if (!pending) {
+      setNeedsAudioUnlock(false);
+      return;
+    }
+    audioRef.current = pending.audio;
+    pending.audio
+      .play()
+      .then(() => {
+        console.log("[TTS] ✓ Audio unlocked via user gesture, playback resumed");
+        setNeedsAudioUnlock(false);
+        pendingPlaybackRef.current = null;
+      })
+      .catch((err) => {
+        console.warn("[TTS] ✗ Unlock failed:", err?.name, err?.message);
+        // Keep the overlay up so the user can try again.
+      });
+  }, []);
+
+  // ---------------------------------------------------------------------------
+  // Mode switching
+  // ---------------------------------------------------------------------------
+  const enableFallbackMode = useCallback(() => {
+    setMode("browser");
+    // Audit Pattern 3 #15: surface fallback transition so the UI can
+    // toast the user. Previously this was logger.warn only — the user
+    // heard a different (browser default) voice and had no idea why.
+    setPlaybackError({
+      kind: "fallback_active",
+      message: "Голос клиента переключён на резервный (системный) — ElevenLabs временно недоступен.",
+    });
+    logger.warn("[TTS] SWITCHED to browser mode permanently (ElevenLabs fallback triggered)");
+  }, []);
+
+  // ---------------------------------------------------------------------------
+  // Enable/disable
+  // ---------------------------------------------------------------------------
+  const handleSetEnabled = useCallback(
+    (v: boolean) => {
+      setEnabled(v);
+      if (!v) {
+        // BUG-FIX 2026-05-05: ``stop()`` only kills the currently-playing
+        // sentence; the streaming queue (``pendingChunksRef``) and any
+        // queued couple-utterances kept playing one-by-one after mute.
+        // Now we also flush both queues so nothing else fires until the
+        // user re-enables.
+        stop();
+        pendingChunksRef.current.clear();
+        nextExpectedIndexRef.current = 0;
+        playingChunkRef.current = false;
+        coupleQueueRef.current = [];
+        couplePlayingRef.current = false;
+      }
+    },
+    [stop]
+  );
+
+  // ---------------------------------------------------------------------------
+  // Phase 2/3: Sentence-level TTS queue (streaming)
+  //
+  // Chunks may arrive out of order (parallel synth on backend). We buffer them
+  // in a map keyed by sentence_index and only play when we have the NEXT
+  // expected index — guarantees correct playback order without missing or
+  // reordering sentences.
+  // ---------------------------------------------------------------------------
+  const pendingChunksRef = useRef<Map<number, { audio: string; index: number; isLast: boolean }>>(new Map());
+  const nextExpectedIndexRef = useRef(0);
+  const playingChunkRef = useRef(false);
+  // Count of consecutive chunk play() / onerror failures. Reset on
+  // successful play. When >= 3 we treat streaming as broken and surface
+  // playbackError (audit Pattern 4 #10).
+  const chunkFailureStreakRef = useRef(0);
+
+  const resetChunkQueue = useCallback(() => {
+    pendingChunksRef.current.clear();
+    nextExpectedIndexRef.current = 0;
+    playingChunkRef.current = false;
+    chunkFailureStreakRef.current = 0;
+  }, []);
+
+  const playNextChunk = useCallback(() => {
+    if (playingChunkRef.current) return;
+    const chunk = pendingChunksRef.current.get(nextExpectedIndexRef.current);
+    if (!chunk) return;
+    pendingChunksRef.current.delete(nextExpectedIndexRef.current);
+    playingChunkRef.current = true;
+    const blob = new Blob(
+      [Uint8Array.from(atob(chunk.audio), (c) => c.charCodeAt(0))],
+      { type: "audio/mpeg" },
+    );
+    const url = URL.createObjectURL(blob);
+    let audio = new Audio(url);
+    audio.volume = computeEffective();
+    audioRef.current = audio;
+
+    // Deferred-revoke bookkeeping (see top-of-file comment). The flag and
+    // helper close over `url` (immutable), but `audio` may be reassigned by
+    // the one-shot retry below — we reattach `onloadeddata` in the retry too.
+    let loaded = false;
+    audio.onloadeddata = () => {
+      loaded = true;
+    };
+    const safeRevoke = () => {
+      if (loaded) {
+        URL.revokeObjectURL(url);
+      } else {
+        audio.addEventListener(
+          "loadeddata",
+          () => URL.revokeObjectURL(url),
+          { once: true },
+        );
+        // Hard safety: revoke after 30s no matter what so we don't leak.
+        setTimeout(() => URL.revokeObjectURL(url), 30_000);
+      }
+    };
+
+    // Phone-band filter on chunk path too — same constraint: route before play().
+    if (phoneBandFilter) {
+      routeThroughPhoneBand(audio);
+    }
+    const advance = (failed: boolean = false) => {
+      safeRevoke();
+      playingChunkRef.current = false;
+      nextExpectedIndexRef.current += 1;
+      // Audit Pattern 4 #10: when chunks fail one-by-one, the fallback
+      // timer has already been cancelled by the chunk-arrival handler in
+      // the page, so browser TTS never kicks in. Track the streak — 3+
+      // chunks failing back-to-back means streaming is broken; surface
+      // a playback error so the UI can fall back/toast.
+      if (failed) {
+        chunkFailureStreakRef.current += 1;
+        if (chunkFailureStreakRef.current >= 3) {
+          setPlaybackError({
+            kind: "media",
+            message: "Стриминг озвучки прервался — переключаемся на резервный голос",
+          });
+        }
+      } else {
+        chunkFailureStreakRef.current = 0;
+      }
+      const more = pendingChunksRef.current.size > 0;
+      setSpeaking(more);
+      if (chunk.isLast && !more) {
+        // Last chunk finished playing — reset index for next turn
+        nextExpectedIndexRef.current = 0;
+        chunkFailureStreakRef.current = 0;
+      }
+      playNextChunk();
+    };
+    // One-shot retry on MEDIA_ERR_ABORTED (code 1) — the specific error we
+    // see when the blob URL race fires before `loadeddata`. NOTE: we cannot
+    // re-route the retry through `routeThroughPhoneBand` because
+    // MediaElementAudioSourceNode can be created exactly once per
+    // HTMLAudioElement and we'd be creating a fresh element here. The retry
+    // therefore plays "dry" (no phone-band filter); for a chunk we'd have
+    // dropped entirely, this is a strictly better fallback.
+    let retried = false;
+    audio.onended = () => advance(false);
+    audio.onerror = () => {
+      const code = audio.error?.code ?? 0;
+      console.warn("[TTS] ✗ chunk media error", chunk.index, "code", code);
+      if (!retried && (code === MediaError.MEDIA_ERR_ABORTED || code === 1)) {
+        retried = true;
+        console.warn("[TTS] ↻ chunk", chunk.index, "retry (code 1)");
+        audio = new Audio(url);
+        audio.volume = computeEffective();
+        audioRef.current = audio;
+        audio.onloadeddata = () => {
+          loaded = true;
+        };
+        audio.onended = () => advance(false);
+        audio.onerror = () => {
+          const code2 = audio.error?.code ?? 0;
+          console.warn("[TTS] ✗ chunk", chunk.index, "retry failed code", code2);
+          advance(true);
+        };
+        audio.play().catch((err) => {
+          console.warn("[TTS] ✗ chunk", chunk.index, "retry play failed:", err?.name, err?.message);
+          advance(true);
+        });
+        return;
+      }
+      advance(true);
+    };
+    setSpeaking(true);
+    audio.play().then(() => {
+      // First successful chunk after a streak — clear the stale error.
+      if (chunkFailureStreakRef.current > 0) setPlaybackError(null);
+    }).catch((err) => {
+      // Chunked path: on autoplay-block, route to the same unlock UX used
+      // by decodeAndPlay so the first sentence of a phone-call reply isn't
+      // silently dropped when the browser suppresses autoplay.
+      if (err && (err.name === "NotAllowedError" || err.name === "AbortError")) {
+        pendingPlaybackRef.current = {
+          audio,
+          url,
+          onEnded: () => advance(false),
+        };
+        setNeedsAudioUnlock(true);
+        return;
+      }
+      advance(true);
+    });
+  }, []);
+
+  const queueAudioChunk = useCallback(
+    (chunk: { audio: string; index: number; isLast: boolean }) => {
+      // BUG-FIX 2026-05-05 (mute audit): user reported the speaker
+      // toggle did nothing mid-message. Root cause: ``queueAudioChunk``
+      // and the chunk queue downstream had no enabled-check, so already-
+      // queued sentences kept arriving and playing even after the user
+      // pressed mute. Now we drop the chunk on the floor if TTS is
+      // disabled — same behaviour as ``playAudio`` / ``playAudioMessage``.
+      if (!enabled) {
+        return;
+      }
+      // New turn detection: if we receive index 0 while idle, reset state
+      if (chunk.index === 0 && !playingChunkRef.current && pendingChunksRef.current.size === 0) {
+        nextExpectedIndexRef.current = 0;
+      }
+      pendingChunksRef.current.set(chunk.index, chunk);
+      playNextChunk();
+    },
+    [enabled, playNextChunk],
+  );
+
+  // ---------------------------------------------------------------------------
+  // Return
+  // ---------------------------------------------------------------------------
+  return {
+    // Legacy API (backward compatible)
+    playAudio,
+    // ТЗ-04 API
+    playAudioMessage,
+    playCoupleAudio,
+    // Phase 2/3: sentence-level TTS queue
+    queueAudioChunk,
+    resetChunkQueue,
+    // Fallback
+    speak,
+    scheduleFallback,
+    cancelFallback,
+    enableFallbackMode,
+    // Controls
+    stop,
+    speaking,
+    enabled,
+    setEnabled: handleSetEnabled,
+    mode,
+    // Avatar binding
+    audioLevel,
+    audioRef,  // Exposed for TalkingHead lip sync
+    currentEmotion,
+    currentVoiceParams,
+    currentSpeaker,
+    remainingDurationMs,
+    activeFactors,
+    // Autoplay unlock
+    needsAudioUnlock,
+    unlock,
+    // Audit Pattern 3 #9 — terminal playback errors surfaced to UI
+    playbackError,
+    // Volume
+    volume,
+    setVolume,
+  };
+}
