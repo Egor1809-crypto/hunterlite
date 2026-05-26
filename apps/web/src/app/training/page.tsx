@@ -178,7 +178,7 @@ function TrainingPageContent() {
         err.status === 409 &&
         err.detail?.code === "profile_incomplete"
       ) {
-        router.push("/onboarding");
+        router.push("/home");
         return;
       }
       if (
@@ -199,7 +199,7 @@ function TrainingPageContent() {
       }
       const message = err instanceof Error ? err.message : "Не удалось начать тренировку";
       if (message.includes("consent") || message.includes("согласи")) {
-        router.push("/consent");
+        router.push("/home");
         return;
       }
       setStartError(message);
@@ -253,15 +253,6 @@ function TrainingPageContent() {
                 </p>
               </div>
               <div className="flex items-center gap-2">
-                <Link href="/training/archetypes">
-                  <motion.button
-                    className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium"
-                    style={{ background: "var(--input-bg)", border: "1px solid var(--border-color)", color: "var(--text-secondary)" }}
-                    whileTap={{ scale: 0.97 }}
-                  >
-                    <BookOpen size={12} /> Каталог архетипов
-                  </motion.button>
-                </Link>
                 <PixelInfoButton
                   title="Тренировки"
                   sections={[
@@ -946,7 +937,7 @@ function SavedTab({ storyCalls }: { storyCalls: number }) {
         err.status === 409 &&
         err.detail?.code === "profile_incomplete"
       ) {
-        router.push("/onboarding");
+        router.push("/home");
         return;
       }
       if (
@@ -1193,7 +1184,7 @@ function RetrainBadge({ character, sessionId, onDismiss }: RetrainBadgeProps) {
         e.status === 409 &&
         e.detail?.code === "profile_incomplete"
       ) {
-        router.push("/onboarding");
+        router.push("/home");
         return;
       }
       useNotificationStore.getState().addToast({

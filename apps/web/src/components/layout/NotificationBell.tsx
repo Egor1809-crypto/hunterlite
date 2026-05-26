@@ -287,16 +287,6 @@ export function NotificationBell({ open: controlledOpen, onOpenChange }: Notific
                 )}
               </div>
 
-              {/* Footer */}
-              <Link
-                href="/notifications"
-                prefetch={true}
-                onClick={() => setOpen(false)}
-                className="flex items-center justify-center gap-1.5 px-4 py-2.5 text-xs font-medium transition-colors border-t"
-                style={{ borderColor: "var(--border-color)", color: "var(--accent)" }}
-              >
-                Все уведомления <ExternalLink size={11} />
-              </Link>
             </motion.div>
           )}
         </AnimatePresence>

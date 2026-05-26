@@ -51,10 +51,6 @@ function OAuthCallbackContent() {
         if (data.must_change_password) {
           target = "/change-password";
         } else {
-          try {
-            const consentStatus = await api.get<{ all_accepted: boolean }>("/consent/status");
-            if (!consentStatus.all_accepted) target = "/consent";
-          } catch { /* proceed to /home — AuthLayout will guard */ }
         }
         setTimeout(() => router.replace(target), 800);
       })

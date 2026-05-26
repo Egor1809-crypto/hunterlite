@@ -95,7 +95,6 @@ const PUBLIC_ROUTES = [
   "/pricing",
   "/login",
   "/register",
-  "/consent/verify",
   "/auth/callback",
   "/change-password",
   "/reset-password",
@@ -114,8 +113,6 @@ function isPublicRoute(pathname: string): boolean {
   return PUBLIC_ROUTES.some((route) => {
     if (route === pathname) return true;
     if (route.endsWith("/") && pathname.startsWith(route)) return true;
-    // Allow consent/verify/* paths
-    if (route === "/consent/verify" && pathname.startsWith("/consent/verify")) return true;
     return false;
   });
 }

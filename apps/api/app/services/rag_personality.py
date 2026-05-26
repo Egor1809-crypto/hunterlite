@@ -1,0 +1,429 @@
+"""Personality RAG — lorebook entry retrieval for character archetypes.
+
+Replaces monolithic 25K character prompt files with dynamic context injection.
+Two retrieval strategies:
+  1. Keyword matching (regex, 0ms) — primary, for common triggers
+  2. Embedding similarity (pgvector, ~50ms) — fallback when keywords miss
+
+Architecture follows rag_legal.py patterns for consistency.
+"""
+
+import logging
+import re
+from dataclasses import dataclass, field
+
+from sqlalchemy import select, and_
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.config import settings
+from app.models.rag import PersonalityChunk, PersonalityExample, TraitCategory
+
+logger = logging.getLogger(__name__)
+
+
+# ─── Data structures ─────────────────────────────────────────────────────────
+
+
+@dataclass
+class LorebookEntry:
+    """A single retrieved lorebook entry."""
+    chunk_id: str
+    trait_category: str
+    content: str
+    priority: int
+    trigger_method: str  # "keyword" | "embedding" | "always"
+    relevance_score: float = 1.0
+
+
+@dataclass
+class RetrievedExample:
+    """A few-shot dialogue example retrieved by semantic similarity."""
+    situation: str
+    dialogue: str
+    emotion: str | None = None
+    relevance_score: float = 0.0
+
+
+@dataclass
+class LorebookContext:
+    """Complete lorebook context for one prompt assembly."""
+    archetype_code: str
+    character_card: str  # Always-loaded core identity
+    entries: list[LorebookEntry] = field(default_factory=list)
+    examples: list[RetrievedExample] = field(default_factory=list)
+    total_tokens_estimate: int = 0
+
+    def to_prompt_sections(self) -> list[str]:
+        """Convert to prompt sections for assembly."""
+        sections = []
+
+        # Character card is always first
+        if self.character_card:
+            sections.append(self.character_card)
+
+        # Lorebook entries sorted by priority (highest first)
+        if self.entries:
+            entry_texts = [e.content for e in sorted(self.entries, key=lambda x: -x.priority)]
+            sections.append("\n\n".join(entry_texts))
+
+        # Few-shot examples
+        if self.examples:
+            lines = ["Вот как этот персонаж обычно реагирует:"]
+            for ex in self.examples:
+                lines.append(f"\nСитуация: {ex.situation}")
+                lines.append(f"Персонаж: \"{ex.dialogue}\"")
+            sections.append("\n".join(lines))
+
+        return sections
+
+
+# ─── Keyword retrieval (primary, 0ms) ────────────────────────────────────────
+
+
+async def retrieve_by_keywords(
+    archetype_code: str,
+    user_message: str,
+    db: AsyncSession,
+    max_tokens: int = 400,
+) -> list[LorebookEntry]:
+    """Retrieve lorebook entries triggered by keywords in user message.
+
+    Fast regex-based matching. Returns entries sorted by priority,
+    capped at max_tokens budget.
+    """
+    message_lower = user_message.lower()
+
+    # Load all active entries for this archetype
+    result = await db.execute(
+        select(PersonalityChunk).where(
+            and_(
+                PersonalityChunk.archetype_code == archetype_code,
+                PersonalityChunk.is_active.is_(True),
+                PersonalityChunk.trait_category != TraitCategory.core_identity,  # card loaded separately
+            )
+        ).order_by(PersonalityChunk.priority.desc())
+    )
+    all_entries = result.scalars().all()
+
+    triggered = []
+    for chunk in all_entries:
+        keywords = chunk.keywords or []
+        if any(kw.lower() in message_lower for kw in keywords):
+            triggered.append(LorebookEntry(
+                chunk_id=str(chunk.id),
+                trait_category=chunk.trait_category.value,
+                content=chunk.content,
+                priority=chunk.priority,
+                trigger_method="keyword",
+            ))
+
+    # Budget cap: estimate tokens as len(content) // 2
+    budget_used = 0
+    capped = []
+    for entry in triggered:
+        entry_tokens = len(entry.content) // 2
+        if budget_used + entry_tokens <= max_tokens:
+            capped.append(entry)
+            budget_used += entry_tokens
+        else:
+            break  # Already sorted by priority, so we drop lowest first
+
+    return capped
+
+
+# ─── Embedding retrieval (fallback) ──────────────────────────────────────────
+
+
+async def retrieve_by_embedding(
+    archetype_code: str,
+    user_message: str,
+    db: AsyncSession,
+    top_k: int = 3,
+) -> list[LorebookEntry]:
+    """Retrieve lorebook entries by semantic similarity (pgvector).
+
+    Used as fallback when keyword matching returns nothing.
+    Requires pre-computed embeddings in PersonalityChunk.embedding.
+    """
+    from app.services.llm import get_embedding
+
+    try:
+        query_embedding = await get_embedding(user_message)
+    except Exception as e:
+        logger.debug("Embedding retrieval failed (no embedding model): %s", e)
+        return []
+
+    if not query_embedding:
+        return []
+
+    # Cosine similarity search via pgvector
+    result = await db.execute(
+        select(PersonalityChunk)
+        .where(
+            and_(
+                PersonalityChunk.archetype_code == archetype_code,
+                PersonalityChunk.is_active.is_(True),
+                PersonalityChunk.embedding.isnot(None),
+                PersonalityChunk.trait_category != TraitCategory.core_identity,
+            )
+        )
+        .order_by(PersonalityChunk.embedding.cosine_distance(query_embedding))
+        .limit(top_k)
+    )
+    chunks = result.scalars().all()
+
+    return [
+        LorebookEntry(
+            chunk_id=str(c.id),
+            trait_category=c.trait_category.value,
+            content=c.content,
+            priority=c.priority,
+            trigger_method="embedding",
+        )
+        for c in chunks
+    ]
+
+
+# ─── Example retrieval (few-shot RAG) ────────────────────────────────────────
+
+
+async def retrieve_examples(
+    archetype_code: str,
+    user_message: str,
+    db: AsyncSession,
+    top_k: int = 3,
+) -> list[RetrievedExample]:
+    """Retrieve few-shot dialogue examples by semantic similarity.
+
+    Returns the most relevant examples of how this character speaks
+    in situations similar to the current user message.
+    """
+    from app.services.llm import get_embedding
+
+    try:
+        query_embedding = await get_embedding(user_message)
+    except Exception:
+        logger.debug("Example embedding failed, returning empty")
+        return []
+
+    if not query_embedding:
+        return []
+
+    result = await db.execute(
+        select(PersonalityExample)
+        .where(
+            and_(
+                PersonalityExample.archetype_code == archetype_code,
+                PersonalityExample.is_active.is_(True),
+                PersonalityExample.embedding.isnot(None),
+            )
+        )
+        .order_by(PersonalityExample.embedding.cosine_distance(query_embedding))
+        .limit(top_k)
+    )
+    examples = result.scalars().all()
+
+    return [
+        RetrievedExample(
+            situation=ex.situation,
+            dialogue=ex.dialogue,
+            emotion=ex.emotion,
+        )
+        for ex in examples
+    ]
+
+
+# ─── Character card retrieval ────────────────────────────────────────────────
+
+
+async def get_character_card(archetype_code: str, db: AsyncSession) -> str:
+    """Load the always-present character card (core_identity entry)."""
+    result = await db.execute(
+        select(PersonalityChunk.content).where(
+            and_(
+                PersonalityChunk.archetype_code == archetype_code,
+                PersonalityChunk.trait_category == TraitCategory.core_identity,
+                PersonalityChunk.is_active.is_(True),
+            )
+        ).limit(1)
+    )
+    row = result.scalar_one_or_none()
+    return row or ""
+
+
+# ─── Main retrieval function ─────────────────────────────────────────────────
+
+
+async def retrieve_lorebook_context(
+    archetype_code: str,
+    user_message: str,
+    db: AsyncSession,
+    emotion_state: str = "cold",
+) -> LorebookContext:
+    """Retrieve complete lorebook context for prompt assembly.
+
+    Strategy:
+      1. Always load character card (core_identity)
+      2. Keyword-match lorebook entries from user message
+      3. If no keywords matched → fallback to embedding similarity
+      4. Retrieve few-shot RAG examples by semantic similarity
+
+    Returns LorebookContext with all sections ready for prompt assembly.
+    """
+    max_entry_tokens = settings.lorebook_max_entry_tokens
+    max_examples = settings.lorebook_max_examples
+
+    # 1. Character card (always)
+    card = await get_character_card(archetype_code, db)
+
+    # 2. Always load critical entries (priority >= 9) as baseline context
+    #    Only the most essential entries (e.g. financial_situation) load unconditionally.
+    #    Entries at p=7-8 are left for keyword + embedding retrieval to find contextually.
+    baseline_result = await db.execute(
+        select(PersonalityChunk).where(
+            and_(
+                PersonalityChunk.archetype_code == archetype_code,
+                PersonalityChunk.is_active.is_(True),
+                PersonalityChunk.trait_category != TraitCategory.core_identity,
+                PersonalityChunk.priority >= 9,
+            )
+        ).order_by(PersonalityChunk.priority.desc())
+    )
+    baseline_entries = [
+        LorebookEntry(
+            chunk_id=str(c.id), trait_category=c.trait_category.value,
+            content=c.content, priority=c.priority, trigger_method="always",
+        )
+        for c in baseline_result.scalars().all()
+    ]
+
+    # 3. Keyword-triggered entries (topic-specific)
+    keyword_entries = await retrieve_by_keywords(archetype_code, user_message, db, max_tokens=max_entry_tokens)
+
+    # 4. Embedding entries (always run in parallel with keywords for hybrid retrieval)
+    embedding_entries = await retrieve_by_embedding(archetype_code, user_message, db, top_k=3)
+
+    # 5. Merge: baseline + keyword + embedding, deduplicate, cap by budget
+    seen_ids = set()
+    entries = []
+    budget_used = 0
+    for e in baseline_entries + keyword_entries + embedding_entries:
+        if e.chunk_id in seen_ids:
+            continue
+        t = len(e.content) // 2
+        if budget_used + t <= max_entry_tokens:
+            entries.append(e)
+            seen_ids.add(e.chunk_id)
+            budget_used += t
+
+    # 6. Speech examples by emotion_state (always loaded, ~30 tokens)
+    #    These entries have no keywords and low priority, so they'd never be retrieved
+    #    by keyword or baseline. Instead we extract the line matching current emotion.
+    speech_result = await db.execute(
+        select(PersonalityChunk.id, PersonalityChunk.content).where(
+            and_(
+                PersonalityChunk.archetype_code == archetype_code,
+                PersonalityChunk.is_active.is_(True),
+                PersonalityChunk.trait_category == TraitCategory.speech_examples,
+            )
+        ).limit(1)
+    )
+    speech_row = speech_result.first()
+    if speech_row:
+        # Extract only the line for current emotion_state (e.g. "Cold: ...")
+        state_key = emotion_state.capitalize()
+        for line in speech_row.content.split("\n"):
+            if line.strip().startswith(state_key + ":"):
+                speech_text = f"Пример фразы ({emotion_state}): {line.strip()}"
+                speech_tokens = len(speech_text) // 2
+                if budget_used + speech_tokens <= max_entry_tokens + 50:  # Small grace
+                    entries.append(LorebookEntry(
+                        chunk_id=str(speech_row.id),
+                        trait_category="speech_examples",
+                        content=speech_text,
+                        priority=5,
+                        trigger_method="emotion_state",
+                    ))
+                    budget_used += speech_tokens
+                break
+
+    # 7. Human quirks: inject archetype-specific reactions for "human moments"
+    #    These entries have no keywords (loaded by category) and moderate priority.
+    #    Always loaded so the AI knows how this character reacts to off-topic/gibberish.
+    try:
+        from app.services.emotion_v6 import detect_human_moment
+        human_trigger = detect_human_moment(user_message) if user_message else None
+        if human_trigger is not None:
+            quirks_result = await db.execute(
+                select(PersonalityChunk).where(
+                    and_(
+                        PersonalityChunk.archetype_code == archetype_code,
+                        PersonalityChunk.is_active.is_(True),
+                        PersonalityChunk.trait_category == TraitCategory.human_quirks,
+                    )
+                ).limit(1)
+            )
+            quirks_row = quirks_result.scalar_one_or_none()
+            if quirks_row and str(quirks_row.id) not in seen_ids:
+                quirks_tokens = len(quirks_row.content) // 2
+                if budget_used + quirks_tokens <= max_entry_tokens + 100:  # Grace for human moments
+                    entries.append(LorebookEntry(
+                        chunk_id=str(quirks_row.id),
+                        trait_category="human_quirks",
+                        content=quirks_row.content,
+                        priority=quirks_row.priority,
+                        trigger_method="human_moment",
+                    ))
+                    seen_ids.add(str(quirks_row.id))
+                    budget_used += quirks_tokens
+    except Exception:
+        pass  # Graceful degradation
+
+    # 8. Few-shot examples (keyword-based, no embeddings needed)
+    examples = []
+    if user_message:
+        # Simple keyword match for examples too
+        msg_lower = user_message.lower()
+        ex_result = await db.execute(
+            select(PersonalityExample).where(
+                and_(
+                    PersonalityExample.archetype_code == archetype_code,
+                    PersonalityExample.is_active.is_(True),
+                )
+            ).limit(50)  # Load pool, then filter
+        )
+        all_examples = ex_result.scalars().all()
+        # Score by keyword overlap with situation
+        scored = []
+        for ex in all_examples:
+            sit_lower = ex.situation.lower()
+            overlap = sum(1 for word in msg_lower.split() if word in sit_lower and len(word) > 3)
+            scored.append((overlap, ex))
+        scored.sort(key=lambda x: -x[0])
+        examples = [
+            RetrievedExample(situation=ex.situation, dialogue=ex.dialogue, emotion=ex.emotion)
+            for _, ex in scored[:max_examples]
+        ]
+
+    # Estimate total tokens
+    total = len(card) // 2
+    total += sum(len(e.content) // 2 for e in entries)
+    total += sum((len(ex.situation) + len(ex.dialogue)) // 2 for ex in examples)
+
+    logger.debug(
+        "Lorebook [%s]: card=%d tok, entries=%d (%d tok), examples=%d (~%d tok total)",
+        archetype_code,
+        len(card) // 2,
+        len(entries),
+        sum(len(e.content) // 2 for e in entries),
+        len(examples),
+        total,
+    )
+
+    return LorebookContext(
+        archetype_code=archetype_code,
+        character_card=card,
+        entries=entries,
+        examples=examples,
+        total_tokens_estimate=total,
+    )

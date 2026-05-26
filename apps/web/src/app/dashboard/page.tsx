@@ -9,8 +9,6 @@ import {
   ArrowUpDown,
   ChevronUp,
   ChevronDown,
-  FileBarChart,
-  Database,
   Download,
 } from "lucide-react";
 import {
@@ -19,15 +17,15 @@ import {
   Clock,
   Target,
   Trophy,
-  ShieldWarning,
   Crown,
   ChartBar,
   BookOpen,
+  ShieldWarning,
 } from "@phosphor-icons/react";
 import Link from "next/link";
 import { api } from "@/lib/api";
 import { useAuth } from "@/hooks/useAuth";
-import { isAdmin, isManager } from "@/lib/guards";
+import { isManager } from "@/lib/guards";
 import AuthLayout from "@/components/layout/AuthLayout";
 import { BackButton } from "@/components/ui/BackButton";
 import { PixelInfoButton } from "@/components/ui/PixelInfoButton";
@@ -35,10 +33,7 @@ import { DashboardSkeleton } from "@/components/ui/Skeleton";
 import { AnimatedCounter } from "@/components/ui/AnimatedCounter";
 import { ScoreBadge } from "@/components/ui/ScoreBadge";
 import { KnowledgeDashboardWidget } from "@/components/dashboard/KnowledgeDashboardWidget";
-import { TeamHeatmap } from "@/components/dashboard/TeamHeatmap";
-import { WeakLinks } from "@/components/dashboard/WeakLinks";
 import { Benchmark } from "@/components/dashboard/Benchmark";
-import { TeamTrendChart } from "@/components/dashboard/TeamTrendChart";
 import { ActivityChart } from "@/components/dashboard/ActivityChart";
 import { AlertPanel } from "@/components/dashboard/AlertPanel";
 // BehaviorProfileCard / OceanProfileWidget / WeeklyReport intentionally
@@ -53,48 +48,20 @@ import { toast } from "sonner";
 import { scoreColor } from "@/lib/utils";
 import { getApiBaseUrl } from "@/lib/public-origin";
 import { logger } from "@/lib/logger";
-import dynamic from "next/dynamic";
-import { DashboardSkeleton as WikiFallback } from "@/components/ui/Skeleton";
 import { type TabId, resolveTabParam } from "@/lib/dashboard-tabs";
 
-const ReportsDashboard = dynamic(
-  () => import("@/components/dashboard/ReportsDashboard").then((m) => m.ReportsDashboard),
-  { loading: () => <WikiFallback />, ssr: false }
-);
-
-const MethodologyPanel = dynamic(
-  () => import("@/components/dashboard/MethodologyPanel").then((m) => m.MethodologyPanel),
-  { loading: () => <WikiFallback />, ssr: false }
-);
-
-const AuditLogPanel = dynamic(
-  () => import("@/components/dashboard/AuditLogPanel").then((m) => m.AuditLogPanel),
-  { loading: () => <WikiFallback />, ssr: false }
-);
-
-const SystemPanel = dynamic(
-  () => import("@/components/dashboard/SystemPanel").then((m) => m.SystemPanel),
-  { loading: () => <WikiFallback />, ssr: false }
-);
 
 /* ─── Constants ──────────────────────────────────────────────────────────── */
 
 const TABS: { id: TabId; label: string; icon: any; adminOnly?: boolean }[] = [
   { id: "overview", label: "Обзор", icon: LayoutDashboard },
   { id: "team", label: "Команда", icon: UsersThree },
-  { id: "tournament", label: "Турнир", icon: Trophy },
-  { id: "content", label: "Контент", icon: BookOpen },
-  { id: "reports", label: "Отчёты", icon: FileBarChart },
-  { id: "audit", label: "Аудит-журнал", icon: ShieldWarning },
-  { id: "system", label: "Система", icon: Database, adminOnly: true },
 ];
 
 const AVATAR_COLORS = [
   "var(--accent)", "var(--accent)", "var(--magenta)", "#F43F5E", "var(--warning)",
   "#EAB308", "var(--success)", "#14B8A6", "var(--info)", "var(--info)",
 ];
-
-const podiumColors = ["var(--warning)", "var(--text-secondary)", "var(--warning)"];
 
 type SortKey = "full_name" | "total_sessions" | "avg_score" | "best_score" | "sessions_this_week";
 type SortDir = "asc" | "desc";
@@ -496,17 +463,7 @@ export default function DashboardPage() {
                                     initial={{ opacity: 0 }}
                                     animate={{ opacity: 1 }}
                                     transition={{ duration: 0.2 }}
-                                    onClick={() => router.push(`/dashboard/team/${m.id}`)}
-                                    onKeyDown={(e) => {
-                                      if (e.key === "Enter" || e.key === " ") {
-                                        e.preventDefault();
-                                        router.push(`/dashboard/team/${m.id}`);
-                                      }
-                                    }}
-                                    role="button"
-                                    tabIndex={0}
-                                    aria-label={`Открыть карточку: ${m.full_name}`}
-                                    className="transition-all group table-row-accent cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--accent)]"
+                                    className="transition-all group table-row-accent"
                                     style={{ borderBottom: "1px solid var(--border-color)" }}
                                   >
                                     <td className="px-5 py-4">
@@ -586,32 +543,8 @@ export default function DashboardPage() {
                       {/* Алерты идут первыми — то, что требует внимания «прямо сейчас». */}
                       <AlertPanel />
 
-                      {/* Слабые звенья команды — кто отстаёт и почему. */}
-                      <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        className="rounded-2xl p-5"
-                        style={{ background: "var(--glass-bg)", border: "1px solid var(--glass-border)", backdropFilter: "blur(20px)" }}
-                      >
-                        <WeakLinks />
-                      </motion.div>
-
-                      {/* Тренды + активность — общая динамика. */}
-                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                        <TeamTrendChart />
-                        <ActivityChart />
-                      </div>
-
-                      {/* Тепловая карта навыков — где команда слабее всего. */}
-                      <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        transition={{ delay: 0.05 }}
-                        className="rounded-2xl p-5"
-                        style={{ background: "var(--glass-bg)", border: "1px solid var(--glass-border)", backdropFilter: "blur(20px)" }}
-                      >
-                        <TeamHeatmap />
-                      </motion.div>
+                      {/* Активность команды. */}
+                      <ActivityChart />
 
                       {/* Бенчмарк — сравнение с платформой. Скрывается до 10+ сессий. */}
                       <motion.div
@@ -630,123 +563,6 @@ export default function DashboardPage() {
                     </div>
                   )}
 
-                  {/* ═══════════ TAB: TOURNAMENT ══════════════════════════════ */}
-                  {activeTab === "tournament" && (
-                    <div className="space-y-6">
-                      {/* Tournament Block */}
-                      <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        className="cyber-card overflow-hidden"
-                      >
-                        <div className="p-5 border-b flex items-center gap-2" style={{ borderColor: "var(--border-color)", background: "var(--input-bg)" }}>
-                          <Trophy size={18} weight="duotone" style={{ color: "var(--gf-xp)" }} />
-                          <h2 className="font-display text-base tracking-widest" style={{ color: "var(--text-secondary)" }}>
-                            ТУРНИР
-                          </h2>
-                        </div>
-
-                        {data.tournament ? (
-                          <div className="p-5">
-                            <div className="mb-4">
-                              <h3 className="text-base font-medium" style={{ color: "var(--text-primary)" }}>
-                                {data.tournament.title}
-                              </h3>
-                              <p className="font-mono text-xs mt-1" style={{ color: "var(--text-muted)" }}>
-                                До {new Date(data.tournament.week_end).toLocaleDateString("ru-RU", { day: "numeric", month: "short" })}
-                              </p>
-                            </div>
-
-                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-3">
-                              {data.tournament.leaderboard.map((entry, i) => (
-                                <motion.div
-                                  key={entry.user_id}
-                                  initial={{ opacity: 0 }}
-                                  animate={{ opacity: 1 }}
-                                  transition={{ delay: i * 0.05 }}
-                                  className="flex items-center gap-3 rounded-lg px-4 py-3"
-                                  style={{
-                                    background: i < 3 ? `color-mix(in srgb, ${podiumColors[i]} 3%, transparent)` : "var(--input-bg)",
-                                    borderLeft: i < 3 ? `3px solid ${podiumColors[i]}` : "3px solid transparent",
-                                  }}
-                                >
-                                  <span
-                                    className="w-6 text-center font-mono text-sm font-bold"
-                                    style={{ color: i < 3 ? podiumColors[i] : "var(--text-muted)" }}
-                                  >
-                                    {entry.rank}
-                                  </span>
-                                  <div className="flex-1 min-w-0">
-                                    <span className="text-sm truncate block" style={{ color: "var(--text-primary)" }}>
-                                      {entry.full_name}
-                                    </span>
-                                  </div>
-                                  <span className="font-mono text-sm font-bold" style={{ color: scoreColor(entry.best_score) }}>
-                                    {Math.round(entry.best_score)}
-                                  </span>
-                                </motion.div>
-                              ))}
-                            </div>
-
-                            {data.tournament.leaderboard.length === 0 && (
-                              <div className="py-8 flex items-center justify-center">
-                                <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-                                  Пока нет участников
-                                </p>
-                              </div>
-                            )}
-                          </div>
-                        ) : (
-                          <div className="p-8 flex flex-col items-center justify-center text-center">
-                            <Trophy size={40} weight="duotone" style={{ color: "var(--border-color)" }} />
-                            <p className="mt-3 text-sm" style={{ color: "var(--text-muted)" }}>
-                              Нет активных турниров
-                            </p>
-                          </div>
-                        )}
-                      </motion.div>
-
-                      {/* Knowledge + Pipeline */}
-                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                        <KnowledgeDashboardWidget />
-
-                      </div>
-                    </div>
-                  )}
-
-                  {/* ═══════════ TAB: AUDIT (152-ФЗ audit log) ══════════════ */}
-                  {activeTab === "audit" && (
-                    <div>
-                      <AuditLogPanel scope={user?.role === "admin" ? "all" : "team"} />
-                    </div>
-                  )}
-
-                  {/* ═══════════ TAB: CONTENT (РОПы + База ФЗ-127 + Сценарии + Плейбуки + Wiki + AI-quality + Отзывы) ═══ */}
-                  {activeTab === "content" && (
-                    <div>
-                      <MethodologyPanel isAdminCaller={isAdmin(user)} />
-                    </div>
-                  )}
-
-                  {/* ═══════════ TAB: REPORTS ═══════════════════════════════ */}
-                  {activeTab === "reports" && (
-                    <div>
-                      <ReportsDashboard
-                        teamMode
-                        teamMembers={(data?.members ?? []).map((m) => ({
-                          id: m.id,
-                          name: m.full_name || m.email,
-                        }))}
-                      />
-                    </div>
-                  )}
-
-                  {/* ═══════════ TAB: SYSTEM (admin only) ══════════════════ */}
-                  {activeTab === "system" && isAdmin(user) && (
-                    <div>
-                      <SystemPanel />
-                    </div>
-                  )}
 
                 </motion.div>
               </AnimatePresence>

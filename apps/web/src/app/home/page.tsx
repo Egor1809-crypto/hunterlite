@@ -250,7 +250,7 @@ export default function HomePage() {
         err.status === 409 &&
         err.detail?.code === "profile_incomplete"
       ) {
-        router.push("/onboarding");
+        router.push("/home");
         return;
       }
       useNotificationStore.getState().addToast({
@@ -660,7 +660,7 @@ export default function HomePage() {
                             err.status === 409 &&
                             err.detail?.code === "profile_incomplete"
                           ) {
-                            router.push("/onboarding");
+                            router.push("/home");
                             return;
                           }
                           useNotificationStore.getState().addToast({

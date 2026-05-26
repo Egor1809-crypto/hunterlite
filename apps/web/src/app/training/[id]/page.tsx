@@ -568,7 +568,7 @@ export default function TrainingSessionPage() {
                   // Story fallback: go to story summary if we have story id,
                   // otherwise single-call results.
                   if (st.storyMode && st.storyId) {
-                    router.push(`/stories/${st.storyId}`);
+                    router.push(`/results/${st.storyId}`);
                   } else {
                     router.push(`/results/${currentSessionIdRef.current || routeId}`);
                   }
@@ -1047,7 +1047,7 @@ export default function TrainingSessionPage() {
           if (!storyCallReport) {
             s.setSessionState("completed");
             if (_storyId) {
-              setTimeout(() => router.push(`/stories/${_storyId}`), 900);
+              setTimeout(() => router.push(`/results/${_storyId}`), 900);
             }
           }
           // If storyCallReport IS set, do nothing — the overlay's
@@ -1144,7 +1144,7 @@ export default function TrainingSessionPage() {
             // drifted from URL routeId if session was resumed).
             const _sid = currentSessionIdRef.current || routeId;
             if (s.storyMode && s.storyId) {
-              setTimeout(() => router.push(`/stories/${s.storyId}`), 400);
+              setTimeout(() => router.push(`/results/${s.storyId}`), 400);
             } else {
               setTimeout(() => router.push(`/results/${_sid}`), 400);
             }
@@ -1799,7 +1799,7 @@ export default function TrainingSessionPage() {
                 // Navigate. The backend will ALSO emit story.completed
                 // which navigates — whichever fires first wins. Both
                 // land on the same route, so it's idempotent.
-                setTimeout(() => router.push(`/stories/${storyId}`), 900);
+                setTimeout(() => router.push(`/results/${storyId}`), 900);
               } else {
                 // No story id (shouldn't happen, but fallback safely):
                 s.setSessionState("completed");
@@ -2726,7 +2726,7 @@ export default function TrainingSessionPage() {
               sendMessage({ type: "story.end", data: { story_id: s.storyId } });
               setStoryTransitionText("ЗАВЕРШАЕМ ИСТОРИЮ...");
               s.setSessionState("completed");
-              setTimeout(() => router.push(`/stories/${s.storyId}`), 900);
+              setTimeout(() => router.push(`/results/${s.storyId}`), 900);
             } else {
               s.resetCallState();
               setStoryTransitionText("ПЕРЕЗВАНИВАЕМ...");
@@ -2763,7 +2763,7 @@ export default function TrainingSessionPage() {
             // blank "completed" screen indefinitely.
             sendMessage({ type: "story.end", data: { story_id: s.storyId } });
             s.setSessionState("completed");
-            setTimeout(() => router.push(`/stories/${s.storyId}`), 900);
+            setTimeout(() => router.push(`/results/${s.storyId}`), 900);
           } else {
             setEnding(true);
             if (markEndSent(hangupRef.current)) {

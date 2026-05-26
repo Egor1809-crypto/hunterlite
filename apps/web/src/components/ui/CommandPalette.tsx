@@ -65,11 +65,7 @@ const COMMANDS: CommandItem[] = [
   { id: "pvp", label: "PvP Арена", description: "Бой с другим игроком", icon: Swords, href: "/pvp", keywords: ["pvp", "арена", "бой", "дуэль", "соперник"] },
   { id: "history", label: "История тренировок", description: "Все сессии", icon: History, href: "/history", keywords: ["история", "history", "сессии", "прошлые"] },
   { id: "analytics", label: "Аналитика", description: "Статистика и прогресс", icon: BarChart3, href: "/analytics", keywords: ["аналитика", "analytics", "статистика", "прогресс", "графики"] },
-  { id: "leaderboard", label: "Рейтинг", description: "Таблица лидеров", icon: Trophy, href: "/leaderboard", keywords: ["рейтинг", "leaderboard", "лидеры", "топ"] },
-  { id: "clients", label: "CRM Клиенты", description: "Управление клиентами", icon: Users, href: "/clients", keywords: ["клиенты", "clients", "crm", "контакты"] },
   { id: "knowledge", label: "База знаний", description: "Квизы и материалы", icon: BookOpen, href: "/pvp?tab=knowledge", keywords: ["знания", "knowledge", "квиз", "тест", "обучение"] },
-  { id: "reports", label: "Отчёты", description: "Командные отчёты (в Панели РОП)", icon: FileBarChart, href: "/dashboard?tab=reports", keywords: ["отчёты", "reports", "команда"], roles: ["rop", "admin"] },
-  { id: "notifications", label: "Уведомления", icon: Bell, href: "/notifications", keywords: ["уведомления", "notifications", "оповещения"] },
   { id: "settings", label: "Настройки", description: "Тема, звук, профиль", icon: Settings, href: "/settings", keywords: ["настройки", "settings", "тема", "профиль"] },
   { id: "dashboard", label: "Панель управления", description: "Обзор команды (РОП)", icon: Shield, href: "/dashboard", keywords: ["панель", "dashboard", "управление", "роп"], roles: ["rop", "admin"] },
 ];

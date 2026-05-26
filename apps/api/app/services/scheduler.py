@@ -1,0 +1,1032 @@
+"""
+Cron-система автоматических напоминаний и эскалаций (Task X3).
+
+ТЗ v2, разделы 3.3, 7.3:
+- Проверка stale-клиентов каждые N минут (REMINDER_CHECK_INTERVAL_MIN)
+- Автонапоминания менеджеру по таймаутам статусов
+- Эскалация РОП при длительном бездействии
+- Auto-lost для thinking > 30 дней
+- SMS-напоминание клиенту за 24ч до консультации
+
+Реализация: asyncio background task, запускается при старте FastAPI.
+(APScheduler не нужен для одной периодической задачи.)
+"""
+
+import asyncio
+import logging
+import uuid
+from datetime import datetime, timedelta, timezone
+
+from sqlalchemy import and_, func, select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.database import async_session
+from app.models.client import (
+    ClientInteraction,
+    ClientNotification,
+    ClientStatus,
+    InteractionType,
+    ManagerReminder,
+    NotificationChannel,
+    NotificationStatus,
+    RealClient,
+    STATUS_TIMEOUTS,
+)
+from app.models.user import User
+from app.services.client_domain import create_crm_interaction_with_event
+
+
+# PR-10 (2026-05-07): default top-3 AP leaderboard rewards stamped onto
+# every newly-rolled season. Methodologist can overwrite per-season via
+# POST /api/pvp/admin/season/create. Magnitudes calibrated for the
+# 15-pilot tester audience: enough to motivate an effort, not enough
+# to gate progression.
+DEFAULT_SEASON_TOP_REWARDS: list[dict] = [
+    {"rank": 1, "ap": 100, "badge": "champion-of-the-month"},
+    {"rank": 2, "ap": 60,  "badge": "silver-stand"},
+    {"rank": 3, "ap": 30,  "badge": "bronze-stand"},
+]
+
+logger = logging.getLogger(__name__)
+
+# Интервал проверки (минуты) — из конфига или дефолт
+CHECK_INTERVAL_MIN = 5
+
+
+class ReminderScheduler:
+    """
+    Фоновая задача проверки клиентов и генерации напоминаний.
+
+    Жизненный цикл:
+    - start(): запускает бесконечный цикл
+    - stop(): останавливает цикл
+    - check_stale_clients(): одна итерация проверки
+
+    Edge cases:
+    - Двойная отправка: проверяем auto_generated + remind_at за сегодня
+    - Рестарт сервера: при запуске проверяем пропущенные
+    - Конкурентность: один экземпляр на процесс (singleton)
+    """
+
+    def __init__(self):
+        self._task: asyncio.Task | None = None
+        self._running = False
+
+    def start(self) -> None:
+        """Запустить фоновую задачу."""
+        if self._task is not None:
+            return
+        self._running = True
+        self._task = asyncio.create_task(self._run_loop())
+        logger.info("ReminderScheduler started (interval: %d min)", CHECK_INTERVAL_MIN)
+
+    def stop(self) -> None:
+        """Остановить фоновую задачу."""
+        self._running = False
+        if self._task:
+            self._task.cancel()
+            self._task = None
+        logger.info("ReminderScheduler stopped")
+
+    async def _run_loop(self) -> None:
+        """Бесконечный цикл проверки с per-task timeouts and overlap prevention."""
+        _TASK_TIMEOUT = 120  # 2 minutes max per sub-task
+        _NUM_SUBTASKS = 5    # stale_clients, weekly, daily, pvp_reset, nudges, rag
+        # Lock TTL must cover worst-case: all sub-tasks timing out
+        _LOCK_TTL = _TASK_TIMEOUT * _NUM_SUBTASKS + 10
+        while self._running:
+            # Use a Redis distributed lock to prevent multiple workers from
+            # running the same scheduler cycle simultaneously.
+            _lock_acquired = False
+            try:
+                from app.core.redis_pool import get_redis as _get_redis_sched
+                _r_sched = _get_redis_sched()
+                _lock_acquired = await _r_sched.set(
+                    "scheduler:run_lock",
+                    "1",
+                    nx=True,
+                    ex=_LOCK_TTL,
+                )
+            except Exception:
+                logger.debug("Scheduler Redis lock unavailable, proceeding anyway")
+                _lock_acquired = True  # Fallback: run without lock
+
+            if not _lock_acquired:
+                logger.debug("Scheduler cycle skipped: another worker holds the lock")
+                await asyncio.sleep(CHECK_INTERVAL_MIN * 60)
+                continue
+
+            try:
+                async with async_session() as db:
+                    await asyncio.wait_for(
+                        self.check_stale_clients(db), timeout=_TASK_TIMEOUT
+                    )
+                    await db.commit()
+            except asyncio.CancelledError:
+                break
+            except asyncio.TimeoutError:
+                logger.error("ReminderScheduler: check_stale_clients timed out after %ds", _TASK_TIMEOUT)
+            except Exception as e:
+                logger.error("ReminderScheduler error: %s", e, exc_info=True)
+
+            # Weekly report generation: Monday 09:00
+            try:
+                await asyncio.wait_for(self._check_weekly_reports(), timeout=_TASK_TIMEOUT)
+            except asyncio.TimeoutError:
+                logger.error("ReminderScheduler: weekly reports timed out")
+            except Exception as e:
+                logger.error("Weekly report generation error: %s", e, exc_info=True)
+
+            # Daily advice generation: 06:00-07:00 window
+            try:
+                await asyncio.wait_for(self._check_daily_advice(), timeout=_TASK_TIMEOUT)
+            except asyncio.TimeoutError:
+                logger.error("ReminderScheduler: daily advice timed out")
+            except Exception as e:
+                logger.error("Daily advice generation error: %s", e, exc_info=True)
+
+            # Monthly PvP season reset: 1st of month, 00:00-01:00 window
+            try:
+                await asyncio.wait_for(self._check_seasonal_pvp_reset(), timeout=_TASK_TIMEOUT)
+            except asyncio.TimeoutError:
+                logger.error("ReminderScheduler: PvP reset timed out")
+            except Exception as e:
+                logger.error("Seasonal PvP reset error: %s", e, exc_info=True)
+
+            # B5-03: every-tick reconciler — backstop for the
+            # ``_check_seasonal_pvp_reset`` window above. If a deploy
+            # gap or worker hiccup made the scheduler miss its 1st-of-
+            # month slot, the platform sat without a season for the
+            # entire month. This reconciler ensures one always exists,
+            # without ever calling ``apply_season_reset`` (so existing
+            # ratings are preserved across the boundary).
+            try:
+                await asyncio.wait_for(self._reconcile_pvp_season(), timeout=_TASK_TIMEOUT)
+            except asyncio.TimeoutError:
+                logger.error("ReminderScheduler: PvP season reconcile timed out")
+            except Exception as e:
+                logger.error("PvP season reconcile error: %s", e, exc_info=True)
+
+            # B5-10: every-tick reconciler — flips ``is_active=TRUE``
+            # for in-window auto-created tournaments whose
+            # ``_check_weekly_tournament`` Sunday window was missed.
+            # Mirror semantics of the season reconciler.
+            try:
+                await asyncio.wait_for(self._reconcile_tournament_active(), timeout=_TASK_TIMEOUT)
+            except asyncio.TimeoutError:
+                logger.error("ReminderScheduler: tournament reconcile timed out")
+            except Exception as e:
+                logger.error("Tournament reconcile error: %s", e, exc_info=True)
+
+            # ── 3.4: Smart nudge notifications ──
+            try:
+                await asyncio.wait_for(self._check_smart_nudges(), timeout=_TASK_TIMEOUT)
+            except asyncio.TimeoutError:
+                logger.error("ReminderScheduler: smart nudges timed out")
+            except Exception as e:
+                logger.error("Smart nudge error: %s", e, exc_info=True)
+
+            # ── Weekly tournament auto-create / auto-award ──
+            try:
+                await asyncio.wait_for(self._check_weekly_tournament(), timeout=_TASK_TIMEOUT)
+            except asyncio.TimeoutError:
+                logger.error("ReminderScheduler: weekly tournament timed out")
+            except Exception as e:
+                logger.error("Weekly tournament error: %s", e, exc_info=True)
+
+            # ── Phase B (2026-04-20): weekly league form/finalize ──
+            # Duolingo-style cohort reset. Model + service already exist
+            # (services/weekly_league.py), this just wires the cron.
+            try:
+                await asyncio.wait_for(self._check_weekly_league(), timeout=_TASK_TIMEOUT)
+            except asyncio.TimeoutError:
+                logger.error("ReminderScheduler: weekly league timed out")
+            except Exception as e:
+                logger.error("Weekly league error: %s", e, exc_info=True)
+
+            # ── RAG Feedback aggregation (every 6 hours) ──
+            try:
+                await asyncio.wait_for(self._check_rag_feedback_aggregation(), timeout=_TASK_TIMEOUT)
+            except asyncio.TimeoutError:
+                logger.error("ReminderScheduler: RAG feedback aggregation timed out")
+            except Exception as e:
+                logger.error("RAG feedback aggregation error: %s", e, exc_info=True)
+
+            # ── S3-01: Expire overdue team challenges (every cycle) ──
+            try:
+                from app.services.team_challenge import expire_overdue_challenges
+                async with async_session() as db:
+                    expired = await expire_overdue_challenges(db)
+                    if expired:
+                        await db.commit()
+            except asyncio.TimeoutError:
+                logger.error("ReminderScheduler: team challenge expiry timed out")
+            except Exception as e:
+                logger.error("Team challenge expiry error: %s", e, exc_info=True)
+
+            await asyncio.sleep(CHECK_INTERVAL_MIN * 60)
+
+    async def _check_weekly_reports(self) -> None:
+        """Generate weekly reports if it's Monday morning and not yet generated."""
+        now = datetime.now(timezone.utc)
+        if now.weekday() != 0:  # Monday only
+            return
+        if now.hour < 9 or now.hour >= 10:  # 09:00-10:00 window
+            return
+
+        from app.services.weekly_report_generator import generate_all_weekly_reports
+
+        logger.info("Starting weekly report generation (Monday %s)", now.strftime("%H:%M"))
+        async with async_session() as db:
+            count = await generate_all_weekly_reports(db)
+            logger.info("Weekly report generation complete: %d reports", count)
+
+        # Arena weekly leaderboard digest
+        try:
+            from app.services.arena_notifications import send_weekly_leaderboard_digest
+            digest_count = await send_weekly_leaderboard_digest()
+            logger.info("Arena weekly digest sent: %d notifications", digest_count)
+        except Exception as e:
+            logger.warning("Arena weekly digest failed: %s", e)
+
+    async def _check_daily_advice(self) -> None:
+        """Generate daily advice for all active users (06:00-07:00 window)."""
+        now = datetime.now(timezone.utc)
+        if now.hour < 6 or now.hour >= 7:
+            return
+
+        from app.services.daily_advice import generate_daily_advice
+
+        logger.info("Starting daily advice generation (%s)", now.strftime("%H:%M"))
+        async with async_session() as db:
+            result = await db.execute(
+                select(User.id).where(User.is_active.is_(True))
+            )
+            user_ids = [row[0] for row in result.all()]
+
+            generated = 0
+            for uid in user_ids:
+                try:
+                    advice = await generate_daily_advice(uid, db)
+                    if advice:
+                        generated += 1
+                except Exception as e:
+                    logger.warning("Daily advice failed for user %s: %s", uid, e)
+
+            if generated > 0:
+                await db.commit()
+                logger.info("Daily advice generated for %d/%d users", generated, len(user_ids))
+
+    async def _check_seasonal_pvp_reset(self) -> None:
+        """Monthly PvP season reset: 1st of month, 00:00-01:00 UTC window.
+
+        Creates new PvP season and applies soft rating reset (compress toward 1500).
+        """
+        now = datetime.now(timezone.utc)
+        if now.day != 1 or now.hour >= 1:
+            return
+
+        from app.models.pvp import PvPSeason, PvPRating
+        from sqlalchemy import update as sa_update
+
+        logger.info("Starting monthly PvP season reset (%s)", now.strftime("%Y-%m"))
+        async with async_session() as db:
+            # Check if season already created this month
+            month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+            existing = await db.execute(
+                select(PvPSeason).where(PvPSeason.start_date >= month_start)
+            )
+            if existing.scalar_one_or_none():
+                return  # Already created
+
+            month_end = (month_start + timedelta(days=32)).replace(day=1) - timedelta(seconds=1)
+
+            # Create new season
+            season = PvPSeason(
+                name=f"Сезон {now.strftime('%B %Y')}",
+                start_date=month_start,
+                end_date=month_end,
+                is_active=True,
+                # PR-5/PR-10 (2026-05-07): default top-3 leaderboard
+                # rewards. Methodologist may overwrite via
+                # POST /api/pvp/admin/season/create later.
+                top_rewards=DEFAULT_SEASON_TOP_REWARDS,
+            )
+            db.add(season)
+
+            # Deactivate previous seasons
+            await db.execute(
+                sa_update(PvPSeason)
+                .where(PvPSeason.is_active.is_(True), PvPSeason.start_date < month_start)
+                .values(is_active=False)
+            )
+
+            # Soft rating reset: compress ratings toward 1500
+            # Applies to ALL rating types: training_duel, knowledge_arena, team_battle, rapid_fire
+            # new_rating = 1500 + (old_rating - 1500) * 0.75
+            all_ratings = await db.execute(select(PvPRating))
+            reset_count = 0
+            for r in all_ratings.scalars().all():
+                old = r.rating
+                r.rating = 1500 + (old - 1500) * 0.75
+                r.rd = min(r.rd + 30, 350)  # Increase uncertainty
+                r.current_streak = 0
+                r.placement_done = False  # S2-06b: reset placement for new season
+                r.season_id = season.id
+                reset_count += 1
+
+            await db.commit()
+            logger.info(
+                "PvP season reset complete: new season '%s', %d ratings reset (all types)",
+                season.name, reset_count,
+            )
+
+    async def check_stale_clients(self, db: AsyncSession) -> None:
+        """
+        Одна итерация: проверить всех активных клиентов на таймауты.
+
+        Логика по статусам (ТЗ v2, раздел 3.1):
+        - new: 3 дня без контакта → напоминание менеджеру
+        - contacted: 5 дней → напоминание + РОП
+        - interested: 7 дней → напоминание
+        - thinking: 21д → менеджер, 28д → РОП, 30д → auto-lost
+        - consent_given: 5 дней без договора → напоминание
+        - paused: 14 дней → напоминание
+        - consent_revoked: 7 дней → напоминание
+        """
+        now = datetime.now(timezone.utc)
+
+        # Получаем клиентов с таймаутами в статусах
+        statuses_with_timeouts = list(STATUS_TIMEOUTS.keys())
+
+        result = await db.execute(
+            select(RealClient).where(
+                RealClient.is_active == True,  # noqa: E712
+                RealClient.status.in_(statuses_with_timeouts),
+                RealClient.last_status_change_at.isnot(None),
+            )
+        )
+        clients = list(result.scalars().all())
+
+        created_reminders = 0
+        auto_lost_count = 0
+
+        for client in clients:
+            timeouts = STATUS_TIMEOUTS.get(client.status, [])
+            days_in_status = (now - client.last_status_change_at).days if client.last_status_change_at else 0
+
+            for timeout_config in timeouts:
+                threshold_days = timeout_config["days"]
+                action = timeout_config["action"]
+
+                if days_in_status < threshold_days:
+                    continue
+
+                # ── Проверяем, не создавали ли уже напоминание ──
+                already_exists = await self._reminder_exists(
+                    db,
+                    client_id=client.id,
+                    action=action,
+                    threshold_days=threshold_days,
+                )
+                if already_exists:
+                    continue
+
+                # ── Выполняем действие ──
+                if action == "remind_manager":
+                    await self._create_reminder(
+                        db,
+                        client=client,
+                        message=f"Клиент «{client.full_name}» в статусе «{client.status.value}» "
+                                f"уже {days_in_status} дней без контакта. Пора позвонить!",
+                    )
+                    created_reminders += 1
+
+                elif action == "remind_manager_and_rop":
+                    await self._create_reminder(
+                        db,
+                        client=client,
+                        message=f"Клиент «{client.full_name}» без контакта {days_in_status} дней.",
+                    )
+                    await self._notify_rop(
+                        db,
+                        client=client,
+                        title=f"Эскалация: {client.full_name}",
+                        body=f"Менеджер не контактировал с клиентом {days_in_status} дней. "
+                             f"Статус: {client.status.value}.",
+                    )
+                    created_reminders += 1
+
+                elif action == "notify_rop":
+                    await self._notify_rop(
+                        db,
+                        client=client,
+                        title=f"Предупреждение: {client.full_name}",
+                        body=f"Клиент «{client.full_name}» думает уже {days_in_status} дней. "
+                             f"Скоро будет переведён в «потерян».",
+                    )
+
+                elif action == "auto_lost":
+                    await self._auto_lost(db, client=client, days=days_in_status)
+                    auto_lost_count += 1
+
+        if created_reminders or auto_lost_count:
+            logger.info(
+                "ReminderScheduler: created %d reminders, %d auto-lost",
+                created_reminders,
+                auto_lost_count,
+            )
+
+    async def _reconcile_pvp_season(self) -> None:
+        """B5-03: ensure an active PvP season always exists.
+
+        Backstop for ``_check_seasonal_pvp_reset`` which only fires
+        on the 1st of the month between 00:00-01:00 UTC. If a deploy
+        gap or worker hiccup misses that window, the platform sat
+        without an active season for the entire month — ratings kept
+        updating (``glicko2.update_rating`` doesn't read the season),
+        but ``leaderboard.season`` showed null and end-of-season-
+        rewards couldn't fire.
+
+        Important: this reconciler does NOT call
+        ``apply_season_reset``. The 1st-of-month branch above owns
+        soft-reset; this branch only ensures a row exists. So a
+        season that flips from "missing → present" mid-month
+        preserves all ratings/peak/placement_done/RD intact.
+
+        Skip on the 1st-of-month 00:00-01:00 window so the original
+        branch owns reset day, not us.
+        """
+        now = datetime.now(timezone.utc)
+        if now.day == 1 and now.hour == 0:
+            return
+
+        from app.models.pvp import PvPSeason
+        from sqlalchemy import update as sa_update
+
+        async with async_session() as db:
+            existing = (
+                await db.execute(
+                    select(PvPSeason).where(PvPSeason.is_active.is_(True)).limit(1)
+                )
+            ).scalar_one_or_none()
+            if existing is not None:
+                return  # already active — no-op
+
+            # Pre-create dedup: deactivate any orphan rows that
+            # somehow ended up active=True but failed the LIMIT 1
+            # above (impossible given the partial unique index from
+            # migration 20260502_007, but defensive).
+            await db.execute(
+                sa_update(PvPSeason)
+                .where(PvPSeason.is_active.is_(True))
+                .values(is_active=False)
+            )
+
+            month_start = now.replace(
+                day=1, hour=0, minute=0, second=0, microsecond=0
+            )
+            month_end = (month_start + timedelta(days=32)).replace(
+                day=1
+            ) - timedelta(seconds=1)
+
+            new_season = PvPSeason(
+                name=f"Сезон {now.strftime('%B %Y')}",
+                start_date=month_start,
+                end_date=month_end,
+                is_active=True,
+                top_rewards=DEFAULT_SEASON_TOP_REWARDS,
+            )
+            db.add(new_season)
+            await db.commit()
+            logger.info(
+                "_reconcile_pvp_season: created backstop season %s "
+                "(window %s → %s)",
+                new_season.name, month_start.isoformat(), month_end.isoformat(),
+            )
+
+    async def _reconcile_tournament_active(self) -> None:
+        """B5-10: flip ``is_active=TRUE`` for in-window auto tournaments.
+
+        Mirror of the season reconciler for tournaments. The cron at
+        ``_check_weekly_tournament`` fires only on Monday 00:00 UTC; if
+        an auto-created tournament was registered with
+        ``is_active=NULL`` (legacy data path) or the Sunday-night
+        cron missed its window, the in-window tournament is invisible
+        to ``get_active_tournament`` (which filters
+        ``is_active == True``).
+
+        Conservative: only ``auto_created=TRUE`` rows are touched,
+        admin-authored tournaments stay under their author's control.
+        """
+        now = datetime.now(timezone.utc)
+        from app.models.tournament import Tournament
+        from sqlalchemy import and_, or_, update as sa_update
+
+        async with async_session() as db:
+            # Flip in-window NULL/false-on-auto rows to TRUE.
+            await db.execute(
+                sa_update(Tournament)
+                .where(Tournament.auto_created.is_(True))
+                .where(Tournament.week_start <= now)
+                .where(Tournament.week_end >= now)
+                .where(
+                    or_(
+                        Tournament.is_active.is_(None),
+                        Tournament.is_active.is_(False),
+                    )
+                )
+                .values(is_active=True)
+            )
+            # Close expired auto rows still flagged active.
+            await db.execute(
+                sa_update(Tournament)
+                .where(Tournament.auto_created.is_(True))
+                .where(Tournament.week_end < now)
+                .where(Tournament.is_active.is_(True))
+                .values(is_active=False)
+            )
+            await db.commit()
+
+    async def _reminder_exists(
+        self,
+        db: AsyncSession,
+        *,
+        client_id: uuid.UUID,
+        action: str,
+        threshold_days: int,
+    ) -> bool:
+        """Проверить, не создавали ли уже авто-напоминание за этот порог."""
+        # Ищем авто-напоминание за последние N дней
+        since = datetime.now(timezone.utc) - timedelta(days=threshold_days)
+        result = await db.execute(
+            select(func.count()).where(
+                ManagerReminder.client_id == client_id,
+                ManagerReminder.auto_generated == True,  # noqa: E712
+                ManagerReminder.message.contains(f"{threshold_days} дн"),
+                ManagerReminder.created_at >= since,
+            )
+        )
+        return (result.scalar() or 0) > 0
+
+    async def _create_reminder(
+        self,
+        db: AsyncSession,
+        *,
+        client: RealClient,
+        message: str,
+    ) -> ManagerReminder:
+        """Создать авто-напоминание менеджеру."""
+        reminder = ManagerReminder(
+            id=uuid.uuid4(),
+            manager_id=client.manager_id,
+            client_id=client.id,
+            remind_at=datetime.now(timezone.utc),
+            message=message,
+            auto_generated=True,
+        )
+        db.add(reminder)
+
+        # In-app уведомление менеджеру
+        notification = ClientNotification(
+            id=uuid.uuid4(),
+            recipient_type="manager",
+            recipient_id=client.manager_id,
+            client_id=client.id,
+            channel=NotificationChannel.in_app,
+            title=f"Напоминание: {client.full_name}",
+            body=message,
+            status=NotificationStatus.pending,
+        )
+        db.add(notification)
+
+        # WS push (best-effort)
+        try:
+            from app.ws.notifications import send_ws_notification
+
+            await send_ws_notification(
+                client.manager_id,
+                event_type="reminder.due",
+                data={
+                    "reminder_id": str(reminder.id),
+                    "client_name": client.full_name,
+                    "client_id": str(client.id),
+                    "message": message,
+                },
+            )
+        except Exception as e:
+            logger.debug("WS send failed (non-critical): %s", e)
+
+        return reminder
+
+    async def _notify_rop(
+        self,
+        db: AsyncSession,
+        *,
+        client: RealClient,
+        title: str,
+        body: str,
+    ) -> None:
+        """Уведомить РОП(ов) команды менеджера."""
+        # Найти РОП команды
+        manager_result = await db.execute(
+            select(User).where(User.id == client.manager_id)
+        )
+        manager = manager_result.scalar_one_or_none()
+        if not manager or not manager.team_id:
+            return
+
+        rop_result = await db.execute(
+            select(User).where(
+                User.team_id == manager.team_id,
+                User.role == "rop",
+                User.is_active == True,  # noqa: E712
+            )
+        )
+        rops = list(rop_result.scalars().all())
+
+        for rop in rops:
+            notification = ClientNotification(
+                id=uuid.uuid4(),
+                recipient_type="manager",
+                recipient_id=rop.id,
+                client_id=client.id,
+                channel=NotificationChannel.in_app,
+                title=title,
+                body=body,
+                status=NotificationStatus.pending,
+            )
+            db.add(notification)
+
+            try:
+                from app.ws.notifications import send_ws_notification
+
+                await send_ws_notification(
+                    rop.id,
+                    event_type="client.status_changed",
+                    data={
+                        "client_id": str(client.id),
+                        "client_name": client.full_name,
+                        "manager_name": manager.full_name,
+                        "message": body,
+                    },
+                )
+            except Exception as e:
+                logger.debug("WS notification to ROP failed (non-critical): %s", e)
+
+    async def _auto_lost(
+        self,
+        db: AsyncSession,
+        *,
+        client: RealClient,
+        days: int,
+    ) -> None:
+        """
+        Автоматический перевод в lost (ТЗ v2, раздел 3.3).
+        thinking > 30 дней → auto-lost.
+        """
+        old_status = client.status.value
+        client.status = ClientStatus.lost
+        client.lost_reason = f"auto_timeout_{days}d"
+        client.last_status_change_at = datetime.now(timezone.utc)
+        client.lost_count += 1
+
+        await create_crm_interaction_with_event(
+            db,
+            client=client,
+            manager_id=None,
+            interaction_type=InteractionType.system,
+            content=f"Автоматический перевод в «потерян»: {days} дней без контакта",
+            old_status=old_status,
+            new_status="lost",
+            event_type="lead_client.lifecycle_changed",
+            source="scheduler",
+            actor_type="system",
+            actor_id=None,
+            payload={
+                "client_id": str(client.id),
+                "old_status": old_status,
+                "new_status": "lost",
+                "reason": f"auto_timeout_{days}d",
+            },
+            idempotency_key=f"auto-lost:{client.id}:{days}:{client.last_status_change_at.date().isoformat() if client.last_status_change_at else 'na'}",
+        )
+
+        # Уведомления
+        await self._create_reminder(
+            db,
+            client=client,
+            message=f"Клиент «{client.full_name}» автоматически переведён в «потерян» "
+                    f"({days} дней без контакта).",
+        )
+
+        await self._notify_rop(
+            db,
+            client=client,
+            title=f"Auto-lost: {client.full_name}",
+            body=f"Клиент переведён в «потерян» ({days}д без контакта).",
+        )
+
+        logger.info(
+            "Auto-lost: client=%s (%s), days=%d",
+            client.id,
+            client.full_name,
+            days,
+        )
+
+
+    # ── 3.4: Smart nudge notifications ─────────────────────────────────────
+
+    async def _check_smart_nudges(self) -> None:
+        """Cross-module smart nudges: training stale, SRS overdue, PvP decay, streak risk."""
+        now = datetime.now(timezone.utc)
+        # Run nudges every 30 minutes (every 6th iteration at 5min interval)
+        if now.minute % 30 != 0:
+            return
+
+        from app.ws.notifications import send_typed_notification, NotificationType
+
+        async with async_session() as db:
+            # ── 1. Training stale: no session in 3 days ──
+            try:
+                from app.models.training import TrainingSession
+                three_days_ago = now - timedelta(days=3)
+                stale_result = await db.execute(
+                    select(User.id).where(
+                        User.is_active.is_(True),
+                        ~User.id.in_(
+                            select(TrainingSession.user_id)
+                            .where(TrainingSession.started_at > three_days_ago)
+                        ),
+                    ).limit(100)
+                )
+                for (uid,) in stale_result.all():
+                    await send_typed_notification(
+                        str(uid),
+                        NotificationType.TRAINING_STALE,
+                        "Пора тренироваться!",
+                        "Вы не проходили тренировку уже 3 дня. Навыки теряются без практики.",
+                        action_url="/training",
+                        push=True,
+                    )
+            except Exception:
+                logger.warning("Stale training nudge failed", exc_info=True)
+
+            # ── 2. SRS overdue: cards need review ──
+            try:
+                from app.models.knowledge import UserAnswerHistory
+                overdue_result = await db.execute(
+                    select(
+                        UserAnswerHistory.user_id,
+                        func.count(UserAnswerHistory.id).label("cnt"),
+                    )
+                    .where(
+                        UserAnswerHistory.next_review_at < now,
+                        UserAnswerHistory.next_review_at.isnot(None),
+                    )
+                    .group_by(UserAnswerHistory.user_id)
+                    .having(func.count(UserAnswerHistory.id) >= 3)
+                    .limit(100)
+                )
+                for uid, cnt in overdue_result.all():
+                    await send_typed_notification(
+                        str(uid),
+                        NotificationType.KNOWLEDGE_SRS_OVERDUE,
+                        f"{cnt} карточек ждут повторения",
+                        "Интервальное повторение работает лучше, если не пропускать дни.",
+                        action_url="/knowledge",
+                        push=True,
+                    )
+            except Exception:
+                logger.warning("SRS overdue nudge failed", exc_info=True)
+
+            # ── 3. PvP rating decay: no match in 7 days ──
+            try:
+                from app.models.pvp import PvPRating as PvPProfile
+                seven_days_ago = now - timedelta(days=7)
+                decay_result = await db.execute(
+                    select(PvPProfile.user_id, PvPProfile.rating).where(
+                        PvPProfile.last_match_at < seven_days_ago,
+                        PvPProfile.last_match_at.isnot(None),
+                        PvPProfile.rating > 1550,
+                    ).limit(100)
+                )
+                for uid, rating in decay_result.all():
+                    await send_typed_notification(
+                        str(uid),
+                        NotificationType.PVP_RATING_DECAY,
+                        "Ваш рейтинг может снизиться",
+                        f"Рейтинг {int(rating)} ELO. Сыграйте матч, чтобы не потерять позицию.",
+                        action_url="/pvp",
+                        push=True,
+                    )
+            except Exception:
+                logger.warning("PvP decay nudge failed", exc_info=True)
+
+            # ── 4. Streak risk: trained yesterday but not today ──
+            try:
+                from app.models.training import TrainingSession
+                yesterday = (now - timedelta(days=1)).date()
+                today = now.date()
+                streak_result = await db.execute(
+                    select(User.id).where(
+                        User.is_active.is_(True),
+                        User.id.in_(
+                            select(TrainingSession.user_id)
+                            .where(func.date(TrainingSession.started_at) == yesterday)
+                        ),
+                        ~User.id.in_(
+                            select(TrainingSession.user_id)
+                            .where(func.date(TrainingSession.started_at) == today)
+                        ),
+                    ).limit(100)
+                )
+                # Only nudge in the evening (18:00-19:00 UTC)
+                if 18 <= now.hour < 19:
+                    for (uid,) in streak_result.all():
+                        await send_typed_notification(
+                            str(uid),
+                            NotificationType.TRAINING_STREAK_RISK,
+                            "Серия под угрозой!",
+                            "Пройдите хотя бы одну тренировку сегодня, чтобы сохранить серию.",
+                            action_url="/training",
+                            push=True,
+                        )
+            except Exception:
+                logger.warning("Streak risk nudge failed", exc_info=True)
+
+
+    async def _check_weekly_tournament(self) -> None:
+        """Auto-create weekly_sprint on Monday 00:00 UTC, auto-award on Sunday 23:55 UTC.
+
+        Uses `auto_created=True` flag so we only touch our own jobs — admin-created
+        manual tournaments are left alone.
+        """
+        from datetime import timezone as _tz
+        now = datetime.now(_tz.utc)
+
+        # Monday 00:xx (00:00-00:59 window)
+        if now.weekday() == 0 and now.hour == 0:
+            try:
+                async with async_session() as db:
+                    await self._auto_create_weekly(db, now)
+                    await db.commit()
+            except Exception:
+                logger.warning("Auto-create weekly tournament failed", exc_info=True)
+
+        # Sunday 23:xx (23:00-23:59 window) — close last week's auto tournaments
+        if now.weekday() == 6 and now.hour == 23:
+            try:
+                async with async_session() as db:
+                    await self._auto_award_weekly(db, now)
+                    await db.commit()
+            except Exception:
+                logger.warning("Auto-award weekly tournament failed", exc_info=True)
+
+    async def _auto_create_weekly(self, db, now: datetime) -> None:
+        """Create a new Tournament(type=weekly_sprint, score_source=mixed, auto_created=true)
+        for the current ISO week if none exists."""
+        from datetime import timedelta
+        from app.models.tournament import Tournament
+
+        monday = (now - timedelta(days=now.weekday())).replace(hour=0, minute=0, second=0, microsecond=0)
+        sunday_end = monday + timedelta(days=7) - timedelta(seconds=1)
+
+        # Skip if an auto-created weekly for this ISO week already exists
+        existing = await db.execute(
+            select(Tournament).where(
+                Tournament.auto_created == True,  # noqa: E712
+                Tournament.tournament_type == "weekly_sprint",
+                Tournament.week_start == monday,
+            )
+        )
+        if existing.scalar_one_or_none():
+            return
+
+        week_label = monday.strftime("%d.%m")
+        tournament = Tournament(
+            title=f"Охота недели · {week_label}",
+            description=(
+                "Единый еженедельный рейтинг. Очки идут от всех активностей: "
+                "тренировки, PvP, квизы знаний, мульти-сессии."
+            ),
+            scenario_id=None,
+            week_start=monday,
+            week_end=sunday_end,
+            is_active=True,
+            max_attempts=99,
+            bonus_xp_first=200,
+            bonus_xp_second=100,
+            bonus_xp_third=50,
+            tournament_type="weekly_sprint",
+            score_source="mixed",
+            auto_created=True,
+        )
+        db.add(tournament)
+        await db.flush()
+        logger.info("Auto-created weekly_sprint tournament %s for week %s", tournament.id, monday.date())
+
+    async def _auto_award_weekly(self, db, now: datetime) -> None:
+        """Close auto-created weekly_sprint tournaments whose week has ended, award AP."""
+        from app.models.tournament import Tournament
+        from sqlalchemy import update as _sql_update
+
+        expired_q = await db.execute(
+            select(Tournament).where(
+                Tournament.auto_created == True,  # noqa: E712
+                Tournament.is_active == True,  # noqa: E712
+                Tournament.week_end <= now,
+            )
+        )
+        expired = expired_q.scalars().all()
+
+        for t in expired:
+            try:
+                # Reuse existing prize awarding logic if available
+                try:
+                    from app.services.arena_points import award_tournament_prizes
+                    await award_tournament_prizes(db, t.id)
+                except Exception:
+                    logger.debug("award_tournament_prizes unavailable or failed for %s", t.id, exc_info=True)
+
+                await db.execute(
+                    _sql_update(Tournament)
+                    .where(Tournament.id == t.id)
+                    .values(is_active=False)
+                )
+                logger.info("Auto-awarded + closed weekly_sprint %s", t.id)
+            except Exception:
+                logger.warning("Failed to close weekly_sprint %s", t.id, exc_info=True)
+
+    async def _check_weekly_league(self) -> None:
+        """Duolingo-style weekly league cadence.
+
+        Phase B (2026-04-20). Service functions are already implemented in
+        ``app.services.weekly_league``; here we just trigger them on the
+        correct UTC cadence:
+
+          • Monday 08:00 UTC  — ``form_weekly_groups()`` gathers users who
+            earned XP last week, partitions them into ~15-user cohorts per
+            (team_id, tier) bucket, resets ``weekly_xp`` counters.
+          • Sunday 23:xx UTC  — ``finalize_week()`` promotes top-3, demotes
+            bottom-3, writes ``promotion_history`` entries, marks the group
+            ``finalized=True`` so next week's `form_weekly_groups` skips it.
+
+        We gate by hour+minute window; the outer loop runs every
+        ``CHECK_INTERVAL_MIN`` so as long as the process is alive at the
+        window we'll hit it exactly once. Idempotency is the service's
+        responsibility (``finalized`` flag + SELECT FOR UPDATE).
+        """
+
+        now = datetime.now(timezone.utc)
+
+        # Monday 08:00-08:59 UTC — form groups
+        if now.weekday() == 0 and now.hour == 8:
+            try:
+                from app.services.weekly_league import form_weekly_groups
+
+                async with async_session() as db:
+                    groups_count = await form_weekly_groups(db)
+                    await db.commit()
+                    logger.info(
+                        "WeeklyLeague: formed %d cohort group(s) at %s",
+                        groups_count, now.isoformat(),
+                    )
+            except Exception:
+                logger.warning("WeeklyLeague form_weekly_groups failed", exc_info=True)
+
+        # Sunday 23:xx UTC — finalize last week's groups
+        if now.weekday() == 6 and now.hour == 23:
+            try:
+                from app.services.weekly_league import finalize_week
+
+                async with async_session() as db:
+                    summary = await finalize_week(db)
+                    await db.commit()
+                    logger.info(
+                        "WeeklyLeague: finalized groups=%s at %s",
+                        summary, now.isoformat(),
+                    )
+            except Exception:
+                logger.warning("WeeklyLeague finalize_week failed", exc_info=True)
+
+    async def _check_rag_feedback_aggregation(self) -> None:
+        """Aggregate RAG feedback: recalculate chunk effectiveness, discover errors.
+
+        Runs every 6 hours (minute 0 of hours 0, 6, 12, 18).
+        """
+        now = datetime.now(timezone.utc)
+        if now.hour % 6 != 0 or now.minute > 5:
+            return
+
+        logger.info("Starting RAG feedback aggregation (%s)", now.strftime("%H:%M"))
+        try:
+            from app.services.rag_feedback import run_feedback_aggregation
+            result = await run_feedback_aggregation()
+            logger.info("RAG feedback aggregation complete: %s", result)
+        except Exception as e:
+            logger.error("RAG feedback aggregation failed: %s", e, exc_info=True)
+
+
+# Singleton
+reminder_scheduler = ReminderScheduler()

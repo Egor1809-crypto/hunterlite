@@ -84,9 +84,7 @@ export function LandingLayout({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const token = getToken();
     if (!token) { setCheckingAuth(false); return; }
-    api.get("/consent/status")
-      .then((d) => router.replace(d.all_accepted ? "/home" : "/consent"))
-      .catch(() => router.replace("/home"));
+    router.replace("/home");
   }, [router]);
 
   const openPanel = (panel: Panel) => {
@@ -125,12 +123,7 @@ export function LandingLayout({ children }: { children: React.ReactNode }) {
         if (data.must_change_password) {
           router.push("/change-password");
         } else {
-          let target = "/home";
-          try {
-            const consentStatus = await api.get<{ all_accepted: boolean }>("/consent/status");
-            if (!consentStatus.all_accepted) target = "/consent";
-          } catch { /* proceed to /home */ }
-          router.push(target);
+          router.push("/home");
         }
       } else {
         const data = await api.post("/auth/register", {
@@ -138,7 +131,7 @@ export function LandingLayout({ children }: { children: React.ReactNode }) {
         });
         setTokens(data.access_token, data.refresh_token, data.csrf_token);
         resetAuthCircuitBreaker();
-        router.push("/onboarding");
+        router.push("/home");
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Ошибка";

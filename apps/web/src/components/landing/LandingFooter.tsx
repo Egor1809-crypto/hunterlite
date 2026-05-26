@@ -28,9 +28,7 @@ const COMPANY_LINKS = [
   { href: "mailto:support@xhunter.io", label: "Поддержка", external: true },
 ] as const;
 
-const LEGAL_LINKS = [
-  { href: "/consent", label: "Согласие на обработку данных" },
-] as const;
+const LEGAL_LINKS = [] as const;
 
 export function LandingFooter() {
   return (

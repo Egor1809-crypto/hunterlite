@@ -449,6 +449,10 @@ class Settings(BaseSettings):
             return []
         return [v.strip() for v in self.elevenlabs_voice_ids_female.split(",") if v.strip()]
 
+    # Telegram Bot
+    telegram_bot_token: str = ""
+    telegram_webhook_base_url: str = ""
+
     # Email / SMTP (for password reset etc.)
     smtp_host: str = ""  # e.g. smtp.gmail.com, smtp.yandex.ru
     smtp_port: int = 587

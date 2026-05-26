@@ -502,16 +502,12 @@ export default function ResultsPage() {
                 </div>
               )}
               {story && (
-                <Link href={`/stories/${story.id}`}>
-                  <motion.span
-                    className="flex items-center gap-2 rounded-lg px-4 py-3 font-mono text-xs tracking-widest transition-colors backdrop-blur"
-                    style={{ background: "var(--accent-muted)", border: "1px solid var(--accent-glow)", color: "var(--accent)" }}
-                    whileHover={{ background: "var(--accent-glow)" }}
-                    whileTap={{ scale: 0.97 }}
-                  >
-                    <Layers3 size={14} /> ИСТОРИЯ CRM
-                  </motion.span>
-                </Link>
+                <span
+                  className="flex items-center gap-2 rounded-lg px-4 py-3 font-mono text-xs tracking-widest backdrop-blur"
+                  style={{ background: "var(--accent-muted)", border: "1px solid var(--accent-glow)", color: "var(--accent)" }}
+                >
+                  <Layers3 size={14} /> ИСТОРИЯ CRM
+                </span>
               )}
               <Link href="/training">
                 <motion.span

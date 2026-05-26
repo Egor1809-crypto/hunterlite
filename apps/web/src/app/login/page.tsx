@@ -83,7 +83,7 @@ export default function LoginPage() {
       
       // Check if profile needs completion
       if (data.needs_onboarding) {
-        router.push("/onboarding");
+        router.push("/home");
         return;
       }
       
@@ -93,16 +93,6 @@ export default function LoginPage() {
       if (data.must_change_password) {
         router.push("/change-password");
       } else {
-        // Check consent status before redirecting to /home
-        try {
-          const consentStatus = await api.get<{ all_accepted: boolean }>("/consent/status");
-          if (!consentStatus.all_accepted) {
-            router.push("/consent");
-            return;
-          }
-        } catch {
-          // If consent check fails, proceed to /home — backend will guard individual endpoints
-        }
         // Respect ?redirect= param if present
         const params = new URLSearchParams(window.location.search);
         const redirect = params.get("redirect");

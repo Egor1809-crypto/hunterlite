@@ -297,7 +297,7 @@ export default function HistoryPage() {
                                   type="button"
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    router.push(`/stories/${story.id}`);
+                                    router.push(`/results/${story.id}`);
                                   }}
                                   className="ml-auto text-xs px-2 py-0.5 rounded-full inline-flex items-center gap-1 transition-opacity hover:opacity-80"
                                   style={{

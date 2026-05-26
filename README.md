@@ -501,16 +501,14 @@ Pilot-продукт для ~50 активных менеджеров/день. 
 Для разработчиков: перед PR — `make lint && make test && alembic upgrade head` должны пройти.
 
 
-**Тестовые учётные записи (seed):**
+**Демо-аккаунты HunterLite:**
 
-| Роль | Email | Пароль |
-|---|---|---|
-| Админ | `admin@trainer.local` | `Adm1n!2024` |
-| РОП команды Sales | `rop1@trainer.local` | `Rop1!pass` |
-| РОП команды B2B | `rop2@trainer.local` | `Rop2!pass` |
-| Менеджер Иван Петров (Sales) | `manager1@trainer.local` | `Mgr1!pass` |
-| Менеджер Мария Сидорова (Sales) | `manager2@trainer.local` | `Mgr2!pass` |
-| Менеджер Дмитрий Козлов (B2B) | `manager3@trainer.local` | `Mgr3!pass` |
-| Менеджер Ксения Морозова (B2B) | `manager4@trainer.local` | `Mgr4!pass` |
+| # | Имя | Email | Пароль |
+|---|---|---|---|
+| 1 | Алексей Иванов | `demo1@hunterlite.ru` | `Demo1Pass!2026` |
+| 2 | Мария Петрова | `demo2@hunterlite.ru` | `Demo2Pass!2026` |
+| 3 | Дмитрий Козлов | `demo3@hunterlite.ru` | `Demo3Pass!2026` |
+| 4 | Елена Смирнова | `demo4@hunterlite.ru` | `Demo4Pass!2026` |
+| 5 | Сергей Волков | `demo5@hunterlite.ru` | `Demo5Pass!2026` |
 
-> Бывший методолог `method@trainer.local` мигрирован в ROP в апреле 2026 (PRs #46-48). Если в локальной БД остался — `make seed` пересоздаст актуальный набор.
+> Все аккаунты с ролью `manager`, подписка `master`, onboarding пройден, consent выдан. AI-тренировки (chat-режим) проверены и работают.

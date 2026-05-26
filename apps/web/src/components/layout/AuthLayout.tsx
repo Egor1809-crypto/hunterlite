@@ -192,7 +192,7 @@ export default function AuthLayout({
 
       if (_consentChecked) {
         setState(_consentOk ? "ready" : "redirecting");
-        if (!_consentOk) router.replace("/consent");
+        if (!_consentOk) router.replace("/home");
         return;
       }
 
@@ -204,7 +204,7 @@ export default function AuthLayout({
           setState("ready");
         } else {
           setState("redirecting");
-          router.replace("/consent");
+          router.replace("/home");
         }
       } catch (err: unknown) {
         logger.error("[AuthLayout] consent error:", err);
@@ -277,7 +277,7 @@ export default function AuthLayout({
                     _consentOk = data.all_accepted;
                     setState(data.all_accepted ? "ready" : "redirecting");
                     if (data.all_accepted) retryCount.current = 0;
-                    if (!data.all_accepted) router.replace("/consent");
+                    if (!data.all_accepted) router.replace("/home");
                   } catch {
                     setState("error");
                     setErrorMessage("Сервер по-прежнему недоступен");

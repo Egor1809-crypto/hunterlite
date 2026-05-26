@@ -307,9 +307,25 @@ async def lifespan(application: FastAPI):
     except Exception:
         logger.warning("Lifespan: failed to schedule whisper warmup", exc_info=True)
 
+    # Telegram bot webhook
+    try:
+        from app.telegram.webhook import setup_webhook as _tg_setup
+        _tg_base = settings.telegram_webhook_base_url or settings.frontend_url.replace(":3000", ":8000")
+        if settings.telegram_bot_token:
+            await _tg_setup(_tg_base)
+            logger.info("Lifespan: Telegram bot webhook configured")
+    except Exception:
+        logger.warning("Lifespan: Telegram bot setup failed", exc_info=True)
+
     logger.info("Lifespan: startup complete")
     yield
     # ── Shutdown ──
+    # Telegram bot cleanup
+    try:
+        from app.telegram.webhook import shutdown_bot as _tg_shutdown
+        await _tg_shutdown()
+    except Exception:
+        logger.warning("Lifespan: Telegram bot shutdown failed", exc_info=True)
     # Stop arena-bus audit consumer first so its in-flight batch acks
     # cleanly before the Redis pool is closed. The consumer's
     # run_forever() already handles CancelledError to flush PEL.
