@@ -8,7 +8,7 @@ import { Loader2, RefreshCw, AlertTriangle } from "lucide-react";
 import { getToken, getRefreshToken, setTokens } from "@/lib/auth";
 import { api } from "@/lib/api";
 import { getApiBaseUrl } from "@/lib/public-origin";
-import Header from "./Header";
+import AppShell from "./AppShell";
 import { AutoBreadcrumbs } from "./AutoBreadcrumbs";
 import { KeyboardShortcutsOverlay } from "@/components/ui/KeyboardShortcutsOverlay";
 import { CommandPalette } from "@/components/ui/CommandPalette";
@@ -97,7 +97,7 @@ export function resetConsentCache() {
 
 export default function AuthLayout({
   children,
-  requireConsent = true,
+  requireConsent = false,
 }: AuthLayoutProps) {
   const router = useRouter();
   const [state, setState] = useState<"loading" | "ready" | "redirecting" | "error">("loading");
@@ -280,18 +280,15 @@ export default function AuthLayout({
 
   return (
     <AuthErrorBoundary>
-      <div className="flex min-h-screen flex-col bg-[#FAFBFC]">
-        <Header />
+      <AppShell>
         <LLMDegradationBanner />
-        <main className="flex-1 relative z-[1]" style={{ minHeight: "calc(100vh - 200px)", overflow: "clip" }}>
-          <div className="max-w-7xl mx-auto px-4 pt-3">
-            <AutoBreadcrumbs />
-          </div>
-          {children}
-        </main>
+        <div className="max-w-7xl mx-auto px-4 pt-3">
+          <AutoBreadcrumbs />
+        </div>
+        {children}
         <KeyboardShortcutsOverlay />
         <CommandPalette />
-      </div>
+      </AppShell>
     </AuthErrorBoundary>
   );
 }
