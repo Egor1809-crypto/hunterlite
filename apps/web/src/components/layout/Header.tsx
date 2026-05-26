@@ -21,11 +21,9 @@ import { sanitizeText } from "@/lib/sanitize";
 import { useAuth } from "@/hooks/useAuth";
 import { useGamificationStore } from "@/stores/useGamificationStore";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
-import { XPBar } from "@/components/gamification/XPBar";
-import { StreakCounter } from "@/components/gamification/StreakCounter";
 import { NotificationBell } from "@/components/layout/NotificationBell";
 import { UserAvatar } from "@/components/ui/UserAvatar";
-import { XHunterLogo } from "@/components/ui/XHunterLogo";
+import { Scale } from "lucide-react";
 import type { UserRole } from "@/types";
 
 type OpenPanel = "none" | "user" | "notifications" | "mobile";
@@ -256,18 +254,15 @@ export default function Header() {
               className="group rounded-[20px] px-3 py-1.5 transition-opacity duration-200 hover:opacity-85"
               aria-label="X HUNTER — Главная"
             >
-              <XHunterLogo size="md" />
+              <span className="font-display font-bold text-lg tracking-wider flex items-center gap-2" style={{ color: "var(--accent)" }}>
+                <Scale size={20} />
+                LegalHunter
+              </span>
             </Link>
           </div>
 
           <div className="relative z-20 flex items-center justify-end gap-2 sm:gap-3">
-            <div className="hidden lg:block w-44">
-              <XPBar level={level} currentXP={currentXP} nextLevelXP={nextLevelXP} />
-            </div>
-
-            <div className="hidden md:block">
-              <StreakCounter streak={streak} />
-            </div>
+            {/* XPBar + StreakCounter removed */}
 
 
             <div
@@ -396,9 +391,7 @@ export default function Header() {
               }}
             >
               <div className="px-4 pb-4 pt-3">
-                <div className="mb-3 lg:hidden">
-                  <XPBar level={level} currentXP={currentXP} nextLevelXP={nextLevelXP} />
-                </div>
+                {/* XPBar removed */}
                 {/* Main navigation */}
                 <div className="grid grid-cols-2 gap-1.5">
                   {navItems.filter(i => i.group === "main").map((item, index) => {

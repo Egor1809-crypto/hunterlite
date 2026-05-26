@@ -1,5 +1,5 @@
 // ============================================================================
-// Hunter888 — Complete Type Definitions
+// LegalHunter — Complete Type Definitions
 // 1:1 mapping with backend Pydantic schemas + SQLAlchemy models
 // ============================================================================
 

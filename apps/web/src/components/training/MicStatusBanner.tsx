@@ -83,7 +83,7 @@ const COPY: Record<MicBannerKind, BannerCopy> = {
   },
   stt_unsupported: {
     title: "Голос в этом браузере не работает",
-    hint: "Откройте x-hunter.expert в Google Chrome или Microsoft Edge — там голосовой ввод работает стабильно. В Brave включите «Speech Recognition» в Shield-настройках сайта. В Safari нужна версия ≥ 14.1. Текстовый ввод снизу работает в любом браузере.",
+    hint: "Откройте legalhunter.ru в Google Chrome или Microsoft Edge — там голосовой ввод работает стабильно. В Brave включите «Speech Recognition» в Shield-настройках сайта. В Safari нужна версия ≥ 14.1. Текстовый ввод снизу работает в любом браузере.",
     action: null,
     severity: "info",
   },

@@ -5,7 +5,6 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { Loader2 } from "lucide-react";
 import { Sword, Trophy, Lightning, Target, Sparkle } from "@phosphor-icons/react";
-import { PixelInfoButton } from "@/components/ui/PixelInfoButton";
 import AuthLayout from "@/components/layout/AuthLayout";
 import { api } from "@/lib/api";
 import { useWebSocket } from "@/hooks/useWebSocket";
@@ -342,17 +341,7 @@ function PvPLobbyContent() {
                     />
                   </div>
                 </details>
-                <PixelInfoButton
-                  title="Как устроена Арена"
-                  sections={[
-                    { icon: Sword, label: "Дуэль с ботом", text: "Жми «Дуэль» — подберём AI-клиента (10 архетипов: скептик, тревожный, скандалист и др.). 2 раунда: ты продаёшь и оцениваешь, потом меняетесь. Если кто-то живой в очереди — попадёшь на него вместо бота." },
-                    { icon: Lightning, label: "Блиц 20×60", text: "20 вопросов по ФЗ-127, по 60 секунд на каждый. Personality «Шоумен» — даёт ответы пожёстче, но прощает скоростные неточности. Нужны быстрые рефлексы." },
-                    { icon: Target, label: "По теме", text: "Выбираешь категорию закона (10 тем) или «Все темы (ФЗ-127)» — и идёт квиз с разбором. После каждого ответа AI-судья объясняет ошибку и ссылается на статью; не согласен — жми «Пожаловаться», методолог увидит." },
-                    { icon: Trophy, label: "Рейтинг", text: "Первые 10 дуэлей — калибровка, рейтинг прыгает. Потом стабильная Glicko-2: 8 тиров Iron → Grandmaster. Peak tier не теряется. Отменённые / прерванные дуэли в рейтинг не идут." },
-                    { icon: Sparkle, label: "После боя", text: "AI-судья разбирает оба раунда: что сработало, где провалил. Плюс очки XP и Arena Points (AP). Не согласен с оценкой — нажми «Оспорить» (rejudge через cloud-LLM)." },
-                  ]}
-                  footer="Короткий путь: один из 3 блоков выше → бой/квиз → разбор → рейтинг"
-                />
+                {/* Info button removed */}
               </div>
             </div>
           </motion.div>

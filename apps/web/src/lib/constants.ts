@@ -1,5 +1,5 @@
 /**
- * Centralised design & runtime constants for the Hunter888 web app.
+ * Centralised design & runtime constants for the LegalHunter web app.
  *
  * Why: magic numbers, easing curves, localStorage keys and colour literals
  * were scattered across 20+ files. A single source of truth prevents silent

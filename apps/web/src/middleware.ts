@@ -78,7 +78,7 @@ function buildCsp(nonce: string, requestHost?: string | null): string {
     // Expand here if you add other providers (Rutube, VK Video, etc.).
     "frame-src 'self' https://www.youtube.com https://www.youtube-nocookie.com https://player.vimeo.com https://accounts.google.com https://oauth.yandex.ru",
     "worker-src 'self' blob:",
-    // frame-ancestors 'none' — nothing may iframe x-hunter.expert (anti-clickjacking).
+    // frame-ancestors 'none' — nothing may iframe legalhunter.ru (anti-clickjacking).
     "frame-ancestors 'none'",
     "base-uri 'self'",
     "form-action 'self' https://accounts.google.com https://oauth.yandex.ru",

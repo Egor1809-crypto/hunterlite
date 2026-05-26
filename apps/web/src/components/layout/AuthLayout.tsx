@@ -9,22 +9,10 @@ import { getToken, getRefreshToken, setTokens } from "@/lib/auth";
 import { api } from "@/lib/api";
 import { getApiBaseUrl } from "@/lib/public-origin";
 import Header from "./Header";
-// 2026-04-20: Breadcrumbs вернулись — но теперь авто-генератор по
-// pathname, а не ручной компонент. Рендерится только на вложенных
-// страницах (/training/[id], /pvp/duel/[id], /admin/audit-log, ...),
-// на корневых (/home, /pvp) ничего не добавляет.
 import { AutoBreadcrumbs } from "./AutoBreadcrumbs";
 import { KeyboardShortcutsOverlay } from "@/components/ui/KeyboardShortcutsOverlay";
 import { CommandPalette } from "@/components/ui/CommandPalette";
-import { ScreenShakeProvider } from "@/components/ui/ScreenShake";
 import { LLMDegradationBanner } from "@/components/ui/LLMDegradationBanner";
-import { CelebrationListener } from "@/components/gamification/CelebrationListener";
-import dynamic from "next/dynamic";
-
-const PixelGridBackground = dynamic(
-  () => import("@/components/pixel/PixelGridBackground").then((m) => m.PixelGridBackground),
-  { ssr: false },
-);
 
 /** Check if vh_authenticated marker cookie exists (survives page reload). */
 function hasAuthMarkerCookie(): boolean {
@@ -58,27 +46,23 @@ class AuthErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState
   render() {
     if (this.state.hasError) {
       return (
-        <div className="flex min-h-screen items-center justify-center" style={{ background: "var(--bg-primary)" }}>
-          <div className="glass-panel max-w-md px-8 py-6 text-center">
-            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full mb-4" style={{ background: "var(--danger-muted)" }}>
-              <AlertTriangle size={24} />
+        <div className="flex min-h-screen items-center justify-center bg-[#FAFBFC]">
+          <div className="w-full max-w-md rounded-2xl bg-white px-8 py-6 text-center shadow-lg border border-gray-100">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-red-50 mb-4">
+              <AlertTriangle size={24} className="text-red-500" />
             </div>
-            <h2 className="font-display text-lg font-bold mb-2" style={{ color: "var(--text-primary)" }}>
+            <h2 className="text-lg font-semibold text-gray-900 mb-2">
               Что-то пошло не так
             </h2>
-            <p className="text-sm mb-4" style={{ color: "var(--text-muted)" }}>
+            <p className="text-sm text-gray-500 mb-4">
               {this.state.error?.message || "Произошла непредвиденная ошибка"}
             </p>
             <button
               type="button"
               onClick={() => {
-                // 2026-05-03: don't full-reload — just clear the boundary
-                // and let React re-render. Full reload kills auth bootstrap
-                // + WS reconnect for what is often a transient component
-                // error.
                 this.setState({ hasError: false, error: null });
               }}
-              className="inline-flex items-center justify-center gap-2 font-bold tracking-wide uppercase rounded-xl px-5 py-2.5 text-sm transition-all duration-200 mx-auto" style={{ background: "var(--glass-bg)", color: "var(--text-primary)", border: "1px solid var(--accent)" }}
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#F97316] px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#EA6C10]"
             >
               <RefreshCw size={14} />
               Попробовать снова
@@ -116,30 +100,10 @@ export default function AuthLayout({
   requireConsent = true,
 }: AuthLayoutProps) {
   const router = useRouter();
-  // Always start with "loading" on both server and client — using typeof window
-  // in a useState initializer causes SSR/client hydration mismatch because the
-  // server never has window. The useEffect boot below handles all auth logic.
   const [state, setState] = useState<"loading" | "ready" | "redirecting" | "error">("loading");
   const [errorMessage, setErrorMessage] = useState("");
   const retryCount = useRef(0);
   const didRun = useRef(false);
-
-  // Animated background toggle (localStorage, dark-mode only on platform)
-  const [showAnimBg, setShowAnimBg] = useState(false);
-  useEffect(() => {
-    try {
-      const disabled = localStorage.getItem("vh-animated-bg") === "0";
-      const isDark = document.documentElement.classList.contains("dark");
-      setShowAnimBg(!disabled && isDark);
-    } catch {}
-    const obs = new MutationObserver(() => {
-      const isDark = document.documentElement.classList.contains("dark");
-      const disabled = localStorage.getItem("vh-animated-bg") === "0";
-      setShowAnimBg(!disabled && isDark);
-    });
-    obs.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
-    return () => obs.disconnect();
-  }, []);
 
   useEffect(() => {
     if (didRun.current) return;
@@ -216,19 +180,19 @@ export default function AuthLayout({
     };
 
     boot();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps -- mount-only initialization; boot fn is intentionally excluded
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps -- mount-only initialization
 
   if (state === "error") {
     return (
-      <div className="flex min-h-screen items-center justify-center" style={{ background: "var(--bg-primary)" }}>
-        <div className="glass-panel max-w-md px-8 py-6 text-center">
-          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full mb-4" style={{ background: "var(--danger-muted)" }}>
-            <AlertTriangle size={24} />
+      <div className="flex min-h-screen items-center justify-center bg-[#FAFBFC]">
+        <div className="w-full max-w-md rounded-2xl bg-white px-8 py-6 text-center shadow-lg border border-gray-100">
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-red-50 mb-4">
+            <AlertTriangle size={24} className="text-red-500" />
           </div>
-          <h2 className="font-display text-lg font-bold mb-2" style={{ color: "var(--text-primary)" }}>
+          <h2 className="text-lg font-semibold text-gray-900 mb-2">
             Ошибка подключения
           </h2>
-          <p className="text-sm mb-4" style={{ color: "var(--text-muted)" }}>
+          <p className="text-sm text-gray-500 mb-4">
             {errorMessage || "Не удалось подключиться к серверу"}
           </p>
           <button
@@ -239,13 +203,11 @@ export default function AuthLayout({
                 return;
               }
               retryCount.current += 1;
-              // Reset state and re-run the full boot flow (including token refresh)
               didRun.current = false;
               _consentChecked = false;
               _consentOk = false;
               setState("loading");
               setErrorMessage("");
-              // Exponential backoff: 200ms, 400ms, 800ms, 1600ms, 3200ms
               const delay = Math.min(200 * Math.pow(2, retryCount.current - 1), 5000);
               setTimeout(() => {
                 didRun.current = false;
@@ -286,7 +248,7 @@ export default function AuthLayout({
                 fullRetry();
               }, delay);
             }}
-            className="inline-flex items-center justify-center gap-2 font-bold tracking-wide uppercase rounded-xl px-5 py-2.5 text-sm transition-all duration-200 mx-auto" style={{ background: "var(--glass-bg)", color: "var(--text-primary)", border: "1px solid var(--accent)" }}
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#F97316] px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#EA6C10]"
           >
             <RefreshCw size={14} />
             Повторить
@@ -298,7 +260,7 @@ export default function AuthLayout({
 
   if (state === "loading" || state === "redirecting") {
     return (
-      <div className="flex min-h-screen items-center justify-center" style={{ background: "var(--bg-primary)" }}>
+      <div className="flex min-h-screen items-center justify-center bg-[#FAFBFC]">
         <motion.div
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -306,10 +268,9 @@ export default function AuthLayout({
         >
           <Loader2
             size={28}
-            className="animate-spin"
-            style={{ color: "var(--accent)", opacity: 0.6 }}
+            className="animate-spin text-[#F97316] opacity-60"
           />
-          <span className="font-mono text-xs" style={{ color: "var(--text-muted)" }}>
+          <span className="text-sm text-gray-400">
             {state === "loading" ? "Загрузка..." : "Перенаправление..."}
           </span>
         </motion.div>
@@ -319,28 +280,18 @@ export default function AuthLayout({
 
   return (
     <AuthErrorBoundary>
-      <ScreenShakeProvider>
-        {/* Root background — body-level solid color, no stacking context */}
-        <div className="flex min-h-screen flex-col" style={{ background: "var(--bg-primary)" }}>
-
-          {/* ── Grid background — static fallback + animated canvas ── */}
-          <div className="app-grid-layer" aria-hidden="true" />
-          {showAnimBg && <PixelGridBackground variant="platform" />}
-
-
-          <Header />
-          <LLMDegradationBanner />
-          <CelebrationListener />
-          <main className="flex-1" style={{ position: "relative", zIndex: 1, minHeight: "calc(100vh - 200px)", overflow: "clip" }}>
-            <div className="app-page pt-3">
-              <AutoBreadcrumbs />
-            </div>
-            {children}
-          </main>
-          <KeyboardShortcutsOverlay />
-          <CommandPalette />
-        </div>
-      </ScreenShakeProvider>
+      <div className="flex min-h-screen flex-col bg-[#FAFBFC]">
+        <Header />
+        <LLMDegradationBanner />
+        <main className="flex-1 relative z-[1]" style={{ minHeight: "calc(100vh - 200px)", overflow: "clip" }}>
+          <div className="max-w-7xl mx-auto px-4 pt-3">
+            <AutoBreadcrumbs />
+          </div>
+          {children}
+        </main>
+        <KeyboardShortcutsOverlay />
+        <CommandPalette />
+      </div>
     </AuthErrorBoundary>
   );
 }

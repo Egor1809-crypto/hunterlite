@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Профиль | X Hunter",
+  title: "Профиль | LegalHunter",
   description: "Ваш профиль и достижения",
 };
 

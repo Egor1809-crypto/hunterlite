@@ -6,73 +6,67 @@ const config: Config = {
   darkMode: "class",
   theme: {
     extend: {
-      /* ── Design Tokens ─────────────────────────────────── */
+      /* ── Design Tokens — LegalHunter ───────────────────── */
       borderRadius: {
-        sm: "8px",
-        md: "12px",
-        lg: "16px",
+        sm: "6px",
+        md: "10px",
+        lg: "14px",
         xl: "20px",
       },
       colors: {
-        /* ── Brand ── */
-        brand: {
-          deep: "#311573",
-          DEFAULT: "#6B4DC7",
-          light: "#7E5FD9",
-          muted: "rgba(107, 77, 199, 0.14)",
+        /* ── Primary (Orange) ── */
+        primary: {
+          50: "#FFF7ED",
+          100: "#FFEDD5",
+          200: "#FED7AA",
+          300: "#FDBA74",
+          400: "#FB923C",
+          500: "#F97316",
+          DEFAULT: "#F97316",
+          600: "#EA580C",
+          700: "#C2410C",
+          800: "#9A3412",
+          900: "#7C2D12",
         },
-        /* ── Violet scale (kept for legacy compat) ── */
-        violet: {
-          50: "#f5f3ff",
-          100: "#ede9fe",
-          200: "#ddd6fe",
-          300: "#c4b5fd",
-          400: "#a78bfa",
-          500: "#8B5CF6",
-          600: "#7C3AED",
-          700: "#6D28D9",
-          800: "#5B21B6",
-          900: "#4C1D95",
+        /* ── Ocean (Blue) ── */
+        ocean: {
+          50: "#ECFEFF",
+          100: "#CFFAFE",
+          200: "#A5F3FC",
+          300: "#67E8F9",
+          400: "#22D3EE",
+          500: "#0891B2",
+          DEFAULT: "#0891B2",
+          600: "#0E7490",
+          700: "#155E75",
+          800: "#164E63",
+          900: "#083344",
         },
+        /* ── Surface (Neutral slate) ── */
         surface: {
-          50: "#fafafa",
-          100: "#f4f4f5",
-          200: "#e4e4e7",
-          300: "#d4d4d8",
-          400: "#a1a1aa",
-          500: "#71717a",
-          600: "#52525b",
-          700: "#3f3f46",
-          800: "#27272a",
-          850: "#1e1e22",
-          900: "#18181b",
-          950: "#0d0d0f",
+          50: "#FAFBFC",
+          100: "#F1F5F9",
+          200: "#E2E8F0",
+          300: "#CBD5E1",
+          400: "#94A3B8",
+          500: "#64748B",
+          600: "#475569",
+          700: "#334155",
+          800: "#1E293B",
+          900: "#0F172A",
+          950: "#020617",
         },
-        success: "#22c55e",
-        warning: "#f59e0b",
-        danger: "#ef4444",
-        /* ── Gamified Cyber palette shortcuts ── */
-        "vh-black": "#100F1A",
-        "vh-purple": "#6B4DC7",
-        "vh-darkPurple": "#311573",
-        "vh-magenta": "#E028CC",
-        "vh-red": "#E5484D",
-        "vh-green": "#3DDC84",
-        "vh-panel": "rgba(24, 23, 42, 0.65)",
-        /* ── Gamification ── */
-        "gf-xp": "var(--gf-xp)",
-        "gf-streak": "var(--gf-streak)",
-        "gf-levelup": "var(--gf-levelup)",
-        "gf-reward": "var(--gf-reward)",
+        success: "#16A34A",
+        warning: "#D97706",
+        danger: "#DC2626",
       },
       fontSize: {
-        xs: ["0.875rem", { lineHeight: "1.25rem" }], // 14px min (was 12px)
+        xs: ["0.875rem", { lineHeight: "1.25rem" }],
       },
       fontFamily: {
         sans: ["var(--font-geist-sans)", "system-ui", "sans-serif"],
         display: ["var(--font-geist-sans)", "system-ui", "sans-serif"],
         mono: ["var(--font-geist-mono)", "monospace"],
-        pixel: ["var(--font-vt323)", "var(--font-pixelify)", "Press Start 2P", "Courier New", "monospace"],
       },
       /* ── Spacing scale (8px grid) ── */
       spacing: {

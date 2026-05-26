@@ -13,7 +13,7 @@ import {
   ClipboardText, Sun, Moon, Star,
 } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/Button";
-import { PixelInfoButton } from "@/components/ui/PixelInfoButton";
+import { Info } from "lucide-react";
 import { api, ApiError } from "@/lib/api";
 import { useAuth } from "@/hooks/useAuth";
 import AuthLayout from "@/components/layout/AuthLayout";
@@ -27,13 +27,6 @@ import { LoadingTip } from "@/components/ui/Skeleton";
 import { useNotificationStore } from "@/stores/useNotificationStore";
 import { logger } from "@/lib/logger";
 import { EASE_SNAP, TIMING, STORAGE, RANK, STREAK } from "@/lib/constants";
-import DailyDrillCard from "@/components/gamification/DailyDrillCard";
-import MorningWarmupCard from "@/components/gamification/MorningWarmupCard";
-import WeeklyLeague from "@/components/gamification/WeeklyLeague";
-import OfficeShelf from "@/components/gamification/OfficeShelf";
-import SeasonBanner from "@/components/gamification/SeasonBanner";
-import ChapterProgress from "@/components/gamification/ChapterProgress";
-import { PixelGridBackground } from "@/components/landing/PixelGridBackground";
 // useTiltEffect kept in hooks/ for future use on non-motion elements
 
 
@@ -276,9 +269,7 @@ export default function HomePage() {
       <div className="relative panel-grid-bg min-h-screen">
         {/* Ambient pixel field — subtle animated backdrop (lower opacity
             than onboarding since home has dense dashboard content). */}
-        <div className="absolute inset-0 pointer-events-none" style={{ opacity: 0.35 }}>
-          <PixelGridBackground cellSize={32} pixelSize={3} pixelAlpha={0.14} />
-        </div>
+        {/* PixelGridBackground removed */}
 
         <div className="app-page">
 
@@ -296,20 +287,7 @@ export default function HomePage() {
             />
 
             {/* Info button — top-right of hero card */}
-            <div className="absolute top-4 right-4 z-20">
-              <PixelInfoButton
-                title="Командный центр"
-                sections={[
-                  { icon: Lightning, label: "Уровень и XP", text: "Растёт от каждой завершённой тренировки. Нужно XP/next для следующего уровня" },
-                  { icon: Flame, label: "Серия дней", text: "Сколько дней подряд вы тренируетесь. 7+ дней = бонус Streak Freeze на случай пропуска" },
-                  { icon: Crosshair, label: "Быстрый старт", text: "Кнопка-огонёк слева: мгновенно подберёт сценарий под ваш уровень и начнёт тренировку" },
-                  { icon: Target, label: "Ожидающий клиент", text: "Если вы прервали звонок — он покажется здесь. Можно продолжить с того же момента" },
-                  { icon: ClipboardText, label: "Ежедневный вызов", text: "Случайное задание с повышенной наградой. Обновляется каждый день в 00:00 МСК" },
-                  { icon: TrendUp, label: "Рекомендации", text: "AI-Coach подбирает 3 тренировки на основе ваших слабых мест" },
-                ]}
-                footer="Горячие клавиши: S — быстрый старт, H — история, L — лидерборд"
-              />
-            </div>
+            {/* Info button placeholder */}
 
             <div className="relative z-10 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-6">
               {/* Left: identity + level */}
@@ -883,11 +861,11 @@ export default function HomePage() {
                   <Target weight="duotone" size={22} style={{ color: "var(--accent)" }} />
                   Задания на сегодня
                 </h2>
-                <SeasonBanner />
+                {/* SeasonBanner removed */}
               </div>
 
               {/* Story arc progress (Путь Охотника) */}
-              <ChapterProgress />
+              {/* ChapterProgress removed */}
 
               {/* Two-column: Drill (left) + Goals (right) */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
@@ -900,9 +878,7 @@ export default function HomePage() {
                     карточка видна весь день, пока не completed_today. Сама
                     MorningWarmupCard уже показывает "✓ Разминка зачтена"
                     когда streak endpoint вернёт completed_today=true. */}
-                <MorningWarmupCard />
-                {false && <DailyDrillCard />}
-                {false && <DailyDrillCard drillStreak={dashboard?.gamification?.streak_days ?? 0} />}
+                {/* MorningWarmupCard / DailyDrillCard removed */}
 
                 {/* Right: Goals progress.
                     2026-04-18: увеличен шрифт (text-sm → text-base),
@@ -967,13 +943,7 @@ export default function HomePage() {
               {/* Bottom row: League + Office compact */}
               <div className="flex items-center justify-between pt-3" style={{ borderTop: "1px solid var(--input-bg)" }}>
                 {/* League mini */}
-                <WeeklyLeague />
-
-                {/* Office shelf compact */}
-                <OfficeShelf
-                  level={dashboard?.gamification?.level ?? 1}
-                  compact
-                />
+                {/* WeeklyLeague + OfficeShelf removed */}
               </div>
             </motion.div>
           )}

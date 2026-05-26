@@ -34,7 +34,6 @@ import { useTrainingStore } from "@/stores/useTrainingStore";
 import { ARCHETYPES, getDifficultyColor } from "@/lib/archetypes";
 import { ArchetypeCard } from "@/components/training/ArchetypeCard";
 import { ScenarioCatalogCard } from "@/components/training/ScenarioCatalogCard";
-import { PixelInfoButton } from "@/components/ui/PixelInfoButton";
 import type { Scenario } from "@/types";
 import { Skeleton } from "@/components/ui/Skeleton";
 
@@ -252,19 +251,7 @@ function TrainingPageContent() {
                   Выберите формат и сложность тренировки
                 </p>
               </div>
-              <div className="flex items-center gap-2">
-                <PixelInfoButton
-                  title="Тренировки"
-                  sections={[
-                    { icon: Target, label: "Рекомендуемые", text: "AI подобрал сценарии под ваш уровень и слабые места" },
-                    { icon: BookOpen, label: "Сценарии", text: "60 готовых сценариев в 8 группах — от холодных звонков до кризисных" },
-                    { icon: ClipboardList, label: "Назначенные", text: "Задания от руководителя с дедлайнами" },
-                    { icon: Puzzle, label: "Конструктор", text: "Соберите клиента из 100 архетипов, 25 профессий и 20 источников" },
-                    { icon: Users, label: "Мои клиенты", text: "Сохранённые конфигурации для повторного использования" },
-                  ]}
-                  footer="Выберите сценарий → Начать → Общайтесь с AI голосом/текстом → разбор"
-                />
-              </div>
+              {/* Info button removed */}
             </div>
           </motion.div>
 

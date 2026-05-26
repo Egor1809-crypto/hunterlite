@@ -60,7 +60,6 @@ import ScoreLayersBreakdown from "@/components/results/ScoreLayersBreakdown";
 import JudgeVerdictCard from "@/components/results/JudgeVerdictCard";
 import MistakesBreakdown from "@/components/results/MistakesBreakdown";
 import ReplayModal from "@/components/results/ReplayModal";
-import { AchievementToast } from "@/components/gamification/AchievementToast";
 import { PostSessionVerdict } from "@/components/results/PostSessionVerdict";
 import CallDroppedCard, { type CallDroppedReason } from "@/components/results/CallDroppedCard";
 import { BackButton } from "@/components/ui/BackButton";
@@ -381,7 +380,7 @@ export default function ResultsPage() {
 
   return (
     <AuthLayout>
-      <AchievementToast achievement={achievement} onClose={() => setAchievement(null)} />
+      {/* AchievementToast removed */}
 
       {/* Phase C (2026-05-08): for error outcomes show CallDroppedCard
           INSTEAD of the verdict overlay + main report. The user shouldn't

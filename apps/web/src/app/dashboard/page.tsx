@@ -28,7 +28,6 @@ import { useAuth } from "@/hooks/useAuth";
 import { isManager } from "@/lib/guards";
 import AuthLayout from "@/components/layout/AuthLayout";
 import { BackButton } from "@/components/ui/BackButton";
-import { PixelInfoButton } from "@/components/ui/PixelInfoButton";
 import { DashboardSkeleton } from "@/components/ui/Skeleton";
 import { AnimatedCounter } from "@/components/ui/AnimatedCounter";
 import { ScoreBadge } from "@/components/ui/ScoreBadge";
@@ -245,18 +244,7 @@ export default function DashboardPage() {
                     <span className="hidden sm:inline">PDF за неделю</span>
                   </button>
                 )}
-                <PixelInfoButton
-                  title="Панель РОП"
-                  sections={[
-                    { icon: ChartBar, label: "Обзор", text: "Ключевые метрики команды: активность, средний балл, TP за неделю, вовлечённость" },
-                    { icon: UsersThree, label: "Команда", text: "Список менеджеров с рейтингами, сравнение между собой, выявление отстающих" },
-                    { icon: Target, label: "Тепловая карта", text: "Где команда слабее всего: возражения, техники, знания" },
-                    { icon: Trophy, label: "Сравнение", text: "Сравнение вашей команды с другими командами/компаниями (анонимно)" },
-                    { icon: TrendUp, label: "Отдача", text: "Сколько тренировок → сколько закрытых сделок." },
-                    { icon: BookOpen, label: "База знаний", text: "Корпоративные знания: скрипты возражений, регламенты. Автосинтез из успешных диалогов" },
-                  ]}
-                  footer="Быстрые действия: PDF-экспорт (кнопка справа от заголовка), массовая рассылка заданий — во вкладке «Команда»."
-                />
+                {/* Info button removed */}
               </div>
             </div>
             <p className="mt-2 font-medium text-sm tracking-wide" style={{ color: "var(--text-muted)" }}>

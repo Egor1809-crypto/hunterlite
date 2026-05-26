@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Настройки | X Hunter",
+  title: "Настройки | LegalHunter",
   description: "Настройки аккаунта и предпочтения",
 };
 

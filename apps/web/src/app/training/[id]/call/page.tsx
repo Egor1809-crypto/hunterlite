@@ -27,8 +27,6 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { Mic, MicOff } from "lucide-react";
 import { useSessionStore } from "@/stores/useSessionStore";
 import { PhoneCallMode } from "@/components/training/phone/PhoneCallMode";
-import { PersonaConflictBadge } from "@/components/persona/PersonaConflictBadge";
-import { PolicyViolationCounter } from "@/components/policy/PolicyViolationCounter";
 import { usePolicyStore } from "@/stores/usePolicyStore";
 import { useShallow } from "zustand/react/shallow";
 import IncomingCallScreen from "@/components/training/phone/IncomingCallScreen";
@@ -1712,28 +1710,7 @@ export default function TrainingCallPage() {
           - tts still speaking: "Клиент говорит…" (info)
         Positioned below the teleprompter so it doesn't fight the avatar.
       */}
-      {/* TZ-4 §13.4.1 — audit signal badges. The PolicyViolationCounter
-          and PersonaConflictBadge components self-hide at zero, so
-          warn-only sessions with no violations look identical to the
-          legacy UI. The policy session state is hoisted into a
-          top-level hook (``policySession`` const above) to satisfy
-          the React Rules-of-Hooks. */}
-      {policySession && (
-        <div className="fixed top-[78px] left-0 right-0 z-30 flex justify-center gap-2 px-4 pointer-events-none">
-          <div className="pointer-events-auto">
-            <PolicyViolationCounter
-              severityCounts={policySession.bySeverity}
-              enforceActive={policySession.enforceActive}
-            />
-          </div>
-          <div className="pointer-events-auto">
-            <PersonaConflictBadge
-              count={policySession.personaConflicts}
-              lastAttemptedField={policySession.lastPersonaAttemptedField}
-            />
-          </div>
-        </div>
-      )}
+      {/* PolicyViolationCounter + PersonaConflictBadge removed */}
 
       {bannerKind && (
         <MicStatusBanner

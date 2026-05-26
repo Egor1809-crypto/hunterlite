@@ -15,7 +15,6 @@ import {
   Sparkle,
 } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/Button";
-import { PixelInfoButton } from "@/components/ui/PixelInfoButton";
 import { api } from "@/lib/api";
 import { scoreColor } from "@/lib/utils";
 import AuthLayout from "@/components/layout/AuthLayout";
@@ -147,17 +146,7 @@ export default function HistoryPage() {
                 Все ваши прошлые сессии
               </p>
             </div>
-            <PixelInfoButton
-              title="История тренировок"
-              sections={[
-                { icon: Stack, label: "Сессии", text: "Полный список ваших завершённых и прерванных звонков с AI-клиентами" },
-                { icon: ChartBar, label: "Оценки", text: "Общий балл сессии — среднее по техникам, работе с возражениями и эмоциональному управлению" },
-                { icon: CheckCircle, label: "Завершена", text: "Звонок прошёл до конца: клиент согласился или вежливо отказал" },
-                { icon: XCircle, label: "Прервана", text: "Клиент повесил трубку из-за грубых ошибок менеджера" },
-                { icon: Sparkle, label: "Разбор", text: "Нажмите на карточку — откроется детальный анализ с таймкодами и рекомендациями" },
-              ]}
-              footer="Фильтруйте по дате и оценке — в планах: экспорт в PDF"
-            />
+            {/* Info button removed */}
           </motion.div>
 
           {/* Summary stats */}

@@ -4,19 +4,13 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { UserPlus, Mail, User, ArrowRight, AlertCircle } from "lucide-react";
+import { Mail, User, ArrowRight, AlertCircle, Scale } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { api, resetAuthCircuitBreaker } from "@/lib/api";
 import { setTokens } from "@/lib/auth";
-import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { PasswordInput } from "@/components/ui/PasswordInput";
 import { PasswordChecklist, isPasswordValid } from "@/components/ui/PasswordChecklist";
-import dynamic from "next/dynamic";
 import { FishermanError } from "@/components/errors/FishermanError";
-const WaveScene = dynamic(
-  () => import("@/components/landing/WaveScene").then((m) => m.WaveScene),
-  { ssr: false },
-);
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -59,10 +53,6 @@ export default function RegisterPage() {
       });
       setTokens(data.access_token, data.refresh_token, data.csrf_token);
       resetAuthCircuitBreaker();
-      // H6 (Roadmap Phase 0 §5.1): раньше после register юзер сразу
-      // получал ``/onboarding``, а оттуда сервер возвращал 403 потому
-      // что consent ещё не принят. Получался чёрный экран. Правильный
-      // порядок — register → consent (с next=/onboarding) → onboarding.
       router.push("/home");
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Ошибка регистрации";
@@ -79,80 +69,97 @@ export default function RegisterPage() {
   const passwordsMatch = confirmPassword.length === 0 || password === confirmPassword;
 
   if (networkError) {
-    return <FishermanError onRetry={() => { setNetworkError(false); setError(""); }} message="Похоже, рыба сегодня не клюёт..." />;
+    return <FishermanError onRetry={() => { setNetworkError(false); setError(""); }} message="Похоже, сервер временно недоступен..." />;
   }
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center px-4 py-8 overflow-hidden" style={{ background: "var(--bg-primary)" }}>
-      {/* Ambient glow */}
-      <div className="fixed inset-0 z-0 pointer-events-none" style={{ background: "radial-gradient(ellipse at 50% 70%, var(--accent-muted) 0%, transparent 60%)" }} />
-
-      {/* 3D Wave Background */}
-      <div className="fixed inset-0 z-[1]">
-        <WaveScene />
-      </div>
-
-      <div className="absolute right-4 top-4 z-10">
-        <ThemeToggle />
+    <div className="relative flex min-h-screen items-center justify-center px-4 py-8 overflow-hidden bg-gradient-to-br from-[#0891B2]/5 via-[#FAFBFC] to-[#FAFBFC]">
+      {/* Subtle decorative shapes */}
+      <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden">
+        <div className="absolute -top-40 -right-40 w-[500px] h-[500px] rounded-full bg-[#F97316]/[0.04]" />
+        <div className="absolute -bottom-60 -left-40 w-[600px] h-[600px] rounded-full bg-[#0891B2]/[0.04]" />
       </div>
 
       <motion.div
         initial={{ opacity: 0, y: 20, scale: 0.98 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
-        transition={{ duration: 0.5 }}
-        className="glass-panel w-full max-w-md p-8 relative z-10"
+        transition={{ duration: 0.4, ease: "easeOut" }}
+        className="w-full max-w-md rounded-2xl bg-white p-8 relative z-10 shadow-xl shadow-gray-200/50 border border-gray-100"
       >
-        <div className="absolute top-0 left-6 right-6 h-[2px] rounded-full" style={{ background: "linear-gradient(90deg, transparent, var(--magenta), transparent)" }} />
-
+        {/* Brand header */}
         <div className="mb-8 text-center">
           <motion.div
-            initial={{ scale: 0.8 }}
-            animate={{ scale: 1 }}
-            transition={{ type: "spring", stiffness: 300, delay: 0.1 }}
-            className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl"
-            style={{ background: "var(--accent)", boxShadow: "0 0 30px var(--accent-glow)" }}
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+            className="mb-3 flex items-center justify-center gap-2.5"
           >
-            <UserPlus size={26} className="text-white" />
+            <Scale size={28} className="text-[#F97316]" />
+            <span className="text-2xl font-bold tracking-tight text-gray-900">
+              Legal<span className="text-[#F97316]">Hunter</span>
+            </span>
           </motion.div>
-          <h1 className="font-display text-2xl font-bold tracking-widest" style={{ color: "var(--text-primary)" }}>
-            РЕГИСТРАЦИЯ
-          </h1>
-          <p className="mt-1 font-mono text-xs tracking-wider" style={{ color: "var(--text-muted)" }}>
-            СОЗДАЙТЕ АККАУНТ ДЛЯ ОБУЧЕНИЯ
+          <p className="text-sm text-gray-500">
+            Создание аккаунта
           </p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-5">
+        <form onSubmit={handleSubmit} className="space-y-4">
           {error && (
             <motion.div
               initial={{ opacity: 0, y: -8 }}
               animate={{ opacity: 1, y: 0 }}
-              className="flex items-center gap-2 rounded-xl p-3 text-sm"
-              style={{ background: "var(--danger-muted)", border: "1px solid var(--danger-muted)", color: "var(--danger)" }}
+              className="flex items-center gap-2 rounded-xl p-3 text-sm bg-red-50 border border-red-100 text-red-600"
             >
-              <AlertCircle size={16} />
+              <AlertCircle size={16} className="flex-shrink-0" />
               {error}
             </motion.div>
           )}
 
           <div>
-            <label htmlFor="fullName" className="vh-label">Полное имя</label>
+            <label htmlFor="fullName" className="block text-sm font-medium text-gray-700 mb-1.5">
+              Полное имя
+            </label>
             <div className="relative">
-              <User size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2" style={{ color: "var(--text-muted)" }} />
-              <input id="fullName" type="text" value={fullName} onChange={(e) => setFullName(e.target.value)} required className="vh-input pl-10" placeholder="Иван Петров" autoComplete="name" aria-label="Полное имя" />
+              <User size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input
+                id="fullName"
+                type="text"
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+                required
+                className="vh-input pl-10"
+                placeholder="Иван Петров"
+                autoComplete="name"
+                aria-label="Полное имя"
+              />
             </div>
           </div>
 
           <div>
-            <label htmlFor="email" className="vh-label">Email</label>
+            <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1.5">
+              Email
+            </label>
             <div className="relative">
-              <Mail size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2" style={{ color: "var(--text-muted)" }} />
-              <input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required className="vh-input pl-10" placeholder="you@example.com" autoComplete="email" aria-label="Email" />
+              <Mail size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input
+                id="email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                className="vh-input pl-10"
+                placeholder="you@example.com"
+                autoComplete="email"
+                aria-label="Email"
+              />
             </div>
           </div>
 
           <div>
-            <label htmlFor="password" className="vh-label">Пароль</label>
+            <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1.5">
+              Пароль
+            </label>
             <PasswordInput
               id="password"
               value={password}
@@ -167,7 +174,9 @@ export default function RegisterPage() {
           </div>
 
           <div>
-            <label htmlFor="confirmPassword" className="vh-label">Повторите пароль</label>
+            <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 mb-1.5">
+              Повторите пароль
+            </label>
             <PasswordInput
               id="confirmPassword"
               value={confirmPassword}
@@ -177,7 +186,7 @@ export default function RegisterPage() {
               ariaLabel="Подтвердите пароль"
             />
             {!passwordsMatch && (
-              <div className="mt-2 text-xs" style={{ color: "var(--danger)" }}>
+              <div className="mt-1.5 text-xs text-red-500">
                 Пароли не совпадают.
               </div>
             )}
@@ -188,9 +197,9 @@ export default function RegisterPage() {
           </Button>
         </form>
 
-        <p className="mt-6 text-center text-sm" style={{ color: "var(--text-muted)" }}>
+        <p className="mt-6 text-center text-sm text-gray-500">
           Уже есть аккаунт?{" "}
-          <Link href="/login" className="font-medium transition-colors" style={{ color: "var(--accent)" }}>
+          <Link href="/login" className="font-medium text-[#F97316] transition-colors hover:text-[#EA6C10]">
             Войти
           </Link>
         </p>

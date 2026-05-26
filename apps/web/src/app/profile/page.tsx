@@ -40,7 +40,6 @@ import AuthLayout from "@/components/layout/AuthLayout";
 import { BackButton } from "@/components/ui/BackButton";
 import { HunterCard } from "@/components/profile/HunterCard";
 import { ActivityHeatmap } from "@/components/profile/ActivityHeatmap";
-import { XPDailyProgress } from "@/components/gamification/XPDailyProgress";
 import dynamic from "next/dynamic";
 import { Skeleton } from "@/components/ui/Skeleton";
 
@@ -49,8 +48,6 @@ const ProgressGraph = dynamic(
   { loading: () => <Skeleton height={240} width="100%" rounded="12px" />, ssr: false },
 );
 import { AchievementWall } from "@/components/profile/AchievementWall";
-import OfficeShelf from "@/components/gamification/OfficeShelf";
-import DealPortfolio from "@/components/gamification/DealPortfolio";
 import type { TrainingStats, GamificationProgress, ProgressPoint } from "@/types";
 import { logger } from "@/lib/logger";
 
@@ -269,12 +266,7 @@ function ProfilePageContent() {
             )}
           </ProfileSection>
 
-          {/* Daily XP cap — компактный, только себе */}
-          {!isViewingOther && (
-            <div className="mt-6">
-              <XPDailyProgress />
-            </div>
-          )}
+          {/* XPDailyProgress removed */}
 
           {/*
             Активность по дням (heatmap) — только своему профилю.
@@ -295,17 +287,7 @@ function ProfilePageContent() {
           {/* Достижения + полки + сделки */}
           <ProfileSection accent="#fb923c" title="🏆 ДОСТИЖЕНИЯ" mt={6}>
             <AchievementWall achievements={progress?.achievements ?? []} />
-            <div className="mt-6">
-              <OfficeShelf
-                level={progress?.level ?? 1}
-                achievementCount={progress?.achievements?.length ?? 0}
-                totalDeals={0}
-                totalSessions={stats?.completed_sessions ?? 0}
-              />
-            </div>
-            <div className="mt-6">
-              <DealPortfolio compact={false} limit={50} />
-            </div>
+            {/* OfficeShelf + DealPortfolio removed */}
           </ProfileSection>
 
           {/*

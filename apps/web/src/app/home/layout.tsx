@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Центр | X Hunter",
+  title: "Центр | LegalHunter",
   description: "Главная панель — тренировки, рекомендации, прогресс",
 };
 

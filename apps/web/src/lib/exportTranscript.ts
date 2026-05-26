@@ -45,7 +45,7 @@ function formatTranscript(meta: TranscriptMeta, messages: TranscriptMessage[]): 
   }
 
   lines.push("---");
-  lines.push(`_Экспортировано из Hunter888 ${new Date().toLocaleDateString("ru-RU")}_`);
+  lines.push(`_Экспортировано из LegalHunter ${new Date().toLocaleDateString("ru-RU")}_`);
 
   return lines.join("\n");
 }

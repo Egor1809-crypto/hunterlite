@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Панель РОП | X Hunter",
+  title: "Панель РОП | LegalHunter",
   description: "Аналитика команды и управление",
 };
 

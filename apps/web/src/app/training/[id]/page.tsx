@@ -40,12 +40,7 @@ import { SessionAttachmentButton } from "@/components/training/SessionAttachment
 // Компонент CallButton.tsx сохранён в /components/training/ на случай
 // возврата к inline-переключению в будущем.
 import ScriptHints from "@/components/training/ScriptHints";
-import { XHunterLogo } from "@/components/ui/XHunterLogo";
-
-const PixelGridBackground = dynamic(
-  () => import("@/components/pixel/PixelGridBackground").then((m) => m.PixelGridBackground),
-  { ssr: false },
-);
+import { Scale } from "lucide-react";
 import { CrystalMic } from "@/components/training/CrystalMic";
 import VibeMeter from "@/components/training/VibeMeter";
 import { type CheckpointInfo } from "@/components/training/ScriptAdherence";
@@ -1660,7 +1655,10 @@ export default function TrainingSessionPage() {
       >
         {/* Left: XHUNTER logo (replaces scenario info which was noisy) */}
         <div className="flex items-center gap-3 min-w-0 flex-1">
-          <XHunterLogo size="sm" />
+          <span className="font-display font-bold text-sm tracking-wider flex items-center gap-1.5" style={{ color: "var(--accent)" }}>
+            <Scale size={14} />
+            LegalHunter
+          </span>
           {s.storyMode && (
             <span className="font-pixel text-[10px] hidden sm:inline" style={{ color: "var(--text-muted)" }}>
               ЗВОНОК {s.callNumber}/{s.totalCalls}
@@ -1892,9 +1890,7 @@ export default function TrainingSessionPage() {
           }}
         >
           {/* Keep decorative pixel grid on top for extra depth */}
-          <div className="absolute inset-0 pointer-events-none opacity-30">
-            <PixelGridBackground variant="platform" />
-          </div>
+          {/* PixelGridBackground removed */}
 
           {/* Accent strip */}
           <div className="h-[3px] shrink-0 relative z-10" style={{ background: "linear-gradient(90deg, transparent, var(--accent), transparent)" }} />
