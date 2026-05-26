@@ -119,7 +119,7 @@ export function FighterCard({
       <div className={`flex flex-col gap-1 flex-1 ${side === "right" ? "items-end" : "items-start"}`}>
         <div className="flex items-baseline gap-2 flex-wrap">
           <span
-            className="font-pixel"
+            className="font-medium"
             style={{
               color: "var(--text-primary)",
               fontSize: 16,
@@ -132,7 +132,7 @@ export function FighterCard({
           </span>
           {isBot && (
             <span
-              className="font-pixel"
+              className="font-medium"
               style={{
                 fontSize: 10,
                 letterSpacing: "0.18em",
@@ -147,7 +147,7 @@ export function FighterCard({
           )}
         </div>
         <span
-          className="font-pixel"
+          className="font-medium"
           style={{
             color: accent,
             fontSize: 11,

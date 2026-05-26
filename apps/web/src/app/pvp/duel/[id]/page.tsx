@@ -480,30 +480,25 @@ function DuelPage() {
           style={{ background: "var(--bg-primary)" }}
         >
           <div
-            className="p-6 max-w-md w-full"
+            className="p-6 max-w-md w-full rounded-2xl"
             style={{
               background: "var(--bg-panel)",
-              border: "2px solid var(--danger)",
-              borderRadius: 0,
-              boxShadow: "4px 4px 0 0 var(--danger)",
+              border: "1px solid rgba(239,68,68,0.3)",
             }}
           >
-            <div className="font-pixel text-sm uppercase tracking-widest mb-3" style={{ color: "var(--danger)" }}>
-              ✖ ДУЭЛЬ НЕДОСТУПНА
+            <div className="text-sm font-semibold mb-3" style={{ color: "var(--danger)" }}>
+              Дуэль недоступна
             </div>
             <p className="text-base mb-5" style={{ color: "var(--text-primary)" }}>{earlyExit}</p>
             <button
               onClick={() => router.push("/pvp")}
-              className="w-full py-3 px-4 font-pixel text-sm uppercase tracking-widest"
+              className="w-full py-3 px-4 text-sm font-semibold rounded-xl"
               style={{
                 background: "var(--accent)",
                 color: "#fff",
-                border: "2px solid var(--accent)",
-                borderRadius: 0,
-                boxShadow: "3px 3px 0 0 #000",
               }}
             >
-              ▶ ВЕРНУТЬСЯ НА АРЕНУ
+              Вернуться на арену
             </button>
           </div>
         </div>
@@ -518,16 +513,14 @@ function DuelPage() {
           style={{ background: "var(--bg-primary)" }}
         >
           <div
-            className="p-6 max-w-md w-full"
+            className="p-6 max-w-md w-full rounded-2xl"
             style={{
               background: "var(--bg-panel)",
-              border: "2px solid var(--warning)",
-              borderRadius: 0,
-              boxShadow: "4px 4px 0 0 var(--warning)",
+              border: "1px solid rgba(245,158,11,0.3)",
             }}
           >
-            <div className="font-pixel text-sm uppercase tracking-widest mb-3" style={{ color: "var(--warning)" }}>
-              ⚠ НЕТ СВЯЗИ С АРЕНОЙ
+            <div className="text-sm font-semibold mb-3" style={{ color: "var(--warning)" }}>
+              Нет связи с ареной
             </div>
             <p className="text-base mb-5" style={{ color: "var(--text-primary)" }}>
               Не удалось подключиться к дуэли. Возможно, соперник вышел или сервер недоступен.
@@ -536,29 +529,24 @@ function DuelPage() {
               <button
                 type="button"
                 onClick={() => { setLoadTimeout(false); router.refresh(); }}
-                className="flex-1 py-3 px-4 font-pixel text-sm uppercase tracking-widest"
+                className="flex-1 py-3 px-4 text-sm font-semibold rounded-xl"
                 style={{
                   background: "var(--input-bg)",
                   color: "var(--text-primary)",
-                  border: "2px solid var(--border-color)",
-                  borderRadius: 0,
-                  boxShadow: "2px 2px 0 0 var(--border-color)",
+                  border: "1px solid var(--border-color)",
                 }}
               >
-                ↻ ПОВТОР
+                Повтор
               </button>
               <button
                 onClick={() => router.push("/pvp")}
-                className="flex-1 py-3 px-4 font-pixel text-sm uppercase tracking-widest"
+                className="flex-1 py-3 px-4 text-sm font-semibold rounded-xl"
                 style={{
                   background: "var(--accent)",
                   color: "#fff",
-                  border: "2px solid var(--accent)",
-                  borderRadius: 0,
-                  boxShadow: "3px 3px 0 0 #000",
                 }}
               >
-                ▶ НА АРЕНУ
+                На арену
               </button>
             </div>
           </div>
@@ -599,58 +587,26 @@ function DuelPage() {
           transition={{ duration: 0.4, ease: "easeOut" }}
           className="flex flex-col items-center gap-3 max-w-[480px] w-full"
         >
-          {/* Square pixel countdown — спиннер с пиксельной обводкой */}
-          <div
-            className="relative flex items-center justify-center rounded-sm"
-            style={{
-              width: 92,
-              height: 92,
-              background: "rgba(167,139,250,0.08)",
-              border: "3px solid var(--accent)",
-              boxShadow: "0 0 18px var(--accent-glow), inset 0 0 12px rgba(0,0,0,0.4)",
-            }}
-          >
-            <motion.div
-              animate={{ rotate: 360 }}
-              transition={{ duration: 1.4, repeat: Infinity, ease: "linear" }}
-              className="rounded-full"
-              style={{
-                width: 56,
-                height: 56,
-                border: "4px solid color-mix(in srgb, var(--accent) 22%, transparent)",
-                borderTopColor: "var(--accent)",
-                boxShadow: "0 0 14px var(--accent-glow)",
-              }}
-            />
-          </div>
+          <Loader2 size={32} className="animate-spin" style={{ color: "var(--accent)" }} />
 
           <div
-            className="font-pixel uppercase tracking-widest text-center"
-            style={{
-              color: "var(--accent)",
-              fontSize: 18,
-              letterSpacing: "0.18em",
-              textShadow: "0 0 12px var(--accent-glow)",
-            }}
+            className="text-lg font-semibold text-center"
+            style={{ color: "var(--accent)" }}
           >
-            ▰ ПОДКЛЮЧЕНИЕ К АРЕНЕ ▰
+            Подключение к арене...
           </div>
 
           <button
             type="button"
             onClick={() => router.push("/pvp")}
-            className="font-pixel uppercase tracking-widest rounded-sm transition-colors"
+            className="text-sm font-medium rounded-xl px-4 py-2 transition-colors"
             style={{
-              padding: "8px 16px",
               background: "rgba(255,255,255,0.04)",
               color: "var(--text-secondary)",
-              border: "2px solid rgba(255,255,255,0.18)",
-              fontSize: 14,
-              letterSpacing: "0.18em",
-              cursor: "pointer",
+              border: "1px solid var(--border-color)",
             }}
           >
-            ← НА АРЕНУ
+            На арену
           </button>
         </motion.div>
 
@@ -780,9 +736,9 @@ function DuelPage() {
       >
         {/*
           2026-05-10 (header polish): унификация трёх стилей font-display
-          + font-pixel + font-mono в один пиксельный. Кнопки rounded-xl
-          с blur/shadow → rounded-sm 2px solid border. Mode-pill «PVP»
-          переписан на font-pixel. Все элементы шапки теперь говорят
+          + font-medium + font-mono в один пиксельный. Кнопки rounded-xl
+          с blur/shadow → rounded-xl 2px solid border. Mode-pill «PVP»
+          переписан на font-medium. Все элементы шапки теперь говорят
           одним визуальным языком.
         */}
 
@@ -792,14 +748,13 @@ function DuelPage() {
             type="button"
             onClick={() => setShowExitConfirm(true)}
             whileTap={{ scale: 0.96 }}
-            className="flex items-center gap-2 px-3 py-2 rounded-sm font-pixel uppercase tracking-widest shrink-0 transition-colors"
+            className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-semibold shrink-0 transition-colors"
             style={{
               background: "rgba(239,68,68,0.15)",
               color: "var(--danger)",
               border: "2px solid var(--danger)",
               fontSize: 14,
-              letterSpacing: "0.18em",
-              cursor: "pointer",
+                            cursor: "pointer",
             }}
             title="Выйти из дуэли"
           >
@@ -808,18 +763,17 @@ function DuelPage() {
           </motion.button>
           <div className="flex flex-col leading-tight min-w-0">
             <span
-              className="font-pixel uppercase tracking-widest"
+              className="text-sm font-semibold"
               style={{
                 color: store.myRole === "seller" ? "var(--accent)" : "var(--magenta, #d946ef)",
                 fontSize: 14,
-                letterSpacing: "0.18em",
-                textShadow: `0 0 10px ${store.myRole === "seller" ? "var(--accent-glow)" : "rgba(217,70,239,0.5)"}`,
+                                textShadow: `0 0 10px ${store.myRole === "seller" ? "var(--accent-glow)" : "rgba(217,70,239,0.5)"}`,
               }}
             >
               ВЫ · {myRoleLabel}
             </span>
             <span
-              className="font-pixel truncate"
+              className="font-medium truncate"
               style={{ color: "var(--text-primary)", fontSize: 16, marginTop: 2 }}
             >
               {myName}
@@ -830,7 +784,7 @@ function DuelPage() {
         {/* Center — VS + mode pill (только md+) */}
         <div className="hidden md:flex flex-col items-center shrink-0 px-3">
           <div
-            className="flex items-center justify-center rounded-sm"
+            className="flex items-center justify-center rounded-xl"
             style={{
               width: 44,
               height: 44,
@@ -842,8 +796,8 @@ function DuelPage() {
             <Swords size={22} style={{ color: "var(--accent)", filter: "drop-shadow(0 0 6px var(--accent-glow))" }} />
           </div>
           <span
-            className="font-pixel uppercase tracking-widest mt-1.5"
-            style={{ color: "var(--text-secondary)", fontSize: 14, letterSpacing: "0.22em" }}
+            className="text-sm font-semibold mt-1.5"
+            style={{ color: "var(--text-secondary)", fontSize: 14,  }}
           >
             {store.duelBrief?.is_pve ? "PVE · БОТ" : "PVP"}
           </span>
@@ -853,31 +807,29 @@ function DuelPage() {
         <div className="flex items-center gap-3 min-w-0 flex-1 justify-end">
           <div className="flex flex-col leading-tight min-w-0 items-end">
             <span
-              className="font-pixel uppercase tracking-widest"
+              className="text-sm font-semibold"
               style={{
                 color: store.myRole === "seller" ? "var(--magenta, #d946ef)" : "var(--accent)",
                 fontSize: 14,
-                letterSpacing: "0.18em",
-                textShadow: `0 0 10px ${store.myRole === "seller" ? "rgba(217,70,239,0.5)" : "var(--accent-glow)"}`,
+                                textShadow: `0 0 10px ${store.myRole === "seller" ? "rgba(217,70,239,0.5)" : "var(--accent-glow)"}`,
               }}
             >
               {oppRoleLabel} · {store.duelBrief?.is_pve ? "AI" : "ИГРОК"}
             </span>
             <span
-              className="font-pixel truncate flex items-center gap-2"
+              className="font-medium truncate flex items-center gap-2"
               style={{ color: "var(--text-primary)", fontSize: 16, marginTop: 2 }}
             >
               {store.duelBrief?.opponent?.name || "Подбор…"}
               {oppTier && (
                 <span
-                  className="px-2 py-0.5 uppercase tracking-widest rounded-sm font-pixel"
+                  className="px-2 py-0.5 uppercase tracking-widest rounded-xl font-medium"
                   style={{
                     background: "rgba(167,139,250,0.18)",
                     color: "var(--accent)",
                     border: "1px solid var(--accent)",
                     fontSize: 12,
-                    letterSpacing: "0.18em",
-                  }}
+                                      }}
                 >
                   {oppTier}
                 </span>
@@ -888,7 +840,7 @@ function DuelPage() {
       </header>
       {store.duelBrief?.archetype && (
         <div
-          className="px-4 sm:px-6 py-1 text-[10px] sm:text-[11px] font-pixel uppercase tracking-widest text-center z-20"
+          className="px-4 sm:px-6 py-1 text-[10px] sm:text-[11px] text-sm font-semibold text-center z-20"
           style={{
             color: "var(--text-secondary)",
             background: "rgba(0,0,0,0.25)",
@@ -901,23 +853,22 @@ function DuelPage() {
 
       {/*
         2026-05-10 (cross-page polish): connection-status и statusNotice
-        переведены на пиксельный стиль — square 2px borders, font-pixel
+        переведены на пиксельный стиль — square 2px borders, font-medium
         14px, чтобы не выбиваться из остальной шапки/lifelines.
       */}
       {connectionState !== "connected" && (
         <div className="px-4 pt-3 z-20">
           <div
-            className="rounded-sm px-3 py-2 font-pixel uppercase tracking-widest flex items-center gap-2"
+            className="rounded-xl px-3 py-2 text-sm font-semibold flex items-center gap-2"
             style={{
               background: connectionState === "reconnecting" ? "rgba(245,158,11,0.18)" : "rgba(239,68,68,0.18)",
               color: connectionState === "reconnecting" ? "var(--warning)" : "var(--danger)",
               border: `2px solid ${connectionState === "reconnecting" ? "var(--warning)" : "var(--danger)"}`,
               fontSize: 14,
-              letterSpacing: "0.18em",
-            }}
+                          }}
           >
             <div
-              className="rounded-sm animate-pulse"
+              className="rounded-xl animate-pulse"
               style={{
                 width: 8,
                 height: 8,
@@ -932,14 +883,13 @@ function DuelPage() {
       {statusNotice && (
         <div className="px-4 pt-3 z-20">
           <div
-            className="rounded-sm px-3 py-2 font-pixel uppercase tracking-widest"
+            className="rounded-xl px-3 py-2 text-sm font-semibold"
             style={{
               background: "rgba(255,255,255,0.06)",
               color: "var(--text-secondary)",
               border: "2px solid rgba(255,255,255,0.18)",
               fontSize: 14,
-              letterSpacing: "0.18em",
-            }}
+                          }}
           >
             {statusNotice}
           </div>
@@ -956,7 +906,7 @@ function DuelPage() {
               ВАША РОЛЬ
             </span>
             <span
-              className="font-pixel uppercase tracking-widest"
+              className="text-sm font-semibold"
               style={{ color: "var(--accent)", fontSize: 14, letterSpacing: "0.18em" }}
             >
               {sanitizeText(store.duelBrief.character_brief.name)}
@@ -983,21 +933,20 @@ function DuelPage() {
         <div className="mx-4 mt-2 flex items-center gap-2 flex-wrap z-20">
           {/*
             2026-05-10 (lifelines polish): унифицированы под пиксельный
-            стиль шапки — rounded-sm 2px solid borders, font-pixel
+            стиль шапки — rounded-xl 2px solid borders, font-medium
             uppercase 14px, цвет варьируется по типу (yellow/grey/accent).
           */}
           {lifelines.counts.hints > 0 && (
             <button
               type="button"
               onClick={() => lifelines.useHint(input || "Помоги с ответом")}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-sm font-pixel uppercase tracking-widest transition-colors"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-semibold transition-colors"
               style={{
                 background: "rgba(250,204,21,0.18)",
                 color: "#facc15",
                 border: "2px solid #facc15",
                 fontSize: 14,
-                letterSpacing: "0.18em",
-              }}
+                              }}
               title="Подсказка — RAG-грунт по 127-ФЗ"
             >
               <Lightbulb size={14} />
@@ -1015,14 +964,13 @@ function DuelPage() {
                   sendMessage({ type: "duel.message", text: "__skip__" });
                 }
               }}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-sm font-pixel uppercase tracking-widest transition-colors"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-semibold transition-colors"
               style={{
                 background: "rgba(148,163,184,0.18)",
                 color: "#94a3b8",
                 border: "2px solid #94a3b8",
                 fontSize: 14,
-                letterSpacing: "0.18em",
-              }}
+                              }}
               title="Пропустить ход"
             >
               <SkipForward size={14} />
@@ -1037,14 +985,13 @@ function DuelPage() {
             type="button"
             onClick={() => (micActive ? speech.stopListening() : speech.startListening())}
             disabled={!speech.isSupported}
-            className="ml-auto inline-flex items-center gap-1.5 px-3 py-1.5 rounded-sm font-pixel uppercase tracking-widest transition-colors disabled:opacity-40"
+            className="ml-auto inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-semibold transition-colors disabled:opacity-40"
             style={{
               background: micActive ? theme.accent : "rgba(167,139,250,0.12)",
               color: micActive ? "#0b0b14" : theme.accent,
               border: `2px solid ${theme.accent}`,
               fontSize: 14,
-              letterSpacing: "0.18em",
-              boxShadow: micActive ? `0 0 10px ${theme.accent}` : "none",
+                            boxShadow: micActive ? `0 0 10px ${theme.accent}` : "none",
             }}
             title={
               !speech.isSupported
@@ -1067,15 +1014,11 @@ function DuelPage() {
         <div
           role="alert"
           aria-live="polite"
-          className="z-30 mx-3 mb-2 px-3 py-2 font-pixel"
+          className="z-30 mx-3 mb-2 px-3 py-2 font-medium rounded-xl text-sm"
           style={{
             background: "var(--warning-muted, #4a3a18)",
-            border: "2px solid var(--warning, #f5a623)",
-            outlineOffset: -2,
-            boxShadow: "3px 3px 0 0 var(--warning, #f5a623)",
+            border: "1px solid rgba(245,158,11,0.3)",
             color: "var(--warning, #f5a623)",
-            fontSize: 13,
-            letterSpacing: "0.06em",
             lineHeight: 1.45,
           }}
         >

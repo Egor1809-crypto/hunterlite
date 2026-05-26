@@ -238,7 +238,7 @@ function PixelStatusChip({ status }: { status: ConnectionStatus }) {
   const c = config[status];
   return (
     <div
-      className="inline-flex items-center gap-1.5 font-pixel"
+      className="inline-flex items-center gap-1.5 font-medium"
       style={{
         padding: "3px 10px",
         background: "var(--bg-panel)",
@@ -333,7 +333,7 @@ function MessageRow({
       <PixelAvatar code={avatarCode} tier={tier} side={side} />
       <PixelBubble side={side} color={color} tinted={isMine}>
         <div
-          className="flex items-center justify-between gap-3 mb-1 font-pixel"
+          className="flex items-center justify-between gap-3 mb-1 font-medium"
           style={{ fontSize: 13, letterSpacing: "0.14em", textTransform: "uppercase" }}
         >
           <span style={{ color }}>{isMine ? "ВЫ" : senderName}</span>
@@ -375,7 +375,7 @@ function MessageRow({
         {/* Delivered tick (только для своих, и только если есть подтверждение) */}
         {isMine && isDelivered && (
           <div
-            className="font-pixel"
+            className="font-medium"
             style={{
               marginTop: 4,
               textAlign: "right",
@@ -416,7 +416,7 @@ function TypingBubble({
       <PixelAvatar code={opponentAvatar} tier={tier} side="left" />
       <PixelBubble side="left" color={color} tinted={false} hoverable={false}>
         <div
-          className="flex items-center gap-2 font-pixel"
+          className="flex items-center gap-2 font-medium"
           style={{ fontSize: 14, letterSpacing: "0.14em", textTransform: "uppercase" }}
         >
           <span style={{ color }}>Думает</span>
@@ -440,13 +440,13 @@ function ScoreHeader({ scores }: { scores: DuelScores }) {
   }) => (
     <div className="flex flex-col items-center justify-center">
       <span
-        className="font-pixel"
+        className="font-medium"
         style={{ color: "var(--text-muted)", fontSize: 11, letterSpacing: "0.18em" }}
       >
         {label}
       </span>
       <span
-        className="font-pixel"
+        className="font-medium"
         style={{ color, fontSize: 26, letterSpacing: "0.04em", lineHeight: 1.1 }}
       >
         {Math.round(value)}
@@ -699,7 +699,7 @@ export function DuelChat({
             onClick={onSend}
             disabled={sendDisabled}
             aria-label="Отправить сообщение"
-            className="shrink-0 inline-flex items-center justify-center font-pixel"
+            className="shrink-0 inline-flex items-center justify-center font-medium"
             style={{
               width: 48,
               height: 48,
@@ -725,7 +725,7 @@ export function DuelChat({
         {charCount > 0 && (
           <div className="px-4 pb-2 flex items-center justify-end">
             <span
-              className="font-pixel"
+              className="font-medium"
               style={{
                 color: charWarning ? "var(--danger)" : "var(--text-muted)",
                 fontSize: 13,

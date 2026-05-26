@@ -220,7 +220,7 @@ export default function CallDialingOverlay({
           >
             {calleeName && (
               <div
-                className="font-pixel uppercase tracking-widest"
+                className="font-medium uppercase tracking-wide"
                 style={{
                   color: "var(--text-primary)",
                   fontSize: "clamp(20px, 3vw, 28px)",
@@ -258,11 +258,10 @@ function DialingStatusText() {
   const messages = ["▰ СОЕДИНЕНИЕ ▰", "▰ ГУДКИ ИДУТ ▰"];
   return (
     <div
-      className="font-pixel uppercase tracking-widest"
+      className="font-medium uppercase tracking-wide"
       style={{
         color: "rgba(74,222,128,0.95)",
         fontSize: 14,
-        letterSpacing: "0.22em",
       }}
     >
       <motion.span

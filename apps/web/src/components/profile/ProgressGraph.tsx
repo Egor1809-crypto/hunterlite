@@ -158,7 +158,7 @@ export function ProgressGraph({ data }: ProgressGraphProps) {
       >
         <ChartBar weight="duotone" size={36} className="mx-auto" style={{ color: "var(--text-muted)", opacity: 0.5 }} />
         <p
-          className="mt-4 font-pixel uppercase tracking-widest"
+          className="mt-4 font-medium uppercase tracking-wide"
           style={{ color: "var(--text-muted)", fontSize: 14 }}
         >
           Пройдите несколько тренировок для отображения прогресса
@@ -183,7 +183,7 @@ export function ProgressGraph({ data }: ProgressGraphProps) {
       <div className="flex items-center gap-2 mb-4">
         <TrendUp weight="duotone" size={18} style={{ color: "var(--accent)" }} />
         <span
-          className="font-pixel uppercase tracking-widest"
+          className="font-medium uppercase tracking-wide"
           style={{ color: "var(--text-secondary)", fontSize: 14 }}
         >
           ▰ ГРАФИК ПО НЕДЕЛЯМ ▰

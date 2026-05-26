@@ -86,7 +86,7 @@ function CopyButton({ text }: { text: string }) {
           /* ignore */
         }
       }}
-      className="inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[10px] uppercase tracking-wider transition-colors"
+      className="inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[10px] uppercase tracking-wide transition-colors"
       style={{
         background: copied ? "rgba(34,197,94,0.18)" : "rgba(255,255,255,0.06)",
         color: copied ? "var(--success)" : "var(--text-muted)",
@@ -120,7 +120,7 @@ function ChunkCard({ chunk }: { chunk: RagChunk }) {
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1.5 flex-wrap">
             <span
-              className="font-pixel text-[10px] uppercase tracking-widest px-1.5 py-0.5"
+              className="font-medium text-[10px] uppercase tracking-wide px-1.5 py-0.5"
               style={{
                 color: "var(--accent)",
                 background: "color-mix(in srgb, var(--accent) 12%, transparent)",
@@ -130,14 +130,14 @@ function ChunkCard({ chunk }: { chunk: RagChunk }) {
               {catLabel}
             </span>
             <span
-              className="font-mono text-[10px] uppercase tracking-widest"
+              className="font-mono text-[10px] uppercase tracking-wide"
               style={{ color: "var(--text-muted)" }}
             >
               сложность {chunk.difficulty}/5
             </span>
             {chunk.is_court_practice && (
               <span
-                className="font-mono text-[10px] uppercase tracking-widest px-1.5 py-0.5"
+                className="font-mono text-[10px] uppercase tracking-wide px-1.5 py-0.5"
                 style={{
                   color: "#a78bfa",
                   background: "rgba(167,139,250,0.12)",
@@ -230,7 +230,7 @@ function ChunkCard({ chunk }: { chunk: RagChunk }) {
               }}
             >
               <div
-                className="font-pixel text-[11px] uppercase tracking-widest mb-2"
+                className="font-medium text-[11px] uppercase tracking-wide mb-2"
                 style={{ color: "var(--warning)" }}
               >
                 ⚡ БЛИЦ Q&A
@@ -238,7 +238,7 @@ function ChunkCard({ chunk }: { chunk: RagChunk }) {
               {chunk.blitz_question && (
                 <div className="mb-2">
                   <div
-                    className="text-[10px] uppercase tracking-wider mb-0.5"
+                    className="text-[10px] uppercase tracking-wide mb-0.5"
                     style={{ color: "var(--text-muted)" }}
                   >
                     Вопрос
@@ -252,7 +252,7 @@ function ChunkCard({ chunk }: { chunk: RagChunk }) {
               {chunk.blitz_answer && (
                 <div>
                   <div
-                    className="text-[10px] uppercase tracking-wider mb-0.5"
+                    className="text-[10px] uppercase tracking-wide mb-0.5"
                     style={{ color: "var(--text-muted)" }}
                   >
                     Эталонный ответ
@@ -370,7 +370,7 @@ function ChunkCard({ chunk }: { chunk: RagChunk }) {
 function Header({ label, accent }: { label: string; accent: string }) {
   return (
     <div
-      className="font-pixel text-[11px] uppercase tracking-widest"
+      className="font-medium text-[11px] uppercase tracking-wide"
       style={{ color: accent }}
     >
       {label}
@@ -459,7 +459,7 @@ export function KnowledgeBaseBrowser() {
         <div className="flex items-center gap-2 mb-2">
           <BookOpen size={16} style={{ color: "var(--accent)" }} />
           <div
-            className="font-pixel text-sm uppercase tracking-widest"
+            className="font-medium text-sm uppercase tracking-wide"
             style={{ color: "var(--accent)" }}
           >
             База знаний ФЗ-127 (RAG)
@@ -505,7 +505,7 @@ export function KnowledgeBaseBrowser() {
               setCategory("");
               setOffset(0);
             }}
-            className="px-2.5 py-1 text-[11px] uppercase tracking-widest font-pixel"
+            className="px-2.5 py-1 text-[11px] uppercase tracking-wide font-medium"
             style={{
               background: !category ? "var(--accent)" : "var(--bg-panel)",
               color: !category ? "#fff" : "var(--text-muted)",
@@ -525,7 +525,7 @@ export function KnowledgeBaseBrowser() {
                   setCategory(active ? "" : cat);
                   setOffset(0);
                 }}
-                className="px-2.5 py-1 text-[11px] uppercase tracking-widest font-pixel"
+                className="px-2.5 py-1 text-[11px] uppercase tracking-wide font-medium"
                 style={{
                   background: active ? "var(--accent)" : "var(--bg-panel)",
                   color: active ? "#fff" : "var(--text-secondary)",
@@ -541,7 +541,7 @@ export function KnowledgeBaseBrowser() {
 
         <div className="flex flex-wrap gap-1.5">
           <span
-            className="font-pixel text-[10px] uppercase tracking-widest self-center mr-1"
+            className="font-medium text-[10px] uppercase tracking-wide self-center mr-1"
             style={{ color: "var(--text-muted)" }}
           >
             ▸ сложность:
@@ -557,7 +557,7 @@ export function KnowledgeBaseBrowser() {
                   setDifficulty(d);
                   setOffset(0);
                 }}
-                className="px-2 py-0.5 text-[10px] uppercase tracking-widest font-pixel"
+                className="px-2 py-0.5 text-[10px] uppercase tracking-wide font-medium"
                 style={{
                   background: active ? "var(--warning)" : "var(--bg-panel)",
                   color: active ? "#0b0b14" : "var(--text-muted)",
@@ -616,7 +616,7 @@ export function KnowledgeBaseBrowser() {
                 type="button"
                 disabled={offset === 0}
                 onClick={() => setOffset(Math.max(0, offset - PAGE_SIZE))}
-                className="px-3 py-1.5 text-xs font-pixel uppercase tracking-widest disabled:opacity-40"
+                className="px-3 py-1.5 text-xs font-medium uppercase tracking-wide disabled:opacity-40"
                 style={{
                   background: "var(--bg-panel)",
                   border: "1px solid var(--border-color)",
@@ -633,7 +633,7 @@ export function KnowledgeBaseBrowser() {
                 type="button"
                 disabled={currentPage >= totalPages}
                 onClick={() => setOffset(offset + PAGE_SIZE)}
-                className="px-3 py-1.5 text-xs font-pixel uppercase tracking-widest disabled:opacity-40"
+                className="px-3 py-1.5 text-xs font-medium uppercase tracking-wide disabled:opacity-40"
                 style={{
                   background: "var(--bg-panel)",
                   border: "1px solid var(--border-color)",

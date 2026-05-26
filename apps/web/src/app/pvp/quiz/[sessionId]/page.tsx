@@ -1262,16 +1262,12 @@ function KnowledgeSessionPage() {
                     store.status !== "active" ||
                     (hintTiersRemaining !== null && hintTiersRemaining <= 0)
                   }
-                  whileHover={{ y: -1 }}
-                  whileTap={{ y: 2 }}
-                  className="relative flex h-11 min-w-11 shrink-0 items-center justify-center gap-1 px-2 disabled:opacity-40"
+                  whileTap={{ scale: 0.97 }}
+                  className="relative flex h-11 min-w-11 shrink-0 items-center justify-center gap-1 px-2 rounded-xl disabled:opacity-40"
                   style={{
                     background: "rgba(245,158,11,0.12)",
-                    border: "2px solid var(--warning)",
-                    borderRadius: 0,
+                    border: "1px solid rgba(245,158,11,0.3)",
                     color: "var(--warning)",
-                    boxShadow: "2px 2px 0 0 var(--warning)",
-                    transition: "box-shadow 120ms, transform 120ms",
                   }}
                   title={
                     hintTier !== null
@@ -1286,7 +1282,7 @@ function KnowledgeSessionPage() {
                     <>
                       <Lightbulb size={16} />
                       {hintTier !== null && (
-                        <span className="font-pixel text-[10px] leading-none">{hintTier}/3</span>
+                        <span className="text-[10px] font-medium leading-none">{hintTier}/3</span>
                       )}
                     </>
                   )}
@@ -1294,12 +1290,10 @@ function KnowledgeSessionPage() {
               )}
 
               <div
-                className="flex flex-1 items-end relative min-w-0"
+                className="flex flex-1 items-end relative min-w-0 rounded-xl"
                 style={{
                   background: "var(--input-bg)",
-                  border: "2px solid var(--accent)",
-                  borderRadius: 0,
-                  boxShadow: "2px 2px 0 0 var(--accent-muted)",
+                  border: "1px solid var(--border-color)",
                   minHeight: 44,
                 }}
               >
@@ -1327,21 +1321,16 @@ function KnowledgeSessionPage() {
               <motion.button
                 onClick={handleSend}
                 disabled={!store.input.trim() || store.status !== "active"}
-                whileHover={{ y: -1 }}
-                whileTap={{ y: 2 }}
-                className="flex h-11 shrink-0 items-center justify-center gap-1.5 px-3 sm:px-4 disabled:opacity-40 font-pixel text-sm uppercase tracking-widest"
+                whileTap={{ scale: 0.97 }}
+                className="flex h-11 shrink-0 items-center justify-center gap-1.5 px-3 sm:px-4 rounded-xl disabled:opacity-40 text-sm font-semibold"
                 style={{
                   background: "var(--accent)",
-                  border: "2px solid var(--accent)",
-                  borderRadius: 0,
                   color: "#fff",
-                  boxShadow: "2px 2px 0 0 #000",
-                  transition: "box-shadow 120ms, transform 120ms",
                 }}
                 aria-label="Отправить"
               >
                 <Send size={14} />
-                <span className="hidden sm:inline">SEND</span>
+                <span className="hidden sm:inline">Отправить</span>
               </motion.button>
             </div>
             {validationError && (

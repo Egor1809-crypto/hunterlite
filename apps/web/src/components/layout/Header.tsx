@@ -174,7 +174,7 @@ export default function Header() {
                 <UserAvatar avatarUrl={user?.avatar_url} fullName={displayName} size={30} />
                 <div className="hidden min-w-0 text-left sm:block">
                   <div className="truncate text-sm font-semibold leading-tight" style={{ color: "var(--header-text)" }}>{displayName}</div>
-                  <div className="font-pixel text-[12px] uppercase leading-none tracking-widest" style={{ color: "var(--header-text-muted)" }}>
+                  <div className="font-medium text-[12px] uppercase leading-none tracking-wide" style={{ color: "var(--header-text-muted)" }}>
                     {roleLabel}
                   </div>
                 </div>
@@ -254,7 +254,7 @@ export default function Header() {
               className="group rounded-[20px] px-3 py-1.5 transition-opacity duration-200 hover:opacity-85"
               aria-label="X HUNTER — Главная"
             >
-              <span className="font-display font-bold text-lg tracking-wider flex items-center gap-2" style={{ color: "var(--accent)" }}>
+              <span className="font-display font-bold text-lg tracking-wide flex items-center gap-2" style={{ color: "var(--accent)" }}>
                 <Scale size={20} />
                 LegalHunter
               </span>
@@ -352,7 +352,7 @@ export default function Header() {
                       </>
                     )}
                     <span className="relative z-10 flex items-center opacity-80"><Icon size={16} /></span>
-                    <span className="relative z-10 font-pixel text-[17px] uppercase leading-none tracking-[0.04em]" style={{ paddingTop: 2 }}>
+                    <span className="relative z-10 font-medium text-[17px] uppercase leading-none tracking-[0.04em]" style={{ paddingTop: 2 }}>
                       {item.label}
                     </span>
                   </div>
@@ -428,7 +428,7 @@ export default function Header() {
                   <>
                     <div className="my-2 mx-2 h-px" style={{ background: "var(--border-color)" }} />
                     <div className="px-1 pb-1">
-                      <div className="mb-1.5 px-2.5 text-xs font-medium uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
+                      <div className="mb-1.5 px-2.5 text-xs font-medium uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>
                         Управление
                       </div>
                       <div className="grid grid-cols-2 gap-1.5">

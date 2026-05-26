@@ -181,7 +181,7 @@ export function PvPVictoryScreen({
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.4 }}
-          className="absolute top-4 right-4 font-pixel"
+          className="absolute top-4 right-4 font-medium"
           aria-label="Пропустить вступление"
           style={{
             padding: "6px 12px",
@@ -215,7 +215,7 @@ export function PvPVictoryScreen({
               x: { duration: 0.5, delay: 0.1 },
               opacity: { duration: 0.2 },
             }}
-            className="font-pixel text-center"
+            className="font-medium text-center"
             style={{
               color: koColor,
               fontSize: "clamp(60px, 14vw, 180px)",
@@ -239,7 +239,7 @@ export function PvPVictoryScreen({
           >
             <CountUpScore value={myScore} color={koColor} />
             <div
-              className="font-pixel"
+              className="font-medium"
               style={{
                 color: "var(--text-muted)",
                 fontSize: 14,
@@ -268,7 +268,7 @@ export function PvPVictoryScreen({
                 initial={{ scale: 0.5, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
                 transition={{ delay: 0.3, type: "spring", stiffness: 220 }}
-                className="font-pixel"
+                className="font-medium"
                 style={{
                   color: PVP_RANK_COLORS[normalizeRankTier(typeof newTier === "string" ? newTier : "")] ?? "var(--accent)",
                   fontSize: "clamp(28px, 5vw, 44px)",
@@ -293,7 +293,7 @@ export function PvPVictoryScreen({
           >
             {/* Headline (small, pixel) */}
             <div
-              className="font-pixel"
+              className="font-medium"
               style={{
                 color: koColor,
                 fontSize: "clamp(36px, 6vw, 64px)",
@@ -308,7 +308,7 @@ export function PvPVictoryScreen({
             <div className="flex items-center gap-6 sm:gap-12 justify-center">
               <ScoreCol score={myScore} label="Вы" highlight={isWinner} />
               <span
-                className="font-pixel"
+                className="font-medium"
                 style={{
                   color: "var(--text-muted)",
                   fontSize: 32,
@@ -330,7 +330,7 @@ export function PvPVictoryScreen({
             {/* Continue */}
             <motion.button
               onClick={onContinue}
-              className="font-pixel inline-flex items-center gap-2"
+              className="font-medium inline-flex items-center gap-2"
               style={{
                 padding: "12px 28px",
                 background: "var(--accent)",
@@ -380,7 +380,7 @@ function CountUpScore({ value, color }: { value: number; color: string }) {
   }, [value, reduce]);
   return (
     <div
-      className="font-pixel"
+      className="font-medium"
       style={{
         color,
         fontSize: "clamp(48px, 9vw, 100px)",
@@ -420,7 +420,7 @@ function ELODisplay({ prev, delta }: { prev?: number; delta: number }) {
     <div className="flex items-center justify-center gap-4">
       {prev != null && (
         <span
-          className="font-pixel"
+          className="font-medium"
           style={{ color: "var(--text-muted)", fontSize: 32, letterSpacing: "0.04em" }}
         >
           {prev}
@@ -440,7 +440,7 @@ function ELODisplay({ prev, delta }: { prev?: number; delta: number }) {
         </motion.span>
       )}
       <span
-        className="font-pixel"
+        className="font-medium"
         style={{
           color: delta >= 0 ? "var(--success)" : "var(--danger)",
           fontSize: 48,
@@ -451,7 +451,7 @@ function ELODisplay({ prev, delta }: { prev?: number; delta: number }) {
         {shown}
       </span>
       <span
-        className="font-pixel"
+        className="font-medium"
         style={{
           color: delta >= 0 ? "var(--success)" : "var(--danger)",
           fontSize: 24,
@@ -472,7 +472,7 @@ function TierPulseBadge({ tier }: { tier: PvPRankTier | string }) {
     <motion.div
       animate={{ scale: [1, 1.06, 1] }}
       transition={{ repeat: Infinity, duration: 1.4 }}
-      className="inline-block font-pixel"
+      className="inline-block font-medium"
       style={{
         padding: "6px 14px",
         outline: `2px solid ${color}`,
@@ -502,7 +502,7 @@ function ScoreCol({
   return (
     <div className="text-center">
       <div
-        className="font-pixel"
+        className="font-medium"
         style={{
           color: highlight ? "var(--gf-xp)" : "var(--text-primary)",
           fontSize: "clamp(40px, 7vw, 72px)",
@@ -514,7 +514,7 @@ function ScoreCol({
         {score}
       </div>
       <div
-        className="font-pixel mt-2"
+        className="font-medium mt-2"
         style={{
           color: "var(--text-muted)",
           fontSize: 12,
@@ -534,7 +534,7 @@ function ELOChip({ delta }: { delta: number }) {
   const color = positive ? "var(--success)" : negative ? "var(--danger)" : "var(--text-muted)";
   return (
     <div
-      className="inline-flex items-center gap-2 font-pixel"
+      className="inline-flex items-center gap-2 font-medium"
       style={{
         padding: "6px 14px",
         background: `color-mix(in srgb, ${color} 14%, transparent)`,

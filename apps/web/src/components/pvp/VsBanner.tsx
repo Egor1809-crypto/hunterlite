@@ -85,7 +85,7 @@ export function VsBanner({
               className="text-right"
             >
               <span
-                className="font-pixel block"
+                className="font-medium block"
                 style={{
                   color: leftColor,
                   fontSize: "clamp(28px, 6vw, 56px)",
@@ -105,7 +105,7 @@ export function VsBanner({
               animate={{ scale: 1, opacity: 1, rotate: 0 }}
               exit={{ scale: 0.6, opacity: 0 }}
               transition={{ type: "spring", stiffness: 360, damping: 18, delay: 0.4 }}
-              className="font-pixel relative"
+              className="font-medium relative"
               style={{
                 color: "var(--accent)",
                 fontSize: "clamp(64px, 12vw, 140px)",
@@ -139,7 +139,7 @@ export function VsBanner({
               className="text-left"
             >
               <span
-                className="font-pixel block"
+                className="font-medium block"
                 style={{
                   color: rightColor,
                   fontSize: "clamp(28px, 6vw, 56px)",
@@ -159,7 +159,7 @@ export function VsBanner({
             initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 1.0, duration: 0.3 }}
-            className="absolute bottom-[20%] font-pixel"
+            className="absolute bottom-[20%] font-medium"
             style={{
               color: "var(--danger)",
               fontSize: "clamp(20px, 3.5vw, 38px)",

@@ -61,7 +61,7 @@ export function PinnedMessagesBar({ messages, onUnpin }: PinnedMessagesBarProps)
         onClick={() => setOpen((v) => !v)}
         whileHover={{ y: -1 }}
         whileTap={{ y: 1 }}
-        className="flex items-center gap-2 font-pixel uppercase tracking-wider"
+        className="flex items-center gap-2 font-medium uppercase tracking-wide"
         style={{
           height: 36,
           padding: "0 12px",
@@ -96,7 +96,7 @@ export function PinnedMessagesBar({ messages, onUnpin }: PinnedMessagesBarProps)
             }}
           >
             <div className="flex items-center justify-between px-4 py-3" style={{ borderBottom: "2px solid var(--accent)" }}>
-              <div className="font-pixel uppercase tracking-wider" style={{ color: "var(--accent)", fontSize: 13 }}>
+              <div className="font-medium uppercase tracking-wide" style={{ color: "var(--accent)", fontSize: 13 }}>
                 📌 ЗАКРЕПЛЁННЫЕ · {pinned.length}
               </div>
               <button onClick={() => setOpen(false)} aria-label="Закрыть" style={{ color: "var(--text-muted)" }}>
@@ -114,7 +114,7 @@ export function PinnedMessagesBar({ messages, onUnpin }: PinnedMessagesBarProps)
                   onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.background = "transparent"; }}
                 >
                   <div
-                    className="shrink-0 font-pixel"
+                    className="shrink-0 font-medium"
                     style={{
                       fontSize: 10,
                       color: m.role === "user" ? "var(--accent)" : "var(--success)",

@@ -76,14 +76,14 @@ export function KnowledgeBasePanel() {
       aria-label="База ФЗ-127"
     >
       <div
-        className="font-pixel uppercase tracking-widest mb-3 flex items-center gap-2"
+        className="font-medium uppercase tracking-wide mb-3 flex items-center gap-2"
         style={{ color: "var(--accent)", fontSize: 11, letterSpacing: "0.16em" }}
       >
         <BookOpen size={13} />
         БАЗА ФЗ-127
         {total !== null && total > 0 && (
           <span
-            className="ml-auto font-pixel text-[10px]"
+            className="ml-auto font-medium text-[10px]"
             style={{ color: "var(--text-muted)", letterSpacing: "0.06em" }}
           >
             {total} статей
@@ -132,7 +132,7 @@ export function KnowledgeBasePanel() {
         </div>
       ) : chunks.length === 0 ? (
         <div
-          className="font-pixel text-[10px] uppercase tracking-wider py-3 text-center"
+          className="font-medium text-[10px] uppercase tracking-wide py-3 text-center"
           style={{ color: "var(--text-muted)", letterSpacing: "0.14em" }}
         >
           {query ? "Ничего не найдено" : "Загружается..."}
@@ -166,7 +166,7 @@ export function KnowledgeBasePanel() {
                     title="Открыть в полной базе"
                   >
                     <div
-                      className="font-pixel uppercase text-[10px] mb-0.5 flex items-center gap-1.5"
+                      className="font-medium uppercase text-[10px] mb-0.5 flex items-center gap-1.5"
                       style={{ color: "var(--accent)", letterSpacing: "0.12em" }}
                     >
                       <span>{categoryLabel(c.category)}</span>
@@ -188,7 +188,7 @@ export function KnowledgeBasePanel() {
       <button
         type="button"
         onClick={() => router.push("/pvp?tab=knowledge_base")}
-        className="mt-3 block w-full text-center font-pixel uppercase text-[10px] tracking-widest py-1.5"
+        className="mt-3 block w-full text-center font-medium uppercase text-[10px] tracking-wide py-1.5"
         style={{
           color: "var(--text-muted)",
           border: "1px dashed var(--border-color)",

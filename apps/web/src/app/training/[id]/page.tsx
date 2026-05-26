@@ -1660,8 +1660,8 @@ export default function TrainingSessionPage() {
             LegalHunter
           </span>
           {s.storyMode && (
-            <span className="font-pixel text-[10px] hidden sm:inline" style={{ color: "var(--text-muted)" }}>
-              ЗВОНОК {s.callNumber}/{s.totalCalls}
+            <span className="text-[10px] font-medium hidden sm:inline" style={{ color: "var(--text-muted)" }}>
+              Звонок {s.callNumber}/{s.totalCalls}
             </span>
           )}
         </div>
@@ -1669,7 +1669,7 @@ export default function TrainingSessionPage() {
         {/* Center: timer — pixel game style */}
         <div className="flex items-center gap-2">
           <div
-            className={`font-pixel text-xl font-bold tabular-nums pixel-glow ${s.elapsed >= 1500 ? "animate-pulse" : ""}`}
+            className={`font-mono text-xl font-bold tabular-nums ${s.elapsed >= 1500 ? "animate-pulse" : ""}`}
             style={{ color: s.elapsed >= 1500 ? "var(--warning)" : "var(--accent)" }}
           >
             {formatTime(s.elapsed)}

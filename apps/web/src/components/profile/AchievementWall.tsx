@@ -4,7 +4,7 @@
  * 2026-05-08 (графическая полировка): rounded-xl + glass-bg → пиксель.
  *   - Крупные плитки с 3px sharp-corner border
  *   - Большая иконка-медаль слева (44px) в square frame
- *   - Заголовок 16px font-pixel, описание 14px (было 12-13)
+ *   - Заголовок 16px font-medium, описание 14px (было 12-13)
  *   - Hover: scale-up + усиленный glow по цвету категории
  *   - Каждая категория — пиксельная плашка-заголовок с counter-чипом
  *   - 2-колоночная сетка на desktop (было 4) — даём дыхание
@@ -61,7 +61,7 @@ export function AchievementWall({ achievements }: AchievementWallProps) {
       >
         <Lock size={36} className="mx-auto" style={{ color: "var(--text-muted)", opacity: 0.5 }} />
         <p
-          className="mt-4 font-pixel uppercase tracking-widest"
+          className="mt-4 font-medium uppercase tracking-wide"
           style={{ color: "var(--text-muted)", fontSize: 14 }}
         >
           Пройдите несколько тренировок чтобы открыть достижения
@@ -94,13 +94,13 @@ export function AchievementWall({ achievements }: AchievementWallProps) {
             >
               <Icon size={16} weight="duotone" style={{ color: cat.color }} />
               <span
-                className="font-pixel uppercase tracking-widest"
+                className="font-medium uppercase tracking-wide"
                 style={{ color: cat.color, fontSize: 14 }}
               >
                 {cat.label}
               </span>
               <span
-                className="rounded-sm px-2 py-0.5 font-pixel font-bold tabular-nums"
+                className="rounded-sm px-2 py-0.5 font-bold tabular-nums"
                 style={{
                   background: cat.color,
                   color: "#0b0b14",
@@ -148,7 +148,7 @@ export function AchievementWall({ achievements }: AchievementWallProps) {
                   {/* Текстовая часть */}
                   <div className="min-w-0 flex-1">
                     <div
-                      className="font-pixel font-bold leading-tight"
+                      className="font-bold leading-tight"
                       style={{
                         color: "var(--text-primary)",
                         fontSize: 16,
@@ -167,7 +167,7 @@ export function AchievementWall({ achievements }: AchievementWallProps) {
                     </p>
                     {a.earned_at && (
                       <div
-                        className="font-pixel uppercase tracking-widest mt-2"
+                        className="font-medium uppercase tracking-wide mt-2"
                         style={{ color: cat.color, fontSize: 12, opacity: 0.85 }}
                       >
                         ★ {new Date(a.earned_at).toLocaleDateString("ru-RU", { day: "numeric", month: "short", year: "numeric" })}

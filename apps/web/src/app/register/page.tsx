@@ -73,18 +73,28 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center px-4 py-8 overflow-hidden bg-gradient-to-br from-[#0891B2]/5 via-[#FAFBFC] to-[#FAFBFC]">
-      {/* Subtle decorative shapes */}
-      <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden">
-        <div className="absolute -top-40 -right-40 w-[500px] h-[500px] rounded-full bg-[#F97316]/[0.04]" />
-        <div className="absolute -bottom-60 -left-40 w-[600px] h-[600px] rounded-full bg-[#0891B2]/[0.04]" />
-      </div>
+    <div
+      className="relative flex min-h-screen items-center justify-center px-4 py-8 overflow-hidden"
+      style={{ backgroundColor: "var(--bg-primary)" }}
+    >
+      {/* Subtle gradient accent line at top */}
+      <div
+        className="fixed top-0 left-0 right-0 h-1 z-20"
+        style={{
+          background: "linear-gradient(90deg, var(--ocean), var(--primary))",
+        }}
+      />
 
       <motion.div
         initial={{ opacity: 0, y: 20, scale: 0.98 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         transition={{ duration: 0.4, ease: "easeOut" }}
-        className="w-full max-w-md rounded-2xl bg-white p-8 relative z-10 shadow-xl shadow-gray-200/50 border border-gray-100"
+        className="w-full max-w-md rounded-2xl p-8 relative z-10"
+        style={{
+          backgroundColor: "var(--surface-card)",
+          border: "1px solid var(--border-color)",
+          boxShadow: "var(--shadow-lg)",
+        }}
       >
         {/* Brand header */}
         <div className="mb-8 text-center">
@@ -94,12 +104,15 @@ export default function RegisterPage() {
             transition={{ delay: 0.1 }}
             className="mb-3 flex items-center justify-center gap-2.5"
           >
-            <Scale size={28} className="text-[#F97316]" />
-            <span className="text-2xl font-bold tracking-tight text-gray-900">
-              Legal<span className="text-[#F97316]">Hunter</span>
+            <Scale size={28} style={{ color: "var(--primary)" }} />
+            <span
+              className="text-2xl font-bold tracking-tight"
+              style={{ color: "var(--text-primary)" }}
+            >
+              Legal<span style={{ color: "var(--primary)" }}>Hunter</span>
             </span>
           </motion.div>
-          <p className="text-sm text-gray-500">
+          <p className="text-sm" style={{ color: "var(--text-muted)" }}>
             Создание аккаунта
           </p>
         </div>
@@ -109,7 +122,12 @@ export default function RegisterPage() {
             <motion.div
               initial={{ opacity: 0, y: -8 }}
               animate={{ opacity: 1, y: 0 }}
-              className="flex items-center gap-2 rounded-xl p-3 text-sm bg-red-50 border border-red-100 text-red-600"
+              className="flex items-center gap-2 rounded-xl p-3 text-sm"
+              style={{
+                backgroundColor: "rgba(239, 68, 68, 0.08)",
+                border: "1px solid rgba(239, 68, 68, 0.2)",
+                color: "rgb(220, 38, 38)",
+              }}
             >
               <AlertCircle size={16} className="flex-shrink-0" />
               {error}
@@ -117,11 +135,15 @@ export default function RegisterPage() {
           )}
 
           <div>
-            <label htmlFor="fullName" className="block text-sm font-medium text-gray-700 mb-1.5">
+            <label
+              htmlFor="fullName"
+              className="block text-sm font-medium mb-1.5"
+              style={{ color: "var(--text-secondary)" }}
+            >
               Полное имя
             </label>
             <div className="relative">
-              <User size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
+              <User size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2" style={{ color: "var(--text-muted)" }} />
               <input
                 id="fullName"
                 type="text"
@@ -137,11 +159,15 @@ export default function RegisterPage() {
           </div>
 
           <div>
-            <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1.5">
+            <label
+              htmlFor="email"
+              className="block text-sm font-medium mb-1.5"
+              style={{ color: "var(--text-secondary)" }}
+            >
               Email
             </label>
             <div className="relative">
-              <Mail size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
+              <Mail size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2" style={{ color: "var(--text-muted)" }} />
               <input
                 id="email"
                 type="email"
@@ -157,7 +183,11 @@ export default function RegisterPage() {
           </div>
 
           <div>
-            <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1.5">
+            <label
+              htmlFor="password"
+              className="block text-sm font-medium mb-1.5"
+              style={{ color: "var(--text-secondary)" }}
+            >
               Пароль
             </label>
             <PasswordInput
@@ -174,7 +204,11 @@ export default function RegisterPage() {
           </div>
 
           <div>
-            <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 mb-1.5">
+            <label
+              htmlFor="confirmPassword"
+              className="block text-sm font-medium mb-1.5"
+              style={{ color: "var(--text-secondary)" }}
+            >
               Повторите пароль
             </label>
             <PasswordInput
@@ -186,7 +220,7 @@ export default function RegisterPage() {
               ariaLabel="Подтвердите пароль"
             />
             {!passwordsMatch && (
-              <div className="mt-1.5 text-xs text-red-500">
+              <div className="mt-1.5 text-xs" style={{ color: "rgb(239, 68, 68)" }}>
                 Пароли не совпадают.
               </div>
             )}
@@ -197,9 +231,13 @@ export default function RegisterPage() {
           </Button>
         </form>
 
-        <p className="mt-6 text-center text-sm text-gray-500">
+        <p className="mt-6 text-center text-sm" style={{ color: "var(--text-muted)" }}>
           Уже есть аккаунт?{" "}
-          <Link href="/login" className="font-medium text-[#F97316] transition-colors hover:text-[#EA6C10]">
+          <Link
+            href="/login"
+            className="font-medium transition-colors hover:opacity-80"
+            style={{ color: "var(--primary)" }}
+          >
             Войти
           </Link>
         </p>

@@ -60,7 +60,7 @@ export function ArenaLivePanel() {
       aria-label="Активность арены"
     >
       <div
-        className="font-pixel uppercase tracking-widest mb-3 flex items-center gap-2"
+        className="font-medium uppercase tracking-wide mb-3 flex items-center gap-2"
         style={{
           color: searching ? "var(--success)" : "var(--text-muted)",
           fontSize: 13,
@@ -84,7 +84,7 @@ export function ArenaLivePanel() {
             В очереди
           </span>
           <span
-            className="font-pixel tabular-nums"
+            className="font-medium tabular-nums"
             style={{ color: "var(--text-primary)", fontSize: 18 }}
           >
             {serverQueue !== null ? serverQueue : "—"}
@@ -101,7 +101,7 @@ export function ArenaLivePanel() {
                 Твоё место
               </span>
               <span
-                className="font-pixel tabular-nums"
+                className="font-medium tabular-nums"
                 style={{ color: "var(--success)", fontSize: 18 }}
               >
                 {queuePosition || "?"}
@@ -118,7 +118,7 @@ export function ArenaLivePanel() {
                   Осталось
                 </span>
                 <span
-                  className="font-pixel tabular-nums"
+                  className="font-medium tabular-nums"
                   style={{ color: "var(--success)", fontSize: 15 }}
                 >
                   ~{estimatedWait}с
@@ -127,7 +127,7 @@ export function ArenaLivePanel() {
             )}
 
             <div
-              className="mt-2 flex items-center justify-center gap-2 px-2 py-2 font-pixel uppercase text-[12px]"
+              className="mt-2 flex items-center justify-center gap-2 px-2 py-2 font-medium uppercase text-[12px]"
               style={{
                 background: "color-mix(in srgb, var(--success) 12%, transparent)",
                 color: "var(--success)",
@@ -143,7 +143,7 @@ export function ArenaLivePanel() {
 
         {matched && (
           <div
-            className="mt-2 flex items-center justify-center gap-2 px-2 py-2 font-pixel uppercase text-[12px]"
+            className="mt-2 flex items-center justify-center gap-2 px-2 py-2 font-medium uppercase text-[12px]"
             style={{
               background: "color-mix(in srgb, var(--accent) 14%, transparent)",
               color: "var(--accent)",
@@ -157,7 +157,7 @@ export function ArenaLivePanel() {
 
         {queueStatus === "idle" && (
           <div
-            className="mt-1 font-pixel uppercase text-[12px] tracking-widest"
+            className="mt-1 font-medium uppercase text-[12px] tracking-wide"
             style={{ color: "var(--text-muted)", letterSpacing: "0.16em" }}
           >
             Нажми «Дуэль» →

@@ -139,8 +139,8 @@ export default function HistoryPage() {
             className="flex items-start justify-between gap-3"
           >
             <div>
-              <h1 className="font-display text-2xl font-bold tracking-wider" style={{ color: "var(--text-primary)" }}>
-                ИСТОРИЯ
+              <h1 className="t-page-title">
+                История
               </h1>
               <p className="mt-1 text-sm" style={{ color: "var(--text-muted)" }}>
                 Все ваши прошлые сессии
@@ -246,7 +246,7 @@ export default function HistoryPage() {
                           transition={{ delay: i * 0.04 }}
                           className={`glass-panel p-5 flex items-center gap-4 transition-all ${canOpenEntry ? "cursor-pointer" : ""}`}
                           style={{ boxShadow: `inset 3px 0 0 ${scoreColor(entry.avg_score ?? session.score_total)}` }}
-                          whileHover={canOpenEntry ? { y: -2, boxShadow: "0 4px 20px rgba(139, 92, 246, 0.1)" } : undefined}
+                          whileHover={canOpenEntry ? { y: -2, boxShadow: "var(--shadow-md)" } : undefined}
                           onClick={() => canOpenEntry && router.push(targetHref)}
                         >
                           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl" style={{ background: `color-mix(in srgb, ${st.color} 8%, transparent)` }}>

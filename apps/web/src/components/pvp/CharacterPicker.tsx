@@ -98,7 +98,7 @@ export function CharacterPicker({ selectedId, onPick, disabled }: Props) {
       <header className="flex items-center justify-between mb-2">
         <h3
           id="char-picker-title"
-          className="font-pixel"
+          className="font-medium"
           style={{
             color: "var(--text-primary)",
             fontSize: 14,
@@ -109,7 +109,7 @@ export function CharacterPicker({ selectedId, onPick, disabled }: Props) {
           Кто будет твоим клиентом?
         </h3>
         <span
-          className="font-pixel"
+          className="font-medium"
           style={{ color: "var(--text-muted)", fontSize: 12, letterSpacing: "0.1em" }}
         >
           {total} опций
@@ -128,7 +128,7 @@ export function CharacterPicker({ selectedId, onPick, disabled }: Props) {
       </div>
 
       {loading && (
-        <p className="font-pixel" style={{ color: "var(--text-muted)", fontSize: 12 }}>
+        <p className="font-medium" style={{ color: "var(--text-muted)", fontSize: 12 }}>
           Загрузка персонажей…
         </p>
       )}
@@ -136,7 +136,7 @@ export function CharacterPicker({ selectedId, onPick, disabled }: Props) {
       {error && !loading && (
         <p
           role="alert"
-          className="font-pixel"
+          className="font-medium"
           style={{ color: "var(--danger)", fontSize: 12 }}
         >
           {error}
@@ -185,7 +185,7 @@ function Column({
   return (
     <div>
       <h4
-        className="font-pixel mb-2"
+        className="font-medium mb-2"
         style={{
           color: "var(--accent)",
           fontSize: 12,
@@ -196,7 +196,7 @@ function Column({
         {label}
       </h4>
       {cards.length === 0 ? (
-        <p className="font-pixel" style={{ color: "var(--text-muted)", fontSize: 12 }}>
+        <p className="font-medium" style={{ color: "var(--text-muted)", fontSize: 12 }}>
           {empty}
         </p>
       ) : (
@@ -248,7 +248,7 @@ function PickerCard({
       whileHover={disabled ? undefined : { x: -1, y: -1 }}
       transition={{ type: "spring", stiffness: 500, damping: 30 }}
       aria-pressed={selected}
-      className="w-full text-left font-pixel"
+      className="w-full text-left font-medium"
       style={{
         padding: "10px 12px",
         background: selected ? "var(--accent-muted)" : "var(--bg-secondary)",

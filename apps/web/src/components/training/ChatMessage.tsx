@@ -188,7 +188,7 @@ export default function ChatMessage({
         {message.pinned && (
           <span
             aria-hidden
-            className="inline-block ml-2 align-middle font-pixel text-[10px] uppercase tracking-wider"
+            className="inline-block ml-2 align-middle font-medium text-[10px] uppercase tracking-wide"
             style={{
               color: "var(--accent)",
               padding: "2px 6px",

@@ -25,7 +25,6 @@ import { useEffect, useState, Suspense, type ReactNode } from "react";
 import { useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
 import {
-  User as UserIcon,
   Lock,
   ArrowRight,
   AlertCircle,
@@ -140,116 +139,19 @@ function ProfilePageContent() {
         <div className="app-page max-w-4xl">
           <BackButton href={isViewingOther ? "/dashboard" : "/home"} label={isViewingOther ? "Панель РОП" : "На главную"} />
 
-          {/*
-            ═══ ПИКСЕЛЬНЫЙ ЛОГОТИП ★ ПРОФИЛЬ ОХОТНИКА ★ ═══
-            Те же 3 keyframes, что на /leaderboard «Зал Славы», но
-            градиент развёрнут — здесь акцент → зелёный (символика
-            «достижений / роста»). Скан-блик 4сек, pulse-glow 3сек,
-            звёзды twinkle в противофазе.
-          */}
-          <style jsx>{`
-            @keyframes vh-profile-shine {
-              0%   { background-position: -150% 0; }
-              60%  { background-position:  250% 0; }
-              100% { background-position:  250% 0; }
-            }
-            @keyframes vh-profile-pulse {
-              0%, 100% {
-                filter:
-                  drop-shadow(0 3px 0 rgba(0,0,0,0.45))
-                  drop-shadow(0 0 12px rgba(167,139,250,0.45))
-                  drop-shadow(0 0 22px rgba(74,222,128,0.30));
-              }
-              50% {
-                filter:
-                  drop-shadow(0 3px 0 rgba(0,0,0,0.45))
-                  drop-shadow(0 0 18px rgba(167,139,250,0.85))
-                  drop-shadow(0 0 36px rgba(74,222,128,0.55));
-              }
-            }
-            @keyframes vh-profile-star-a {
-              0%, 100% { opacity: 1; transform: scale(1) rotate(0deg); }
-              50%      { opacity: 0.55; transform: scale(0.85) rotate(15deg); }
-            }
-            @keyframes vh-profile-star-b {
-              0%, 100% { opacity: 0.6; transform: scale(0.9) rotate(0deg); }
-              50%      { opacity: 1; transform: scale(1.1) rotate(-15deg); }
-            }
-            .vh-profile-text {
-              background:
-                linear-gradient(
-                  120deg,
-                  transparent 0%,
-                  transparent 35%,
-                  rgba(255,255,255,0.9) 48%,
-                  rgba(255,255,255,1) 50%,
-                  rgba(255,255,255,0.9) 52%,
-                  transparent 65%,
-                  transparent 100%
-                ),
-                linear-gradient(180deg, #a78bfa 0%, #c4b5fd 35%, #4ade80 100%);
-              background-size: 200% 100%, 100% 100%;
-              background-position: -150% 0, 0 0;
-              -webkit-background-clip: text;
-              background-clip: text;
-              -webkit-text-fill-color: transparent;
-              animation:
-                vh-profile-shine 4s ease-in-out infinite,
-                vh-profile-pulse 3s ease-in-out infinite;
-            }
-            .vh-profile-star-left  { animation: vh-profile-star-a 1.8s ease-in-out infinite; display: inline-block; }
-            .vh-profile-star-right { animation: vh-profile-star-b 1.8s ease-in-out infinite; display: inline-block; }
-            @media (prefers-reduced-motion: reduce) {
-              .vh-profile-text, .vh-profile-star-left, .vh-profile-star-right {
-                animation: none !important;
-              }
-            }
-          `}</style>
-          <div className="text-center pt-2 pb-5 select-none">
-            <div
-              className="font-pixel vh-profile-text"
-              style={{
-                fontSize: "clamp(28px, 5vw, 48px)",
-                lineHeight: 1.0,
-                letterSpacing: "0.06em",
-              }}
-            >
-              <span
-                aria-hidden
-                className="vh-profile-star-left"
-                style={{
-                  marginRight: 10,
-                  color: "#a78bfa",
-                  WebkitTextFillColor: "#a78bfa",
-                  textShadow: "0 0 10px rgba(167,139,250,0.85)",
-                }}
-              >★</span>
-              {isViewingOther && viewedUser
-                ? "ПРОФИЛЬ ОХОТНИКА"
-                : "ПРОФИЛЬ ОХОТНИКА"}
-              <span
-                aria-hidden
-                className="vh-profile-star-right"
-                style={{
-                  marginLeft: 10,
-                  color: "#a78bfa",
-                  WebkitTextFillColor: "#a78bfa",
-                  textShadow: "0 0 10px rgba(167,139,250,0.85)",
-                }}
-              >★</span>
-            </div>
+          <div className="pt-2 pb-5">
+            <h1 className="t-page-title">
+              {isViewingOther && viewedUser ? "Профиль" : "Профиль"}
+            </h1>
             {progress && !isViewingOther && (
-              <div
-                className="font-pixel uppercase tracking-widest mt-2"
-                style={{ color: "var(--text-muted)", fontSize: 14 }}
-              >
-                УР. {progress.level} · {(progress.total_xp ?? 0).toLocaleString("ru-RU")} XP · СЕЗОН I
-              </div>
+              <p className="t-caption mt-2">
+                Ур. {progress.level} · {(progress.total_xp ?? 0).toLocaleString("ru-RU")} XP
+              </p>
             )}
           </div>
 
-          {/* Hero — HunterCard остаётся, обёрнут в пиксельную рамку */}
-          <ProfileSection accent="#a78bfa">
+          {/* Hero — HunterCard */}
+          <ProfileSection>
             {isViewingOther && !viewedUser ? (
               <Skeleton height={160} width="100%" rounded="12px" />
             ) : (
@@ -274,18 +176,18 @@ function ProfilePageContent() {
             чужой профиль показывать не имеет смысла.
           */}
           {!isViewingOther && (
-            <ProfileSection accent="#4ade80" title="🔥 АКТИВНОСТЬ" mt={6}>
-              <ActivityHeatmap days={180} accent="#4ade80" />
+            <ProfileSection title="Активность" mt={6}>
+              <ActivityHeatmap days={180} accent="var(--primary)" />
             </ProfileSection>
           )}
 
           {/* Прогресс по неделям */}
-          <ProfileSection accent="#facc15" title="📈 ПРОГРЕСС" mt={6}>
+          <ProfileSection title="Прогресс" mt={6}>
             <ProgressGraph data={progressData} />
           </ProfileSection>
 
           {/* Достижения + полки + сделки */}
-          <ProfileSection accent="#fb923c" title="🏆 ДОСТИЖЕНИЯ" mt={6}>
+          <ProfileSection title="Достижения" mt={6}>
             <AchievementWall achievements={progress?.achievements ?? []} />
             {/* OfficeShelf + DealPortfolio removed */}
           </ProfileSection>
@@ -296,21 +198,20 @@ function ProfilePageContent() {
             визуальный фокус. Кнопка-плашка раскрывает форму по клику.
           */}
           {!isViewingOther && (
-            <ProfileSection accent="#f87171" title="🔑 БЕЗОПАСНОСТЬ" mt={6}>
+            <ProfileSection title="Безопасность" mt={6}>
               <button
                 type="button"
                 onClick={() => setPasswordOpen((v) => !v)}
-                className="w-full flex items-center justify-between font-pixel uppercase tracking-widest px-4 py-3 rounded-md transition-colors"
+                className="w-full flex items-center justify-between text-sm font-medium px-4 py-3 rounded-md transition-colors"
                 style={{
-                  background: passwordOpen ? "rgba(248,113,113,0.12)" : "rgba(255,255,255,0.04)",
-                  border: "1px solid rgba(248,113,113,0.35)",
-                  color: passwordOpen ? "#f87171" : "var(--text-secondary)",
-                  fontSize: 14,
+                  background: passwordOpen ? "var(--primary-muted)" : "var(--surface-card-hover)",
+                  border: "1px solid var(--border-color)",
+                  color: passwordOpen ? "var(--primary)" : "var(--text-secondary)",
                 }}
               >
                 <span className="inline-flex items-center gap-2">
                   <Lock size={14} />
-                  ПЕРЕВЫПУСТИТЬ КЛЮЧ ДОСТУПА
+                  Сменить пароль
                 </span>
                 <motion.span
                   animate={{ rotate: passwordOpen ? 180 : 0 }}
@@ -329,12 +230,11 @@ function ProfilePageContent() {
                 >
                   {passwordError && (
                     <div
-                      className="flex items-center gap-2 rounded-md p-3"
+                      className="flex items-center gap-2 rounded-md p-3 text-sm"
                       style={{
-                        background: "rgba(248,113,113,0.12)",
-                        border: "1px solid rgba(248,113,113,0.35)",
-                        color: "#f87171",
-                        fontSize: 14,
+                        background: "var(--danger-muted, rgba(239,68,68,0.08))",
+                        border: "1px solid var(--danger)",
+                        color: "var(--danger)",
                       }}
                     >
                       <AlertCircle size={14} />
@@ -343,12 +243,11 @@ function ProfilePageContent() {
                   )}
                   {passwordSuccess && (
                     <div
-                      className="flex items-center gap-2 rounded-md p-3"
+                      className="flex items-center gap-2 rounded-md p-3 text-sm"
                       style={{
-                        background: "rgba(74,222,128,0.12)",
-                        border: "1px solid rgba(74,222,128,0.35)",
-                        color: "#4ade80",
-                        fontSize: 14,
+                        background: "var(--success-muted, rgba(34,197,94,0.08))",
+                        border: "1px solid var(--success)",
+                        color: "var(--success)",
                       }}
                     >
                       <CheckCircle size={14} />
@@ -363,8 +262,8 @@ function ProfilePageContent() {
                     <div key={f.id}>
                       <label
                         htmlFor={f.id}
-                        className="block font-pixel uppercase tracking-widest mb-1.5"
-                        style={{ color: "var(--text-muted)", fontSize: 14 }}
+                        className="block text-sm font-medium mb-1.5"
+                        style={{ color: "var(--text-secondary)" }}
                       >
                         {f.label}
                       </label>
@@ -397,66 +296,31 @@ function ProfilePageContent() {
             </ProfileSection>
           )}
 
-          {/* Footer — пиксельная подпись, симметрично /leaderboard */}
-          <div className="text-center mt-12 mb-8">
-            <div
-              className="font-pixel uppercase tracking-widest inline-flex items-center gap-2"
-              style={{ color: "var(--text-muted)", fontSize: 14 }}
-            >
-              <UserIcon size={14} />
-              ★ КОНЕЦ ПРОФИЛЯ ★
-              <UserIcon size={14} />
-            </div>
-          </div>
+          <div className="mt-12 mb-8" />
         </div>
       </div>
     </AuthLayout>
   );
 }
 
-/**
- * ProfileSection — пиксельная рамка для блока на /profile.
- *
- * Симметричен StageSection с /leaderboard, но без divider'а сверху —
- * вместо него встроенный заголовок-плашка слева в верхнем углу. Цвет
- * акцента варьируется по секции, чтобы создать визуальный ритм
- * (HUD-блок, активность, прогресс, достижения, безопасность).
- */
 function ProfileSection({
   children,
-  accent,
   title,
   mt,
 }: {
   children: ReactNode;
-  accent: string;
   title?: string;
   mt?: number;
 }) {
   return (
     <section
-      className="relative"
-      style={{
-        marginTop: mt ?? 24,
-        border: `2px solid ${accent}33`,
-        background: "rgba(8,5,18,0.35)",
-        boxShadow: "inset 0 0 24px rgba(0,0,0,0.35)",
-      }}
+      className="glass-panel relative"
+      style={{ marginTop: mt ? `${mt * 4}px` : 24 }}
     >
       {title && (
-        <div
-          className="absolute -top-3 left-4 px-2 font-pixel uppercase tracking-widest"
-          style={{
-            background: "var(--bg-primary, #0b0b14)",
-            color: accent,
-            fontSize: 14,
-            letterSpacing: "0.18em",
-          }}
-        >
-          {title}
-        </div>
+        <h2 className="t-section-title mb-4">{title}</h2>
       )}
-      <div className="p-4 md:p-5">{children}</div>
+      <div>{children}</div>
     </section>
   );
 }

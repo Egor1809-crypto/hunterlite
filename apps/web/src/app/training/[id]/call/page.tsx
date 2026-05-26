@@ -1540,7 +1540,7 @@ export default function TrainingCallPage() {
         micSlot={
           /*
             2026-05-10 (pixel redesign): mic button был rounded-full +
-            blur, теперь square pixel 2px solid, font-pixel-лейбл 14px.
+            blur, теперь square pixel 2px solid, font-medium-лейбл 14px.
             Audio-level glow сохранён для feedback'а (живой пульс при
             активном слушании). Логика TTS-pause + STT не тронута.
           */
@@ -1559,7 +1559,7 @@ export default function TrainingCallPage() {
             className="flex flex-col items-center gap-2"
           >
             <span
-              className="flex h-16 w-16 items-center justify-center rounded-sm transition-all duration-150 active:scale-95"
+              className="flex h-16 w-16 items-center justify-center rounded-2xl transition-all duration-150 active:scale-95"
               style={{
                 background:
                   stt.status === "listening"
@@ -1582,14 +1582,12 @@ export default function TrainingCallPage() {
               )}
             </span>
             <span
-              className="font-pixel uppercase tracking-widest"
+              className="text-sm font-medium"
               style={{
                 color: stt.status === "listening" ? "#f87171" : "var(--text-muted)",
-                fontSize: 14,
-                letterSpacing: "0.22em",
               }}
             >
-              {stt.status === "listening" ? "СЛУШАЮ…" : "ГОВОРИТЬ"}
+              {stt.status === "listening" ? "Слушаю..." : "Говорить"}
             </span>
           </button>
         }
@@ -1598,7 +1596,7 @@ export default function TrainingCallPage() {
       {/*
         2026-05-10 (pixel redesign): Outcome modal был в plain Tailwind
         стиле (rounded-md + bg-emerald-500/red-500/sky-500). Теперь —
-        пиксельный стиль: square 2px borders, font-pixel uppercase 14px,
+        пиксельный стиль: square 2px borders, font-medium uppercase 14px,
         gradient-фон по цвету исхода, neon glow при ховере. Логика
         completeHangup НЕ ТРОГАЕТСЯ.
       */}
@@ -1611,28 +1609,23 @@ export default function TrainingCallPage() {
           }}
         >
           <div
-            className="w-full max-w-md rounded-sm p-5"
+            className="w-full max-w-md rounded-2xl p-5"
             style={{
-              background: "linear-gradient(135deg, rgba(8,5,18,0.95), rgba(16,12,28,0.98))",
-              border: "3px solid var(--accent)",
-              boxShadow: "0 0 22px var(--accent-glow), inset 0 0 12px rgba(0,0,0,0.4)",
+              background: "var(--bg-panel)",
+              border: "1px solid var(--border-color)",
+              boxShadow: "var(--shadow-lg)",
             }}
           >
             <div className="mb-4">
               <div
-                className="font-pixel uppercase tracking-widest"
-                style={{
-                  color: "var(--accent)",
-                  fontSize: 18,
-                  letterSpacing: "0.18em",
-                  textShadow: "0 0 8px var(--accent-glow)",
-                }}
+                className="text-lg font-bold"
+                style={{ color: "var(--accent)" }}
               >
-                ▰ ИСХОД ЗВОНКА ▰
+                Исход звонка
               </div>
               <div
-                className="mt-2 font-pixel uppercase tracking-widest"
-                style={{ color: "var(--text-muted)", fontSize: 14, letterSpacing: "0.18em" }}
+                className="mt-1 text-sm"
+                style={{ color: "var(--text-muted)" }}
               >
                 Зафиксируем результат — карточка клиента обновится
               </div>
@@ -1640,62 +1633,51 @@ export default function TrainingCallPage() {
             <div className="grid gap-2">
               <button
                 type="button"
-                className="rounded-sm px-4 py-3 text-left font-pixel uppercase tracking-widest transition-all hover:scale-[1.02]"
+                className="rounded-xl px-4 py-3 text-left text-sm font-semibold transition-all hover:scale-[1.01]"
                 style={{
-                  background: "linear-gradient(90deg, rgba(74,222,128,0.22), rgba(74,222,128,0.08))",
-                  border: "2px solid #4ade80",
+                  background: "rgba(74,222,128,0.08)",
+                  border: "1px solid rgba(74,222,128,0.3)",
                   color: "#4ade80",
-                  fontSize: 14,
-                  letterSpacing: "0.18em",
-                  boxShadow: "0 0 8px rgba(74,222,128,0.25)",
                 }}
                 onClick={() => completeHangup("agreed")}
               >
-                ✓ ДОГОВОР СОГЛАСОВАН
+                Договор согласован
               </button>
               <button
                 type="button"
-                className="rounded-sm px-4 py-3 text-left font-pixel uppercase tracking-widest transition-all hover:scale-[1.02]"
+                className="rounded-xl px-4 py-3 text-left text-sm font-semibold transition-all hover:scale-[1.01]"
                 style={{
-                  background: "linear-gradient(90deg, rgba(248,113,113,0.22), rgba(248,113,113,0.08))",
-                  border: "2px solid #f87171",
+                  background: "rgba(248,113,113,0.08)",
+                  border: "1px solid rgba(248,113,113,0.3)",
                   color: "#f87171",
-                  fontSize: 14,
-                  letterSpacing: "0.18em",
-                  boxShadow: "0 0 8px rgba(248,113,113,0.25)",
                 }}
                 onClick={() => completeHangup("not_agreed")}
               >
-                ✗ ДОГОВОР НЕ СОГЛАСОВАН
+                Договор не согласован
               </button>
               <button
                 type="button"
-                className="rounded-sm px-4 py-3 text-left font-pixel uppercase tracking-widest transition-all hover:scale-[1.02]"
+                className="rounded-xl px-4 py-3 text-left text-sm font-semibold transition-all hover:scale-[1.01]"
                 style={{
-                  background: "linear-gradient(90deg, rgba(56,189,248,0.22), rgba(56,189,248,0.08))",
-                  border: "2px solid #38bdf8",
+                  background: "rgba(56,189,248,0.08)",
+                  border: "1px solid rgba(56,189,248,0.3)",
                   color: "#38bdf8",
-                  fontSize: 14,
-                  letterSpacing: "0.18em",
-                  boxShadow: "0 0 8px rgba(56,189,248,0.25)",
                 }}
                 onClick={() => completeHangup("continue")}
               >
-                ↻ ПРОДОЛЖИТЬ В ДРУГОМ ЗВОНКЕ
+                Продолжить в другом звонке
               </button>
               <button
                 type="button"
-                className="rounded-sm px-4 py-3 font-pixel uppercase tracking-widest transition-colors"
+                className="rounded-xl px-4 py-3 text-sm font-medium transition-colors"
                 style={{
                   background: "transparent",
-                  border: "2px dashed rgba(255,255,255,0.18)",
+                  border: "1px dashed rgba(255,255,255,0.18)",
                   color: "var(--text-muted)",
-                  fontSize: 14,
-                  letterSpacing: "0.18em",
                 }}
                 onClick={() => setShowCenterOutcome(false)}
               >
-                ← ВЕРНУТЬСЯ К ЗВОНКУ
+                Вернуться к звонку
               </button>
             </div>
           </div>

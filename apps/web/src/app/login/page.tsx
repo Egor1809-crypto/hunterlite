@@ -113,11 +113,19 @@ export default function LoginPage() {
   // Forgot-password screen
   if (forgotMode !== "idle") {
     return (
-      <div className="flex min-h-screen items-center justify-center px-4 bg-gradient-to-br from-[#0891B2]/5 via-[#FAFBFC] to-[#FAFBFC]">
+      <div
+        className="flex min-h-screen items-center justify-center px-4"
+        style={{ backgroundColor: "var(--bg-primary)" }}
+      >
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="w-full max-w-md rounded-2xl bg-white p-8 shadow-xl shadow-gray-200/50 border border-gray-100"
+          className="w-full max-w-md rounded-2xl p-8"
+          style={{
+            backgroundColor: "var(--surface-card)",
+            border: "1px solid var(--border-color)",
+            boxShadow: "var(--shadow-lg)",
+          }}
         >
           {forgotMode === "sent" ? (
             <div className="text-center py-6">
@@ -125,17 +133,25 @@ export default function LoginPage() {
                 initial={{ scale: 0 }}
                 animate={{ scale: 1 }}
                 transition={{ type: "spring", stiffness: 280 }}
-                className="w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-5 bg-emerald-50"
+                className="w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-5"
+                style={{ backgroundColor: "rgba(16, 185, 129, 0.1)" }}
               >
-                <Mail size={24} className="text-emerald-500" />
+                <Mail size={24} style={{ color: "rgb(16, 185, 129)" }} />
               </motion.div>
-              <h2 className="font-semibold text-xl text-gray-900 mb-2">Письмо отправлено</h2>
-              <p className="text-sm text-gray-500 mb-6">
-                Проверьте <strong className="text-gray-700">{forgotEmail}</strong><br />и следуйте инструкциям в письме.
+              <h2
+                className="font-semibold text-xl mb-2"
+                style={{ color: "var(--text-primary)" }}
+              >
+                Письмо отправлено
+              </h2>
+              <p className="text-sm mb-6" style={{ color: "var(--text-muted)" }}>
+                Проверьте <strong style={{ color: "var(--text-secondary)" }}>{forgotEmail}</strong>
+                <br />и следуйте инструкциям в письме.
               </p>
               <button
                 onClick={() => { setForgotMode("idle"); setForgotEmail(""); }}
-                className="flex items-center gap-1.5 text-sm font-medium text-[#F97316] transition-opacity hover:opacity-80 mx-auto"
+                className="flex items-center gap-1.5 text-sm font-medium transition-opacity hover:opacity-80 mx-auto"
+                style={{ color: "var(--primary)" }}
               >
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
                 Вернуться ко входу
@@ -145,23 +161,36 @@ export default function LoginPage() {
             <div>
               <button
                 onClick={() => setForgotMode("idle")}
-                className="flex items-center gap-1.5 text-sm font-medium mb-6 text-gray-400 transition-colors hover:text-gray-600"
+                className="flex items-center gap-1.5 text-sm font-medium mb-6 transition-colors"
+                style={{ color: "var(--text-muted)" }}
               >
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
                 Назад
               </button>
               <div className="mb-6 flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 bg-[#F97316]/10">
-                  <KeyRound size={18} className="text-[#F97316]" />
+                <div
+                  className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+                  style={{ backgroundColor: "var(--primary-muted)" }}
+                >
+                  <KeyRound size={18} style={{ color: "var(--primary)" }} />
                 </div>
                 <div>
-                  <h2 className="font-semibold text-lg text-gray-900">Забыли пароль?</h2>
-                  <p className="text-xs text-gray-500">Пришлём ссылку для сброса</p>
+                  <h2 className="font-semibold text-lg" style={{ color: "var(--text-primary)" }}>
+                    Забыли пароль?
+                  </h2>
+                  <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+                    Пришлём ссылку для сброса
+                  </p>
                 </div>
               </div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">Email</label>
+              <label
+                className="block text-sm font-medium mb-1.5"
+                style={{ color: "var(--text-secondary)" }}
+              >
+                Email
+              </label>
               <div className="relative mb-4">
-                <Mail size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                <Mail size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2" style={{ color: "var(--text-muted)" }} />
                 <input
                   type="email"
                   value={forgotEmail}
@@ -183,18 +212,28 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center px-4 overflow-hidden bg-gradient-to-br from-[#0891B2]/5 via-[#FAFBFC] to-[#FAFBFC]">
-      {/* Subtle decorative shapes */}
-      <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden">
-        <div className="absolute -top-40 -right-40 w-[500px] h-[500px] rounded-full bg-[#F97316]/[0.04]" />
-        <div className="absolute -bottom-60 -left-40 w-[600px] h-[600px] rounded-full bg-[#0891B2]/[0.04]" />
-      </div>
+    <div
+      className="relative flex min-h-screen items-center justify-center px-4 overflow-hidden"
+      style={{ backgroundColor: "var(--bg-primary)" }}
+    >
+      {/* Subtle gradient accent line at top */}
+      <div
+        className="fixed top-0 left-0 right-0 h-1 z-20"
+        style={{
+          background: "linear-gradient(90deg, var(--ocean), var(--primary))",
+        }}
+      />
 
       <motion.div
         initial={{ opacity: 0, y: 20, scale: 0.98 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         transition={{ duration: 0.4, ease: "easeOut" }}
-        className="w-full max-w-md rounded-2xl bg-white p-8 relative z-10 shadow-xl shadow-gray-200/50 border border-gray-100"
+        className="w-full max-w-md rounded-2xl p-8 relative z-10"
+        style={{
+          backgroundColor: "var(--surface-card)",
+          border: "1px solid var(--border-color)",
+          boxShadow: "var(--shadow-lg)",
+        }}
       >
         {/* Brand header */}
         <div className="mb-8 text-center">
@@ -204,12 +243,15 @@ export default function LoginPage() {
             transition={{ delay: 0.1 }}
             className="mb-3 flex items-center justify-center gap-2.5"
           >
-            <Scale size={28} className="text-[#F97316]" />
-            <span className="text-2xl font-bold tracking-tight text-gray-900">
-              Legal<span className="text-[#F97316]">Hunter</span>
+            <Scale size={28} style={{ color: "var(--primary)" }} />
+            <span
+              className="text-2xl font-bold tracking-tight"
+              style={{ color: "var(--text-primary)" }}
+            >
+              Legal<span style={{ color: "var(--primary)" }}>Hunter</span>
             </span>
           </motion.div>
-          <p className="text-sm text-gray-500">
+          <p className="text-sm" style={{ color: "var(--text-muted)" }}>
             Вход в аккаунт
           </p>
         </div>
@@ -219,7 +261,12 @@ export default function LoginPage() {
             <motion.div
               initial={{ opacity: 0, y: -8 }}
               animate={{ opacity: 1, y: 0 }}
-              className="flex items-center gap-2 rounded-xl p-3 text-sm bg-red-50 border border-red-100 text-red-600"
+              className="flex items-center gap-2 rounded-xl p-3 text-sm"
+              style={{
+                backgroundColor: "rgba(239, 68, 68, 0.08)",
+                border: "1px solid rgba(239, 68, 68, 0.2)",
+                color: "rgb(220, 38, 38)",
+              }}
             >
               <AlertCircle size={16} className="flex-shrink-0" />
               {error}
@@ -227,11 +274,15 @@ export default function LoginPage() {
           )}
 
           <div>
-            <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1.5">
+            <label
+              htmlFor="email"
+              className="block text-sm font-medium mb-1.5"
+              style={{ color: "var(--text-secondary)" }}
+            >
               Email
             </label>
             <div className="relative">
-              <Mail size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
+              <Mail size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2" style={{ color: "var(--text-muted)" }} />
               <input
                 id="email"
                 type="text"
@@ -248,13 +299,18 @@ export default function LoginPage() {
 
           <div>
             <div className="flex items-center justify-between mb-1.5">
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700">
+              <label
+                htmlFor="password"
+                className="block text-sm font-medium"
+                style={{ color: "var(--text-secondary)" }}
+              >
                 Пароль
               </label>
               <button
                 type="button"
                 onClick={() => { setForgotMode("form"); setForgotEmail(email.trim()); }}
-                className="text-xs text-gray-400 transition-colors hover:text-[#F97316]"
+                className="text-xs transition-colors hover:opacity-80"
+                style={{ color: "var(--text-muted)" }}
               >
                 Забыли пароль?
               </button>
@@ -276,15 +332,20 @@ export default function LoginPage() {
           {(oauthStatus.google || oauthStatus.yandex) && (
             <div className="relative">
               <div className="flex items-center gap-3 my-1">
-                <div className="flex-1 h-px bg-gray-200" />
-                <span className="text-xs text-gray-400 uppercase tracking-wider">или</span>
-                <div className="flex-1 h-px bg-gray-200" />
+                <div className="flex-1 h-px" style={{ backgroundColor: "var(--border-color)" }} />
+                <span className="text-xs uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>или</span>
+                <div className="flex-1 h-px" style={{ backgroundColor: "var(--border-color)" }} />
               </div>
               <div className="flex gap-3 mt-3">
                 {oauthStatus.google && (
                   <motion.button
                     type="button"
-                    className="flex-1 flex items-center justify-center gap-2 rounded-xl py-2.5 text-sm border border-gray-200 text-gray-600 bg-white transition-colors hover:bg-gray-50 hover:border-gray-300"
+                    className="flex-1 flex items-center justify-center gap-2 rounded-xl py-2.5 text-sm transition-colors"
+                    style={{
+                      border: "1px solid var(--border-color)",
+                      color: "var(--text-secondary)",
+                      backgroundColor: "var(--surface-card)",
+                    }}
                     whileTap={{ scale: 0.97 }}
                     onClick={async () => {
                       try {
@@ -308,7 +369,12 @@ export default function LoginPage() {
                 {oauthStatus.yandex && (
                   <motion.button
                     type="button"
-                    className="flex-1 flex items-center justify-center gap-2 rounded-xl py-2.5 text-sm border border-gray-200 text-gray-600 bg-white transition-colors hover:bg-gray-50 hover:border-gray-300"
+                    className="flex-1 flex items-center justify-center gap-2 rounded-xl py-2.5 text-sm transition-colors"
+                    style={{
+                      border: "1px solid var(--border-color)",
+                      color: "var(--text-secondary)",
+                      backgroundColor: "var(--surface-card)",
+                    }}
                     whileTap={{ scale: 0.97 }}
                     onClick={async () => {
                       try {
@@ -334,9 +400,13 @@ export default function LoginPage() {
           )}
         </form>
 
-        <p className="mt-6 text-center text-sm text-gray-500">
+        <p className="mt-6 text-center text-sm" style={{ color: "var(--text-muted)" }}>
           Нет аккаунта?{" "}
-          <Link href="/register" className="font-medium text-[#F97316] transition-colors hover:text-[#EA6C10]">
+          <Link
+            href="/register"
+            className="font-medium transition-colors hover:opacity-80"
+            style={{ color: "var(--primary)" }}
+          >
             Зарегистрироваться
           </Link>
         </p>

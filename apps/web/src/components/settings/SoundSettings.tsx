@@ -5,7 +5,7 @@
  *
  * 2026-05-02 (rewrite): унификация стиля. Раньше карточка использовала
  * pixel/arena эстетику (`borderRadius: 0`, `outline: 2px solid`,
- * `boxShadow: "3px 3px 0 0 #000"`, `font-pixel`) и визуально не
+ * `boxShadow: "3px 3px 0 0 #000"`, `font-medium`) и визуально не
  * сочеталась с остальной страницей настроек, построенной на glass-panel
  * + rounded-xl. Теперь оба соседних блока используют одинаковую
  * card-конвенцию (`glass-panel rounded-xl border-radius`), один и тот

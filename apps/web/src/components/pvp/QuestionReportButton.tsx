@@ -38,7 +38,7 @@ export function QuestionReportButton({ lastAnswerId }: Props) {
       type="button"
       disabled
       title="Жалоба будет доступна после первого ответа на вопрос"
-      className="mt-2 flex w-full items-center justify-center gap-2 px-3 py-3 font-pixel uppercase text-[11px]"
+      className="mt-2 flex w-full items-center justify-center gap-2 px-3 py-3 font-medium uppercase text-[11px]"
       style={{
         background: "transparent",
         color: "var(--text-muted)",

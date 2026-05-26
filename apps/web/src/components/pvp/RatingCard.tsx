@@ -73,14 +73,14 @@ export function RatingCard({ rating: r }: Props) {
       >
         <div className="flex items-start justify-between gap-4">
           <div>
-            <div className="font-pixel text-xs uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
+            <div className="font-medium text-xs uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>
               ARENA RATING
             </div>
             <div className="mt-2 flex items-end gap-3">
-              <div className="font-pixel text-3xl sm:text-5xl font-black leading-none pixel-glow" style={{ color: "var(--accent)" }}>
+              <div className="font-medium text-3xl sm:text-5xl font-black leading-none pixel-glow" style={{ color: "var(--accent)" }}>
                 {Math.round(r.rating)}
               </div>
-              <div className="pb-1 font-pixel text-xs" style={{ color: "var(--text-muted)" }}>
+              <div className="pb-1 font-medium text-xs" style={{ color: "var(--text-muted)" }}>
                 RD {Math.round(r.rd)}
               </div>
             </div>
@@ -90,7 +90,7 @@ export function RatingCard({ rating: r }: Props) {
           </div>
           {!r.placement_done && (
             <div className="rounded-2xl px-4 py-3 text-right" style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)" }}>
-              <div className="font-mono text-xs uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
+              <div className="font-mono text-xs uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>
                 Калибровка
               </div>
               <div className="mt-1 text-2xl font-bold" style={{ color: "var(--accent)" }}>
@@ -116,7 +116,7 @@ export function RatingCard({ rating: r }: Props) {
               color: "var(--text-secondary)",
             }}
           >
-            <div className="font-pixel text-xs uppercase tracking-widest mb-1.5" style={{ color: "var(--accent)" }}>
+            <div className="font-medium text-xs uppercase tracking-wide mb-1.5" style={{ color: "var(--accent)" }}>
               ▸ ПОЧЕМУ 1500 И RD 350?
             </div>
             <div>
@@ -140,19 +140,19 @@ export function RatingCard({ rating: r }: Props) {
       {!isFreshAccount && (
         <div className="grid grid-cols-2 gap-4 p-6 md:grid-cols-4">
           <div className="text-center">
-            <div className="font-mono text-sm tracking-wider" style={{ color: "var(--text-muted)" }}>Побед</div>
+            <div className="font-mono text-sm tracking-wide" style={{ color: "var(--text-muted)" }}>Побед</div>
             <div className="font-display text-2xl font-bold" style={{ color: "var(--success)" }}>{r.wins}</div>
           </div>
           <div className="text-center">
-            <div className="font-mono text-sm tracking-wider" style={{ color: "var(--text-muted)" }}>Поражений</div>
+            <div className="font-mono text-sm tracking-wide" style={{ color: "var(--text-muted)" }}>Поражений</div>
             <div className="font-display text-2xl font-bold" style={{ color: "var(--danger)" }}>{r.losses}</div>
           </div>
           <div className="text-center">
-            <div className="font-mono text-sm tracking-wider" style={{ color: "var(--text-muted)" }}>Процент побед</div>
+            <div className="font-mono text-sm tracking-wide" style={{ color: "var(--text-muted)" }}>Процент побед</div>
             <div className="font-display text-2xl font-bold" style={{ color: "var(--accent)" }}>{winRate}%</div>
           </div>
           <div className="text-center">
-            <div className="font-mono text-sm tracking-wider" style={{ color: "var(--text-muted)" }}>Серия</div>
+            <div className="font-mono text-sm tracking-wide" style={{ color: "var(--text-muted)" }}>Серия</div>
             <div className="font-display text-2xl font-bold flex items-center justify-center gap-1">
               {streakIcon}
               <span style={{ color: r.current_streak > 0 ? "var(--success)" : r.current_streak < 0 ? "var(--danger)" : "var(--text-muted)" }}>

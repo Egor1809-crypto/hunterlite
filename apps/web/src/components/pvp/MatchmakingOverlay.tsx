@@ -4,7 +4,7 @@
  * MatchmakingOverlay — пиксельный full-screen overlay поиска соперника + VS reveal.
  *
  * 2026-04-30 (Фаза 7): полная переделка. Было: смесь glass-panel + emoji
- * (⚔️ 🛡️ 🤖) + font-display + font-pixel — стилистическая каша. Теперь:
+ * (⚔️ 🛡️ 🤖) + font-display + font-medium — стилистическая каша. Теперь:
  *   - SEARCHING: pixel scanner-ring (16 сегментов, вращающаяся «иголка») +
  *     pixel-таймер + pixel-чип очереди + ротация tip-карточек.
  *   - MATCHED: pixel-аватары обоих бойцов (PixelSprite), tier-чип через
@@ -381,7 +381,7 @@ export function MatchmakingOverlay({
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ delay: 1.0 }}
-                className="mt-4 inline-flex items-center gap-2 font-pixel"
+                className="mt-4 inline-flex items-center gap-2 font-medium"
                 style={{
                   padding: "5px 12px",
                   background: "var(--bg-secondary)",
@@ -536,7 +536,7 @@ function FighterMini({
         />
       </div>
       <p
-        className="mt-2 font-pixel"
+        className="mt-2 font-medium"
         style={{
           color,
           fontSize: 12,
@@ -547,11 +547,10 @@ function FighterMini({
         {label}
       </p>
       <p
-        className="font-pixel"
+        className="font-medium"
         style={{
           color: "var(--text-muted)",
           fontSize: 9,
-          letterSpacing: "0.22em",
           textTransform: "uppercase",
         }}
       >

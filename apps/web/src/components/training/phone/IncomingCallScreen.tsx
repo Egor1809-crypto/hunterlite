@@ -126,7 +126,7 @@ export default function IncomingCallScreen({
    * Сохранены ВСЕ анимации (pulse outer ring, breathing scale, stagger
    * entry), ВСЯ логика accepting/declining/busy, callbacks (onAccept,
    * onDecline). Поменял только rounded → rounded-sm + 3px solid borders,
-   * font-display/sans → font-pixel uppercase tracking-widest, размер
+   * font-display/sans → font-medium uppercase tracking-widest, размер
    * шрифтов поднят до ≥14px по консистентности с остальным сайтом.
    *
    * Phase A (2026-05-08): exit animation off `busy` сохранена — parent
@@ -147,7 +147,7 @@ export default function IncomingCallScreen({
         color: "var(--text-primary)",
       }}
     >
-      {/* Top strip — «▰ ВХОДЯЩИЙ ЗВОНОК ▰» + scene hint, font-pixel 14px */}
+      {/* Top strip — «▰ ВХОДЯЩИЙ ЗВОНОК ▰» + scene hint, font-medium 14px */}
       <motion.div
         initial={{ y: -12, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
@@ -155,13 +155,13 @@ export default function IncomingCallScreen({
         className="flex w-full items-center justify-between px-6 pt-8 md:pt-10"
       >
         <span
-          className="font-pixel uppercase tracking-widest"
-          style={{ color: "rgba(255,255,255,0.6)", fontSize: 14, letterSpacing: "0.22em" }}
+          className="font-medium uppercase tracking-wide"
+          style={{ color: "rgba(255,255,255,0.6)", fontSize: 14 }}
         >
           ▰ ВХОДЯЩИЙ ЗВОНОК ▰
         </span>
         <span
-          className="font-pixel uppercase tracking-widest"
+          className="font-medium uppercase tracking-wide"
           style={{ color: "rgba(255,255,255,0.5)", fontSize: 14 }}
         >
           {sceneLabel}
@@ -213,7 +213,7 @@ export default function IncomingCallScreen({
           />
           {/* Avatar square с пиксельными инициалами */}
           <div
-            className="flex items-center justify-center rounded-sm font-pixel"
+            className="flex items-center justify-center rounded-sm font-medium"
             style={{
               width: 220,
               height: 220,
@@ -232,12 +232,12 @@ export default function IncomingCallScreen({
           </div>
         </motion.div>
 
-        {/* Name — font-pixel large */}
+        {/* Name — font-medium large */}
         <motion.h1
           initial={{ y: 12, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           transition={{ delay: 0.25, duration: 0.35 }}
-          className="mt-8 text-center font-pixel"
+          className="mt-8 text-center font-medium"
           style={{
             fontSize: "clamp(28px, 5vw, 38px)",
             letterSpacing: "0.04em",
@@ -247,13 +247,13 @@ export default function IncomingCallScreen({
           {displayName}
         </motion.h1>
 
-        {/* Age + city — font-pixel 14px */}
+        {/* Age + city — font-medium 14px */}
         {ageCity && (
           <motion.div
             initial={{ y: 8, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             transition={{ delay: 0.33, duration: 0.35 }}
-            className="mt-3 flex items-center gap-2 font-pixel uppercase tracking-widest"
+            className="mt-3 flex items-center gap-2 font-medium uppercase tracking-wide"
             style={{ color: "rgba(255,255,255,0.7)", fontSize: 14, letterSpacing: "0.18em" }}
           >
             <MapPin size={14} className="opacity-60" aria-hidden />
@@ -267,7 +267,7 @@ export default function IncomingCallScreen({
             initial={{ y: 8, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             transition={{ delay: 0.41, duration: 0.35 }}
-            className="mt-1.5 flex items-center gap-2 font-pixel uppercase tracking-widest"
+            className="mt-1.5 flex items-center gap-2 font-medium uppercase tracking-wide"
             style={{ color: "rgba(255,255,255,0.7)", fontSize: 14, letterSpacing: "0.18em" }}
           >
             <Briefcase size={14} className="opacity-60" aria-hidden />
@@ -284,7 +284,7 @@ export default function IncomingCallScreen({
         >
           {leadSource && (
             <span
-              className="inline-flex items-center rounded-sm px-3 py-1.5 font-pixel uppercase tracking-widest"
+              className="inline-flex items-center rounded-sm px-3 py-1.5 font-medium uppercase tracking-wide"
               style={{
                 background: "rgba(167,139,250,0.18)",
                 color: "rgba(220,210,255,0.95)",
@@ -298,7 +298,7 @@ export default function IncomingCallScreen({
           )}
           {debtStr && (
             <span
-              className="inline-flex items-center gap-1.5 rounded-sm px-3 py-1.5 font-pixel uppercase tracking-widest"
+              className="inline-flex items-center gap-1.5 rounded-sm px-3 py-1.5 font-medium uppercase tracking-wide"
               style={{
                 background: "rgba(255,200,100,0.14)",
                 color: "rgba(255,220,140,0.98)",
@@ -319,7 +319,7 @@ export default function IncomingCallScreen({
             initial={{ opacity: 0 }}
             animate={{ opacity: 0.55 }}
             transition={{ delay: 0.6 }}
-            className="mt-4 font-pixel uppercase tracking-widest"
+            className="mt-4 font-medium uppercase tracking-wide"
             style={{ color: "rgba(255,255,255,0.45)", fontSize: 14 }}
           >
             Подключаем детали клиента…
@@ -363,8 +363,8 @@ export default function IncomingCallScreen({
               <PhoneOff size={30} strokeWidth={2.4} />
             </motion.span>
             <span
-              className="font-pixel uppercase tracking-widest"
-              style={{ color: "#fca5a5", fontSize: 14, letterSpacing: "0.22em" }}
+              className="font-medium uppercase tracking-wide"
+              style={{ color: "#fca5a5", fontSize: 14 }}
             >
               {declining ? "ОТМЕНЯЕМ…" : "ОТКЛОНИТЬ"}
             </span>
@@ -425,8 +425,8 @@ export default function IncomingCallScreen({
               )}
             </motion.span>
             <span
-              className="font-pixel uppercase tracking-widest"
-              style={{ color: "rgba(180,255,210,0.95)", fontSize: 14, letterSpacing: "0.22em" }}
+              className="font-medium uppercase tracking-wide"
+              style={{ color: "rgba(180,255,210,0.95)", fontSize: 14 }}
             >
               {accepting ? "СОЕДИНЯЕМ…" : "ПРИНЯТЬ"}
             </span>
@@ -434,7 +434,7 @@ export default function IncomingCallScreen({
         </div>
 
         <div
-          className="mx-auto mt-5 max-w-md text-center font-pixel uppercase tracking-widest"
+          className="mx-auto mt-5 max-w-md text-center font-medium uppercase tracking-wide"
           style={{ color: "rgba(255,255,255,0.4)", fontSize: 14, letterSpacing: "0.18em", lineHeight: 1.4 }}
         >
           Нажмите «Принять» чтобы подключить звук —<br />

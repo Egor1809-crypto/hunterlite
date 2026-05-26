@@ -14,7 +14,7 @@
  *     и заголовком-плашкой слева сверху (симметрично /profile)
  *   - все Toggle/Chip/input получили пиксельный стиль (2-3px borders,
  *     square corners, neon glow при active)
- *   - все шрифты ≥ 14px (font-pixel uppercase tracking-widest для
+ *   - все шрифты ≥ 14px (text-sm font-medium для
  *     лейблов, font-medium 14-16px для текста)
  *
  * НЕ ТРОГАЛ:
@@ -31,12 +31,12 @@ import {
 } from "lucide-react";
 import {
   Gear, SpeakerHigh, Bell, Envelope, ChatCircle,
-  GameController, Kanban, User as UserIcon, Palette, LinkSimple, Lightning, Flame,
+  GameController, Kanban, User as UserIcon, Palette, LinkSimple,
 } from "@phosphor-icons/react";
 import { useTheme } from "next-themes";
 import { api } from "@/lib/api";
 import { useAuth } from "@/hooks/useAuth";
-import { useGamificationStore } from "@/stores/useGamificationStore";
+// useGamificationStore removed — gamification display cleaned up
 import { useAuthStore } from "@/stores/useAuthStore";
 import AuthLayout from "@/components/layout/AuthLayout";
 import { BackButton } from "@/components/ui/BackButton";
@@ -119,17 +119,16 @@ function PixelToggle({
       onClick={onChange}
       whileTap={{ scale: 0.95 }}
       aria-pressed={on}
-      className="relative shrink-0 rounded-sm transition-colors"
+      className="relative shrink-0 rounded-full transition-colors"
       style={{
         width: 48,
         height: 24,
         background: on ? accent : "rgba(0,0,0,0.45)",
-        border: `2px solid ${on ? accent : "rgba(255,255,255,0.18)"}`,
-        boxShadow: on ? `0 0 10px ${accent}` : "inset 0 0 4px rgba(0,0,0,0.5)",
+        border: `1px solid ${on ? accent : "rgba(255,255,255,0.18)"}`,
       }}
     >
       <motion.div
-        className="absolute top-0.5 rounded-sm"
+        className="absolute top-0.5 rounded-full"
         animate={{ left: on ? 26 : 2 }}
         transition={{ type: "spring", stiffness: 500, damping: 30 }}
         style={{
@@ -164,14 +163,13 @@ function PixelChip({
       disabled={disabled}
       whileHover={!disabled ? { scale: 1.03 } : {}}
       whileTap={!disabled ? { scale: 0.97 } : {}}
-      className="rounded-sm font-pixel uppercase tracking-widest transition-all"
+      className="rounded-xl text-sm font-medium transition-all"
       style={{
         padding: "8px 14px",
         fontSize: 14,
         background: active ? accent : "rgba(255,255,255,0.04)",
-        border: `2px solid ${active ? accent : "rgba(255,255,255,0.18)"}`,
+        border: `1px solid ${active ? accent : "rgba(255,255,255,0.12)"}`,
         color: active ? "#0b0b14" : "var(--text-secondary)",
-        boxShadow: active ? `0 0 10px ${accent}` : "none",
         cursor: disabled ? "not-allowed" : "pointer",
         opacity: disabled ? 0.5 : 1,
       }}
@@ -206,13 +204,10 @@ function PixelInput({
       placeholder={placeholder}
       maxLength={maxLength}
       disabled={disabled}
-      className="w-full rounded-sm outline-none transition-colors"
+      className="w-full rounded-xl outline-none transition-colors vh-input"
       style={{
         padding: "10px 14px",
         fontSize: 14,
-        background: "rgba(0,0,0,0.45)",
-        border: "2px solid rgba(255,255,255,0.18)",
-        color: "var(--text-primary)",
       }}
     />
   );
@@ -237,34 +232,28 @@ function SettingsSection({
 }) {
   return (
     <section
-      className="relative rounded-sm"
+      className="relative rounded-2xl"
       style={{
         marginTop: mt ?? 32,
-        border: `2px solid ${accent}33`,
-        background: "rgba(8,5,18,0.45)",
-        boxShadow: "inset 0 0 24px rgba(0,0,0,0.35)",
+        border: `1px solid ${accent}22`,
+        background: "var(--surface-card, rgba(8,5,18,0.45))",
       }}
     >
-      {/* Заголовок-плашка */}
+      {/* Section header */}
       <div
-        className="absolute -top-3 left-4 px-2.5 py-0.5 font-pixel uppercase tracking-widest inline-flex items-center gap-2 rounded-sm"
-        style={{
-          background: "var(--bg-primary, #0b0b14)",
-          color: accent,
-          fontSize: 14,
-          letterSpacing: "0.18em",
-          border: `2px solid ${accent}`,
-        }}
+        className="flex items-center gap-2 px-5 pt-5 pb-1"
       >
-        <Icon size={14} weight="duotone" style={{ color: accent }} />
-        {title}
+        <Icon size={16} weight="duotone" style={{ color: accent }} />
+        <span className="text-sm font-semibold" style={{ color: accent }}>
+          {title}
+        </span>
       </div>
 
-      <div className="p-4 md:p-5 pt-7">
+      <div className="p-4 md:p-5">
         {description && (
           <p
-            className="mb-4 font-pixel uppercase tracking-widest"
-            style={{ color: "var(--text-muted)", fontSize: 14 }}
+            className="mb-4 text-sm"
+            style={{ color: "var(--text-muted)" }}
           >
             {description}
           </p>
@@ -280,7 +269,7 @@ function SettingsSection({
 function SettingsCard({ children, className = "" }: { children: ReactNode; className?: string }) {
   return (
     <div
-      className={`rounded-sm p-4 ${className}`}
+      className={`rounded-xl p-4 ${className}`}
       style={{
         background: "rgba(0,0,0,0.35)",
         border: "1px solid rgba(255,255,255,0.08)",
@@ -294,8 +283,8 @@ function SettingsCard({ children, className = "" }: { children: ReactNode; class
 function SettingsLabel({ children }: { children: ReactNode }) {
   return (
     <div
-      className="font-pixel uppercase tracking-widest mb-2.5"
-      style={{ color: "var(--text-muted)", fontSize: 14 }}
+      className="text-sm font-medium mb-2.5"
+      style={{ color: "var(--text-secondary)" }}
     >
       {children}
     </div>
@@ -345,7 +334,7 @@ export default function SettingsPage() {
   const [unlinking, setUnlinking] = useState<string | null>(null);
 
   const showCRM = user?.role && ["admin", "rop", "manager"].includes(user.role);
-  const { level, streak, fetchProgress } = useGamificationStore();
+  // gamification store removed — level/streak display cleaned up
 
   const [hydrated, setHydrated] = useState(false);
   useEffect(() => { mountedRef.current = true; setHydrated(true); }, []);
@@ -395,7 +384,7 @@ export default function SettingsPage() {
     document.body.classList.toggle("compact-mode", compactMode);
   }, [compactMode]);
 
-  useEffect(() => { fetchProgress(); }, [fetchProgress]);
+  // fetchProgress removed — gamification display cleaned up
 
   const triggerAutosave = useCallback(async () => {
     if (!mountedRef.current || !user) return;
@@ -473,106 +462,19 @@ export default function SettingsPage() {
         <div className="app-page max-w-4xl mx-auto">
           <BackButton href="/home" label="На главную" />
 
-          {/*
-            ═══ ПИКСЕЛЬНЫЙ ЛОГОТИП ⚙ НАСТРОЙКИ ⚙ ═══
-            Симметричный «Зал Славы» / «Профиль Охотника», но в
-            холодной серебряно-голубой палитре — это страница «пульта»,
-            не геймификация. Те же 3 keyframes (shine, pulse, twinkle).
-          */}
-          <style jsx>{`
-            @keyframes vh-settings-shine {
-              0%   { background-position: -150% 0; }
-              60%  { background-position:  250% 0; }
-              100% { background-position:  250% 0; }
-            }
-            @keyframes vh-settings-pulse {
-              0%, 100% {
-                filter:
-                  drop-shadow(0 3px 0 rgba(0,0,0,0.45))
-                  drop-shadow(0 0 12px rgba(167,139,250,0.4))
-                  drop-shadow(0 0 22px rgba(165,180,252,0.30));
-              }
-              50% {
-                filter:
-                  drop-shadow(0 3px 0 rgba(0,0,0,0.45))
-                  drop-shadow(0 0 18px rgba(167,139,250,0.75))
-                  drop-shadow(0 0 36px rgba(165,180,252,0.55));
-              }
-            }
-            @keyframes vh-settings-gear-a {
-              from { transform: rotate(0deg); }
-              to   { transform: rotate(360deg); }
-            }
-            @keyframes vh-settings-gear-b {
-              from { transform: rotate(360deg); }
-              to   { transform: rotate(0deg); }
-            }
-            .vh-settings-text {
-              background:
-                linear-gradient(
-                  120deg,
-                  transparent 0%,
-                  transparent 35%,
-                  rgba(255,255,255,0.95) 48%,
-                  rgba(255,255,255,1) 50%,
-                  rgba(255,255,255,0.95) 52%,
-                  transparent 65%,
-                  transparent 100%
-                ),
-                linear-gradient(180deg, #c4b5fd 0%, #a78bfa 35%, #818cf8 100%);
-              background-size: 200% 100%, 100% 100%;
-              background-position: -150% 0, 0 0;
-              -webkit-background-clip: text;
-              background-clip: text;
-              -webkit-text-fill-color: transparent;
-              animation:
-                vh-settings-shine 4s ease-in-out infinite,
-                vh-settings-pulse 3s ease-in-out infinite;
-            }
-            .vh-settings-gear-left  { animation: vh-settings-gear-a 6s linear infinite; display: inline-block; }
-            .vh-settings-gear-right { animation: vh-settings-gear-b 6s linear infinite; display: inline-block; }
-            @media (prefers-reduced-motion: reduce) {
-              .vh-settings-text, .vh-settings-gear-left, .vh-settings-gear-right {
-                animation: none !important;
-              }
-            }
-          `}</style>
-          <div className="text-center pt-2 pb-2 select-none">
-            <div
-              className="font-pixel vh-settings-text"
-              style={{
-                fontSize: "clamp(28px, 5vw, 48px)",
-                lineHeight: 1.0,
-                letterSpacing: "0.06em",
-              }}
-            >
-              <span
-                aria-hidden
-                className="vh-settings-gear-left"
-                style={{
-                  marginRight: 12,
-                  color: "#a78bfa",
-                  WebkitTextFillColor: "#a78bfa",
-                  textShadow: "0 0 10px rgba(167,139,250,0.85)",
-                }}
-              >⚙</span>
-              НАСТРОЙКИ
-              <span
-                aria-hidden
-                className="vh-settings-gear-right"
-                style={{
-                  marginLeft: 12,
-                  color: "#a78bfa",
-                  WebkitTextFillColor: "#a78bfa",
-                  textShadow: "0 0 10px rgba(167,139,250,0.85)",
-                }}
-              >⚙</span>
-            </div>
+          {/* Page title */}
+          <div className="pt-2 pb-2">
+            <h1 className="font-display text-2xl sm:text-3xl font-bold" style={{ color: "var(--text-primary)" }}>
+              Настройки
+            </h1>
+            <p className="text-sm mt-1" style={{ color: "var(--text-muted)" }}>
+              Управление профилем и параметрами
+            </p>
           </div>
 
           {/* Header-bar: avatar + role + level + autosave indicator */}
           <div
-            className="flex items-center gap-4 mt-3 p-4 rounded-sm"
+            className="flex items-center gap-4 mt-3 p-4 rounded-xl"
             style={{
               background: "rgba(8,5,18,0.55)",
               border: "2px solid rgba(167,139,250,0.28)",
@@ -587,14 +489,14 @@ export default function SettingsPage() {
             />
             <div className="flex-1 min-w-0">
               <div
-                className="font-pixel uppercase tracking-widest truncate"
+                className="text-sm font-medium truncate"
                 style={{ color: "var(--text-primary)", fontSize: 18 }}
               >
                 {user?.full_name || "—"}
               </div>
               <div className="flex items-center gap-2 mt-1.5 flex-wrap">
                 <span
-                  className="rounded-sm px-2 py-0.5 font-pixel uppercase tracking-widest"
+                  className="rounded-xl px-2 py-0.5 text-sm font-medium"
                   style={{
                     background: "rgba(167,139,250,0.18)",
                     color: "var(--accent)",
@@ -604,20 +506,6 @@ export default function SettingsPage() {
                 >
                   {roleLabels[user?.role || ""] || user?.role || ""}
                 </span>
-                <span
-                  className="inline-flex items-center gap-1 font-pixel tabular-nums"
-                  style={{ color: "var(--accent)", fontSize: 14 }}
-                >
-                  <Lightning weight="duotone" size={12} /> УР. {level}
-                </span>
-                {streak > 0 && (
-                  <span
-                    className="inline-flex items-center gap-1 font-pixel tabular-nums"
-                    style={{ color: "#fb923c", fontSize: 14 }}
-                  >
-                    <Flame weight="duotone" size={12} /> {streak}д
-                  </span>
-                )}
               </div>
             </div>
             <div className="text-right shrink-0">
@@ -628,7 +516,7 @@ export default function SettingsPage() {
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
-                    className="inline-flex items-center gap-2 px-2.5 py-1 rounded-sm font-pixel uppercase tracking-widest"
+                    className="inline-flex items-center gap-2 px-2.5 py-1 rounded-xl text-sm font-medium"
                     style={{
                       background: "rgba(255,255,255,0.05)",
                       border: "1px solid rgba(255,255,255,0.18)",
@@ -645,7 +533,7 @@ export default function SettingsPage() {
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
-                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-sm font-pixel uppercase tracking-widest"
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-sm font-medium"
                     style={{
                       background: "rgba(74,222,128,0.18)",
                       border: "1px solid #4ade80",
@@ -687,11 +575,11 @@ export default function SettingsPage() {
                   </Button>
                 </div>
                 {fullNameError && (
-                  <p className="font-pixel uppercase tracking-widest mt-2" style={{ color: "var(--danger)", fontSize: 14 }}>
+                  <p className="text-sm font-medium mt-2" style={{ color: "var(--danger)", fontSize: 14 }}>
                     {fullNameError}
                   </p>
                 )}
-                <p className="font-pixel uppercase tracking-widest mt-2" style={{ color: "var(--text-muted)", fontSize: 14 }}>
+                <p className="text-sm font-medium mt-2" style={{ color: "var(--text-muted)", fontSize: 14 }}>
                   Email: {user?.email}
                 </p>
               </SettingsCard>
@@ -740,7 +628,7 @@ export default function SettingsPage() {
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-3">
                     <SpeakerHigh weight="duotone" size={20} style={{ color: "#4ade80" }} />
-                    <span className="font-pixel uppercase tracking-widest" style={{ color: "var(--text-primary)", fontSize: 14 }}>
+                    <span className="text-sm font-medium" style={{ color: "var(--text-primary)", fontSize: 14 }}>
                       Озвучка AI
                     </span>
                   </div>
@@ -839,7 +727,7 @@ export default function SettingsPage() {
                       key={c.key}
                       type="button"
                       onClick={() => setAccentColor(c.key)}
-                      className="rounded-sm transition-all"
+                      className="rounded-xl transition-all"
                       style={{
                         width: 36,
                         height: 36,
@@ -857,7 +745,7 @@ export default function SettingsPage() {
 
               <SettingsCard className="md:col-span-2">
                 <div className="flex items-center justify-between">
-                  <span className="font-pixel uppercase tracking-widest" style={{ color: "var(--text-primary)", fontSize: 14 }}>
+                  <span className="text-sm font-medium" style={{ color: "var(--text-primary)", fontSize: 14 }}>
                     Компактный режим
                   </span>
                   <PixelToggle on={compactMode} onChange={() => setCompactMode(!compactMode)} accent="#fb923c" />
@@ -877,13 +765,13 @@ export default function SettingsPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <SettingsCard>
                 <div className="flex items-center justify-between mb-3">
-                  <span className="inline-flex items-center gap-2 font-pixel uppercase tracking-widest" style={{ color: "var(--text-primary)", fontSize: 14 }}>
+                  <span className="inline-flex items-center gap-2 text-sm font-medium" style={{ color: "var(--text-primary)", fontSize: 14 }}>
                     <ChatCircle weight="duotone" size={16} style={{ color: "#f87171" }} /> В приложении
                   </span>
                   <PixelToggle on={notifyPush} onChange={() => setNotifyPush(!notifyPush)} accent="#f87171" />
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="inline-flex items-center gap-2 font-pixel uppercase tracking-widest" style={{ color: "var(--text-primary)", fontSize: 14 }}>
+                  <span className="inline-flex items-center gap-2 text-sm font-medium" style={{ color: "var(--text-primary)", fontSize: 14 }}>
                     <Envelope weight="duotone" size={16} style={{ color: "#f87171" }} /> Email
                   </span>
                   <PixelToggle on={notifyEmail} onChange={() => setNotifyEmail(!notifyEmail)} accent="#f87171" />
@@ -917,7 +805,7 @@ export default function SettingsPage() {
             <div className="space-y-2">
               {/* Google */}
               <div
-                className="flex items-center justify-between rounded-sm px-3 py-2.5"
+                className="flex items-center justify-between rounded-xl px-3 py-2.5"
                 style={{
                   background: "rgba(0,0,0,0.35)",
                   border: "1px solid rgba(255,255,255,0.08)",
@@ -925,7 +813,7 @@ export default function SettingsPage() {
               >
                 <div className="flex items-center gap-2.5">
                   <svg width="18" height="18" viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
-                  <span className="font-pixel uppercase tracking-widest" style={{ color: "var(--text-secondary)", fontSize: 14 }}>
+                  <span className="text-sm font-medium" style={{ color: "var(--text-secondary)", fontSize: 14 }}>
                     Google
                   </span>
                 </div>
@@ -944,7 +832,7 @@ export default function SettingsPage() {
                       setUnlinking(null);
                     }}
                     disabled={unlinking === "google"}
-                    className="rounded-sm font-pixel uppercase tracking-widest"
+                    className="rounded-xl text-sm font-medium"
                     style={{
                       padding: "6px 12px",
                       background: "rgba(248,113,113,0.18)",
@@ -973,7 +861,7 @@ export default function SettingsPage() {
                         toast.error("Не удалось начать привязку Google");
                       }
                     }}
-                    className="rounded-sm font-pixel uppercase tracking-widest"
+                    className="rounded-xl text-sm font-medium"
                     style={{
                       padding: "6px 12px",
                       background: "rgba(167,139,250,0.18)",
@@ -985,13 +873,13 @@ export default function SettingsPage() {
                     Привязать
                   </button>
                 ) : (
-                  <span className="font-pixel uppercase tracking-widest" style={{ color: "var(--text-muted)", fontSize: 14 }}>—</span>
+                  <span className="text-sm font-medium" style={{ color: "var(--text-muted)", fontSize: 14 }}>—</span>
                 )}
               </div>
 
               {/* Yandex */}
               <div
-                className="flex items-center justify-between rounded-sm px-3 py-2.5"
+                className="flex items-center justify-between rounded-xl px-3 py-2.5"
                 style={{
                   background: "rgba(0,0,0,0.35)",
                   border: "1px solid rgba(255,255,255,0.08)",
@@ -999,7 +887,7 @@ export default function SettingsPage() {
               >
                 <div className="flex items-center gap-2.5">
                   <svg width="18" height="18" viewBox="0 0 24 24"><path d="M2 12C2 6.48 6.48 2 12 2s10 4.48 10 10-4.48 10-10 10S2 17.52 2 12z" fill="#FC3F1D"/><path d="M13.32 17.5h-1.88V7.38h-.97c-1.57 0-2.39.8-2.39 1.95 0 1.3.59 1.9 1.8 2.7l1 .65-2.9 4.82H6l2.62-4.33C7.37 12.26 6.56 11.22 6.56 9.5c0-2.07 1.45-3.5 4-3.5h2.76V17.5z" fill="white"/></svg>
-                  <span className="font-pixel uppercase tracking-widest" style={{ color: "var(--text-secondary)", fontSize: 14 }}>
+                  <span className="text-sm font-medium" style={{ color: "var(--text-secondary)", fontSize: 14 }}>
                     Yandex
                   </span>
                 </div>
@@ -1018,7 +906,7 @@ export default function SettingsPage() {
                       setUnlinking(null);
                     }}
                     disabled={unlinking === "yandex"}
-                    className="rounded-sm font-pixel uppercase tracking-widest"
+                    className="rounded-xl text-sm font-medium"
                     style={{
                       padding: "6px 12px",
                       background: "rgba(248,113,113,0.18)",
@@ -1047,7 +935,7 @@ export default function SettingsPage() {
                         toast.error("Не удалось начать привязку Яндекса");
                       }
                     }}
-                    className="rounded-sm font-pixel uppercase tracking-widest"
+                    className="rounded-xl text-sm font-medium"
                     style={{
                       padding: "6px 12px",
                       background: "rgba(167,139,250,0.18)",
@@ -1059,7 +947,7 @@ export default function SettingsPage() {
                     Привязать
                   </button>
                 ) : (
-                  <span className="font-pixel uppercase tracking-widest" style={{ color: "var(--text-muted)", fontSize: 14 }}>—</span>
+                  <span className="text-sm font-medium" style={{ color: "var(--text-muted)", fontSize: 14 }}>—</span>
                 )}
               </div>
             </div>
@@ -1092,7 +980,7 @@ export default function SettingsPage() {
                             : [...pipelineColumns, status]
                           );
                         }}
-                        className="inline-flex items-center gap-2 rounded-sm font-pixel uppercase tracking-widest transition-all"
+                        className="inline-flex items-center gap-2 rounded-xl text-sm font-medium transition-all"
                         style={{
                           padding: "8px 14px",
                           fontSize: 14,
@@ -1104,7 +992,7 @@ export default function SettingsPage() {
                           boxShadow: on ? `0 0 8px ${statusColor}55` : "none",
                         }}
                       >
-                        <span className="rounded-sm" style={{ width: 8, height: 8, background: statusColor }} />
+                        <span className="rounded-xl" style={{ width: 8, height: 8, background: statusColor }} />
                         {CLIENT_STATUS_LABELS[status as ClientStatus]}
                       </button>
                     );
@@ -1114,17 +1002,8 @@ export default function SettingsPage() {
             </SettingsSection>
           )}
 
-          {/* Footer — пиксельная подпись симметрично /leaderboard и /profile */}
-          <div className="text-center mt-12 mb-8">
-            <div
-              className="font-pixel uppercase tracking-widest inline-flex items-center gap-2"
-              style={{ color: "var(--text-muted)", fontSize: 14 }}
-            >
-              <Gear weight="duotone" size={14} />
-              ★ КОНЕЦ НАСТРОЕК ★
-              <Gear weight="duotone" size={14} />
-            </div>
-          </div>
+          {/* Spacer */}
+          <div className="h-12" />
         </div>
       </div>
     </AuthLayout>

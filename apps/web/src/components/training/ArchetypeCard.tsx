@@ -29,7 +29,7 @@ function getSkillColor(skill: string): string {
 // Pixel tier stars (1-4)
 function TierStars({ tier, color }: { tier: number; color: string }) {
   return (
-    <span className="font-pixel text-xs tracking-wider" style={{ color }}>
+    <span className="font-medium text-xs tracking-wide" style={{ color }}>
       {"★".repeat(tier)}{"☆".repeat(Math.max(0, 4 - tier))}
     </span>
   );
@@ -147,7 +147,7 @@ export function ArchetypeCard({ arch, size, selected, onSelect, scenario, isStar
         {/* BOSS corner badge (T4 only) */}
         {isBoss && (
           <div
-            className="absolute top-2 right-2 flex items-center gap-1 rounded-full px-2 py-0.5 z-10 font-pixel text-[10px] tracking-wider"
+            className="absolute top-2 right-2 flex items-center gap-1 rounded-full px-2 py-0.5 z-10 font-medium text-[10px] tracking-wide"
             style={{
               background: accentColor,
               color: "#000",
@@ -239,7 +239,7 @@ export function ArchetypeCard({ arch, size, selected, onSelect, scenario, isStar
               <Zap size={12} className="shrink-0 mt-0.5" style={{ color: accentColor }} />
               <div className="min-w-0">
                 <div
-                  className="font-semibold uppercase tracking-wider text-[9px] mb-0.5"
+                  className="font-semibold uppercase tracking-wide text-[9px] mb-0.5"
                   style={{ color: accentColor }}
                 >
                   Фирменный приём
@@ -255,7 +255,7 @@ export function ArchetypeCard({ arch, size, selected, onSelect, scenario, isStar
           {showThreatMeter && (
             <div className="flex items-center gap-2 text-[10px]">
               <span
-                className="font-pixel uppercase tracking-wider shrink-0"
+                className="font-medium uppercase tracking-wide shrink-0"
                 style={{ color: "var(--text-muted)" }}
               >
                 Угроза
@@ -296,7 +296,7 @@ export function ArchetypeCard({ arch, size, selected, onSelect, scenario, isStar
               <Target size={12} className="shrink-0 mt-0.5" style={{ color: "var(--success)" }} />
               <div className="min-w-0">
                 <div
-                  className="font-semibold uppercase tracking-wider text-[9px] mb-0.5"
+                  className="font-semibold uppercase tracking-wide text-[9px] mb-0.5"
                   style={{ color: "var(--success)" }}
                 >
                   Контрприём
@@ -314,7 +314,7 @@ export function ArchetypeCard({ arch, size, selected, onSelect, scenario, isStar
             {arch.counters.slice(0, tierNum >= 3 ? 4 : 3).map((skill) => (
               <span
                 key={skill}
-                className="font-pixel rounded-none px-2 py-0.5 text-xs pixel-shadow"
+                className="font-medium rounded-none px-2 py-0.5 text-xs pixel-shadow"
                 style={{
                   background: `color-mix(in srgb, ${getSkillColor(skill)} 15%, var(--bg-tertiary))`,
                   color: getSkillColor(skill),
@@ -404,7 +404,7 @@ export function ArchetypeCard({ arch, size, selected, onSelect, scenario, isStar
           }}
         >
           <span
-            className="font-pixel text-xs uppercase tracking-wider mr-1.5"
+            className="font-medium text-xs uppercase tracking-wide mr-1.5"
             style={{ color: "var(--danger, #ff5f57)" }}
           >
             ⚠ Слабое место:
@@ -419,7 +419,7 @@ export function ArchetypeCard({ arch, size, selected, onSelect, scenario, isStar
           {arch.counters.slice(0, 3).map((skill) => (
             <span
               key={skill}
-              className="font-pixel rounded-none px-2 py-0.5 text-xs pixel-shadow"
+              className="font-medium rounded-none px-2 py-0.5 text-xs pixel-shadow"
               style={{
                 background: `color-mix(in srgb, ${getSkillColor(skill)} 15%, var(--bg-tertiary))`,
                 color: getSkillColor(skill),
@@ -439,7 +439,7 @@ export function ArchetypeCard({ arch, size, selected, onSelect, scenario, isStar
             <motion.button
               onClick={() => onStart(scenario.id)}
               disabled={isStarting}
-              className="flex-1 min-w-[100px] flex items-center justify-center gap-1.5 rounded-none py-3 text-sm font-bold text-white font-pixel uppercase tracking-wider pixel-shadow"
+              className="flex-1 min-w-[100px] flex items-center justify-center gap-1.5 rounded-none py-3 text-sm font-bold text-white font-medium uppercase tracking-wide pixel-shadow"
               style={{
                 background: accentColor,
                 opacity: isStarting ? 0.6 : 1,
@@ -463,7 +463,7 @@ export function ArchetypeCard({ arch, size, selected, onSelect, scenario, isStar
                   onStartCall(scenario.id);
                 }}
                 disabled={isStarting}
-                className="flex-1 min-w-[100px] flex items-center justify-center gap-1.5 rounded-none py-3 text-sm font-bold font-pixel uppercase tracking-wider"
+                className="flex-1 min-w-[100px] flex items-center justify-center gap-1.5 rounded-none py-3 text-sm font-bold uppercase tracking-wide"
                 style={{
                   background: "transparent",
                   border: `2px solid ${accentColor}`,
@@ -486,7 +486,7 @@ export function ArchetypeCard({ arch, size, selected, onSelect, scenario, isStar
               disabled={isStarting}
               title={`Запустить сюжетную серию из ${storyCalls} звонков подряд`}
               aria-label={`Сюжет из ${storyCalls} звонков`}
-              className="flex-1 min-w-[100px] flex items-center justify-center gap-1.5 rounded-none py-3 text-xs font-bold font-pixel uppercase tracking-wider"
+              className="flex-1 min-w-[100px] flex items-center justify-center gap-1.5 rounded-none py-3 text-xs font-bold uppercase tracking-wide"
               style={{
                 border: `2px solid ${accentColor}`,
                 color: accentColor,
@@ -501,7 +501,7 @@ export function ArchetypeCard({ arch, size, selected, onSelect, scenario, isStar
           </div>
         ) : !scenario ? (
           <div
-            className="flex items-center justify-center gap-1.5 text-sm py-3 font-pixel pt-2 mt-1 border-t"
+            className="flex items-center justify-center gap-1.5 text-sm py-3 font-medium pt-2 mt-1 border-t"
             style={{ color: "var(--text-muted)", borderColor: "var(--border-color)" }}
           >
             <Lock size={14} /> Загрузите сценарии

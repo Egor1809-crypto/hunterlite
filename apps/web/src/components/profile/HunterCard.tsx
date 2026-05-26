@@ -6,9 +6,9 @@
  *   - 3px solid border акцентом (rounded-sm — почти square corners)
  *   - аватар: square frame с 3px бордером (вместо rounded-2xl) + пиксельные инициалы
  *   - угловые «glow blobs» убраны — лишний шум на пиксельной странице
- *   - имя: font-pixel вместо font-display, размер 28-36px
+ *   - имя: font-medium вместо font-display, размер 28-36px
  *   - метки роли/команды: пиксельные плашки 2px solid
- *   - level-ring остался, но обведён square фрагментом + текст font-pixel
+ *   - level-ring остался, но обведён square фрагментом + текст font-medium
  *   - XP-bar: square corners, пиксельный outline, неоновый glow
  */
 
@@ -78,7 +78,7 @@ export function HunterCard({ user, stats, gamification, teamName }: HunterCardPr
         <div className="flex items-center gap-4 md:gap-5 flex-1 min-w-0">
           {/* Square pixel avatar (вместо rounded-2xl) */}
           <div
-            className="w-[88px] h-[88px] rounded-sm flex items-center justify-center font-pixel shrink-0"
+            className="w-[88px] h-[88px] rounded-sm flex items-center justify-center font-medium shrink-0"
             style={{
               background: "linear-gradient(135deg, var(--accent), rgba(167,139,250,0.6))",
               border: "3px solid #0b0b14",
@@ -95,7 +95,7 @@ export function HunterCard({ user, stats, gamification, teamName }: HunterCardPr
 
           <div className="min-w-0 flex-1">
             <h2
-              className="font-pixel truncate"
+              className="font-medium truncate"
               style={{
                 color: "var(--text-primary)",
                 fontSize: "clamp(24px, 3.5vw, 36px)",
@@ -108,7 +108,7 @@ export function HunterCard({ user, stats, gamification, teamName }: HunterCardPr
             </h2>
             <div className="flex items-center gap-2 mt-2 flex-wrap">
               <span
-                className="rounded-sm px-2.5 py-1 font-pixel uppercase tracking-widest"
+                className="rounded-sm px-2.5 py-1 font-medium uppercase tracking-wide"
                 style={{
                   background: "rgba(167,139,250,0.18)",
                   color: "var(--accent)",
@@ -120,7 +120,7 @@ export function HunterCard({ user, stats, gamification, teamName }: HunterCardPr
               </span>
               {teamName && (
                 <span
-                  className="rounded-sm px-2.5 py-1 font-pixel uppercase tracking-widest"
+                  className="rounded-sm px-2.5 py-1 font-medium uppercase tracking-wide"
                   style={{
                     background: "rgba(255,255,255,0.04)",
                     color: "var(--text-muted)",
@@ -142,7 +142,7 @@ export function HunterCard({ user, stats, gamification, teamName }: HunterCardPr
               >
                 <Flame size={14} style={{ color: "#fb923c" }} />
                 <span
-                  className="font-pixel font-bold tabular-nums uppercase tracking-widest"
+                  className="font-bold tabular-nums uppercase tracking-wide"
                   style={{ color: "#fb923c", fontSize: 14 }}
                 >
                   {streakDays} ДН. СТРИК
@@ -183,13 +183,13 @@ export function HunterCard({ user, stats, gamification, teamName }: HunterCardPr
             />
           </svg>
           <div
-            className="font-pixel uppercase tracking-widest"
+            className="font-medium uppercase tracking-wide"
             style={{ color: "var(--text-muted)", fontSize: 12, lineHeight: 1 }}
           >
             УР.
           </div>
           <div
-            className="font-pixel font-black tabular-nums"
+            className="font-black tabular-nums"
             style={{
               color: "var(--accent)",
               fontSize: 36,
@@ -207,14 +207,14 @@ export function HunterCard({ user, stats, gamification, teamName }: HunterCardPr
       <div className="relative z-10 mt-5">
         <div className="flex items-center justify-between mb-2">
           <span
-            className="font-pixel uppercase tracking-widest tabular-nums"
+            className="font-medium uppercase tracking-wide tabular-nums"
             style={{ color: "var(--text-secondary)", fontSize: 14 }}
           >
             <Zap size={14} className="inline mr-1.5" style={{ color: "var(--accent)" }} />
             {xpCurrent.toLocaleString("ru-RU")} / {xpNext.toLocaleString("ru-RU")} XP
           </span>
           <span
-            className="font-pixel uppercase tracking-widest"
+            className="font-medium uppercase tracking-wide"
             style={{ color: "var(--accent)", fontSize: 14 }}
           >
             УР. {level}

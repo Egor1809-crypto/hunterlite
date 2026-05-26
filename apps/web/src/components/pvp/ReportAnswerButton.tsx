@@ -116,7 +116,7 @@ export function ReportAnswerButton({ answerId, disabled }: Props) {
         disabled={disabled || submitted}
         whileHover={!disabled && !submitted ? { x: -1, y: -1 } : undefined}
         whileTap={!disabled && !submitted ? { x: 1, y: 1 } : undefined}
-        className="mt-3 inline-flex items-center gap-2 px-3 py-2 font-pixel uppercase text-[11px]"
+        className="mt-3 inline-flex items-center gap-2 px-3 py-2 font-medium uppercase text-[11px]"
         style={{
           color: submitted ? "var(--success)" : "var(--warning)",
           background: submitted
@@ -180,7 +180,7 @@ export function ReportAnswerButton({ answerId, disabled }: Props) {
               >
                 <h3
                   id="report-modal-title"
-                  className="flex items-center gap-2 font-pixel uppercase tracking-widest"
+                  className="flex items-center gap-2 font-medium uppercase tracking-wide"
                   style={{ color: "var(--warning)", fontSize: 13, letterSpacing: "0.18em" }}
                 >
                   <Flag size={16} />
@@ -212,7 +212,7 @@ export function ReportAnswerButton({ answerId, disabled }: Props) {
                   className="flex flex-col items-center text-center gap-3 px-6 py-10"
                 >
                   <CheckCircle2 size={48} style={{ color: "var(--success)" }} />
-                  <h4 className="font-pixel uppercase text-base tracking-widest" style={{ color: "var(--success)" }}>
+                  <h4 className="font-medium uppercase text-base tracking-wide" style={{ color: "var(--success)" }}>
                     Жалоба отправлена
                   </h4>
                   <p className="text-sm leading-relaxed max-w-sm" style={{ color: "var(--text-secondary)" }}>
@@ -258,12 +258,12 @@ export function ReportAnswerButton({ answerId, disabled }: Props) {
                   />
                   <div className="mt-2 flex items-center justify-between">
                     <span
-                      className="font-pixel text-[11px] uppercase tracking-wider"
+                      className="font-medium text-[11px] uppercase tracking-wide"
                       style={{ color: reason.length < 3 ? "var(--text-muted)" : "var(--success)" }}
                     >
                       {reason.length} / 500 символов{reason.length > 0 && reason.length < 3 ? " (минимум 3)" : ""}
                     </span>
-                    <span className="font-pixel text-[10px] uppercase" style={{ color: "var(--text-muted)", letterSpacing: "0.14em" }}>
+                    <span className="font-medium text-[10px] uppercase" style={{ color: "var(--text-muted)", letterSpacing: "0.14em" }}>
                       ESC чтобы закрыть
                     </span>
                   </div>
@@ -282,7 +282,7 @@ export function ReportAnswerButton({ answerId, disabled }: Props) {
                     disabled={submitting}
                     whileHover={!submitting ? { x: -1, y: -1 } : undefined}
                     whileTap={!submitting ? { x: 1, y: 1 } : undefined}
-                    className="px-4 py-2 font-pixel uppercase text-xs tracking-widest"
+                    className="px-4 py-2 font-medium uppercase text-xs tracking-wide"
                     style={{
                       background: "transparent",
                       color: "var(--text-secondary)",
@@ -300,7 +300,7 @@ export function ReportAnswerButton({ answerId, disabled }: Props) {
                     disabled={submitting || reason.trim().length < 3}
                     whileHover={!submitting && reason.trim().length >= 3 ? { x: -1, y: -1 } : undefined}
                     whileTap={!submitting && reason.trim().length >= 3 ? { x: 1, y: 1 } : undefined}
-                    className="inline-flex items-center gap-2 px-5 py-2 font-pixel uppercase text-xs tracking-widest"
+                    className="inline-flex items-center gap-2 px-5 py-2 font-medium uppercase text-xs tracking-wide"
                     style={{
                       background: reason.trim().length >= 3 ? "var(--warning)" : "var(--bg-secondary, rgba(0,0,0,0.4))",
                       color: reason.trim().length >= 3 ? "#000" : "var(--text-muted)",

@@ -134,7 +134,7 @@ export function PostSessionVerdict({ score, onContinue, xpGained = 0 }: PostSess
                   {displayScore}
                 </motion.div>
               </div>
-              <div className="font-pixel text-2xl tracking-widest mt-3" style={{ color: "var(--text-muted)" }}>
+              <div className="font-medium text-2xl tracking-wide mt-3" style={{ color: "var(--text-muted)" }}>
                 ИТОГОВЫЙ БАЛЛ
               </div>
             </motion.div>
@@ -156,7 +156,7 @@ export function PostSessionVerdict({ score, onContinue, xpGained = 0 }: PostSess
                 style={{ background: verdict.color }}
               />
               <div
-                className="font-pixel font-bold tracking-wider glitch-text"
+                className="font-bold tracking-wide glitch-text"
                 data-text={verdict.wordRu}
                 style={{
                   // Pixel font (VT323) needs explicit crisp rendering; the
@@ -207,7 +207,7 @@ export function PostSessionVerdict({ score, onContinue, xpGained = 0 }: PostSess
                   <span className="text-3xl" style={{ color: "var(--text-muted)" }}>/100</span>
                 </div>
                 <div
-                  className="font-pixel text-4xl font-bold tracking-widest mt-2"
+                  className="font-medium text-4xl font-bold tracking-wide mt-2"
                   style={{
                     color: verdict.color,
                     WebkitFontSmoothing: "none",

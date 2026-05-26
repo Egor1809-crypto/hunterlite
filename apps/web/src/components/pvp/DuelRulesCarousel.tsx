@@ -23,7 +23,7 @@
  *   - max-width 480 px (компактнее старой панели 768 px)
  *   - высота ~180 px (фиксированная, без layout shift)
  *   - пиксельная рамка 2px solid accent + glow
- *   - шрифты ≥ 14 px (font-pixel uppercase для лейблов)
+ *   - шрифты ≥ 14 px (font-medium uppercase для лейблов)
  */
 
 import { useEffect, useRef, useState } from "react";
@@ -114,7 +114,7 @@ export function DuelRulesCarousel({ caption = "Готовься к арене" }
     >
       {/* Caption над плашкой */}
       <div
-        className="text-center font-pixel uppercase tracking-widest mb-2"
+        className="text-center font-medium uppercase tracking-wide mb-2"
         style={{ color: "var(--text-muted)", fontSize: 14, letterSpacing: "0.18em" }}
       >
         <Sparkles size={14} className="inline mr-1.5 -mt-0.5" />
@@ -172,7 +172,7 @@ export function DuelRulesCarousel({ caption = "Готовься к арене" }
             >
               <div style={{ fontSize: 26, lineHeight: 1 }}>{rule.emoji}</div>
               <div
-                className="font-pixel uppercase tracking-widest tabular-nums"
+                className="font-medium uppercase tracking-wide tabular-nums"
                 style={{ color: rule.color, fontSize: 14, marginTop: 2 }}
               >
                 {rule.num}/{RULES.length}
@@ -182,7 +182,7 @@ export function DuelRulesCarousel({ caption = "Готовься к арене" }
             {/* Текст правила */}
             <div className="flex-1 min-w-0">
               <div
-                className="font-pixel uppercase tracking-widest mb-2"
+                className="font-medium uppercase tracking-wide mb-2"
                 style={{
                   color: rule.color,
                   fontSize: 16,

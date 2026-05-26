@@ -72,7 +72,7 @@ export default function DifficultyIndicator({
       onMouseLeave={() => setHovered(false)}
     >
       {/* Pixel title */}
-      <div className="font-pixel text-xs uppercase tracking-wider mb-3" style={{ color: "var(--text-muted)" }}>
+      <div className="font-medium text-xs uppercase tracking-wide mb-3" style={{ color: "var(--text-muted)" }}>
         СЛОЖНОСТЬ
       </div>
 
@@ -99,7 +99,7 @@ export default function DifficultyIndicator({
             ))}
           </div>
         </div>
-        <span className="font-pixel text-sm font-bold tabular-nums min-w-[2.5rem] text-right" style={{ color: level.color }}>
+        <span className="font-medium text-sm font-bold tabular-nums min-w-[2.5rem] text-right" style={{ color: level.color }}>
           {effectiveDifficulty}/10
           {trendArrow && (
             <span className="ml-0.5 text-xs" style={{ color: trend === "rising" ? "var(--danger)" : "var(--success)" }}>
@@ -110,7 +110,7 @@ export default function DifficultyIndicator({
       </div>
 
       {/* Difficulty label */}
-      <div className="font-pixel text-xs uppercase tracking-wider pixel-glow mb-2" style={{ color: level.color }}>
+      <div className="font-medium text-xs uppercase tracking-wide pixel-glow mb-2" style={{ color: level.color }}>
         {level.label}
       </div>
 
@@ -134,7 +134,7 @@ export default function DifficultyIndicator({
                   ? { boxShadow: { repeat: Infinity, duration: 1.2 }, opacity: { duration: 0.3 }, scale: { duration: 0.3 } }
                   : { duration: 0.3 }
               }
-              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-none text-xs font-pixel uppercase tracking-wider pixel-border"
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-none text-xs font-medium uppercase tracking-wide pixel-border"
               style={{
                 "--pixel-border-color": modeConfig.color,
                 background: `color-mix(in srgb, ${modeConfig.color} 13%, transparent)`,
@@ -147,17 +147,17 @@ export default function DifficultyIndicator({
         </AnimatePresence>
 
         {goodStreak >= 3 && (
-          <span className="font-pixel text-xs" title={`Серия: ${goodStreak}`} style={{ color: "var(--warning)" }}>
+          <span className="font-medium text-xs" title={`Серия: ${goodStreak}`} style={{ color: "var(--warning)" }}>
             🔥{goodStreak}
           </span>
         )}
         {badStreak >= 3 && (
-          <span className="font-pixel text-xs" title={`Ошибки: ${badStreak}`} style={{ color: "var(--info)" }}>
+          <span className="font-medium text-xs" title={`Ошибки: ${badStreak}`} style={{ color: "var(--info)" }}>
             ❄️{badStreak}
           </span>
         )}
         {hadComeback && (
-          <span className="font-pixel text-xs" title="Камбэк!" style={{ color: "var(--success)" }}>
+          <span className="font-medium text-xs" title="Камбэк!" style={{ color: "var(--success)" }}>
             🔄
           </span>
         )}
@@ -171,7 +171,7 @@ export default function DifficultyIndicator({
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 4 }}
             transition={{ duration: 0.15 }}
-            className="absolute left-0 right-0 -bottom-1 translate-y-full z-30 p-3 rounded-none text-xs leading-relaxed font-pixel pixel-border pixel-shadow"
+            className="absolute left-0 right-0 -bottom-1 translate-y-full z-30 p-3 rounded-none text-xs leading-relaxed font-medium pixel-border pixel-shadow"
             style={{
               "--pixel-border-color": "var(--accent)",
               background: "#0e0b1a",

@@ -215,7 +215,7 @@ export function ActivityHeatmap({ days = 180, accent = "var(--accent)" }: Props)
   if (error || !data || !grid) {
     return (
       <div
-        className="font-pixel uppercase tracking-widest text-center py-8"
+        className="font-medium uppercase tracking-wide text-center py-8"
         style={{ color: "var(--text-muted)", fontSize: 14 }}
       >
         {error || "Активности пока нет"}
@@ -233,7 +233,7 @@ export function ActivityHeatmap({ days = 180, accent = "var(--accent)" }: Props)
         <div className="flex items-center gap-2">
           <Activity size={16} style={{ color: "var(--accent)" }} />
           <span
-            className="font-pixel uppercase tracking-widest"
+            className="font-medium uppercase tracking-wide"
             style={{ color: "var(--text-secondary)", fontSize: 14 }}
           >
             АКТИВНОСТЬ ЗА {days} ДНЕЙ
@@ -281,7 +281,7 @@ export function ActivityHeatmap({ days = 180, accent = "var(--accent)" }: Props)
             {monthMarkers.map((m) => (
               <div
                 key={`${m.col}-${m.label}`}
-                className="absolute font-pixel uppercase tracking-widest"
+                className="absolute font-medium uppercase tracking-wide"
                 style={{
                   left: m.col * (cellSize + cellGap),
                   fontSize: 11,
@@ -303,7 +303,7 @@ export function ActivityHeatmap({ days = 180, accent = "var(--accent)" }: Props)
               {DAY_LABELS.map((dl, i) => (
                 <div
                   key={dl}
-                  className="font-pixel uppercase tracking-widest flex items-center"
+                  className="font-medium uppercase tracking-wide flex items-center"
                   style={{
                     height: cellSize,
                     fontSize: 10,
@@ -377,7 +377,7 @@ export function ActivityHeatmap({ days = 180, accent = "var(--accent)" }: Props)
           {/* Легенда + tooltip */}
           <div className="flex items-center justify-between mt-4">
             <div
-              className="font-pixel uppercase tracking-widest"
+              className="font-medium uppercase tracking-wide"
               style={{ fontSize: 11, color: "var(--text-muted)" }}
             >
               {hovered ? (
@@ -398,7 +398,7 @@ export function ActivityHeatmap({ days = 180, accent = "var(--accent)" }: Props)
             </div>
             <div className="flex items-center gap-1.5">
               <span
-                className="font-pixel uppercase tracking-widest"
+                className="font-medium uppercase tracking-wide"
                 style={{ fontSize: 11, color: "var(--text-muted)" }}
               >
                 меньше
@@ -419,7 +419,7 @@ export function ActivityHeatmap({ days = 180, accent = "var(--accent)" }: Props)
                 />
               ))}
               <span
-                className="font-pixel uppercase tracking-widest"
+                className="font-medium uppercase tracking-wide"
                 style={{ fontSize: 11, color: "var(--text-muted)" }}
               >
                 больше
@@ -448,13 +448,13 @@ function Stat({
       <span style={{ color }}>{icon}</span>
       <div className="leading-tight">
         <div
-          className="font-pixel uppercase tracking-widest"
+          className="font-medium uppercase tracking-wide"
           style={{ color: "var(--text-muted)", fontSize: 11 }}
         >
           {label}
         </div>
         <div
-          className="font-pixel font-bold tabular-nums"
+          className="font-bold tabular-nums"
           style={{ color, fontSize: 16, lineHeight: 1.0 }}
         >
           {value}

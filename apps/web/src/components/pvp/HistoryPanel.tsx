@@ -42,7 +42,7 @@ export function HistoryPanel() {
       aria-label="История дуэлей"
     >
       <div
-        className="font-pixel uppercase tracking-widest mb-3 flex items-center gap-2"
+        className="font-medium uppercase tracking-wide mb-3 flex items-center gap-2"
         style={{ color: "var(--accent)", fontSize: 11, letterSpacing: "0.16em" }}
       >
         <Sword size={13} />
@@ -55,7 +55,7 @@ export function HistoryPanel() {
         </div>
       ) : top5.length === 0 ? (
         <div
-          className="font-pixel text-[10px] uppercase tracking-wider py-4 text-center"
+          className="font-medium text-[10px] uppercase tracking-wide py-4 text-center"
           style={{ color: "var(--text-muted)", letterSpacing: "0.14em" }}
         >
           Ещё нет дуэлей
@@ -93,14 +93,14 @@ export function HistoryPanel() {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1.5">
                     <span
-                      className="font-pixel uppercase text-[10px]"
+                      className="font-medium uppercase text-[10px]"
                       style={{ color: accent, letterSpacing: "0.12em" }}
                     >
                       {verdict === "victory" ? "Поб." : verdict === "draw" ? "Нич." : "Пор."}
                     </span>
                     {duel.is_pve && (
                       <span
-                        className="font-pixel uppercase text-[8px] px-1"
+                        className="font-medium uppercase text-[8px] px-1"
                         style={{ color: "var(--warning)", border: "1px solid var(--warning)", letterSpacing: "0.1em" }}
                       >
                         PvE
@@ -108,14 +108,14 @@ export function HistoryPanel() {
                     )}
                   </div>
                   <div
-                    className="font-pixel tabular-nums text-[10px] tracking-wider"
+                    className="font-medium tabular-nums text-[10px] tracking-wide"
                     style={{ color: "var(--text-muted)" }}
                   >
                     {Math.round(myScore)}–{Math.round(oppScore)}
                   </div>
                 </div>
                 <div
-                  className="font-pixel text-[11px] tabular-nums"
+                  className="font-medium text-[11px] tabular-nums"
                   style={{
                     color: ratingApplied ? (myDelta >= 0 ? "var(--success)" : "var(--danger)") : "var(--text-muted)",
                   }}
@@ -138,7 +138,7 @@ export function HistoryPanel() {
           // прокидываем сразу финальный якорь, чтобы избежать
           // лишнего хопа.
           onClick={() => router.push("/leaderboard#stage-duels")}
-          className="mt-3 block w-full text-center font-pixel uppercase text-[10px] tracking-widest py-1.5"
+          className="mt-3 block w-full text-center font-medium uppercase text-[10px] tracking-wide py-1.5"
           style={{
             color: "var(--text-muted)",
             border: "1px dashed var(--border-color)",

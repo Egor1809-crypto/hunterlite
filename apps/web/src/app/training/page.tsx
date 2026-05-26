@@ -42,25 +42,17 @@ import { Skeleton } from "@/components/ui/Skeleton";
 // ведёт в /training?tab=scenarios (та же логика подбора работает там же).
 type Tab = "scenarios" | "assigned" | "builder" | "saved";
 
-type PixelFace = "mask" | "check" | "gear" | "briefcase";
-
-// PR-15 (2026-05-07): tab icons reworked from hand-drawn PixelFaceIcon
-// (пилот сказал «фигня») к высококонтрастным цветным эмодзи с
-// hover/active-эффектом через Framer Motion. PixelFace оставлен для
-// совместимости (не используется), но активный icon — emoji + Lucide
-// fallback в badge-stamp.
 const TABS: {
   id: Tab;
   label: string;
   icon: React.ComponentType<{ size: number; style?: React.CSSProperties }>;
-  pixelFace: PixelFace;
   emoji: string;
   hue: string;
 }[] = [
-  { id: "scenarios", label: "Сценарии",   icon: BookOpen,       pixelFace: "mask",      emoji: "🎭", hue: "var(--accent)" },
-  { id: "assigned",  label: "Назначенные", icon: ClipboardList,  pixelFace: "check",     emoji: "📋", hue: "var(--warning)" },
-  { id: "builder",   label: "Конструктор", icon: Puzzle,         pixelFace: "gear",      emoji: "🧩", hue: "var(--success)" },
-  { id: "saved",     label: "Мои клиенты", icon: Users,          pixelFace: "briefcase", emoji: "👥", hue: "var(--info)" },
+  { id: "scenarios", label: "Сценарии",   icon: BookOpen,       emoji: "🎭", hue: "var(--accent)" },
+  { id: "assigned",  label: "Назначенные", icon: ClipboardList,  emoji: "📋", hue: "var(--warning)" },
+  { id: "builder",   label: "Конструктор", icon: Puzzle,         emoji: "🧩", hue: "var(--success)" },
+  { id: "saved",     label: "Мои клиенты", icon: Users,          emoji: "👥", hue: "var(--info)" },
 ];
 
 const TYPE_FILTERS = [
@@ -318,7 +310,7 @@ function TrainingPageContent() {
                     >
                       {t.emoji}
                     </motion.span>
-                    <span className="font-pixel text-[14px] uppercase leading-none tracking-wide">
+                    <span className="text-sm font-semibold leading-none tracking-wide">
                       {t.label}
                     </span>
                     {/* Badge for assigned tab */}
@@ -460,9 +452,9 @@ function ScenariosTab({
       <div
         className="mt-6 overflow-hidden rounded-2xl"
         style={{
-          background: "linear-gradient(135deg, rgba(5,5,6,0.95), rgba(18,18,22,0.94))",
-          border: "1px solid var(--accent-muted)",
-          boxShadow: "0 18px 45px rgba(0,0,0,0.28)",
+          background: "var(--surface-card)",
+          border: "1px solid var(--border-color)",
+          boxShadow: "var(--shadow-md)",
         }}
       >
         <div className="grid gap-6 px-5 py-5 md:grid-cols-[1.1fr_0.9fr] md:px-6">
@@ -491,12 +483,12 @@ function ScenariosTab({
                   onClick={() => onStoryCallsChange(item.calls)}
                   className="rounded-xl px-4 py-3 text-left transition-all"
                   style={{
-                    background: active ? "var(--accent-muted)" : "rgba(255,255,255,0.03)",
-                    border: active ? "2px solid var(--accent)" : "1px solid rgba(255,255,255,0.08)",
-                    boxShadow: active ? "0 0 18px -4px var(--accent)" : "none",
+                    background: active ? "var(--primary-muted)" : "var(--surface-card-hover)",
+                    border: active ? "2px solid var(--primary)" : "1px solid var(--border-color)",
+                    boxShadow: active ? "var(--shadow-sm)" : "none",
                   }}
                 >
-                  <div className="text-sm font-semibold" style={{ color: active ? "var(--accent)" : "var(--text-primary)" }}>
+                  <div className="text-sm font-semibold" style={{ color: active ? "var(--primary)" : "var(--text-primary)" }}>
                     {item.label}
                   </div>
                   <div className="mt-1 text-sm leading-relaxed" style={{ color: "var(--text-muted)" }}>
@@ -765,7 +757,7 @@ function AssignedTab({
         <>
           <div className="mt-8 mb-3 flex items-center gap-2">
             <Clock size={14} style={{ color: "var(--text-muted)" }} />
-            <span className="font-mono text-xs uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
+            <span className="text-xs font-medium uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
               Недавние звонки с главной
             </span>
           </div>

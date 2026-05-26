@@ -11,7 +11,7 @@
  *   15s+  → "Модель медленная, ответ вот-вот" — danger accent
  *
  * Стиль обновлён под Arcade Stage: glass-card с soft shadow, font-display
- * вместо font-pixel, animated brain-spinner с tilted bob (без NES рамок).
+ * вместо font-medium, animated brain-spinner с tilted bob (без NES рамок).
  */
 
 import { useEffect, useState } from "react";

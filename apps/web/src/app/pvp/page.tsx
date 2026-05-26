@@ -13,7 +13,7 @@ import { useNotificationStore } from "@/stores/useNotificationStore";
 import { RatingCard } from "@/components/pvp/RatingCard";
 import { MatchmakingOverlay } from "@/components/pvp/MatchmakingOverlay";
 import { logger } from "@/lib/logger";
-import { PixelIcon } from "@/components/pvp/PixelIcon";
+// PixelIcon removed — clean design system
 import { CharacterPicker } from "@/components/pvp/CharacterPicker";
 import { KnowledgeBaseBrowser } from "@/components/pvp/KnowledgeBaseBrowser";
 import { HonestNavigator } from "@/components/pvp/HonestNavigator";
@@ -269,18 +269,14 @@ function PvPLobbyContent() {
                 className="overflow-hidden"
               >
                 <div
-                  className="flex items-center gap-3 rounded-none pixel-border px-4 py-3 text-sm font-pixel"
+                  className="flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium"
                   style={{
-                    "--pixel-border-color": connectionState === "error" ? "var(--danger)" : "var(--warning)",
                     background: connectionState === "error" ? "var(--danger-muted)" : "var(--warning-muted)",
                     color: connectionState === "error" ? "var(--danger)" : "var(--warning)",
-                  } as React.CSSProperties}
+                    border: `1px solid ${connectionState === "error" ? "rgba(239,68,68,0.3)" : "rgba(245,158,11,0.3)"}`,
+                  }}
                 >
-                  {connectionState === "error" ? (
-                    <PixelIcon name="skull" size={16} color="var(--danger)" />
-                  ) : (
-                    <Loader2 size={16} className="animate-spin" />
-                  )}
+                  <Loader2 size={16} className="animate-spin" />
                   {connectionState === "error"
                     ? "ОШИБКА ПОДКЛЮЧЕНИЯ К PVP СЕРВЕРУ"
                     : connectionState === "reconnecting"
@@ -294,12 +290,12 @@ function PvPLobbyContent() {
           <motion.div initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.3 }}>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <PixelIcon name="sword" size={32} color="var(--accent)" />
+                <Sword size={28} weight="duotone" style={{ color: "var(--accent)" }} />
                 <div>
-                  <h1 className="font-pixel text-xl sm:text-2xl uppercase tracking-widest pixel-glow" style={{ color: "var(--text-primary)" }}>
+                  <h1 className="font-display text-xl sm:text-2xl font-bold tracking-wide" style={{ color: "var(--text-primary)" }}>
                     PVP Арена
                   </h1>
-                  <p className="font-pixel text-xs mt-0.5 uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
+                  <p className="text-xs mt-0.5 font-medium" style={{ color: "var(--text-muted)" }}>
                     Дуэли 1 на 1 · Glicko-2 рейтинг
                   </p>
                 </div>
@@ -311,27 +307,25 @@ function PvPLobbyContent() {
                     остаётся как fallback (см. main column). */}
                 <details className="hidden lg:block relative group">
                   <summary
-                    className="cursor-pointer select-none list-none inline-flex items-center justify-center w-10 h-10 transition-colors"
+                    className="cursor-pointer select-none list-none inline-flex items-center justify-center w-10 h-10 rounded-xl transition-colors"
                     style={{
                       background: pickedCharacterId
                         ? "color-mix(in srgb, var(--accent) 14%, transparent)"
                         : "var(--bg-panel)",
                       color: pickedCharacterId ? "var(--accent)" : "var(--text-muted)",
-                      border: `2px solid ${pickedCharacterId ? "var(--accent)" : "var(--border-color)"}`,
-                      borderRadius: 0,
+                      border: `1px solid ${pickedCharacterId ? "var(--accent)" : "var(--border-color)"}`,
                     }}
                     title={pickedCharacterId ? "Персонаж выбран" : "Выбрать кастомного клиента"}
                     aria-label="Персонаж"
                   >
-                    <PixelIcon name="robot" size={18} color="currentColor" />
+                    <Target size={18} />
                   </summary>
                   <div
-                    className="absolute right-0 top-full mt-2 z-30 w-[320px] p-3"
+                    className="absolute right-0 top-full mt-2 z-30 w-[320px] p-3 rounded-xl"
                     style={{
                       background: "var(--bg-panel)",
-                      border: "2px solid var(--accent)",
-                      borderRadius: 0,
-                      boxShadow: "4px 4px 0 0 #000, 0 0 16px var(--accent-glow)",
+                      border: "1px solid var(--border-color)",
+                      boxShadow: "var(--shadow-lg)",
                     }}
                   >
                     <CharacterPicker
@@ -360,36 +354,33 @@ function PvPLobbyContent() {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ delay: 0.1 }}
-                className="mt-4 p-3 flex items-center flex-wrap gap-x-4 gap-y-2"
+                className="mt-4 p-3 flex items-center flex-wrap gap-x-4 gap-y-2 rounded-xl"
                 style={{
                   background: "color-mix(in srgb, var(--gf-xp) 10%, var(--bg-panel))",
-                  outline: "2px solid var(--gf-xp)",
-                  outlineOffset: -2,
-                  boxShadow: "3px 3px 0 0 var(--gf-xp)",
-                  borderRadius: 0,
+                  border: "1px solid color-mix(in srgb, var(--gf-xp) 30%, transparent)",
                 }}
               >
                 <span className="flex items-center gap-2">
-                  <PixelIcon name="bolt" size={16} color="var(--gf-xp)" />
+                  <Lightning weight="duotone" size={16} style={{ color: "var(--gf-xp)" }} />
                   <span
-                    className="font-pixel uppercase"
-                    style={{ color: "var(--gf-xp)", fontSize: 12, letterSpacing: "0.14em" }}
+                    className="text-xs font-semibold uppercase tracking-wide"
+                    style={{ color: "var(--gf-xp)" }}
                   >
                     {s.name}
                   </span>
                 </span>
                 {msLeft > 0 && (
                   <span
-                    className="font-pixel uppercase"
-                    style={{ color: "var(--text-muted)", fontSize: 11, letterSpacing: "0.14em" }}
+                    className="text-xs font-medium"
+                    style={{ color: "var(--text-muted)" }}
                   >
                     · до {endLabel} ({daysLeft} {daysLeft === 1 ? "день" : daysLeft < 5 ? "дня" : "дней"})
                   </span>
                 )}
                 {top1 && (
                   <span
-                    className="font-pixel uppercase"
-                    style={{ color: "var(--gf-xp)", fontSize: 11, letterSpacing: "0.14em" }}
+                    className="text-xs font-semibold"
+                    style={{ color: "var(--gf-xp)" }}
                   >
                     · топ-1 = {top1.ap} AP
                   </span>
@@ -413,21 +404,8 @@ function PvPLobbyContent() {
               </p>
               <motion.button
                 onClick={() => store.fetchRating()}
-                whileHover={{ x: -1, y: -1 }}
-                whileTap={{ x: 2, y: 2 }}
-                className="font-pixel"
-                style={{
-                  padding: "8px 16px",
-                  background: "var(--accent)",
-                  color: "#fff",
-                  border: "2px solid var(--accent)",
-                  borderRadius: 0,
-                  fontSize: 12,
-                  letterSpacing: "0.18em",
-                  textTransform: "uppercase",
-                  boxShadow: "3px 3px 0 0 #000, 0 0 12px var(--accent-glow)",
-                  cursor: "pointer",
-                }}
+                whileTap={{ scale: 0.97 }}
+                className="btn-neon text-sm font-medium"
               >
                 Повторить
               </motion.button>
@@ -441,34 +419,22 @@ function PvPLobbyContent() {
 
               {/* Arena Points chip */}
               <div
-                className="mt-3 inline-flex items-center gap-2 px-4 py-2"
+                className="mt-3 inline-flex items-center gap-2 px-4 py-2 rounded-xl"
                 style={{
                   background: "color-mix(in srgb, var(--gf-xp) 12%, var(--bg-panel))",
-                  outline: "2px solid var(--gf-xp)",
-                  outlineOffset: -2,
-                  boxShadow: "2px 2px 0 0 var(--gf-xp)",
-                  borderRadius: 0,
+                  border: "1px solid color-mix(in srgb, var(--gf-xp) 30%, transparent)",
                 }}
               >
-                <PixelIcon name="bolt" size={16} color="var(--gf-xp)" />
+                <Lightning weight="duotone" size={16} style={{ color: "var(--gf-xp)" }} />
                 <span
-                  className="font-pixel"
-                  style={{
-                    color: "var(--gf-xp)",
-                    fontSize: 18,
-                    letterSpacing: "0.04em",
-                    lineHeight: 1,
-                  }}
+                  className="font-display font-bold text-lg tabular-nums"
+                  style={{ color: "var(--gf-xp)", lineHeight: 1 }}
                 >
                   {arenaPoints}
                 </span>
                 <span
-                  className="font-pixel uppercase"
-                  style={{
-                    color: "var(--text-muted)",
-                    fontSize: 11,
-                    letterSpacing: "0.14em",
-                  }}
+                  className="text-xs font-medium uppercase tracking-wide"
+                  style={{ color: "var(--text-muted)" }}
                 >
                   Arena Points
                 </span>
@@ -486,20 +452,17 @@ function PvPLobbyContent() {
             {/* CENTER — tab-bar + active panel */}
             <div className="order-1 flex flex-col gap-4 min-w-0">
               <div
-                className="flex items-stretch gap-0 p-1"
+                className="flex items-stretch gap-1 p-1 rounded-xl"
                 style={{
-                  background: "var(--bg-panel)",
-                  outline: "2px solid var(--border-color)",
-                  outlineOffset: -2,
-                  borderRadius: 0,
+                  background: "rgba(255,255,255,0.04)",
                 }}
                 role="tablist"
                 aria-label="Режим арены"
               >
                 {([
-                  { id: "combat" as const,         label: "🎯 Бой",     accent: "var(--accent)" },
-                  { id: "knowledge_base" as const, label: "📚 Изучать", accent: "var(--magenta, #d946ef)" },
-                  { id: "history" as const,        label: "📜 История", accent: "var(--gf-xp, #facc15)" },
+                  { id: "combat" as const,         label: "Бой",     accent: "var(--accent)" },
+                  { id: "knowledge_base" as const, label: "Изучать", accent: "var(--magenta, #d946ef)" },
+                  { id: "history" as const,        label: "История", accent: "var(--gf-xp, #facc15)" },
                 ]).map((t) => {
                   const active = tab === t.id;
                   return (
@@ -513,18 +476,13 @@ function PvPLobbyContent() {
                         if (t.id === "combat") router.replace("/pvp", { scroll: false });
                         else router.replace(`/pvp?tab=${t.id}`, { scroll: false });
                       }}
-                      className="flex-1 font-pixel uppercase py-2.5 transition-colors"
+                      className="flex-1 text-sm font-semibold py-2.5 rounded-lg transition-colors"
                       style={{
                         background: active
                           ? `color-mix(in srgb, ${t.accent} 18%, transparent)`
                           : "transparent",
                         color: active ? t.accent : "var(--text-muted)",
-                        outline: active ? `2px solid ${t.accent}` : "none",
-                        outlineOffset: -2,
-                        fontSize: 14,
-                        letterSpacing: "0.16em",
                         cursor: "pointer",
-                        boxShadow: active ? `2px 2px 0 0 ${t.accent}` : "none",
                       }}
                     >
                       {t.label}
@@ -553,17 +511,14 @@ function PvPLobbyContent() {
                     {/* Mobile-only character picker (на lg+ ⚙️ в header). */}
                     <details className="group lg:hidden">
                       <summary
-                        className="cursor-pointer select-none inline-flex items-center gap-2 px-3 py-1.5 font-pixel uppercase"
+                        className="cursor-pointer select-none inline-flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded-lg"
                         style={{
                           color: "var(--text-muted)",
-                          fontSize: 10,
-                          letterSpacing: "0.14em",
                           background: "transparent",
                           border: "1px dashed var(--border-color)",
-                          borderRadius: 0,
                         }}
                       >
-                        <PixelIcon name="robot" size={12} color="var(--text-muted)" />
+                        <Target size={12} />
                         Персонаж
                         {pickedCharacterId && (
                           <span style={{ color: "var(--accent)", fontSize: 9 }}>● выбран</span>

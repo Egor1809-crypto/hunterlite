@@ -119,7 +119,7 @@ export function HonestNavigator({ disabled, starting, onDuel, onQuiz }: Props) {
       }}
     >
       <h2
-        className="font-pixel uppercase tracking-widest pixel-glow mb-3"
+        className="font-medium uppercase tracking-wide pixel-glow mb-3"
         style={{
           color: "var(--text-primary)",
           fontSize: "clamp(15px, 2.4vw, 18px)",
@@ -145,7 +145,7 @@ export function HonestNavigator({ disabled, starting, onDuel, onQuiz }: Props) {
           >
             <div className="mt-3 pt-3 border-t border-dashed" style={{ borderColor: "var(--border-color)" }}>
               <div
-                className="font-pixel uppercase mb-2"
+                className="font-medium uppercase mb-2"
                 style={{ color: "var(--text-muted)", fontSize: 12, letterSpacing: "0.14em" }}
               >
                 Выбери тему
@@ -175,7 +175,7 @@ export function HonestNavigator({ disabled, starting, onDuel, onQuiz }: Props) {
                     >
                       <PixelIcon name={cat.icon} size={16} color={active ? "var(--success)" : "var(--text-muted)"} />
                       <span
-                        className="font-pixel uppercase"
+                        className="font-medium uppercase"
                         style={{
                           color: active ? "var(--success)" : "var(--text-primary)",
                           fontSize: 13,
@@ -196,7 +196,7 @@ export function HonestNavigator({ disabled, starting, onDuel, onQuiz }: Props) {
                 disabled={isBusy || !category}
                 whileHover={!isBusy && category ? { x: -1, y: -1 } : undefined}
                 whileTap={!isBusy && category ? { x: 2, y: 2 } : undefined}
-                className="mt-3 w-full flex items-center justify-center gap-2 py-3 font-pixel uppercase"
+                className="mt-3 w-full flex items-center justify-center gap-2 py-3 font-medium uppercase"
                 style={{
                   background: category ? "var(--accent)" : "var(--bg-secondary, rgba(0,0,0,0.4))",
                   color: category ? "#fff" : "var(--text-muted)",
@@ -272,7 +272,7 @@ function ModeTile({
     >
       <PixelIcon name={card.icon} size={24} color={card.accent} />
       <span
-        className="font-pixel uppercase"
+        className="font-medium uppercase"
         style={{
           color: card.accent,
           fontSize: "clamp(14px, 2vw, 18px)",

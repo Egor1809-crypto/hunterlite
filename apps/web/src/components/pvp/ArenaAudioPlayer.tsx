@@ -105,7 +105,7 @@ export function ArenaAudioPlayer({ audioUrl, label, autoplay = true }: Props) {
       >
         {label && (
           <span
-            className="font-pixel text-[10px] uppercase tracking-wider"
+            className="font-medium text-[10px] uppercase tracking-wide"
             style={{ color: "#ffd650" }}
           >
             {label}
@@ -150,7 +150,7 @@ export function ArenaAudioPlayer({ audioUrl, label, autoplay = true }: Props) {
 
         {autoplayFailed && (
           <span
-            className="text-[10px] uppercase tracking-wider"
+            className="text-[10px] uppercase tracking-wide"
             style={{ color: "#ff3ec8" }}
           >
             нажми play

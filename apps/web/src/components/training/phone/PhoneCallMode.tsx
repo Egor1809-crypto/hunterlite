@@ -341,20 +341,20 @@ export function PhoneCallMode({
 
       {/*
         Top meta row.
-        2026-05-10 (pixel polish): font-mono+sans → font-pixel uppercase
+        2026-05-10 (pixel polish): font-mono+sans → font-medium uppercase
         14-22px, rounded-full emotion pill → square 2px solid pixel,
         чтобы консистентно с остальным аркадным UI.
       */}
       <div className="relative z-10 flex items-start justify-between px-6 pt-5">
         <div className="flex flex-col">
           <span
-            className="font-pixel uppercase tracking-widest"
-            style={{ color: "rgba(255,255,255,0.7)", fontSize: 14, letterSpacing: "0.22em" }}
+            className="font-medium uppercase tracking-wide"
+            style={{ color: "rgba(255,255,255,0.7)", fontSize: 14 }}
           >
             {sceneLabel}
           </span>
           <span
-            className="font-pixel mt-1 tabular-nums"
+            className="font-medium mt-1 tabular-nums"
             style={{ color: ec.color, fontSize: 22, textShadow: `0 0 10px ${ec.glow}` }}
           >
             {formatElapsed(elapsed)}
@@ -362,13 +362,13 @@ export function PhoneCallMode({
         </div>
         <div className="flex flex-col items-end">
           <span
-            className="font-pixel uppercase tracking-widest"
-            style={{ color: "rgba(255,255,255,0.7)", fontSize: 14, letterSpacing: "0.22em" }}
+            className="font-medium uppercase tracking-wide"
+            style={{ color: "rgba(255,255,255,0.7)", fontSize: 14 }}
           >
             {statusLine}
           </span>
           <span
-            className="mt-1.5 rounded-sm px-2.5 py-1 font-pixel uppercase tracking-widest"
+            className="mt-1.5 rounded-sm px-2.5 py-1 font-medium uppercase tracking-wide"
             style={{
               background: `${ec.color}22`,
               color: ec.color,
@@ -405,7 +405,7 @@ export function PhoneCallMode({
           style={{ border: "2px solid rgba(255,255,255,0.18)" }}
         >
           <span
-            className="font-pixel tabular-nums uppercase tracking-widest"
+            className="font-medium tabular-nums uppercase tracking-wide"
             style={{ color: "rgba(255,255,255,0.85)", fontSize: 14, letterSpacing: "0.18em" }}
           >
             {stage.current}/{stage.total}
@@ -712,7 +712,7 @@ type CallButtonState =
 
 /*
  * 2026-05-10 (pixel polish): rounded-full → rounded-sm 2px solid borders,
- * font-pixel uppercase 14px (вместо text-[10px]) для лейблов. Логика
+ * font-medium uppercase 14px (вместо text-[10px]) для лейблов. Логика
  * STATE_PALETTE и aria-pressed без изменений.
  */
 function CallButton({
@@ -749,15 +749,15 @@ function CallButton({
         {children}
       </span>
       <span
-        className="font-pixel uppercase tracking-widest"
-        style={{ color: palette.labelFg, opacity: 0.92, fontSize: 14, letterSpacing: "0.22em" }}
+        className="font-medium uppercase tracking-wide"
+        style={{ color: palette.labelFg, opacity: 0.92, fontSize: 14 }}
       >
         {label}
       </span>
       {subtitle && (
         <span
-          className="font-pixel uppercase tracking-widest"
-          style={{ color: palette.subtitleFg, fontSize: 12, letterSpacing: "0.22em" }}
+          className="font-medium uppercase tracking-wide"
+          style={{ color: palette.subtitleFg, fontSize: 12 }}
         >
           {subtitle.toUpperCase()}
         </span>
@@ -827,7 +827,7 @@ const STATE_PALETTE: Record<
 
 /*
  * 2026-05-10 (pixel polish): rounded-full → rounded-sm 3px solid red,
- * font-pixel uppercase 14px вместо text-[10px]. Логика loading + aria
+ * font-medium uppercase 14px вместо text-[10px]. Логика loading + aria
  * + animate boxShadow на pulsing — без изменений.
  */
 function CallHangup({
@@ -884,8 +884,8 @@ function CallHangup({
         )}
       </motion.span>
       <span
-        className="font-pixel uppercase tracking-widest"
-        style={{ color: "#fca5a5", fontSize: 14, letterSpacing: "0.22em" }}
+        className="font-medium uppercase tracking-wide"
+        style={{ color: "#fca5a5", fontSize: 14 }}
       >
         {loading ? "ЗАВЕРШАЕМ…" : "ЗАВЕРШИТЬ"}
       </span>
