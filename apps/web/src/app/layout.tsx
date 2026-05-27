@@ -21,7 +21,10 @@ export const metadata: Metadata = {
   title: "LegalHunter — AI-тренажёр для арбитражных управляющих",
   description: "AI-платформа обучения арбитражных управляющих через диалоговые симуляции с AI-клиентами",
   icons: {
-    icon: "/icon-192.png",
+    icon: [
+      { url: "/favicon.svg", type: "image/svg+xml" },
+      { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
+    ],
     apple: "/icon-512.png",
   },
   manifest: "/manifest.json",
@@ -46,7 +49,7 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   themeColor: [
-    { media: "(prefers-color-scheme: dark)", color: "#0F172A" },
+    { media: "(prefers-color-scheme: dark)", color: "#09090B" },
     { media: "(prefers-color-scheme: light)", color: "#FAFBFC" },
   ],
   width: "device-width",

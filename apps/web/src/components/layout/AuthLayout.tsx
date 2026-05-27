@@ -46,7 +46,7 @@ class AuthErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState
   render() {
     if (this.state.hasError) {
       return (
-        <div className="flex min-h-screen items-center justify-center bg-[#FAFBFC]">
+        <div className="flex min-h-screen items-center justify-center bg-[var(--bg-primary)]">
           <div className="w-full max-w-md rounded-2xl bg-white px-8 py-6 text-center shadow-lg border border-gray-100">
             <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-red-50 mb-4">
               <AlertTriangle size={24} className="text-red-500" />
@@ -62,7 +62,7 @@ class AuthErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState
               onClick={() => {
                 this.setState({ hasError: false, error: null });
               }}
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#F97316] px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#EA6C10]"
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#2563EB] px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#1D4ED8]"
             >
               <RefreshCw size={14} />
               Попробовать снова
@@ -184,7 +184,7 @@ export default function AuthLayout({
 
   if (state === "error") {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#FAFBFC]">
+      <div className="flex min-h-screen items-center justify-center bg-[var(--bg-primary)]">
         <div className="w-full max-w-md rounded-2xl bg-white px-8 py-6 text-center shadow-lg border border-gray-100">
           <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-red-50 mb-4">
             <AlertTriangle size={24} className="text-red-500" />
@@ -248,7 +248,7 @@ export default function AuthLayout({
                 fullRetry();
               }, delay);
             }}
-            className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#F97316] px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#EA6C10]"
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#2563EB] px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#1D4ED8]"
           >
             <RefreshCw size={14} />
             Повторить
@@ -260,7 +260,7 @@ export default function AuthLayout({
 
   if (state === "loading" || state === "redirecting") {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#FAFBFC]">
+      <div className="flex min-h-screen items-center justify-center bg-[var(--bg-primary)]">
         <motion.div
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -268,7 +268,7 @@ export default function AuthLayout({
         >
           <Loader2
             size={28}
-            className="animate-spin text-[#F97316] opacity-60"
+            className="animate-spin text-[#2563EB] opacity-60"
           />
           <span className="text-sm text-gray-400">
             {state === "loading" ? "Загрузка..." : "Перенаправление..."}

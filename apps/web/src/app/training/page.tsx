@@ -11,6 +11,7 @@ import { logger } from "@/lib/logger";
 // (also removed below).
 import {
   Clock,
+  Crosshair,
   Loader2,
   ArrowRight,
   Inbox,
@@ -40,7 +41,7 @@ import { Skeleton } from "@/components/ui/Skeleton";
 // 2026-04-18: вкладка "Рекомендуемые" убрана из /training — она сбивала
 // пользователя с главного flow. Из /home кнопка "Рекомендуемые" теперь
 // ведёт в /training?tab=scenarios (та же логика подбора работает там же).
-type Tab = "scenarios" | "assigned" | "builder" | "saved";
+type Tab = "scenarios" | "builder" | "exams" | "tests";
 
 const TABS: {
   id: Tab;
@@ -49,10 +50,10 @@ const TABS: {
   emoji: string;
   hue: string;
 }[] = [
-  { id: "scenarios", label: "Сценарии",   icon: BookOpen,       emoji: "🎭", hue: "var(--accent)" },
-  { id: "assigned",  label: "Назначенные", icon: ClipboardList,  emoji: "📋", hue: "var(--warning)" },
+  { id: "scenarios", label: "Сценарии",    icon: BookOpen,       emoji: "🎭", hue: "var(--accent)" },
   { id: "builder",   label: "Конструктор", icon: Puzzle,         emoji: "🧩", hue: "var(--success)" },
-  { id: "saved",     label: "Мои клиенты", icon: Users,          emoji: "👥", hue: "var(--info)" },
+  { id: "exams",     label: "Экзамен",     icon: ClipboardList,  emoji: "📝", hue: "var(--danger)" },
+  { id: "tests",     label: "Тесты",       icon: Target,         emoji: "🎯", hue: "var(--info)" },
 ];
 
 const TYPE_FILTERS = [
@@ -106,9 +107,10 @@ function TrainingPageContent() {
 
   useEffect(() => {
     // Legacy ?tab=recommended (из /home или старых ссылок) маршрутизирует на scenarios.
-    if (tabParam === "recommended") {
+    // Legacy ?tab=assigned|saved → scenarios (tabs removed).
+    if (tabParam === "recommended" || tabParam === "assigned" || tabParam === "saved") {
       setTab("scenarios");
-    } else if (tabParam === "assigned" || tabParam === "builder" || tabParam === "saved" || tabParam === "scenarios") {
+    } else if (tabParam === "builder" || tabParam === "scenarios" || tabParam === "exams" || tabParam === "tests") {
       setTab(tabParam);
     }
   }, [tabParam]);
@@ -205,9 +207,6 @@ function TrainingPageContent() {
     router.push(`/training/${scenarioId}?mode=story&calls=${calls}`);
   };
 
-  const overdueCount = assigned.filter((a) => new Date(a.deadline) < new Date()).length;
-  const assignedCount = assigned.length;
-
   return (
     <AuthLayout>
       <div className="relative panel-grid-bg min-h-screen">
@@ -235,15 +234,25 @@ function TrainingPageContent() {
           {/* Header */}
           <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
             <div className="flex items-start justify-between">
-              <div>
-                <h1 className="font-display text-2xl font-bold tracking-wide" style={{ color: "var(--text-primary)" }}>
-                  Тренировки
-                </h1>
-                <p className="mt-1 text-sm" style={{ color: "var(--text-muted)" }}>
-                  Выберите формат и сложность тренировки
-                </p>
+              <div className="flex items-center gap-4">
+                <div
+                  className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0"
+                  style={{
+                    background: "var(--accent-muted)",
+                    boxShadow: "0 0 0 1px color-mix(in srgb, var(--accent) 20%, transparent)",
+                  }}
+                >
+                  <Crosshair size={22} style={{ color: "var(--accent)" }} />
+                </div>
+                <div>
+                  <h1 className="text-2xl sm:text-3xl font-bold tracking-tight" style={{ color: "var(--text-primary)" }}>
+                    Тренировки
+                  </h1>
+                  <p className="mt-0.5 text-sm" style={{ color: "var(--text-muted)" }}>
+                    Выберите формат и сложность
+                  </p>
+                </div>
               </div>
-              {/* Info button removed */}
             </div>
           </motion.div>
 
@@ -313,15 +322,7 @@ function TrainingPageContent() {
                     <span className="text-sm font-semibold leading-none tracking-wide">
                       {t.label}
                     </span>
-                    {/* Badge for assigned tab */}
-                    {t.id === "assigned" && assignedCount > 0 && (
-                      <span
-                        className="min-w-[18px] h-[18px] flex items-center justify-center rounded-full text-xs font-bold text-white px-1"
-                        style={{ background: overdueCount > 0 ? "var(--danger)" : t.hue }}
-                      >
-                        {assignedCount}
-                      </span>
-                    )}
+                    {/* Badge placeholder for future tabs */}
                   </span>
                 </motion.button>
               );
@@ -348,21 +349,99 @@ function TrainingPageContent() {
               </motion.div>
             )}
 
-            {tab === "assigned" && (
-              <motion.div key="assigned" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.18 }}>
-                <AssignedTab onStart={startTraining} onStartCall={startTrainingCall} onStartStory={startStoryTraining} starting={starting} storyCalls={storyCalls} />
-              </motion.div>
-            )}
-
             {tab === "builder" && (
               <motion.div key="builder" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.18 }}>
                 <CharacterBuilder storyCalls={storyCalls} />
               </motion.div>
             )}
 
-            {tab === "saved" && (
-              <motion.div key="saved" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.18 }}>
-                <SavedTab storyCalls={storyCalls} />
+            {tab === "exams" && (
+              <motion.div key="exams" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.18 }}>
+                <div
+                  className="mt-6 relative overflow-hidden flex flex-col items-center justify-center py-20 text-center rounded-2xl"
+                  style={{
+                    background: "var(--surface-card)",
+                    border: "1px solid var(--border-color)",
+                  }}
+                >
+                  {/* Ambient glow */}
+                  <div
+                    className="absolute -top-20 left-1/2 -translate-x-1/2 w-[300px] h-[300px] rounded-full opacity-[0.06]"
+                    style={{ background: "radial-gradient(circle, var(--danger) 0%, transparent 70%)" }}
+                  />
+                  <div className="relative z-10 flex flex-col items-center">
+                    <div
+                      className="w-16 h-16 rounded-2xl flex items-center justify-center mb-5"
+                      style={{
+                        background: "var(--danger-muted)",
+                        boxShadow: "0 0 0 1px color-mix(in srgb, var(--danger) 20%, transparent)",
+                      }}
+                    >
+                      <ClipboardList size={28} style={{ color: "var(--danger)" }} />
+                    </div>
+                    <div
+                      className="px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-[0.15em] mb-4"
+                      style={{ background: "var(--danger-muted)", color: "var(--danger)" }}
+                    >
+                      В разработке
+                    </div>
+                    <h3
+                      className="text-xl font-bold tracking-tight"
+                      style={{ color: "var(--text-primary)" }}
+                    >
+                      Экзамены
+                    </h3>
+                    <p className="mt-3 text-sm max-w-md leading-relaxed" style={{ color: "var(--text-muted)" }}>
+                      Экзаменационные сценарии с оценкой и сертификацией.<br />
+                      Проверьте свои навыки в условиях, максимально приближённых к реальным.
+                    </p>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+
+            {tab === "tests" && (
+              <motion.div key="tests" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.18 }}>
+                <div
+                  className="mt-6 relative overflow-hidden flex flex-col items-center justify-center py-20 text-center rounded-2xl"
+                  style={{
+                    background: "var(--surface-card)",
+                    border: "1px solid var(--border-color)",
+                  }}
+                >
+                  {/* Ambient glow */}
+                  <div
+                    className="absolute -top-20 left-1/2 -translate-x-1/2 w-[300px] h-[300px] rounded-full opacity-[0.06]"
+                    style={{ background: "radial-gradient(circle, var(--info) 0%, transparent 70%)" }}
+                  />
+                  <div className="relative z-10 flex flex-col items-center">
+                    <div
+                      className="w-16 h-16 rounded-2xl flex items-center justify-center mb-5"
+                      style={{
+                        background: "var(--info-muted)",
+                        boxShadow: "0 0 0 1px color-mix(in srgb, var(--info) 20%, transparent)",
+                      }}
+                    >
+                      <Target size={28} style={{ color: "var(--info)" }} />
+                    </div>
+                    <div
+                      className="px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-[0.15em] mb-4"
+                      style={{ background: "var(--info-muted)", color: "var(--info)" }}
+                    >
+                      В разработке
+                    </div>
+                    <h3
+                      className="text-xl font-bold tracking-tight"
+                      style={{ color: "var(--text-primary)" }}
+                    >
+                      Быстрые тесты
+                    </h3>
+                    <p className="mt-3 text-sm max-w-md leading-relaxed" style={{ color: "var(--text-muted)" }}>
+                      Тесты на знание ФЗ-127, скриптов и техник работы с клиентами.<br />
+                      Мгновенная проверка с подробным разбором ошибок.
+                    </p>
+                  </div>
+                </div>
               </motion.div>
             )}
           </AnimatePresence>
