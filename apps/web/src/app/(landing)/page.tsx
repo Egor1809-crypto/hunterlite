@@ -30,6 +30,84 @@ import {
 } from "lucide-react";
 import { useLandingAuth } from "@/components/landing/LandingAuthContext";
 
+/* ── Premium easing ────────────────────────────────────────────── */
+const PREMIUM_EASE = [0.22, 1, 0.36, 1] as const;
+
+/* ── Noise SVG data URI ────────────────────────────────────────── */
+const NOISE_SVG = `url("data:image/svg+xml,%3Csvg viewBox='0 0 512 512' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")`;
+
+/* ── Ambient Glow Orb component ─────────────────────────────────── */
+function GlowOrb({
+  color = "rgba(37,99,235,0.06)",
+  size = 700,
+  top,
+  left,
+  right,
+  bottom,
+}: {
+  color?: string;
+  size?: number;
+  top?: string;
+  left?: string;
+  right?: string;
+  bottom?: string;
+}) {
+  return (
+    <div
+      className="absolute rounded-full pointer-events-none"
+      style={{
+        width: size,
+        height: size,
+        background: `radial-gradient(circle, ${color} 0%, transparent 70%)`,
+        filter: "blur(80px)",
+        top,
+        left,
+        right,
+        bottom,
+      }}
+    />
+  );
+}
+
+/* ── Corner bracket decorator ──────────────────────────────────── */
+function CornerBrackets({ color }: { color: string }) {
+  const bracketStyle = {
+    position: "absolute" as const,
+    width: 20,
+    height: 20,
+    borderColor: color,
+    opacity: 0.5,
+  };
+  return (
+    <>
+      <div
+        style={{
+          ...bracketStyle,
+          top: -1,
+          left: -1,
+          borderTop: "2px solid",
+          borderLeft: "2px solid",
+          borderColor: color,
+          borderRadius: "2px 0 0 0",
+          boxShadow: `0 0 8px ${color}40`,
+        }}
+      />
+      <div
+        style={{
+          ...bracketStyle,
+          bottom: -1,
+          right: -1,
+          borderBottom: "2px solid",
+          borderRight: "2px solid",
+          borderColor: color,
+          borderRadius: "0 0 2px 0",
+          boxShadow: `0 0 8px ${color}40`,
+        }}
+      />
+    </>
+  );
+}
+
 /* ── CountUp ────────────────────────────────────────────────────── */
 function CountUp({ target, suffix }: { target: number; suffix: string }) {
   const [count, setCount] = useState(0);
@@ -158,19 +236,28 @@ export default function Home() {
 
   return (
     <>
+      {/* ── Fixed noise texture overlay (dark sections only) ──── */}
+      <div
+        style={{
+          position: "fixed",
+          inset: 0,
+          pointerEvents: "none",
+          zIndex: 1,
+          backgroundImage: NOISE_SVG,
+          opacity: 0.025,
+          mixBlendMode: "overlay",
+        }}
+      />
+
       {/* ═══ HERO ═════════════════════════════════════════════════ */}
       <section
         ref={heroRef}
         className="relative min-h-screen flex flex-col justify-center overflow-hidden"
         style={{ background: "#09090B" }}
       >
-        {/* Subtle noise texture via CSS */}
-        <div
-          className="absolute inset-0 opacity-[0.03]"
-          style={{
-            backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")`,
-          }}
-        />
+        {/* Ambient glow orbs */}
+        <GlowOrb color="rgba(37,99,235,0.06)" size={800} top="-20%" left="-10%" />
+        <GlowOrb color="rgba(139,92,246,0.04)" size={600} top="30%" right="-15%" />
 
         {/* Blue accent line at top */}
         <div
@@ -187,7 +274,7 @@ export default function Home() {
             <motion.div
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5 }}
+              transition={{ duration: 0.5, ease: PREMIUM_EASE }}
               className="mb-10"
             >
               <span
@@ -202,11 +289,11 @@ export default function Home() {
               </span>
             </motion.div>
 
-            {/* Headline */}
+            {/* Headline with clip-path reveal */}
             <motion.h1
-              initial={{ opacity: 0, y: 30 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.7, delay: 0.1 }}
+              initial={{ clipPath: "inset(100% 0 0 0)", opacity: 0 }}
+              animate={{ clipPath: "inset(0%)", opacity: 1 }}
+              transition={{ duration: 0.9, delay: 0.1, ease: PREMIUM_EASE }}
               className="text-[clamp(2.5rem,7vw,5.5rem)] font-black leading-[0.95] tracking-[-0.03em] mb-8"
               style={{ color: "#FAFAFA" }}
             >
@@ -214,14 +301,23 @@ export default function Home() {
               <br />
               которое
               <br />
-              <span style={{ color: "#2563EB" }}>сертифицирует</span>
+              <span
+                style={{
+                  background: "linear-gradient(135deg, #2563EB 0%, #8B5CF6 100%)",
+                  WebkitBackgroundClip: "text",
+                  WebkitTextFillColor: "transparent",
+                  backgroundClip: "text",
+                }}
+              >
+                сертифицирует
+              </span>
             </motion.h1>
 
             {/* Sub */}
             <motion.p
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.25 }}
+              transition={{ duration: 0.6, delay: 0.25, ease: PREMIUM_EASE }}
               className="text-lg sm:text-xl leading-relaxed max-w-lg mb-12"
               style={{ color: "#71717A" }}
             >
@@ -234,7 +330,7 @@ export default function Home() {
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.35 }}
+              transition={{ duration: 0.6, delay: 0.35, ease: PREMIUM_EASE }}
               className="flex flex-wrap items-center gap-4"
             >
               <button
@@ -244,7 +340,7 @@ export default function Home() {
                 onMouseEnter={(e) => {
                   e.currentTarget.style.background = "#1D4ED8";
                   e.currentTarget.style.transform = "translateY(-1px)";
-                  e.currentTarget.style.boxShadow = "0 8px 32px rgba(37,99,235,0.3)";
+                  e.currentTarget.style.boxShadow = "0 0 24px rgba(37,99,235,0.4), 0 8px 32px rgba(37,99,235,0.3)";
                 }}
                 onMouseLeave={(e) => {
                   e.currentTarget.style.background = "#2563EB";
@@ -294,12 +390,20 @@ export default function Home() {
               { target: 5, suffix: "", label: "экзаменов" },
               { target: 100, suffix: "%", label: "онлайн-формат" },
             ].map(({ target, suffix, label }) => (
-              <div key={label} className="flex items-baseline gap-3">
+              <div key={label} className="relative flex items-baseline gap-3">
                 <span
-                  className="text-3xl sm:text-4xl font-black tabular-nums"
+                  className="text-3xl sm:text-4xl font-black tabular-nums relative"
                   style={{ color: "#FAFAFA" }}
                 >
                   <CountUp target={target} suffix={suffix} />
+                  {/* Blue glow underneath stat */}
+                  <span
+                    className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-full h-4 rounded-full pointer-events-none"
+                    style={{
+                      background: "radial-gradient(ellipse, rgba(37,99,235,0.15) 0%, transparent 70%)",
+                      filter: "blur(4px)",
+                    }}
+                  />
                 </span>
                 <span
                   className="text-sm uppercase tracking-wider"
@@ -318,13 +422,17 @@ export default function Home() {
       <MarqueeStrip />
 
       {/* ═══ PROBLEM (Fear trigger) ════════════════════════════════ */}
-      <section className="py-24 sm:py-32" style={{ background: "#09090B" }}>
-        <div className="max-w-[1200px] mx-auto px-6 sm:px-10">
+      <section className="relative py-24 sm:py-32 overflow-hidden" style={{ background: "#09090B" }}>
+        {/* Ambient orbs */}
+        <GlowOrb color="rgba(239,68,68,0.04)" size={600} top="-20%" right="-10%" />
+        <GlowOrb color="rgba(37,99,235,0.04)" size={500} bottom="-15%" left="-5%" />
+
+        <div className="relative z-10 max-w-[1200px] mx-auto px-6 sm:px-10">
           <motion.div
-            initial={{ opacity: 0, y: 24 }}
-            whileInView={{ opacity: 1, y: 0 }}
+            initial={{ opacity: 0, clipPath: "inset(0 0 100% 0)" }}
+            whileInView={{ opacity: 1, clipPath: "inset(0)" }}
             viewport={{ once: true }}
-            transition={{ duration: 0.6 }}
+            transition={{ duration: 0.7, ease: PREMIUM_EASE }}
             className="text-center mb-16"
           >
             <span
@@ -379,9 +487,23 @@ export default function Home() {
                 initial={{ opacity: 0, y: 20 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
-                transition={{ delay: i * 0.1, duration: 0.5 }}
-                className="rounded-2xl p-8 text-center"
-                style={{ background: "#18181B", border: "1px solid #27272A" }}
+                transition={{ delay: i * 0.1, duration: 0.5, ease: PREMIUM_EASE }}
+                className="rounded-2xl p-8 text-center transition-all duration-300"
+                style={{
+                  background: "rgba(255,255,255,0.03)",
+                  backdropFilter: "blur(12px)",
+                  border: "1px solid rgba(255,255,255,0.06)",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.borderColor = `rgba(37,99,235,0.3)`;
+                  e.currentTarget.style.boxShadow = "0 0 20px rgba(37,99,235,0.08), 0 8px 32px rgba(0,0,0,0.3)";
+                  e.currentTarget.style.transform = "translateY(-4px)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.borderColor = "rgba(255,255,255,0.06)";
+                  e.currentTarget.style.boxShadow = "none";
+                  e.currentTarget.style.transform = "translateY(0)";
+                }}
               >
                 <div
                   className="w-12 h-12 rounded-xl flex items-center justify-center mx-auto mb-4"
@@ -408,13 +530,15 @@ export default function Home() {
       </section>
 
       {/* ═══ PAIN POINTS — "Знакомо?" ═══════════════════════════ */}
-      <section className="py-24 sm:py-32" style={{ background: "#09090B" }}>
-        <div className="max-w-[1200px] mx-auto px-6 sm:px-10">
+      <section className="relative py-24 sm:py-32 overflow-hidden" style={{ background: "#09090B" }}>
+        <GlowOrb color="rgba(139,92,246,0.04)" size={600} top="10%" left="-10%" />
+
+        <div className="relative z-10 max-w-[1200px] mx-auto px-6 sm:px-10">
           <motion.div
             initial={{ opacity: 0, y: 24 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
-            transition={{ duration: 0.6 }}
+            transition={{ duration: 0.6, ease: PREMIUM_EASE }}
             className="text-center mb-16"
           >
             <h2
@@ -443,9 +567,23 @@ export default function Home() {
                 initial={{ opacity: 0, x: -16 }}
                 whileInView={{ opacity: 1, x: 0 }}
                 viewport={{ once: true }}
-                transition={{ delay: i * 0.1, duration: 0.5 }}
-                className="flex items-start gap-4 rounded-2xl p-6"
-                style={{ background: "#18181B", border: "1px solid #27272A" }}
+                transition={{ delay: i * 0.1, duration: 0.5, ease: PREMIUM_EASE }}
+                className="flex items-start gap-4 rounded-2xl p-6 transition-all duration-300"
+                style={{
+                  background: "rgba(255,255,255,0.03)",
+                  backdropFilter: "blur(12px)",
+                  border: "1px solid rgba(255,255,255,0.06)",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.borderColor = "rgba(37,99,235,0.3)";
+                  e.currentTarget.style.boxShadow = "0 0 20px rgba(37,99,235,0.08), 0 8px 32px rgba(0,0,0,0.3)";
+                  e.currentTarget.style.transform = "translateY(-4px)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.borderColor = "rgba(255,255,255,0.06)";
+                  e.currentTarget.style.boxShadow = "none";
+                  e.currentTarget.style.transform = "translateY(0)";
+                }}
               >
                 <div
                   className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5"
@@ -485,7 +623,7 @@ export default function Home() {
               initial={{ opacity: 0, y: 24 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
-              transition={{ duration: 0.6 }}
+              transition={{ duration: 0.6, ease: PREMIUM_EASE }}
             >
               <span
                 className="text-xs font-bold uppercase tracking-[0.2em] mb-4 block"
@@ -516,7 +654,7 @@ export default function Home() {
             </motion.p>
           </div>
 
-          {/* Service cards — stacked full-width */}
+          {/* Service cards — stacked full-width with ChainGPT-style hover */}
           <div className="flex flex-col gap-4">
             {SERVICES.map(({ num, icon: Icon, title, subtitle, description, color, features }, i) => (
               <motion.div
@@ -524,18 +662,24 @@ export default function Home() {
                 initial={{ opacity: 0, y: 24 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
-                transition={{ delay: i * 0.1, duration: 0.5 }}
+                transition={{ delay: i * 0.1, duration: 0.5, ease: PREMIUM_EASE }}
                 className="group relative grid grid-cols-1 md:grid-cols-[80px_1fr_1fr] gap-6 md:gap-10 rounded-2xl p-8 sm:p-10 transition-all duration-300"
                 style={{
                   background: "#FFFFFF",
                   border: "1px solid #E4E4E7",
+                  borderTop: "2px solid #E4E4E7",
                 }}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.borderColor = color;
-                  e.currentTarget.style.boxShadow = `0 1px 3px rgba(0,0,0,0.04), 0 16px 48px ${color}12`;
+                  e.currentTarget.style.borderTopColor = color;
+                  e.currentTarget.style.borderImage = `linear-gradient(90deg, ${color}, transparent) 1`;
+                  e.currentTarget.style.borderImageSlice = "1";
+                  e.currentTarget.style.boxShadow = `0 4px 24px ${color}15, 0 1px 3px rgba(0,0,0,0.04)`;
                 }}
                 onMouseLeave={(e) => {
+                  e.currentTarget.style.borderTopColor = "#E4E4E7";
+                  e.currentTarget.style.borderImage = "none";
                   e.currentTarget.style.borderColor = "#E4E4E7";
+                  e.currentTarget.style.borderTopWidth = "2px";
                   e.currentTarget.style.boxShadow = "none";
                 }}
               >
@@ -605,13 +749,17 @@ export default function Home() {
       </section>
 
       {/* ═══ WHY US — Dark ════════════════════════════════════════ */}
-      <section className="py-28 sm:py-36" style={{ background: "#09090B" }}>
-        <div className="max-w-[1200px] mx-auto px-6 sm:px-10">
+      <section className="relative py-28 sm:py-36 overflow-hidden" style={{ background: "#09090B" }}>
+        {/* Ambient orbs */}
+        <GlowOrb color="rgba(37,99,235,0.06)" size={700} top="-15%" right="-5%" />
+        <GlowOrb color="rgba(139,92,246,0.04)" size={500} bottom="-10%" left="-8%" />
+
+        <div className="relative z-10 max-w-[1200px] mx-auto px-6 sm:px-10">
           <motion.div
             initial={{ opacity: 0, y: 24 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
-            transition={{ duration: 0.6 }}
+            transition={{ duration: 0.6, ease: PREMIUM_EASE }}
             className="text-center mb-20"
           >
             <span
@@ -628,7 +776,7 @@ export default function Home() {
             </h2>
           </motion.div>
 
-          {/* Bento grid — 2x2 with featured card */}
+          {/* Bento grid — 2x2 with corner brackets */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {[
               {
@@ -661,19 +809,27 @@ export default function Home() {
                 initial={{ opacity: 0, y: 20 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
-                transition={{ delay: i * 0.08, duration: 0.5 }}
-                className="group rounded-2xl p-8 sm:p-10 transition-all duration-300"
+                transition={{ delay: i * 0.08, duration: 0.5, ease: PREMIUM_EASE }}
+                className="group relative rounded-2xl p-8 sm:p-10 transition-all duration-300"
                 style={{
-                  background: "#18181B",
-                  border: "1px solid #27272A",
+                  background: "rgba(255,255,255,0.03)",
+                  backdropFilter: "blur(12px)",
+                  border: "1px solid rgba(255,255,255,0.06)",
                 }}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.borderColor = `${accent}40`;
+                  e.currentTarget.style.borderColor = "rgba(37,99,235,0.3)";
+                  e.currentTarget.style.boxShadow = "0 0 20px rgba(37,99,235,0.08), 0 8px 32px rgba(0,0,0,0.3)";
+                  e.currentTarget.style.transform = "translateY(-4px)";
                 }}
                 onMouseLeave={(e) => {
-                  e.currentTarget.style.borderColor = "#27272A";
+                  e.currentTarget.style.borderColor = "rgba(255,255,255,0.06)";
+                  e.currentTarget.style.boxShadow = "none";
+                  e.currentTarget.style.transform = "translateY(0)";
                 }}
               >
+                {/* Corner bracket decorators */}
+                <CornerBrackets color={accent} />
+
                 <div
                   className="w-11 h-11 rounded-lg flex items-center justify-center mb-6"
                   style={{ background: `${accent}15` }}
@@ -699,13 +855,16 @@ export default function Home() {
       </section>
 
       {/* ═══ CERTIFICATE SHOWCASE ═══════════════════════════════ */}
-      <section className="py-28 sm:py-36" style={{ background: "#09090B" }}>
-        <div className="max-w-[1200px] mx-auto px-6 sm:px-10">
+      <section className="relative py-28 sm:py-36 overflow-hidden" style={{ background: "#09090B" }}>
+        <GlowOrb color="rgba(245,158,11,0.05)" size={600} top="20%" left="-10%" />
+        <GlowOrb color="rgba(37,99,235,0.04)" size={500} bottom="-10%" right="-5%" />
+
+        <div className="relative z-10 max-w-[1200px] mx-auto px-6 sm:px-10">
           <motion.div
             initial={{ opacity: 0, y: 24 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
-            transition={{ duration: 0.6 }}
+            transition={{ duration: 0.6, ease: PREMIUM_EASE }}
             className="text-center mb-16"
           >
             <span
@@ -726,18 +885,34 @@ export default function Home() {
             initial={{ opacity: 0, y: 32 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
-            transition={{ duration: 0.7 }}
+            transition={{ duration: 0.7, ease: PREMIUM_EASE }}
             className="max-w-lg mx-auto"
           >
-            {/* Certificate card */}
+            {/* Certificate card with gold-to-amber gradient border */}
             <div
               className="relative rounded-3xl p-[2px] overflow-hidden"
               style={{
                 background: "linear-gradient(135deg, #F59E0B, #D97706, #B45309, #F59E0B)",
               }}
             >
+              {/* Shine animation overlay */}
               <div
-                className="rounded-3xl px-10 py-12 text-center"
+                className="absolute inset-0 z-10 pointer-events-none"
+                style={{
+                  background: "linear-gradient(105deg, transparent 40%, rgba(255,255,255,0.15) 45%, rgba(255,255,255,0.25) 50%, rgba(255,255,255,0.15) 55%, transparent 60%)",
+                  backgroundSize: "200% 100%",
+                  animation: "certShine 4s ease-in-out infinite",
+                }}
+              />
+              <style>{`
+                @keyframes certShine {
+                  0%, 100% { background-position: 200% 0; }
+                  50% { background-position: -200% 0; }
+                }
+              `}</style>
+
+              <div
+                className="rounded-3xl px-10 py-12 text-center relative"
                 style={{ background: "#18181B" }}
               >
                 {/* Top decorative line */}
@@ -770,13 +945,20 @@ export default function Home() {
                   Имя получателя
                 </p>
 
-                {/* QR code placeholder */}
+                {/* QR code placeholder with glow */}
                 <div className="flex justify-center mb-6">
                   <div
-                    className="w-20 h-20 rounded-lg flex items-center justify-center"
+                    className="w-20 h-20 rounded-lg flex items-center justify-center relative"
                     style={{ background: "#27272A", border: "1px solid #3F3F46" }}
                   >
                     <QrCode size={40} style={{ color: "#52525B" }} />
+                    {/* QR glow */}
+                    <div
+                      className="absolute inset-0 rounded-lg pointer-events-none"
+                      style={{
+                        boxShadow: "0 0 20px rgba(245,158,11,0.1), 0 0 40px rgba(245,158,11,0.05)",
+                      }}
+                    />
                   </div>
                 </div>
 
@@ -814,7 +996,7 @@ export default function Home() {
             initial={{ opacity: 0, y: 24 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
-            transition={{ duration: 0.6 }}
+            transition={{ duration: 0.6, ease: PREMIUM_EASE }}
             className="text-center mb-16"
           >
             <span
@@ -857,18 +1039,25 @@ export default function Home() {
                 initial={{ opacity: 0, y: 20 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
-                transition={{ delay: i * 0.1, duration: 0.5 }}
-                className="rounded-2xl p-8 flex flex-col"
+                transition={{ delay: i * 0.1, duration: 0.5, ease: PREMIUM_EASE }}
+                className="relative rounded-2xl p-8 flex flex-col"
                 style={{ background: "#FFFFFF", border: "1px solid #E4E4E7" }}
               >
-                <Quote size={24} style={{ color: "#E4E4E7" }} className="mb-4" />
+                {/* Large decorative quote mark */}
+                <div
+                  className="absolute top-4 left-6 text-[5rem] font-serif leading-none select-none pointer-events-none"
+                  style={{ color: "rgba(0,0,0,0.05)" }}
+                >
+                  &ldquo;
+                </div>
+                <Quote size={24} style={{ color: "#E4E4E7" }} className="mb-4 relative z-10" />
                 <p
-                  className="text-[15px] leading-relaxed flex-1 mb-6"
+                  className="text-[15px] leading-relaxed flex-1 mb-6 relative z-10"
                   style={{ color: "#3F3F46" }}
                 >
                   {quote}
                 </p>
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 relative z-10">
                   <div
                     className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold"
                     style={{ background: "#2563EB", color: "#FFFFFF" }}
@@ -917,13 +1106,16 @@ export default function Home() {
       </section>
 
       {/* ═══ PRICING ════════════════════════════════════════════ */}
-      <section className="py-28 sm:py-36" style={{ background: "#09090B" }}>
-        <div className="max-w-[1200px] mx-auto px-6 sm:px-10">
+      <section className="relative py-28 sm:py-36 overflow-hidden" style={{ background: "#09090B" }}>
+        <GlowOrb color="rgba(37,99,235,0.06)" size={700} top="-10%" left="-5%" />
+        <GlowOrb color="rgba(139,92,246,0.04)" size={500} bottom="-10%" right="-8%" />
+
+        <div className="relative z-10 max-w-[1200px] mx-auto px-6 sm:px-10">
           <motion.div
             initial={{ opacity: 0, y: 24 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
-            transition={{ duration: 0.6 }}
+            transition={{ duration: 0.6, ease: PREMIUM_EASE }}
             className="text-center mb-16"
           >
             <span
@@ -946,9 +1138,23 @@ export default function Home() {
               initial={{ opacity: 0, y: 24 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
-              transition={{ duration: 0.5 }}
-              className="rounded-2xl p-8 sm:p-10 flex flex-col"
-              style={{ background: "#18181B", border: "1px solid #27272A" }}
+              transition={{ duration: 0.5, ease: PREMIUM_EASE }}
+              className="rounded-2xl p-8 sm:p-10 flex flex-col transition-all duration-300"
+              style={{
+                background: "rgba(255,255,255,0.03)",
+                backdropFilter: "blur(12px)",
+                border: "1px solid rgba(255,255,255,0.06)",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.borderColor = "rgba(37,99,235,0.3)";
+                e.currentTarget.style.boxShadow = "0 0 20px rgba(37,99,235,0.08), 0 8px 32px rgba(0,0,0,0.3)";
+                e.currentTarget.style.transform = "translateY(-4px)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.borderColor = "rgba(255,255,255,0.06)";
+                e.currentTarget.style.boxShadow = "none";
+                e.currentTarget.style.transform = "translateY(0)";
+              }}
             >
               <h3 className="text-2xl font-black mb-1" style={{ color: "#FAFAFA" }}>
                 Практик
@@ -981,13 +1187,13 @@ export default function Home() {
               <button
                 onClick={openRegister}
                 className="w-full py-3.5 rounded-lg text-[15px] font-bold transition-all duration-200"
-                style={{ border: "1px solid #27272A", color: "#FAFAFA", background: "transparent" }}
+                style={{ border: "1px solid rgba(255,255,255,0.1)", color: "#FAFAFA", background: "transparent" }}
                 onMouseEnter={(e) => {
                   e.currentTarget.style.borderColor = "#2563EB";
                   e.currentTarget.style.background = "#2563EB15";
                 }}
                 onMouseLeave={(e) => {
-                  e.currentTarget.style.borderColor = "#27272A";
+                  e.currentTarget.style.borderColor = "rgba(255,255,255,0.1)";
                   e.currentTarget.style.background = "transparent";
                 }}
               >
@@ -995,73 +1201,114 @@ export default function Home() {
               </button>
             </motion.div>
 
-            {/* Plan: Команда */}
+            {/* Plan: Команда — Featured with gradient border + animated glow */}
             <motion.div
               initial={{ opacity: 0, y: 24 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
-              transition={{ delay: 0.1, duration: 0.5 }}
-              className="relative rounded-2xl p-8 sm:p-10 flex flex-col"
-              style={{ background: "#18181B", border: "2px solid #2563EB" }}
+              transition={{ delay: 0.1, duration: 0.5, ease: PREMIUM_EASE }}
+              className="relative"
             >
-              {/* Popular badge */}
+              {/* Animated glow pulse behind the card */}
               <div
-                className="absolute -top-3.5 left-1/2 -translate-x-1/2 inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full text-xs font-bold"
-                style={{ background: "#2563EB", color: "#FFFFFF" }}
-              >
-                <Crown size={12} />
-                Популярный
-              </div>
+                className="absolute -inset-[1px] rounded-2xl pointer-events-none"
+                style={{
+                  background: "linear-gradient(135deg, #2563EB, #8B5CF6, #2563EB)",
+                  backgroundSize: "200% 200%",
+                  animation: "gradientShift 3s ease infinite",
+                  opacity: 0.7,
+                }}
+              />
+              <div
+                className="absolute -inset-[2px] rounded-2xl pointer-events-none"
+                style={{
+                  background: "linear-gradient(135deg, #2563EB, #8B5CF6, #2563EB)",
+                  backgroundSize: "200% 200%",
+                  animation: "gradientShift 3s ease infinite",
+                  opacity: 0.3,
+                  filter: "blur(12px)",
+                }}
+              />
+              <style>{`
+                @keyframes gradientShift {
+                  0%, 100% { background-position: 0% 50%; }
+                  50% { background-position: 100% 50%; }
+                }
+                @keyframes glowPulse {
+                  0%, 100% { opacity: 0.3; }
+                  50% { opacity: 0.6; }
+                }
+              `}</style>
 
-              <h3 className="text-2xl font-black mb-1" style={{ color: "#FAFAFA" }}>
-                Команда
-              </h3>
-              <p className="text-sm mb-6" style={{ color: "#71717A" }}>
-                Для СРО и групп (от 5 человек)
-              </p>
-              <div className="flex items-baseline gap-1 mb-2">
-                <span className="text-5xl font-black" style={{ color: "#FAFAFA" }}>
-                  3 900
-                </span>
-                <span className="text-lg font-semibold" style={{ color: "#71717A" }}>
-                  ₽/мес
-                </span>
-              </div>
-              <p className="text-xs mb-8" style={{ color: "#52525B" }}>
-                за человека, от 5 человек
-              </p>
-              <div className="flex flex-col gap-3.5 mb-10 flex-1">
-                {[
-                  "Всё из «Практик»",
-                  "Полный доступ ко всем кейсам",
-                  "8 модулей экзаменов",
-                  "Расширенная аналитика для РОПа",
-                  "Сертификат 24 ак. часа",
-                  "Приоритетная поддержка",
-                ].map((f) => (
-                  <div key={f} className="flex items-center gap-3 text-sm" style={{ color: "#D4D4D8" }}>
-                    <Check size={16} style={{ color: "#2563EB", flexShrink: 0 }} />
-                    {f}
-                  </div>
-                ))}
-              </div>
-              <button
-                onClick={openRegister}
-                className="w-full py-3.5 rounded-lg text-[15px] font-bold text-white transition-all duration-200"
-                style={{ background: "#2563EB" }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.background = "#1D4ED8";
-                  e.currentTarget.style.transform = "translateY(-1px)";
-                  e.currentTarget.style.boxShadow = "0 8px 32px rgba(37,99,235,0.3)";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = "#2563EB";
-                  e.currentTarget.style.transform = "translateY(0)";
-                  e.currentTarget.style.boxShadow = "none";
+              <div
+                className="relative rounded-2xl p-8 sm:p-10 flex flex-col h-full"
+                style={{
+                  background: "#0F0F12",
                 }}
               >
-                Подключить команду
-              </button>
+                {/* Popular badge with gradient */}
+                <div
+                  className="absolute -top-3.5 left-1/2 -translate-x-1/2 inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full text-xs font-bold z-20"
+                  style={{
+                    background: "linear-gradient(135deg, #2563EB, #8B5CF6)",
+                    color: "#FFFFFF",
+                    boxShadow: "0 0 16px rgba(37,99,235,0.4)",
+                  }}
+                >
+                  <Crown size={12} />
+                  Популярный
+                </div>
+
+                <h3 className="text-2xl font-black mb-1" style={{ color: "#FAFAFA" }}>
+                  Команда
+                </h3>
+                <p className="text-sm mb-6" style={{ color: "#71717A" }}>
+                  Для СРО и групп (от 5 человек)
+                </p>
+                <div className="flex items-baseline gap-1 mb-2">
+                  <span className="text-5xl font-black" style={{ color: "#FAFAFA" }}>
+                    3 900
+                  </span>
+                  <span className="text-lg font-semibold" style={{ color: "#71717A" }}>
+                    ₽/мес
+                  </span>
+                </div>
+                <p className="text-xs mb-8" style={{ color: "#52525B" }}>
+                  за человека, от 5 человек
+                </p>
+                <div className="flex flex-col gap-3.5 mb-10 flex-1">
+                  {[
+                    "Всё из «Практик»",
+                    "Полный доступ ко всем кейсам",
+                    "8 модулей экзаменов",
+                    "Расширенная аналитика для РОПа",
+                    "Сертификат 24 ак. часа",
+                    "Приоритетная поддержка",
+                  ].map((f) => (
+                    <div key={f} className="flex items-center gap-3 text-sm" style={{ color: "#D4D4D8" }}>
+                      <Check size={16} style={{ color: "#2563EB", flexShrink: 0 }} />
+                      {f}
+                    </div>
+                  ))}
+                </div>
+                <button
+                  onClick={openRegister}
+                  className="w-full py-3.5 rounded-lg text-[15px] font-bold text-white transition-all duration-200"
+                  style={{ background: "#2563EB" }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = "#1D4ED8";
+                    e.currentTarget.style.transform = "translateY(-1px)";
+                    e.currentTarget.style.boxShadow = "0 0 24px rgba(37,99,235,0.4), 0 8px 32px rgba(37,99,235,0.3)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = "#2563EB";
+                    e.currentTarget.style.transform = "translateY(0)";
+                    e.currentTarget.style.boxShadow = "none";
+                  }}
+                >
+                  Подключить команду
+                </button>
+              </div>
             </motion.div>
           </div>
         </div>
@@ -1074,7 +1321,7 @@ export default function Home() {
             initial={{ opacity: 0, y: 24 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
-            transition={{ duration: 0.6 }}
+            transition={{ duration: 0.6, ease: PREMIUM_EASE }}
             className="mb-20"
           >
             <span
@@ -1114,7 +1361,7 @@ export default function Home() {
                 initial={{ opacity: 0, y: 24 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
-                transition={{ delay: i * 0.12, duration: 0.5 }}
+                transition={{ delay: i * 0.12, duration: 0.5, ease: PREMIUM_EASE }}
                 className="relative"
               >
                 {/* Step number — large decorative */}
@@ -1171,7 +1418,7 @@ export default function Home() {
             initial={{ opacity: 0, y: 24 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
-            transition={{ duration: 0.6 }}
+            transition={{ duration: 0.6, ease: PREMIUM_EASE }}
           >
             <h2
               className="text-4xl sm:text-5xl lg:text-[3.75rem] font-black tracking-tight mb-6 leading-[1.05]"
@@ -1187,28 +1434,38 @@ export default function Home() {
             >
               Начните с бесплатного модуля. Без обязательств.
             </p>
-            <button
-              onClick={openRegister}
-              className="group inline-flex items-center gap-3 px-12 py-5 rounded-xl text-lg font-bold transition-all duration-200"
+            {/* CTA button with gradient border animation */}
+            <div
+              className="relative inline-block rounded-xl p-[2px]"
               style={{
-                background: "#FFFFFF",
-                color: "#2563EB",
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.transform = "translateY(-2px)";
-                e.currentTarget.style.boxShadow = "0 16px 48px rgba(0,0,0,0.2)";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.transform = "translateY(0)";
-                e.currentTarget.style.boxShadow = "none";
+                background: "linear-gradient(135deg, #FFFFFF, rgba(255,255,255,0.6), #FFFFFF)",
+                backgroundSize: "200% 200%",
+                animation: "gradientShift 3s ease infinite",
               }}
             >
-              Начать бесплатно
-              <ArrowRight
-                size={18}
-                className="transition-transform group-hover:translate-x-1"
-              />
-            </button>
+              <button
+                onClick={openRegister}
+                className="group inline-flex items-center gap-3 px-12 py-5 rounded-[10px] text-lg font-bold transition-all duration-200"
+                style={{
+                  background: "#FFFFFF",
+                  color: "#2563EB",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = "translateY(-2px)";
+                  e.currentTarget.style.boxShadow = "0 0 24px rgba(255,255,255,0.3), 0 16px 48px rgba(0,0,0,0.2)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = "translateY(0)";
+                  e.currentTarget.style.boxShadow = "none";
+                }}
+              >
+                Начать бесплатно
+                <ArrowRight
+                  size={18}
+                  className="transition-transform group-hover:translate-x-1"
+                />
+              </button>
+            </div>
           </motion.div>
         </div>
       </section>
