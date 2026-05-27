@@ -562,8 +562,7 @@ export default function CasesPage() {
                     onMouseLeave={() => setHoveredCase(null)}
                     onClick={() => {
                       if (!caseItem.locked) {
-                        // Will route to case player when implemented
-                        // router.push(`/cases/${caseItem.id}`);
+                        router.push(`/cases/${caseItem.id}`);
                       }
                     }}
                   >

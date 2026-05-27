@@ -217,6 +217,7 @@ from app.models.analytics_event import AnalyticsEvent
 # Quiz Arena v2 (Path A) — pre-computed answer keys for the deterministic
 # grader. Migration 20260503_001. See docs/QUIZ_V2_ARENA_DESIGN.md.
 from app.models.quiz_v2 import QuizV2AnswerKey
+from app.models.training_map import TrainingMapProgress
 
 __all__ = [
     "User",
@@ -429,4 +430,5 @@ __all__ = [
     "AnalyticsEvent",
     # Quiz Arena v2 — Path A grader storage (alembic 20260503_001)
     "QuizV2AnswerKey",
+    "TrainingMapProgress",
 ]

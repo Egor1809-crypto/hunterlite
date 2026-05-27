@@ -234,40 +234,47 @@ export default function HistoryPage() {
             </div>
           </motion.div>
 
-          {/* Было / Стало comparison */}
+          {/* Было / Стало comparison — detailed metrics */}
           {!loading && completed.length >= 2 && (() => {
             const sorted = [...completed].sort((a, b) => new Date(a.started_at).getTime() - new Date(b.started_at).getTime());
-            const firstScore = sorted[0].score_total ?? 0;
-            const lastScore = sorted[sorted.length - 1].score_total ?? 0;
+            const first = sorted[0];
+            const last = sorted[sorted.length - 1];
+            const firstScore = first.score_total ?? 0;
+            const lastScore = last.score_total ?? 0;
             const diff = Math.round(lastScore - firstScore);
             const isPositive = diff > 0;
+
+            const metrics = [
+              { label: "Общий балл", first: first.score_total, last: last.score_total, max: 100, color: "var(--accent)" },
+              { label: "Скрипт", first: first.score_script_adherence, last: last.score_script_adherence, max: 30, color: "var(--info)" },
+              { label: "Возражения", first: first.score_objection_handling, last: last.score_objection_handling, max: 25, color: "var(--magenta)" },
+              { label: "Коммуникация", first: first.score_communication, last: last.score_communication, max: 20, color: "#8B5CF6" },
+              { label: "Результат", first: first.score_result, last: last.score_result, max: 10, color: "var(--success)" },
+            ];
+
             return (
               <motion.div
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.08 }}
-                className="mt-6 rounded-xl overflow-hidden"
+                className="mt-6 rounded-2xl overflow-hidden"
                 style={{
                   background: isPositive ? "rgba(34,197,94,0.04)" : "rgba(239,68,68,0.04)",
                   border: `1px solid ${isPositive ? "rgba(34,197,94,0.18)" : "rgba(239,68,68,0.18)"}`,
                   boxShadow: isPositive
-                    ? "0 0 20px rgba(34,197,94,0.08), 0 0 40px rgba(34,197,94,0.03), inset 0 1px 0 rgba(34,197,94,0.06)"
-                    : "0 0 20px rgba(239,68,68,0.08), 0 0 40px rgba(239,68,68,0.03), inset 0 1px 0 rgba(239,68,68,0.06)",
+                    ? "0 0 20px rgba(34,197,94,0.08), inset 0 1px 0 rgba(34,197,94,0.06)"
+                    : "0 0 20px rgba(239,68,68,0.08), inset 0 1px 0 rgba(239,68,68,0.06)",
                 }}
               >
-                <div className="p-4 flex items-center gap-4">
+                {/* Header */}
+                <div className="p-4 pb-3 flex items-center gap-4">
                   <div className="flex items-center gap-2">
                     <span
                       style={{
-                        width: 6,
-                        height: 6,
-                        borderRadius: "50%",
+                        width: 6, height: 6, borderRadius: "50%",
                         background: isPositive ? "var(--success)" : "var(--danger)",
-                        boxShadow: isPositive
-                          ? "0 0 6px rgba(34,197,94,0.6)"
-                          : "0 0 6px rgba(239,68,68,0.6)",
-                        animation: "pulse 2s ease-in-out infinite",
-                        flexShrink: 0,
+                        boxShadow: isPositive ? "0 0 6px rgba(34,197,94,0.6)" : "0 0 6px rgba(239,68,68,0.6)",
+                        animation: "pulse 2s ease-in-out infinite", flexShrink: 0,
                       }}
                     />
                     {isPositive
@@ -298,6 +305,45 @@ export default function HistoryPage() {
                   >
                     {isPositive ? "+" : ""}{diff} баллов
                   </div>
+                </div>
+
+                {/* Detailed metric bars */}
+                <div className="px-4 pb-4 space-y-2.5">
+                  {metrics.map((m) => {
+                    const fVal = m.first ?? 0;
+                    const lVal = m.last ?? 0;
+                    const mDiff = lVal - fVal;
+                    const fPct = m.max > 0 ? (fVal / m.max) * 100 : 0;
+                    const lPct = m.max > 0 ? (lVal / m.max) * 100 : 0;
+                    const mPositive = mDiff > 0;
+                    return (
+                      <div key={m.label}>
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-[10px] font-semibold" style={{ color: "var(--text-muted)" }}>{m.label}</span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-[10px] font-mono" style={{ color: "var(--text-muted)" }}>
+                              {Math.round(fVal)} → {Math.round(lVal)}
+                            </span>
+                            {mDiff !== 0 && (
+                              <span className="text-[10px] font-bold" style={{ color: mPositive ? "var(--success)" : "var(--danger)" }}>
+                                {mPositive ? "+" : ""}{Math.round(mDiff)}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="relative h-2 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.06)" }}>
+                          <div
+                            className="absolute inset-y-0 left-0 rounded-full opacity-40"
+                            style={{ width: `${fPct}%`, background: m.color }}
+                          />
+                          <div
+                            className="absolute inset-y-0 left-0 rounded-full"
+                            style={{ width: `${lPct}%`, background: m.color }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </motion.div>
             );

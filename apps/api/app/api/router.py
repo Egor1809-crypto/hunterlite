@@ -65,3 +65,6 @@ api_router.include_router(telegram_router)
 
 from app.api.scenarios import router as scenarios_router
 api_router.include_router(scenarios_router, tags=["scenarios"])
+
+from app.api.training_map import router as training_map_router
+api_router.include_router(training_map_router, tags=["training-map"])
