@@ -20,6 +20,13 @@ import {
   GraduationCap,
   TrendingUp,
   Clock,
+  Star,
+  Users,
+  Quote,
+  QrCode,
+  Linkedin,
+  Check,
+  Crown,
 } from "lucide-react";
 import { useLandingAuth } from "@/components/landing/LandingAuthContext";
 
@@ -400,6 +407,75 @@ export default function Home() {
         </div>
       </section>
 
+      {/* ═══ PAIN POINTS — "Знакомо?" ═══════════════════════════ */}
+      <section className="py-24 sm:py-32" style={{ background: "#09090B" }}>
+        <div className="max-w-[1200px] mx-auto px-6 sm:px-10">
+          <motion.div
+            initial={{ opacity: 0, y: 24 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.6 }}
+            className="text-center mb-16"
+          >
+            <h2
+              className="text-4xl sm:text-5xl lg:text-6xl font-black tracking-tight mb-4"
+              style={{ color: "#FAFAFA" }}
+            >
+              Знакомо?
+            </h2>
+            <p
+              className="text-base sm:text-lg leading-relaxed max-w-xl mx-auto"
+              style={{ color: "#71717A" }}
+            >
+              Так выглядит повышение квалификации для большинства АУ
+            </p>
+          </motion.div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-3xl mx-auto">
+            {[
+              "Семинар на 8 часов, из которых полезных — 40 минут",
+              "Лектор читает по слайдам то, что вы знали 5 лет назад",
+              "Диплом есть, знаний — нет",
+              "Каждый год одно и то же, но 24 часа набрать надо",
+            ].map((pain, i) => (
+              <motion.div
+                key={i}
+                initial={{ opacity: 0, x: -16 }}
+                whileInView={{ opacity: 1, x: 0 }}
+                viewport={{ once: true }}
+                transition={{ delay: i * 0.1, duration: 0.5 }}
+                className="flex items-start gap-4 rounded-2xl p-6"
+                style={{ background: "#18181B", border: "1px solid #27272A" }}
+              >
+                <div
+                  className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5"
+                  style={{ background: "rgba(239,68,68,0.12)" }}
+                >
+                  <AlertTriangle size={18} style={{ color: "#EF4444" }} />
+                </div>
+                <p
+                  className="text-[15px] leading-relaxed font-medium"
+                  style={{ color: "#D4D4D8" }}
+                >
+                  {pain}
+                </p>
+              </motion.div>
+            ))}
+          </div>
+
+          <motion.p
+            initial={{ opacity: 0 }}
+            whileInView={{ opacity: 1 }}
+            viewport={{ once: true }}
+            transition={{ delay: 0.5, duration: 0.5 }}
+            className="text-center mt-12 text-base font-semibold"
+            style={{ color: "#2563EB" }}
+          >
+            Мы создали платформу, где каждый час обучения — полезный
+          </motion.p>
+        </div>
+      </section>
+
       {/* ═══ SERVICES ════════════════════════════════════════════ */}
       <section className="py-28 sm:py-36" style={{ background: "#FAFAFA" }}>
         <div className="max-w-[1200px] mx-auto px-6 sm:px-10">
@@ -622,6 +698,375 @@ export default function Home() {
         </div>
       </section>
 
+      {/* ═══ CERTIFICATE SHOWCASE ═══════════════════════════════ */}
+      <section className="py-28 sm:py-36" style={{ background: "#09090B" }}>
+        <div className="max-w-[1200px] mx-auto px-6 sm:px-10">
+          <motion.div
+            initial={{ opacity: 0, y: 24 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.6 }}
+            className="text-center mb-16"
+          >
+            <span
+              className="text-xs font-bold uppercase tracking-[0.2em] mb-4 block"
+              style={{ color: "#F59E0B" }}
+            >
+              Документ
+            </span>
+            <h2
+              className="text-4xl sm:text-5xl font-black tracking-tight"
+              style={{ color: "#FAFAFA" }}
+            >
+              Сертификат, которому доверяют
+            </h2>
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 32 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.7 }}
+            className="max-w-lg mx-auto"
+          >
+            {/* Certificate card */}
+            <div
+              className="relative rounded-3xl p-[2px] overflow-hidden"
+              style={{
+                background: "linear-gradient(135deg, #F59E0B, #D97706, #B45309, #F59E0B)",
+              }}
+            >
+              <div
+                className="rounded-3xl px-10 py-12 text-center"
+                style={{ background: "#18181B" }}
+              >
+                {/* Top decorative line */}
+                <div
+                  className="w-16 h-[2px] mx-auto mb-8"
+                  style={{ background: "linear-gradient(90deg, transparent, #F59E0B, transparent)" }}
+                />
+
+                <Award size={40} style={{ color: "#F59E0B" }} className="mx-auto mb-6" />
+
+                <h3
+                  className="text-2xl sm:text-3xl font-black mb-2"
+                  style={{ color: "#FAFAFA" }}
+                >
+                  Сертификат
+                </h3>
+                <p
+                  className="text-lg font-semibold mb-8"
+                  style={{ color: "#D4D4D8" }}
+                >
+                  повышения квалификации
+                </p>
+
+                {/* Placeholder name line */}
+                <div
+                  className="w-48 h-[1px] mx-auto mb-1"
+                  style={{ background: "#3F3F46" }}
+                />
+                <p className="text-xs mb-8" style={{ color: "#52525B" }}>
+                  Имя получателя
+                </p>
+
+                {/* QR code placeholder */}
+                <div className="flex justify-center mb-6">
+                  <div
+                    className="w-20 h-20 rounded-lg flex items-center justify-center"
+                    style={{ background: "#27272A", border: "1px solid #3F3F46" }}
+                  >
+                    <QrCode size={40} style={{ color: "#52525B" }} />
+                  </div>
+                </div>
+
+                <p
+                  className="text-sm font-semibold mb-6"
+                  style={{ color: "#A1A1AA" }}
+                >
+                  24 ак. часа &bull; ФЗ-127 &bull; Верификация по QR
+                </p>
+
+                {/* Bottom decorative line */}
+                <div
+                  className="w-16 h-[2px] mx-auto mb-6"
+                  style={{ background: "linear-gradient(90deg, transparent, #F59E0B, transparent)" }}
+                />
+
+                {/* LinkedIn badge */}
+                <div
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold"
+                  style={{ background: "#27272A", color: "#60A5FA" }}
+                >
+                  <Linkedin size={14} />
+                  Добавьте в LinkedIn
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      </section>
+
+      {/* ═══ SOCIAL PROOF ═══════════════════════════════════════ */}
+      <section className="py-28 sm:py-36" style={{ background: "#FAFAFA" }}>
+        <div className="max-w-[1200px] mx-auto px-6 sm:px-10">
+          <motion.div
+            initial={{ opacity: 0, y: 24 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.6 }}
+            className="text-center mb-16"
+          >
+            <span
+              className="text-xs font-bold uppercase tracking-[0.2em] mb-4 block"
+              style={{ color: "#8B5CF6" }}
+            >
+              Отзывы
+            </span>
+            <h2
+              className="text-4xl sm:text-5xl font-black tracking-tight mb-4"
+              style={{ color: "#09090B" }}
+            >
+              Управляющие уже обучаются
+            </h2>
+          </motion.div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-16">
+            {[
+              {
+                name: "Алексей Петров",
+                role: "Арбитражный управляющий, СРО «Альянс»",
+                quote:
+                  "За 3 года перепробовал все семинары. Здесь впервые почувствовал, что реально учусь, а не отсиживаю часы. AI-должники ведут себя как настоящие.",
+              },
+              {
+                name: "Мария Козлова",
+                role: "Арбитражный управляющий, СРО «Стратегия»",
+                quote:
+                  "Сертификат получила за 2 недели в своём темпе. Коллеги до сих пор не верят, что можно без очных лекций. QR-код на сертификате — удобно для проверки.",
+              },
+              {
+                name: "Дмитрий Волков",
+                role: "Арбитражный управляющий, СРО «Содружество»",
+                quote:
+                  "Кейсы из реальной практики — это то, чего не хватало. Разбираешь ситуацию, принимаешь решения, видишь последствия. Лучше любого учебника.",
+              },
+            ].map(({ name, role, quote }, i) => (
+              <motion.div
+                key={name}
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ delay: i * 0.1, duration: 0.5 }}
+                className="rounded-2xl p-8 flex flex-col"
+                style={{ background: "#FFFFFF", border: "1px solid #E4E4E7" }}
+              >
+                <Quote size={24} style={{ color: "#E4E4E7" }} className="mb-4" />
+                <p
+                  className="text-[15px] leading-relaxed flex-1 mb-6"
+                  style={{ color: "#3F3F46" }}
+                >
+                  {quote}
+                </p>
+                <div className="flex items-center gap-3">
+                  <div
+                    className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold"
+                    style={{ background: "#2563EB", color: "#FFFFFF" }}
+                  >
+                    {name[0]}
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold" style={{ color: "#09090B" }}>
+                      {name}
+                    </p>
+                    <p className="text-xs" style={{ color: "#A1A1AA" }}>
+                      {role}
+                    </p>
+                  </div>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+
+          {/* Counter */}
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.5 }}
+            className="flex items-center justify-center gap-3"
+          >
+            <div
+              className="w-12 h-12 rounded-xl flex items-center justify-center"
+              style={{ background: "#2563EB10" }}
+            >
+              <Users size={22} style={{ color: "#2563EB" }} />
+            </div>
+            <span
+              className="text-lg font-bold"
+              style={{ color: "#09090B" }}
+            >
+              Более{" "}
+              <span style={{ color: "#2563EB" }}>
+                <CountUp target={200} suffix="+" />
+              </span>{" "}
+              управляющих уже обучаются
+            </span>
+          </motion.div>
+        </div>
+      </section>
+
+      {/* ═══ PRICING ════════════════════════════════════════════ */}
+      <section className="py-28 sm:py-36" style={{ background: "#09090B" }}>
+        <div className="max-w-[1200px] mx-auto px-6 sm:px-10">
+          <motion.div
+            initial={{ opacity: 0, y: 24 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.6 }}
+            className="text-center mb-16"
+          >
+            <span
+              className="text-xs font-bold uppercase tracking-[0.2em] mb-4 block"
+              style={{ color: "#2563EB" }}
+            >
+              Тарифы
+            </span>
+            <h2
+              className="text-4xl sm:text-5xl font-black tracking-tight"
+              style={{ color: "#FAFAFA" }}
+            >
+              Выберите свой план
+            </h2>
+          </motion.div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto">
+            {/* Plan: Практик */}
+            <motion.div
+              initial={{ opacity: 0, y: 24 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.5 }}
+              className="rounded-2xl p-8 sm:p-10 flex flex-col"
+              style={{ background: "#18181B", border: "1px solid #27272A" }}
+            >
+              <h3 className="text-2xl font-black mb-1" style={{ color: "#FAFAFA" }}>
+                Практик
+              </h3>
+              <p className="text-sm mb-6" style={{ color: "#71717A" }}>
+                Для самостоятельного обучения
+              </p>
+              <div className="flex items-baseline gap-1 mb-8">
+                <span className="text-5xl font-black" style={{ color: "#FAFAFA" }}>
+                  4 900
+                </span>
+                <span className="text-lg font-semibold" style={{ color: "#71717A" }}>
+                  ₽/мес
+                </span>
+              </div>
+              <div className="flex flex-col gap-3.5 mb-10 flex-1">
+                {[
+                  "AI-тренировки (60+ сценариев)",
+                  "Блиц-тесты (8 категорий)",
+                  "3 интерактивных кейса/мес",
+                  "Базовая аналитика",
+                  "Сертификат 12 ак. часов",
+                ].map((f) => (
+                  <div key={f} className="flex items-center gap-3 text-sm" style={{ color: "#D4D4D8" }}>
+                    <Check size={16} style={{ color: "#2563EB", flexShrink: 0 }} />
+                    {f}
+                  </div>
+                ))}
+              </div>
+              <button
+                onClick={openRegister}
+                className="w-full py-3.5 rounded-lg text-[15px] font-bold transition-all duration-200"
+                style={{ border: "1px solid #27272A", color: "#FAFAFA", background: "transparent" }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.borderColor = "#2563EB";
+                  e.currentTarget.style.background = "#2563EB15";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.borderColor = "#27272A";
+                  e.currentTarget.style.background = "transparent";
+                }}
+              >
+                Начать обучение
+              </button>
+            </motion.div>
+
+            {/* Plan: Команда */}
+            <motion.div
+              initial={{ opacity: 0, y: 24 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ delay: 0.1, duration: 0.5 }}
+              className="relative rounded-2xl p-8 sm:p-10 flex flex-col"
+              style={{ background: "#18181B", border: "2px solid #2563EB" }}
+            >
+              {/* Popular badge */}
+              <div
+                className="absolute -top-3.5 left-1/2 -translate-x-1/2 inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full text-xs font-bold"
+                style={{ background: "#2563EB", color: "#FFFFFF" }}
+              >
+                <Crown size={12} />
+                Популярный
+              </div>
+
+              <h3 className="text-2xl font-black mb-1" style={{ color: "#FAFAFA" }}>
+                Команда
+              </h3>
+              <p className="text-sm mb-6" style={{ color: "#71717A" }}>
+                Для СРО и групп (от 5 человек)
+              </p>
+              <div className="flex items-baseline gap-1 mb-2">
+                <span className="text-5xl font-black" style={{ color: "#FAFAFA" }}>
+                  3 900
+                </span>
+                <span className="text-lg font-semibold" style={{ color: "#71717A" }}>
+                  ₽/мес
+                </span>
+              </div>
+              <p className="text-xs mb-8" style={{ color: "#52525B" }}>
+                за человека, от 5 человек
+              </p>
+              <div className="flex flex-col gap-3.5 mb-10 flex-1">
+                {[
+                  "Всё из «Практик»",
+                  "Полный доступ ко всем кейсам",
+                  "8 модулей экзаменов",
+                  "Расширенная аналитика для РОПа",
+                  "Сертификат 24 ак. часа",
+                  "Приоритетная поддержка",
+                ].map((f) => (
+                  <div key={f} className="flex items-center gap-3 text-sm" style={{ color: "#D4D4D8" }}>
+                    <Check size={16} style={{ color: "#2563EB", flexShrink: 0 }} />
+                    {f}
+                  </div>
+                ))}
+              </div>
+              <button
+                onClick={openRegister}
+                className="w-full py-3.5 rounded-lg text-[15px] font-bold text-white transition-all duration-200"
+                style={{ background: "#2563EB" }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = "#1D4ED8";
+                  e.currentTarget.style.transform = "translateY(-1px)";
+                  e.currentTarget.style.boxShadow = "0 8px 32px rgba(37,99,235,0.3)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = "#2563EB";
+                  e.currentTarget.style.transform = "translateY(0)";
+                  e.currentTarget.style.boxShadow = "none";
+                }}
+              >
+                Подключить команду
+              </button>
+            </motion.div>
+          </div>
+        </div>
+      </section>
+
       {/* ═══ HOW IT WORKS ════════════════════════════════════════ */}
       <section className="py-28 sm:py-36" style={{ background: "#FAFAFA" }}>
         <div className="max-w-[1200px] mx-auto px-6 sm:px-10">
@@ -702,9 +1147,9 @@ export default function Home() {
         </div>
       </section>
 
-      {/* ═══ CTA — Bold blue ════════════════════════════════════ */}
+      {/* ═══ FINAL CTA ════════════════════════════════════════ */}
       <section
-        className="relative py-28 sm:py-36 overflow-hidden"
+        className="relative py-32 sm:py-40 overflow-hidden"
         style={{ background: "#2563EB" }}
       >
         {/* Subtle pattern */}
@@ -715,6 +1160,12 @@ export default function Home() {
           }}
         />
 
+        {/* Glow effect */}
+        <div
+          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full opacity-20 blur-[120px]"
+          style={{ background: "#60A5FA" }}
+        />
+
         <div className="relative z-10 max-w-3xl mx-auto px-6 sm:px-10 text-center">
           <motion.div
             initial={{ opacity: 0, y: 24 }}
@@ -723,38 +1174,39 @@ export default function Home() {
             transition={{ duration: 0.6 }}
           >
             <h2
-              className="text-4xl sm:text-5xl lg:text-6xl font-black tracking-tight mb-6 leading-[1.05]"
+              className="text-4xl sm:text-5xl lg:text-[3.75rem] font-black tracking-tight mb-6 leading-[1.05]"
               style={{ color: "#FFFFFF" }}
             >
-              Начните набирать часы ПК
+              Ваши 24 часа
+              <br />
+              начинаются здесь
             </h2>
             <p
-              className="text-lg max-w-md mx-auto mb-10 leading-relaxed"
-              style={{ color: "rgba(255,255,255,0.7)" }}
+              className="text-lg sm:text-xl max-w-md mx-auto mb-12 leading-relaxed"
+              style={{ color: "rgba(255,255,255,0.75)" }}
             >
-              Первые модули бесплатно. Без обязательств,
-              без кредитной карты. 24 ак. часа — ваша цель на год.
+              Начните с бесплатного модуля. Без обязательств.
             </p>
             <button
               onClick={openRegister}
-              className="group inline-flex items-center gap-3 px-9 py-4 rounded-lg text-[15px] font-bold transition-all duration-200"
+              className="group inline-flex items-center gap-3 px-12 py-5 rounded-xl text-lg font-bold transition-all duration-200"
               style={{
                 background: "#FFFFFF",
                 color: "#2563EB",
               }}
               onMouseEnter={(e) => {
                 e.currentTarget.style.transform = "translateY(-2px)";
-                e.currentTarget.style.boxShadow = "0 12px 40px rgba(0,0,0,0.15)";
+                e.currentTarget.style.boxShadow = "0 16px 48px rgba(0,0,0,0.2)";
               }}
               onMouseLeave={(e) => {
                 e.currentTarget.style.transform = "translateY(0)";
                 e.currentTarget.style.boxShadow = "none";
               }}
             >
-              Начать обучение
+              Начать бесплатно
               <ArrowRight
-                size={16}
-                className="transition-transform group-hover:translate-x-0.5"
+                size={18}
+                className="transition-transform group-hover:translate-x-1"
               />
             </button>
           </motion.div>

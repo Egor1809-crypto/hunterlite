@@ -41,7 +41,7 @@ import { Skeleton } from "@/components/ui/Skeleton";
 // 2026-04-18: вкладка "Рекомендуемые" убрана из /training — она сбивала
 // пользователя с главного flow. Из /home кнопка "Рекомендуемые" теперь
 // ведёт в /training?tab=scenarios (та же логика подбора работает там же).
-type Tab = "scenarios" | "builder";
+type Tab = "scenarios" | "builder" | "tests";
 
 const TABS: {
   id: Tab;
@@ -52,6 +52,7 @@ const TABS: {
 }[] = [
   { id: "scenarios", label: "Мои клиенты",  icon: BookOpen,       emoji: "🎭", hue: "var(--accent)" },
   { id: "builder",   label: "Конструктор",  icon: Puzzle,         emoji: "🧩", hue: "var(--success)" },
+  { id: "tests",     label: "Тесты",        icon: Target,         emoji: "🎯", hue: "var(--info)" },
 ];
 
 const TYPE_FILTERS = [
@@ -106,9 +107,9 @@ function TrainingPageContent() {
   useEffect(() => {
     // Legacy ?tab=recommended (из /home или старых ссылок) маршрутизирует на scenarios.
     // Legacy ?tab=assigned|saved → scenarios (tabs removed).
-    if (tabParam === "recommended" || tabParam === "assigned" || tabParam === "saved" || tabParam === "exams" || tabParam === "tests") {
+    if (tabParam === "recommended" || tabParam === "assigned" || tabParam === "saved" || tabParam === "exams") {
       setTab("scenarios");
-    } else if (tabParam === "builder" || tabParam === "scenarios") {
+    } else if (tabParam === "builder" || tabParam === "scenarios" || tabParam === "tests") {
       setTab(tabParam);
     }
   }, [tabParam]);
@@ -350,6 +351,12 @@ function TrainingPageContent() {
             {tab === "builder" && (
               <motion.div key="builder" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.18 }}>
                 <CharacterBuilder storyCalls={storyCalls} />
+              </motion.div>
+            )}
+
+            {tab === "tests" && (
+              <motion.div key="tests" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.18 }}>
+                <TestsTab />
               </motion.div>
             )}
 
@@ -1205,5 +1212,150 @@ function RetrainBadge({ character, sessionId, onDismiss }: RetrainBadgeProps) {
         Закрыть
       </button>
     </motion.div>
+  );
+}
+
+/* ─── Tests Tab ──────────────────────────────────────────────────────────────
+   Two test formats: Блиц (timed, spaced repetition) and Тематические
+   (deep dive by topic). "Цена ошибки" mechanic after each wrong answer.    */
+
+const TEST_CATEGORIES = [
+  { id: "fz127-basics", title: "Основы ФЗ-127", questions: 25, icon: "📘", color: "var(--accent)", description: "Общие положения, стадии, участники процесса банкротства" },
+  { id: "fz127-contest", title: "Конкурсное производство", questions: 30, icon: "🏛️", color: "var(--info)", description: "Конкурсная масса, очерёдность, торги, отчётность" },
+  { id: "disputes", title: "Оспаривание сделок", questions: 20, icon: "⚖️", color: "#8B5CF6", description: "Ст.61.2-61.3, подозрительные сделки, сделки с предпочтением" },
+  { id: "subsidiary", title: "Субсидиарная ответственность", questions: 20, icon: "🎯", color: "var(--danger)", description: "КДЛ, ст.61.10-61.12, доказывание, судебная практика" },
+  { id: "creditors", title: "Работа с кредиторами", questions: 15, icon: "👥", color: "var(--success)", description: "Собрания, реестр требований, очерёдность удовлетворения" },
+  { id: "auctions", title: "Торги в банкротстве", questions: 15, icon: "🔨", color: "var(--warning)", description: "Порядок проведения торгов, электронные площадки, оспаривание" },
+  { id: "individual", title: "Банкротство физлиц", questions: 25, icon: "👤", color: "#6366F1", description: "Глава X ФЗ-127, реструктуризация, реализация имущества" },
+  { id: "vs-practice", title: "Практика ВС РФ 2024-2026", questions: 20, icon: "📋", color: "#EC4899", description: "Актуальные определения и разъяснения Верховного Суда" },
+];
+
+function TestsTab() {
+  const router = useRouter();
+  const [testMode, setTestMode] = useState<"blitz" | "themed">("blitz");
+
+  return (
+    <div className="mt-6 space-y-6">
+      {/* Mode selector */}
+      <div className="flex gap-2">
+        {([
+          { id: "blitz" as const, label: "Блиц", desc: "30-60 сек на вопрос", icon: "⚡" },
+          { id: "themed" as const, label: "По темам", desc: "Глубокое погружение", icon: "📚" },
+        ]).map((mode) => (
+          <button
+            key={mode.id}
+            onClick={() => setTestMode(mode.id)}
+            className="flex-1 flex items-center gap-3 rounded-xl p-4 transition-all text-left"
+            style={{
+              background: testMode === mode.id ? "var(--accent-muted)" : "var(--surface-card)",
+              border: `1.5px solid ${testMode === mode.id ? "var(--accent)" : "var(--border-color)"}`,
+            }}
+          >
+            <span className="text-2xl">{mode.icon}</span>
+            <div>
+              <div className="text-sm font-bold" style={{ color: testMode === mode.id ? "var(--accent)" : "var(--text-primary)" }}>
+                {mode.label}
+              </div>
+              <div className="text-xs" style={{ color: "var(--text-muted)" }}>{mode.desc}</div>
+            </div>
+          </button>
+        ))}
+      </div>
+
+      {/* "Цена ошибки" explainer */}
+      <div
+        className="flex items-start gap-3 rounded-xl p-4"
+        style={{
+          background: "rgba(239, 68, 68, 0.06)",
+          border: "1px solid rgba(239, 68, 68, 0.12)",
+        }}
+      >
+        <span className="text-lg shrink-0">💀</span>
+        <div>
+          <div className="text-xs font-bold mb-0.5" style={{ color: "var(--danger)" }}>Цена ошибки</div>
+          <p className="text-xs leading-relaxed" style={{ color: "var(--text-muted)" }}>
+            После каждой ошибки — не просто правильный ответ, а реальное последствие:
+            «В деле №А40-12345/2025 такая ошибка привела к...». Учитесь на чужих промахах.
+          </p>
+        </div>
+      </div>
+
+      {/* Spaced repetition info (blitz only) */}
+      {testMode === "blitz" && (
+        <div
+          className="flex items-start gap-3 rounded-xl p-4"
+          style={{
+            background: "rgba(37, 99, 235, 0.06)",
+            border: "1px solid rgba(37, 99, 235, 0.12)",
+          }}
+        >
+          <span className="text-lg shrink-0">🧠</span>
+          <div>
+            <div className="text-xs font-bold mb-0.5" style={{ color: "var(--accent)" }}>Spaced Repetition (SM-2)</div>
+            <p className="text-xs leading-relaxed" style={{ color: "var(--text-muted)" }}>
+              Вопросы, которые вы провалили, возвращаются через 1 → 3 → 7 → 30 дней.
+              Исследования: 89% ретенции vs 21% без повторений (Suffolk University).
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Test categories grid */}
+      <div className="grid gap-3 sm:grid-cols-2">
+        {TEST_CATEGORIES.map((cat, i) => (
+          <motion.div
+            key={cat.id}
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: i * 0.04, duration: 0.3 }}
+            className="group rounded-xl p-5 transition-all duration-200 cursor-pointer"
+            style={{
+              background: "var(--surface-card)",
+              border: "1px solid var(--border-color)",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.borderColor = cat.color;
+              e.currentTarget.style.transform = "translateY(-2px)";
+              e.currentTarget.style.boxShadow = `0 8px 24px color-mix(in srgb, ${cat.color} 10%, transparent)`;
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.borderColor = "var(--border-color)";
+              e.currentTarget.style.transform = "translateY(0)";
+              e.currentTarget.style.boxShadow = "none";
+            }}
+          >
+            <div className="flex items-start justify-between mb-3">
+              <span className="text-2xl">{cat.icon}</span>
+              <span
+                className="text-[10px] font-bold px-2 py-0.5 rounded-md"
+                style={{ background: `color-mix(in srgb, ${cat.color} 12%, transparent)`, color: cat.color }}
+              >
+                {cat.questions} вопросов
+              </span>
+            </div>
+            <h4 className="text-sm font-bold mb-1" style={{ color: "var(--text-primary)" }}>
+              {cat.title}
+            </h4>
+            <p className="text-xs leading-relaxed mb-3" style={{ color: "var(--text-muted)" }}>
+              {cat.description}
+            </p>
+            <div className="flex items-center gap-2">
+              {testMode === "blitz" ? (
+                <span className="flex items-center gap-1 text-[11px] font-semibold" style={{ color: "var(--warning)" }}>
+                  ⚡ 30-60 сек/вопрос
+                </span>
+              ) : (
+                <span className="flex items-center gap-1 text-[11px] font-semibold" style={{ color: "var(--info)" }}>
+                  📖 15-25 мин
+                </span>
+              )}
+              <span className="ml-auto flex items-center gap-1 text-xs font-bold opacity-0 group-hover:opacity-100 transition-opacity" style={{ color: cat.color }}>
+                Начать <ArrowRight size={12} />
+              </span>
+            </div>
+          </motion.div>
+        ))}
+      </div>
+    </div>
   );
 }

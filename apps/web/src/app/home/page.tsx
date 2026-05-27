@@ -7,6 +7,8 @@ import { motion } from "framer-motion";
 import {
   ArrowRight, Loader2, Phone, Clock, BookOpen, BarChart3,
   MessageSquare, Trophy, Briefcase, GraduationCap, Award,
+  AlertTriangle, Flame, Target, TrendingUp, Shield, Zap,
+  User,
 } from "lucide-react";
 import { api, ApiError } from "@/lib/api";
 import { useAuth } from "@/hooks/useAuth";
@@ -197,6 +199,68 @@ export default function HomePage() {
             />
           </motion.div>
 
+          {/* ── Practitioner Card ─────────────────────────────── */}
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.04, ease: [0.22, 1, 0.36, 1] }}
+            className="mb-6 rounded-2xl overflow-hidden"
+            style={{
+              background: "var(--surface-card)",
+              border: "1px solid var(--border-color)",
+            }}
+          >
+            <div className="p-5 sm:p-6">
+              <div className="flex items-start gap-4">
+                <div
+                  className="w-14 h-14 rounded-xl flex items-center justify-center shrink-0"
+                  style={{
+                    background: "linear-gradient(135deg, rgba(37,99,235,0.12) 0%, rgba(139,92,246,0.08) 100%)",
+                    border: "1px solid rgba(37,99,235,0.15)",
+                  }}
+                >
+                  <User size={24} style={{ color: "#2563EB" }} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-2">
+                    <h3 className="text-base font-bold" style={{ color: "var(--text-primary)" }}>
+                      {user?.full_name || "Арбитражный управляющий"}
+                    </h3>
+                    <span
+                      className="px-2 py-0.5 rounded-md text-[10px] font-bold uppercase"
+                      style={{ background: "rgba(16,185,129,0.12)", color: "#10B981" }}
+                    >
+                      Активен
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    {[
+                      { label: "СРО", value: "—", icon: Shield },
+                      { label: "Стаж", value: "—", icon: Clock },
+                      { label: "Реестр №", value: "—", icon: BarChart3 },
+                      { label: "Сертификат", value: "Не получен", icon: Award },
+                    ].map((item) => {
+                      const Icon = item.icon;
+                      return (
+                        <div key={item.label}>
+                          <div className="flex items-center gap-1 mb-0.5">
+                            <Icon size={10} style={{ color: "var(--text-muted)" }} />
+                            <span className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
+                              {item.label}
+                            </span>
+                          </div>
+                          <div className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>
+                            {item.value}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+
           {/* ── Incoming call card ────────────────────────────── */}
           {waitingClient && (
             <motion.div
@@ -338,6 +402,68 @@ export default function HomePage() {
                   />
                 </div>
               </div>
+            </div>
+          </motion.div>
+
+          {/* ── CPD Deadline Warning (red zone) ──────────────── */}
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4, delay: 0.11, ease: [0.22, 1, 0.36, 1] }}
+            className="mb-4 rounded-xl p-3 flex items-center gap-3"
+            style={{
+              background: "rgba(239, 68, 68, 0.06)",
+              border: "1px solid rgba(239, 68, 68, 0.12)",
+            }}
+          >
+            <AlertTriangle size={16} style={{ color: "#EF4444" }} className="shrink-0" />
+            <div className="flex-1 text-xs leading-relaxed" style={{ color: "var(--text-secondary)" }}>
+              <span className="font-bold" style={{ color: "#EF4444" }}>До конца года осталось {(() => { const now = new Date(); const end = new Date(now.getFullYear(), 11, 31); return Math.ceil((end.getTime() - now.getTime()) / 86400000); })() } дней</span>
+              {" "}— успейте набрать 24 ак. часа для подтверждения статуса СРО
+            </div>
+          </motion.div>
+
+          {/* ── Recommendation Engine (Weak Spot) ─────────────── */}
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.115, ease: [0.22, 1, 0.36, 1] }}
+            className="mb-6 rounded-2xl overflow-hidden"
+            style={{
+              background: "linear-gradient(135deg, rgba(139,92,246,0.06) 0%, rgba(37,99,235,0.04) 100%)",
+              border: "1px solid rgba(139,92,246,0.12)",
+            }}
+          >
+            <div className="p-5 sm:p-6 flex flex-col sm:flex-row sm:items-center gap-4">
+              <div className="flex items-center gap-3 flex-1">
+                <div
+                  className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+                  style={{ background: "rgba(139,92,246,0.12)", color: "#8B5CF6" }}
+                >
+                  <Target size={18} />
+                </div>
+                <div>
+                  <div className="text-xs font-bold uppercase tracking-wider mb-0.5" style={{ color: "#8B5CF6" }}>
+                    Ваше слабое место
+                  </div>
+                  <div className="text-sm" style={{ color: "var(--text-secondary)" }}>
+                    <span className="font-bold" style={{ color: "var(--text-primary)" }}>Оспаривание сделок</span> — рекомендуем пройти кейс или тест по этой теме
+                  </div>
+                </div>
+              </div>
+              <Link
+                href="/cases"
+                className="shrink-0 inline-flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold no-underline transition-all"
+                style={{
+                  background: "rgba(139,92,246,0.12)",
+                  color: "#8B5CF6",
+                  border: "1px solid rgba(139,92,246,0.2)",
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(139,92,246,0.2)"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = "rgba(139,92,246,0.12)"; }}
+              >
+                Улучшить <ArrowRight size={12} />
+              </Link>
             </div>
           </motion.div>
 
@@ -538,12 +664,34 @@ export default function HomePage() {
                 ))}
               </div>
               <div
-                className="mt-4 pt-3 text-center"
+                className="mt-4 pt-3"
                 style={{ borderTop: "1px solid var(--border-color)" }}
               >
-                <span className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
-                  Серия: 0 дней подряд
-                </span>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[10px] font-semibold uppercase tracking-wider flex items-center gap-1" style={{ color: "var(--text-muted)" }}>
+                    <Flame size={12} style={{ color: "#F59E0B" }} /> Серия: 0 дней подряд
+                  </span>
+                  <span className="text-[10px] font-medium" style={{ color: "var(--text-muted)" }}>
+                    Рекорд: 0
+                  </span>
+                </div>
+                <div className="flex gap-1">
+                  {["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"].map((day, i) => (
+                    <div
+                      key={day}
+                      className="flex-1 text-center"
+                    >
+                      <div
+                        className="h-5 rounded-md mb-0.5"
+                        style={{
+                          background: i < 0 ? "rgba(245,158,11,0.2)" : "var(--bg-tertiary)",
+                          border: `1px solid ${i < 0 ? "rgba(245,158,11,0.3)" : "var(--border-color)"}`,
+                        }}
+                      />
+                      <span className="text-[8px] font-medium" style={{ color: "var(--text-muted)" }}>{day}</span>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           </motion.div>

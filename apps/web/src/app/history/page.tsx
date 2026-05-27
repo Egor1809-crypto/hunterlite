@@ -13,6 +13,8 @@ import {
   ChartBar,
   Stack,
   Sparkle,
+  TrendUp,
+  TrendDown,
 } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/Button";
 import { api } from "@/lib/api";
@@ -156,6 +158,59 @@ export default function HistoryPage() {
               </p>
             </div>
           </motion.div>
+
+          {/* Было / Стало comparison */}
+          {!loading && completed.length >= 2 && (() => {
+            const sorted = [...completed].sort((a, b) => new Date(a.started_at).getTime() - new Date(b.started_at).getTime());
+            const firstScore = sorted[0].score_total ?? 0;
+            const lastScore = sorted[sorted.length - 1].score_total ?? 0;
+            const diff = Math.round(lastScore - firstScore);
+            const isPositive = diff > 0;
+            return (
+              <motion.div
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.08 }}
+                className="mt-6 rounded-xl overflow-hidden"
+                style={{
+                  background: isPositive ? "rgba(34,197,94,0.04)" : "rgba(239,68,68,0.04)",
+                  border: `1px solid ${isPositive ? "rgba(34,197,94,0.12)" : "rgba(239,68,68,0.12)"}`,
+                }}
+              >
+                <div className="p-4 flex items-center gap-4">
+                  <div className="flex items-center gap-2">
+                    {isPositive
+                      ? <TrendUp size={18} weight="bold" style={{ color: "var(--success)" }} />
+                      : <TrendDown size={18} weight="bold" style={{ color: "var(--danger)" }} />
+                    }
+                    <span className="text-xs font-bold uppercase tracking-wider" style={{ color: isPositive ? "var(--success)" : "var(--danger)" }}>
+                      Было / Стало
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-3 flex-1">
+                    <div className="text-center">
+                      <div className="text-[10px] font-semibold uppercase" style={{ color: "var(--text-muted)" }}>Первая</div>
+                      <div className="text-lg font-bold" style={{ color: "var(--text-secondary)" }}>{Math.round(firstScore)}</div>
+                    </div>
+                    <ArrowRight size={14} style={{ color: "var(--text-muted)" }} />
+                    <div className="text-center">
+                      <div className="text-[10px] font-semibold uppercase" style={{ color: "var(--text-muted)" }}>Последняя</div>
+                      <div className="text-lg font-bold" style={{ color: scoreColor(lastScore) }}>{Math.round(lastScore)}</div>
+                    </div>
+                  </div>
+                  <div
+                    className="text-sm font-bold px-3 py-1 rounded-lg"
+                    style={{
+                      background: isPositive ? "rgba(34,197,94,0.12)" : "rgba(239,68,68,0.12)",
+                      color: isPositive ? "var(--success)" : "var(--danger)",
+                    }}
+                  >
+                    {isPositive ? "+" : ""}{diff} баллов
+                  </div>
+                </div>
+              </motion.div>
+            );
+          })()}
 
           {/* Summary stats */}
           {!loading && entries.length > 0 && (

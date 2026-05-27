@@ -13,9 +13,10 @@ import {
   ArrowRight,
   FileCheck,
   AlertTriangle,
-  Star,
-  BookOpen,
-  Eye,
+  ChevronRight,
+  RefreshCw,
+  QrCode,
+  Linkedin,
 } from "lucide-react";
 import AuthLayout from "@/components/layout/AuthLayout";
 
@@ -32,26 +33,37 @@ interface ExamModule {
   completed: boolean;
   score: number | null;
   certificateId: string | null;
+  academicHours: number;
+  attemptsLeft: number;
 }
 
 const EXAM_MODULES: ExamModule[] = [
   {
     id: "module-1",
     title: "Основы ФЗ-127",
-    description: "Базовые положения закона о несостоятельности (банкротстве). Процедуры наблюдения, финансового оздоровления, внешнего управления.",
+    description:
+      "Базовые положения закона о несостоятельности (банкротстве). Процедуры наблюдения, финансового оздоровления, внешнего управления.",
     questionsCount: 30,
     timeMinutes: 45,
     passingScore: 70,
-    topics: ["Процедуры банкротства", "Наблюдение", "Финансовое оздоровление", "Внешнее управление"],
+    topics: [
+      "Процедуры банкротства",
+      "Наблюдение",
+      "Финансовое оздоровление",
+      "Внешнее управление",
+    ],
     locked: false,
     completed: false,
     score: null,
     certificateId: null,
+    academicHours: 4,
+    attemptsLeft: 3,
   },
   {
     id: "module-2",
     title: "Конкурсное производство",
-    description: "Порядок проведения конкурсного производства, формирование конкурсной массы, очерёдность удовлетворения требований кредиторов.",
+    description:
+      "Порядок проведения конкурсного производства, формирование конкурсной массы, очерёдность удовлетворения требований кредиторов.",
     questionsCount: 35,
     timeMinutes: 50,
     passingScore: 75,
@@ -60,47 +72,183 @@ const EXAM_MODULES: ExamModule[] = [
     completed: false,
     score: null,
     certificateId: null,
+    academicHours: 6,
+    attemptsLeft: 3,
   },
   {
     id: "module-3",
     title: "Оспаривание сделок",
-    description: "Основания и порядок оспаривания сделок должника. Подозрительные сделки, сделки с предпочтением, практика ВС РФ.",
+    description:
+      "Основания и порядок оспаривания сделок должника. Подозрительные сделки, сделки с предпочтением, практика ВС РФ.",
     questionsCount: 25,
     timeMinutes: 40,
     passingScore: 75,
-    topics: ["Ст.61.2 ФЗ-127", "Ст.61.3 ФЗ-127", "Практика ВС", "Доказывание"],
+    topics: [
+      "Ст.61.2 ФЗ-127",
+      "Ст.61.3 ФЗ-127",
+      "Практика ВС",
+      "Доказывание",
+    ],
     locked: true,
     completed: false,
     score: null,
     certificateId: null,
+    academicHours: 5,
+    attemptsLeft: 3,
   },
   {
     id: "module-4",
     title: "Субсидиарная ответственность",
-    description: "Привлечение контролирующих должника лиц к субсидиарной ответственности. Критерии КДЛ, основания, процессуальные особенности.",
+    description:
+      "Привлечение контролирующих должника лиц к субсидиарной ответственности. Критерии КДЛ, основания, процессуальные особенности.",
     questionsCount: 30,
     timeMinutes: 50,
     passingScore: 80,
-    topics: ["КДЛ", "Ст.61.10-61.12", "Доказывание", "Судебная практика"],
+    topics: [
+      "КДЛ",
+      "Ст.61.10-61.12",
+      "Доказывание",
+      "Судебная практика",
+    ],
     locked: true,
     completed: false,
     score: null,
     certificateId: null,
+    academicHours: 6,
+    attemptsLeft: 3,
   },
   {
     id: "module-5",
-    title: "Комплексный экзамен",
-    description: "Итоговая аттестация по всем модулям. Успешная сдача подтверждает квалификацию и даёт право на получение сертификата.",
-    questionsCount: 50,
-    timeMinutes: 90,
-    passingScore: 80,
-    topics: ["Все разделы ФЗ-127", "Практические кейсы", "Ситуационные задачи"],
+    title: "Банкротство физических лиц",
+    description:
+      "Глава X ФЗ-127: особенности банкротства граждан. Реструктуризация долгов, реализация имущества, мировое соглашение. Судебная и внесудебная процедуры.",
+    questionsCount: 30,
+    timeMinutes: 45,
+    passingScore: 75,
+    topics: [
+      "Глава X ФЗ-127",
+      "Реструктуризация долгов",
+      "Реализация имущества",
+      "Мировое соглашение",
+    ],
     locked: true,
     completed: false,
     score: null,
     certificateId: null,
+    academicHours: 5,
+    attemptsLeft: 3,
+  },
+  {
+    id: "module-6",
+    title: "Торги и реализация имущества",
+    description:
+      "Порядок проведения торгов в процедурах банкротства. Электронные торговые площадки, публичное предложение, оспаривание результатов торгов.",
+    questionsCount: 25,
+    timeMinutes: 40,
+    passingScore: 75,
+    topics: [
+      "Порядок проведения торгов",
+      "Электронные площадки",
+      "Публичное предложение",
+      "Оспаривание результатов",
+    ],
+    locked: true,
+    completed: false,
+    score: null,
+    certificateId: null,
+    academicHours: 4,
+    attemptsLeft: 3,
+  },
+  {
+    id: "module-7",
+    title: "Работа с кредиторами",
+    description:
+      "Организация собраний кредиторов, ведение реестра требований, формирование комитета кредиторов, очерёдность удовлетворения требований.",
+    questionsCount: 25,
+    timeMinutes: 35,
+    passingScore: 75,
+    topics: [
+      "Собрания кредиторов",
+      "Реестр требований",
+      "Комитет кредиторов",
+      "Очерёдность",
+    ],
+    locked: true,
+    completed: false,
+    score: null,
+    certificateId: null,
+    academicHours: 4,
+    attemptsLeft: 3,
+  },
+  {
+    id: "module-8",
+    title: "Комплексный экзамен",
+    description:
+      "Итоговая аттестация по всем 7 модулям. Успешная сдача подтверждает квалификацию и даёт право на получение сертификата повышения квалификации.",
+    questionsCount: 80,
+    timeMinutes: 120,
+    passingScore: 85,
+    topics: [
+      "Все разделы ФЗ-127",
+      "Практические кейсы",
+      "Ситуационные задачи",
+      "Межпредметные связи",
+    ],
+    locked: true,
+    completed: false,
+    score: null,
+    certificateId: null,
+    academicHours: 12,
+    attemptsLeft: 3,
   },
 ];
+
+const TOTAL_ACADEMIC_HOURS = EXAM_MODULES.reduce(
+  (sum, m) => sum + m.academicHours,
+  0,
+);
+
+/* ── QR placeholder grid ─────────────────────────────────── */
+function QrPlaceholder() {
+  const grid = [
+    [1, 1, 1, 1, 1, 1, 1, 0, 1, 0, 1, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1],
+    [1, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 0, 0, 0, 0, 0, 1],
+    [1, 0, 1, 1, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 1, 1, 0, 1],
+    [1, 0, 1, 1, 1, 0, 1, 0, 0, 1, 1, 1, 0, 0, 1, 0, 1, 1, 1, 0, 1],
+    [1, 0, 1, 1, 1, 0, 1, 0, 1, 0, 0, 1, 1, 0, 1, 0, 1, 1, 1, 0, 1],
+    [1, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1],
+    [1, 1, 1, 1, 1, 1, 1, 0, 1, 0, 1, 0, 1, 0, 1, 1, 1, 1, 1, 1, 1],
+    [0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    [1, 0, 1, 1, 0, 1, 1, 0, 1, 1, 0, 0, 1, 0, 1, 0, 1, 1, 0, 1, 0],
+    [0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 1, 0, 1, 0, 1, 0, 0, 1, 0, 1],
+    [1, 0, 1, 0, 1, 1, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 1, 0],
+    [0, 1, 0, 1, 0, 0, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 0, 1],
+    [1, 0, 1, 1, 1, 0, 1, 0, 1, 1, 1, 0, 1, 0, 1, 1, 1, 0, 1, 0, 0],
+    [0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 1, 0],
+    [1, 1, 1, 1, 1, 1, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 1, 1],
+    [1, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 0, 0],
+    [1, 0, 1, 1, 1, 0, 1, 0, 1, 0, 1, 1, 1, 0, 1, 0, 1, 1, 1, 0, 1],
+    [1, 0, 1, 1, 1, 0, 1, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0, 0, 1, 1, 0],
+    [1, 0, 1, 1, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1],
+    [1, 0, 0, 0, 0, 0, 1, 0, 0, 1, 1, 1, 0, 1, 1, 0, 0, 1, 0, 1, 0],
+    [1, 1, 1, 1, 1, 1, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 1, 1],
+  ];
+
+  return (
+    <div className="inline-grid gap-0" style={{ gridTemplateColumns: `repeat(21, 1fr)` }}>
+      {grid.flat().map((cell, i) => (
+        <div
+          key={i}
+          style={{
+            width: 4,
+            height: 4,
+            background: cell ? "rgba(245,158,11,0.8)" : "transparent",
+          }}
+        />
+      ))}
+    </div>
+  );
+}
 
 /* ── Page Component ──────────────────────────────────────── */
 export default function ExamPage() {
@@ -109,20 +257,35 @@ export default function ExamPage() {
 
   const completedModules = EXAM_MODULES.filter((m) => m.completed).length;
   const totalModules = EXAM_MODULES.length;
-  const progressPct = totalModules > 0 ? Math.round((completedModules / totalModules) * 100) : 0;
+  const progressPct =
+    totalModules > 0
+      ? Math.round((completedModules / totalModules) * 100)
+      : 0;
 
   return (
     <AuthLayout>
-      <div className="min-h-screen relative" style={{ background: "var(--bg-primary)" }}>
+      <div
+        className="min-h-screen relative"
+        style={{ background: "var(--bg-primary)" }}
+      >
         {/* Ambient background */}
-        <div className="absolute inset-0 pointer-events-none overflow-hidden" aria-hidden>
+        <div
+          className="absolute inset-0 pointer-events-none overflow-hidden"
+          aria-hidden
+        >
           <div
             className="absolute -top-32 right-[15%] w-[500px] h-[500px] rounded-full opacity-[0.03]"
-            style={{ background: "radial-gradient(circle, #F59E0B 0%, transparent 70%)" }}
+            style={{
+              background:
+                "radial-gradient(circle, #F59E0B 0%, transparent 70%)",
+            }}
           />
           <div
             className="absolute top-[70%] -left-20 w-[350px] h-[350px] rounded-full opacity-[0.025]"
-            style={{ background: "radial-gradient(circle, #2563EB 0%, transparent 70%)" }}
+            style={{
+              background:
+                "radial-gradient(circle, #2563EB 0%, transparent 70%)",
+            }}
           />
         </div>
 
@@ -150,7 +313,10 @@ export default function ExamPage() {
                 >
                   Экзамен
                 </h1>
-                <p className="mt-0.5 text-sm" style={{ color: "var(--text-muted)" }}>
+                <p
+                  className="mt-0.5 text-sm"
+                  style={{ color: "var(--text-muted)" }}
+                >
                   Аттестация с выдачей сертификата
                 </p>
               </div>
@@ -164,7 +330,8 @@ export default function ExamPage() {
             transition={{ duration: 0.5, delay: 0.08 }}
             className="mt-6 rounded-2xl overflow-hidden"
             style={{
-              background: "linear-gradient(135deg, rgba(245,158,11,0.08) 0%, rgba(37,99,235,0.06) 100%)",
+              background:
+                "linear-gradient(135deg, rgba(245,158,11,0.08) 0%, rgba(37,99,235,0.06) 100%)",
               border: "1px solid rgba(245,158,11,0.15)",
             }}
           >
@@ -173,7 +340,10 @@ export default function ExamPage() {
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-3">
                     <Award size={18} style={{ color: "#F59E0B" }} />
-                    <span className="text-xs font-bold uppercase tracking-wider" style={{ color: "#F59E0B" }}>
+                    <span
+                      className="text-xs font-bold uppercase tracking-wider"
+                      style={{ color: "#F59E0B" }}
+                    >
                       Сертификация
                     </span>
                   </div>
@@ -183,25 +353,47 @@ export default function ExamPage() {
                   >
                     Подтвердите квалификацию
                   </h2>
-                  <p className="text-sm leading-relaxed" style={{ color: "var(--text-secondary)" }}>
-                    Пройдите модули и получите сертификат, подтверждающий вашу компетенцию
-                    в арбитражном управлении. Результаты засчитываются в счёт 24 ак. часов
+                  <p
+                    className="text-sm leading-relaxed mb-3"
+                    style={{ color: "var(--text-secondary)" }}
+                  >
+                    Пройдите модули и получите сертификат, подтверждающий вашу
+                    компетенцию в арбитражном управлении. Результаты
+                    засчитываются в счёт {TOTAL_ACADEMIC_HOURS} ак. часов
                     обязательного повышения квалификации.
                   </p>
+                  <div
+                    className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium"
+                    style={{
+                      background: "rgba(37,99,235,0.08)",
+                      border: "1px solid rgba(37,99,235,0.15)",
+                      color: "#2563EB",
+                    }}
+                  >
+                    <Linkedin size={12} />
+                    Добавьте сертификат в LinkedIn-профиль
+                  </div>
                 </div>
 
                 {/* Progress circle */}
                 <div className="flex flex-col items-center shrink-0">
                   <div className="relative w-20 h-20">
-                    <svg viewBox="0 0 80 80" className="w-full h-full -rotate-90">
+                    <svg
+                      viewBox="0 0 80 80"
+                      className="w-full h-full -rotate-90"
+                    >
                       <circle
-                        cx="40" cy="40" r="34"
+                        cx="40"
+                        cy="40"
+                        r="34"
                         fill="none"
                         stroke="var(--border-color)"
                         strokeWidth="6"
                       />
                       <circle
-                        cx="40" cy="40" r="34"
+                        cx="40"
+                        cy="40"
+                        r="34"
                         fill="none"
                         stroke="#F59E0B"
                         strokeWidth="6"
@@ -211,12 +403,18 @@ export default function ExamPage() {
                       />
                     </svg>
                     <div className="absolute inset-0 flex items-center justify-center">
-                      <span className="text-lg font-bold" style={{ color: "var(--text-primary)" }}>
+                      <span
+                        className="text-lg font-bold"
+                        style={{ color: "var(--text-primary)" }}
+                      >
                         {progressPct}%
                       </span>
                     </div>
                   </div>
-                  <span className="mt-2 text-[10px] font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
+                  <span
+                    className="mt-2 text-[10px] font-semibold uppercase tracking-wider"
+                    style={{ color: "var(--text-muted)" }}
+                  >
                     Прогресс
                   </span>
                 </div>
@@ -232,10 +430,30 @@ export default function ExamPage() {
             className="mt-6 grid grid-cols-2 md:grid-cols-4 gap-3"
           >
             {[
-              { icon: FileCheck, label: "Модулей", value: totalModules, color: "#F59E0B" },
-              { icon: CheckCircle, label: "Пройдено", value: completedModules, color: "var(--success)" },
-              { icon: Eye, label: "Прокторинг", value: "AI", color: "#2563EB" },
-              { icon: Award, label: "Сертификат", value: "24 ч.", color: "#8B5CF6" },
+              {
+                icon: FileCheck,
+                label: "Модулей",
+                value: totalModules,
+                color: "#F59E0B",
+              },
+              {
+                icon: CheckCircle,
+                label: "Пройдено",
+                value: completedModules,
+                color: "var(--success)",
+              },
+              {
+                icon: Clock,
+                label: "Ак. часов",
+                value: `${TOTAL_ACADEMIC_HOURS}`,
+                color: "#2563EB",
+              },
+              {
+                icon: Award,
+                label: "Сертификат",
+                value: "QR",
+                color: "#8B5CF6",
+              },
             ].map((item) => {
               const Icon = item.icon;
               return (
@@ -247,11 +465,21 @@ export default function ExamPage() {
                     border: "1px solid var(--border-color)",
                   }}
                 >
-                  <Icon size={16} className="mx-auto mb-1.5" style={{ color: item.color }} />
-                  <div className="text-lg font-bold" style={{ color: "var(--text-primary)" }}>
+                  <Icon
+                    size={16}
+                    className="mx-auto mb-1.5"
+                    style={{ color: item.color }}
+                  />
+                  <div
+                    className="text-lg font-bold"
+                    style={{ color: "var(--text-primary)" }}
+                  >
                     {item.value}
                   </div>
-                  <div className="text-[10px] font-semibold uppercase tracking-wider mt-0.5" style={{ color: "var(--text-muted)" }}>
+                  <div
+                    className="text-[10px] font-semibold uppercase tracking-wider mt-0.5"
+                    style={{ color: "var(--text-muted)" }}
+                  >
                     {item.label}
                   </div>
                 </div>
@@ -263,7 +491,7 @@ export default function ExamPage() {
           <div className="mt-8 space-y-3">
             {EXAM_MODULES.map((module, i) => {
               const isExpanded = expandedModule === module.id;
-              const isComposite = module.id === "module-5";
+              const isComposite = module.id === "module-8";
 
               return (
                 <motion.div
@@ -282,10 +510,14 @@ export default function ExamPage() {
                   <button
                     type="button"
                     className="w-full flex items-center gap-4 p-5 text-left transition-colors"
-                    onClick={() => setExpandedModule(isExpanded ? null : module.id)}
+                    onClick={() =>
+                      setExpandedModule(isExpanded ? null : module.id)
+                    }
                     style={{ cursor: "pointer" }}
                     onMouseEnter={(e) => {
-                      if (!module.locked) e.currentTarget.style.background = "var(--surface-card-hover)";
+                      if (!module.locked)
+                        e.currentTarget.style.background =
+                          "var(--surface-card-hover)";
                     }}
                     onMouseLeave={(e) => {
                       e.currentTarget.style.background = "transparent";
@@ -321,22 +553,43 @@ export default function ExamPage() {
                     </div>
 
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <h3 className="font-bold text-sm tracking-tight" style={{ color: "var(--text-primary)" }}>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h3
+                          className="font-bold text-sm tracking-tight"
+                          style={{ color: "var(--text-primary)" }}
+                        >
                           {module.title}
                         </h3>
                         {isComposite && (
                           <span
                             className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase"
-                            style={{ background: "rgba(245,158,11,0.12)", color: "#F59E0B" }}
+                            style={{
+                              background: "rgba(245,158,11,0.12)",
+                              color: "#F59E0B",
+                            }}
                           >
                             Итоговый
                           </span>
                         )}
+                        <span
+                          className="px-2 py-0.5 rounded-full text-[10px] font-medium"
+                          style={{
+                            background: "var(--bg-tertiary)",
+                            color: "var(--text-muted)",
+                          }}
+                        >
+                          {module.academicHours} ак.ч.
+                        </span>
                       </div>
-                      <div className="flex items-center gap-3 mt-1 text-xs" style={{ color: "var(--text-muted)" }}>
+                      <div
+                        className="flex items-center gap-3 mt-1 text-xs"
+                        style={{ color: "var(--text-muted)" }}
+                      >
                         <span>{module.questionsCount} вопросов</span>
-                        <span className="flex items-center gap-1"><Clock size={10} />{module.timeMinutes} мин</span>
+                        <span className="flex items-center gap-1">
+                          <Clock size={10} />
+                          {module.timeMinutes} мин
+                        </span>
                         <span>Порог: {module.passingScore}%</span>
                       </div>
                     </div>
@@ -344,7 +597,12 @@ export default function ExamPage() {
                     {module.score !== null && (
                       <div
                         className="text-lg font-bold shrink-0"
-                        style={{ color: module.score >= module.passingScore ? "var(--success)" : "var(--danger)" }}
+                        style={{
+                          color:
+                            module.score >= module.passingScore
+                              ? "var(--success)"
+                              : "var(--danger)",
+                        }}
                       >
                         {module.score}%
                       </div>
@@ -355,7 +613,10 @@ export default function ExamPage() {
                       transition={{ duration: 0.15 }}
                       className="shrink-0"
                     >
-                      <ChevronRight size={16} style={{ color: "var(--text-muted)" }} />
+                      <ChevronRight
+                        size={16}
+                        style={{ color: "var(--text-muted)" }}
+                      />
                     </motion.div>
                   </button>
 
@@ -371,21 +632,57 @@ export default function ExamPage() {
                         className="px-5 pb-5 pt-0"
                         style={{ borderTop: "1px solid var(--border-color)" }}
                       >
-                        <p className="text-sm leading-relaxed mt-4 mb-4" style={{ color: "var(--text-secondary)" }}>
+                        <p
+                          className="text-sm leading-relaxed mt-4 mb-4"
+                          style={{ color: "var(--text-secondary)" }}
+                        >
                           {module.description}
                         </p>
 
                         {/* Topics */}
-                        <div className="flex flex-wrap gap-1.5 mb-5">
+                        <div className="flex flex-wrap gap-1.5 mb-4">
                           {module.topics.map((topic) => (
                             <span
                               key={topic}
                               className="text-[11px] px-2.5 py-1 rounded-lg"
-                              style={{ background: "var(--bg-tertiary)", color: "var(--text-muted)" }}
+                              style={{
+                                background: "var(--bg-tertiary)",
+                                color: "var(--text-muted)",
+                              }}
                             >
                               {topic}
                             </span>
                           ))}
+                        </div>
+
+                        {/* Attempts notice */}
+                        <div
+                          className="flex items-start gap-3 p-3 rounded-xl mb-4"
+                          style={{
+                            background: "rgba(245,158,11,0.06)",
+                            border: "1px solid rgba(245,158,11,0.12)",
+                          }}
+                        >
+                          <RefreshCw
+                            size={14}
+                            className="shrink-0 mt-0.5"
+                            style={{ color: "#F59E0B" }}
+                          />
+                          <div>
+                            <div
+                              className="text-xs font-semibold"
+                              style={{ color: "#F59E0B" }}
+                            >
+                              Попытки: {module.attemptsLeft} из 3
+                            </div>
+                            <p
+                              className="text-xs mt-0.5"
+                              style={{ color: "var(--text-muted)" }}
+                            >
+                              У вас 3 попытки на каждый модуль. Повторная
+                              попытка доступна через 24 часа.
+                            </p>
+                          </div>
                         </div>
 
                         {/* Proctoring notice */}
@@ -396,15 +693,25 @@ export default function ExamPage() {
                             border: "1px solid rgba(37,99,235,0.12)",
                           }}
                         >
-                          <Shield size={16} className="shrink-0 mt-0.5" style={{ color: "#2563EB" }} />
+                          <Shield
+                            size={16}
+                            className="shrink-0 mt-0.5"
+                            style={{ color: "#2563EB" }}
+                          />
                           <div>
-                            <div className="text-xs font-semibold" style={{ color: "#2563EB" }}>
+                            <div
+                              className="text-xs font-semibold"
+                              style={{ color: "#2563EB" }}
+                            >
                               AI-прокторинг
                             </div>
-                            <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>
-                              Экзамен проходит под контролем AI-наблюдателя. Запрещено
-                              переключение вкладок, копирование вопросов, использование
-                              внешних источников.
+                            <p
+                              className="text-xs mt-0.5"
+                              style={{ color: "var(--text-muted)" }}
+                            >
+                              Экзамен проходит под контролем AI-наблюдателя.
+                              Запрещено переключение вкладок, копирование
+                              вопросов, использование внешних источников.
                             </p>
                           </div>
                         </div>
@@ -416,7 +723,17 @@ export default function ExamPage() {
                             style={{ color: "var(--text-muted)" }}
                           >
                             <Lock size={12} />
-                            Пройдите предыдущие модули для разблокировки
+                            {isComposite
+                              ? "Пройдите все 7 модулей для разблокировки"
+                              : "Пройдите предыдущие модули для разблокировки"}
+                          </div>
+                        ) : module.attemptsLeft <= 0 ? (
+                          <div
+                            className="flex items-center gap-2 text-xs font-medium py-2"
+                            style={{ color: "var(--danger)" }}
+                          >
+                            <AlertTriangle size={12} />
+                            Попытки исчерпаны
                           </div>
                         ) : (
                           <button
@@ -431,10 +748,12 @@ export default function ExamPage() {
                                 : "0 4px 16px rgba(37,99,235,0.25)",
                             }}
                             onMouseEnter={(e) => {
-                              e.currentTarget.style.transform = "translateY(-2px)";
+                              e.currentTarget.style.transform =
+                                "translateY(-2px)";
                             }}
                             onMouseLeave={(e) => {
-                              e.currentTarget.style.transform = "translateY(0)";
+                              e.currentTarget.style.transform =
+                                "translateY(0)";
                             }}
                           >
                             {module.completed ? "Пересдать" : "Начать экзамен"}
@@ -449,6 +768,92 @@ export default function ExamPage() {
             })}
           </div>
 
+          {/* ── Certificate preview card ─────────────────────── */}
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.55 }}
+            className="mt-10 rounded-2xl overflow-hidden"
+            style={{
+              background: "var(--surface-card)",
+              border: "2px solid transparent",
+              borderImage:
+                "linear-gradient(135deg, #F59E0B 0%, #D97706 40%, #B45309 70%, #F59E0B 100%) 1",
+            }}
+          >
+            <div
+              className="p-6 sm:p-8"
+              style={{
+                background:
+                  "linear-gradient(135deg, rgba(245,158,11,0.04) 0%, rgba(217,119,6,0.02) 100%)",
+              }}
+            >
+              <div className="flex flex-col sm:flex-row gap-6 items-start sm:items-center">
+                {/* Certificate text */}
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Award size={20} style={{ color: "#F59E0B" }} />
+                    <span
+                      className="text-xs font-bold uppercase tracking-wider"
+                      style={{ color: "#F59E0B" }}
+                    >
+                      Образец
+                    </span>
+                  </div>
+                  <h3
+                    className="text-lg font-bold tracking-tight mb-1"
+                    style={{ color: "var(--text-primary)" }}
+                  >
+                    Сертификат повышения квалификации
+                  </h3>
+                  <p
+                    className="text-sm font-medium mb-3"
+                    style={{ color: "var(--text-secondary)" }}
+                  >
+                    Арбитражное управление &bull; {TOTAL_ACADEMIC_HOURS} ак.
+                    часов
+                  </p>
+
+                  <div className="space-y-2">
+                    <div
+                      className="flex items-center gap-2 text-xs"
+                      style={{ color: "var(--text-muted)" }}
+                    >
+                      <QrCode size={12} style={{ color: "#F59E0B" }} />
+                      Верификация по QR-коду &bull; Срок: 1 год
+                    </div>
+                    <div
+                      className="flex items-center gap-2 text-xs"
+                      style={{ color: "var(--text-muted)" }}
+                    >
+                      <Linkedin size={12} style={{ color: "#2563EB" }} />
+                      Разместите в LinkedIn для подтверждения квалификации
+                    </div>
+                  </div>
+                </div>
+
+                {/* QR code placeholder */}
+                <div className="shrink-0 flex flex-col items-center">
+                  <div
+                    className="p-3 rounded-xl"
+                    style={{
+                      background: "rgba(245,158,11,0.06)",
+                      border: "1px solid rgba(245,158,11,0.15)",
+                    }}
+                  >
+                    <QrPlaceholder />
+                  </div>
+                  <span
+                    className="mt-2 text-[9px] font-semibold uppercase tracking-wider"
+                    style={{ color: "var(--text-muted)" }}
+                  >
+                    QR-верификация
+                  </span>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+
           {/* Bottom info */}
           <motion.div
             initial={{ opacity: 0 }}
@@ -461,16 +866,41 @@ export default function ExamPage() {
             }}
           >
             <div className="flex items-start gap-3">
-              <AlertTriangle size={16} className="shrink-0 mt-0.5" style={{ color: "var(--warning)" }} />
+              <AlertTriangle
+                size={16}
+                className="shrink-0 mt-0.5"
+                style={{ color: "var(--warning)" }}
+              />
               <div>
-                <div className="text-xs font-semibold mb-1" style={{ color: "var(--text-primary)" }}>
+                <div
+                  className="text-xs font-semibold mb-1"
+                  style={{ color: "var(--text-primary)" }}
+                >
                   Правила аттестации
                 </div>
-                <ul className="text-xs space-y-1" style={{ color: "var(--text-muted)" }}>
-                  <li>Каждый модуль можно пересдавать не чаще 1 раза в 24 часа</li>
-                  <li>Комплексный экзамен доступен после прохождения всех модулей</li>
-                  <li>Сертификат выдаётся в электронном формате с QR-верификацией</li>
-                  <li>Срок действия сертификата - 1 год с момента выдачи</li>
+                <ul
+                  className="text-xs space-y-1"
+                  style={{ color: "var(--text-muted)" }}
+                >
+                  <li>
+                    У вас 3 попытки на каждый модуль. Повторная попытка
+                    доступна через 24 часа
+                  </li>
+                  <li>
+                    Комплексный экзамен доступен после прохождения всех 7
+                    модулей
+                  </li>
+                  <li>
+                    Программа аттестации: 8 модулей,{" "}
+                    {TOTAL_ACADEMIC_HOURS} ак. часов
+                  </li>
+                  <li>
+                    Сертификат выдаётся в электронном формате с
+                    QR-верификацией
+                  </li>
+                  <li>
+                    Срок действия сертификата — 1 год с момента выдачи
+                  </li>
                 </ul>
               </div>
             </div>
