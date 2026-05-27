@@ -57,10 +57,10 @@ export function Sparkline({
     };
   }, [data, width, height]);
 
-  if (data.length < 2) return null;
+  if (data.length < 2 || !path) return null;
 
   // Area fill path
-  const areaPath = `${path} L ${width - 2},${height} L 2,${height} Z`;
+  const areaPath = path ? `${path} L ${width - 2},${height} L 2,${height} Z` : undefined;
 
   return (
     <svg
@@ -78,7 +78,7 @@ export function Sparkline({
       </defs>
 
       {/* Area fill */}
-      <path d={areaPath} fill={`url(#${gradientId})`} />
+      {areaPath && <path d={areaPath} fill={`url(#${gradientId})`} />}
 
       {/* Line */}
       <motion.path

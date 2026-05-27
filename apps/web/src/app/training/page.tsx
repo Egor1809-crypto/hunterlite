@@ -38,6 +38,8 @@ import { ScenarioCatalogCard } from "@/components/training/ScenarioCatalogCard";
 import type { Scenario } from "@/types";
 import { Skeleton } from "@/components/ui/Skeleton";
 
+const NOISE_SVG = `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E")`;
+
 // 2026-04-18: вкладка "Рекомендуемые" убрана из /training — она сбивала
 // пользователя с главного flow. Из /home кнопка "Рекомендуемые" теперь
 // ведёт в /training?tab=scenarios (та же логика подбора работает там же).
@@ -50,9 +52,9 @@ const TABS: {
   emoji: string;
   hue: string;
 }[] = [
-  { id: "scenarios", label: "Мои клиенты",  icon: BookOpen,       emoji: "🎭", hue: "var(--accent)" },
-  { id: "builder",   label: "Конструктор",  icon: Puzzle,         emoji: "🧩", hue: "var(--success)" },
   { id: "tests",     label: "Тесты",        icon: Target,         emoji: "🎯", hue: "var(--info)" },
+  { id: "builder",   label: "Конструктор",  icon: Puzzle,         emoji: "🧩", hue: "var(--success)" },
+  { id: "scenarios", label: "Мои клиенты",  icon: BookOpen,       emoji: "🎭", hue: "var(--accent)" },
 ];
 
 const TYPE_FILTERS = [
@@ -86,7 +88,7 @@ function TrainingPageContent() {
   const searchParams = useSearchParams();
   // Extract tab param as string to avoid unstable searchParams object reference
   const tabParam = searchParams.get("tab");
-  const [tab, setTab] = useState<Tab>("scenarios");
+  const [tab, setTab] = useState<Tab>("tests");
   // Track both scenario id and optional archetype code so RecommendedTab
   // (where multiple cards can share the same matched scenario) lights up
   // the spinner ONLY on the specific card the user clicked.
@@ -209,6 +211,15 @@ function TrainingPageContent() {
   return (
     <AuthLayout>
       <div className="relative panel-grid-bg min-h-screen">
+        {/* Ambient gradient orbs */}
+        <div className="pointer-events-none absolute inset-0 z-0 overflow-hidden">
+          <div className="absolute -top-[200px] -right-[200px] w-[900px] h-[900px] rounded-full" style={{ background: "radial-gradient(circle, rgba(59,130,246,0.035) 0%, transparent 70%)" }} />
+          <div className="absolute -bottom-[150px] -left-[150px] w-[700px] h-[700px] rounded-full" style={{ background: "radial-gradient(circle, rgba(139,92,246,0.025) 0%, transparent 70%)" }} />
+          <div className="absolute top-1/3 -right-[100px] w-[500px] h-[500px] rounded-full" style={{ background: "radial-gradient(circle, rgba(34,197,94,0.02) 0%, transparent 70%)" }} />
+        </div>
+        {/* Noise texture overlay */}
+        <div className="pointer-events-none absolute inset-0 z-0" style={{ backgroundImage: NOISE_SVG, backgroundRepeat: "repeat", opacity: 0.4 }} />
+
         {/* Error toast */}
         <AnimatePresence>
           {startError && (
@@ -238,7 +249,7 @@ function TrainingPageContent() {
                   className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0"
                   style={{
                     background: "var(--accent-muted)",
-                    boxShadow: "0 0 0 1px color-mix(in srgb, var(--accent) 20%, transparent)",
+                    boxShadow: "0 0 0 1px color-mix(in srgb, var(--accent) 20%, transparent), 0 0 20px rgba(59,130,246,0.15), 0 0 40px rgba(59,130,246,0.05)",
                   }}
                 >
                   <Crosshair size={22} style={{ color: "var(--accent)" }} />
@@ -445,13 +456,15 @@ function ScenariosTab({
           structurally — pilot feedback was «чисто визуально можно
           улучшить не сильно». */}
       <div
-        className="mt-6 overflow-hidden rounded-2xl"
+        className="mt-6 overflow-hidden rounded-2xl relative"
         style={{
           background: "var(--surface-card)",
           border: "1px solid var(--border-color)",
-          boxShadow: "var(--shadow-md)",
+          boxShadow: "var(--shadow-md), 0 0 30px rgba(139,92,246,0.08)",
         }}
       >
+        {/* Gradient top accent line */}
+        <div className="absolute top-0 left-0 right-0 h-[1px]" style={{ background: "linear-gradient(90deg, transparent, rgba(139,92,246,0.4), rgba(59,130,246,0.4), transparent)" }} />
         <div className="grid gap-6 px-5 py-5 md:grid-cols-[1.1fr_0.9fr] md:px-6">
           <div>
             <div className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide" style={{ color: "var(--accent)" }}>
@@ -1264,12 +1277,15 @@ function TestsTab() {
 
       {/* "Цена ошибки" explainer */}
       <div
-        className="flex items-start gap-3 rounded-xl p-4"
+        className="flex items-start gap-3 rounded-xl p-4 relative overflow-hidden"
         style={{
           background: "rgba(239, 68, 68, 0.06)",
-          border: "1px solid rgba(239, 68, 68, 0.12)",
+          border: "1px solid rgba(239, 68, 68, 0.18)",
+          boxShadow: "0 0 20px rgba(239,68,68,0.06), inset 0 0 30px rgba(239,68,68,0.03)",
         }}
       >
+        {/* Gradient border glow */}
+        <div className="pointer-events-none absolute inset-0 rounded-xl" style={{ background: "linear-gradient(135deg, rgba(239,68,68,0.08) 0%, transparent 50%, rgba(239,68,68,0.04) 100%)" }} />
         <span className="text-lg shrink-0">💀</span>
         <div>
           <div className="text-xs font-bold mb-0.5" style={{ color: "var(--danger)" }}>Цена ошибки</div>
@@ -1310,8 +1326,10 @@ function TestsTab() {
             transition={{ delay: i * 0.04, duration: 0.3 }}
             className="group rounded-xl p-5 transition-all duration-200 cursor-pointer"
             style={{
-              background: "var(--surface-card)",
+              background: "rgba(255,255,255,0.03)",
               border: "1px solid var(--border-color)",
+              backdropFilter: "blur(8px)",
+              WebkitBackdropFilter: "blur(8px)",
             }}
             onMouseEnter={(e) => {
               e.currentTarget.style.borderColor = cat.color;

@@ -287,6 +287,10 @@ const CATEGORIES = [
   "Субсидиарная ответственность",
 ];
 
+const NOISE_SVG = `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E")`;
+
+const PREMIUM_EASE: [number, number, number, number] = [0.22, 1, 0.36, 1];
+
 /* ── Page Component ──────────────────────────────────────── */
 export default function CasesPage() {
   const router = useRouter();
@@ -305,24 +309,37 @@ export default function CasesPage() {
   return (
     <AuthLayout>
       <div className="min-h-screen relative" style={{ background: "var(--bg-primary)" }}>
+        {/* Pulsing glow animation */}
+        <style>{`
+          @keyframes pulse-glow {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.4; transform: scale(0.75); }
+          }
+        `}</style>
         {/* Ambient background */}
         <div className="absolute inset-0 pointer-events-none overflow-hidden" aria-hidden>
           <div
-            className="absolute -top-40 left-[20%] w-[600px] h-[600px] rounded-full opacity-[0.035]"
+            className="absolute -top-40 left-[20%] w-[900px] h-[900px] rounded-full opacity-[0.035]"
             style={{ background: "radial-gradient(circle, #8B5CF6 0%, transparent 70%)" }}
           />
           <div
-            className="absolute top-[60%] -right-32 w-[400px] h-[400px] rounded-full opacity-[0.025]"
+            className="absolute top-[60%] -right-32 w-[700px] h-[700px] rounded-full opacity-[0.025]"
             style={{ background: "radial-gradient(circle, #2563EB 0%, transparent 70%)" }}
           />
+          <div
+            className="absolute top-[30%] left-[60%] w-[500px] h-[500px] rounded-full opacity-[0.02]"
+            style={{ background: "radial-gradient(circle, #F59E0B 0%, transparent 70%)" }}
+          />
         </div>
+        {/* Noise texture overlay */}
+        <div className="absolute inset-0 pointer-events-none opacity-30 mix-blend-overlay" style={{ backgroundImage: NOISE_SVG }} aria-hidden />
 
         <div className="relative z-10 max-w-[1100px] mx-auto px-5 sm:px-8 py-8 sm:py-12">
           {/* Header */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+            transition={{ duration: 0.6, ease: PREMIUM_EASE }}
           >
             <div className="flex items-start justify-between">
               <div className="flex items-center gap-4">
@@ -366,12 +383,23 @@ export default function CasesPage() {
               return (
                 <div
                   key={stat.label}
-                  className="rounded-xl p-4 text-center"
+                  className="rounded-xl p-4 text-center relative"
                   style={{
-                    background: "var(--surface-card)",
-                    border: "1px solid var(--border-color)",
+                    background: "rgba(255,255,255,0.03)",
+                    border: "1px solid rgba(255,255,255,0.06)",
+                    backdropFilter: "blur(12px)",
+                    WebkitBackdropFilter: "blur(12px)",
                   }}
                 >
+                  {/* Pulsing glow dot */}
+                  <span
+                    className="absolute top-3 right-3 block w-[6px] h-[6px] rounded-full"
+                    style={{
+                      background: stat.color,
+                      boxShadow: `0 0 6px ${stat.color}`,
+                      animation: "pulse-glow 2s ease-in-out infinite",
+                    }}
+                  />
                   <Icon size={16} className="mx-auto mb-1.5" style={{ color: stat.color }} />
                   <div className="text-xl font-bold" style={{ color: "var(--text-primary)" }}>
                     {stat.value}
@@ -392,12 +420,36 @@ export default function CasesPage() {
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.1 }}
-            className="mt-5 rounded-xl p-4 flex items-start gap-3"
+            className="mt-5 rounded-xl p-4 flex items-start gap-3 relative"
             style={{
               background: "rgba(139, 92, 246, 0.06)",
               border: "1px solid rgba(139, 92, 246, 0.15)",
             }}
           >
+            {/* Corner bracket — top-left */}
+            <div
+              className="absolute top-0 left-0 pointer-events-none"
+              aria-hidden
+              style={{
+                width: 16,
+                height: 16,
+                borderTop: "2px solid rgba(139,92,246,0.5)",
+                borderLeft: "2px solid rgba(139,92,246,0.5)",
+                borderRadius: "4px 0 0 0",
+              }}
+            />
+            {/* Corner bracket — bottom-right */}
+            <div
+              className="absolute bottom-0 right-0 pointer-events-none"
+              aria-hidden
+              style={{
+                width: 16,
+                height: 16,
+                borderBottom: "2px solid rgba(139,92,246,0.5)",
+                borderRight: "2px solid rgba(139,92,246,0.5)",
+                borderRadius: "0 0 4px 0",
+              }}
+            />
             <div
               className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 mt-0.5"
               style={{ background: "rgba(139, 92, 246, 0.12)" }}
@@ -447,7 +499,9 @@ export default function CasesPage() {
             className="mt-6 rounded-2xl overflow-hidden"
             style={{
               background: "linear-gradient(135deg, rgba(139, 92, 246, 0.15) 0%, rgba(88, 28, 235, 0.08) 100%)",
-              border: "1px solid rgba(139, 92, 246, 0.25)",
+              border: "1px solid",
+              borderImage: "linear-gradient(135deg, #8B5CF6, #7C3AED, #6D28D9, #8B5CF6) 1",
+              boxShadow: "0 0 30px rgba(139,92,246,0.1)",
             }}
           >
             <div className="p-5 sm:p-6 flex items-start gap-4">
@@ -495,10 +549,14 @@ export default function CasesPage() {
                     layout
                     className="group relative rounded-2xl overflow-hidden transition-all duration-300"
                     style={{
-                      background: "var(--surface-card)",
-                      border: `1px solid ${isHovered && !caseItem.locked ? "rgba(139, 92, 246, 0.3)" : "var(--border-color)"}`,
+                      background: "rgba(255,255,255,0.03)",
+                      backdropFilter: "blur(12px)",
+                      WebkitBackdropFilter: "blur(12px)",
+                      border: `1px solid ${isHovered && !caseItem.locked ? "rgba(139, 92, 246, 0.3)" : "rgba(255,255,255,0.06)"}`,
                       cursor: caseItem.locked ? "default" : "pointer",
                       opacity: caseItem.locked ? 0.6 : 1,
+                      boxShadow: isHovered && !caseItem.locked ? "0 8px 32px rgba(139,92,246,0.12)" : "none",
+                      transition: `all 0.4s cubic-bezier(${PREMIUM_EASE.join(",")})`,
                     }}
                     onMouseEnter={() => setHoveredCase(caseItem.id)}
                     onMouseLeave={() => setHoveredCase(null)}

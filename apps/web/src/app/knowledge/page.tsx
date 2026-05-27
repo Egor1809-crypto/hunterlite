@@ -18,6 +18,9 @@ import {
 import AuthLayout from "@/components/layout/AuthLayout";
 import { KnowledgeBaseBrowser } from "@/components/pvp/KnowledgeBaseBrowser";
 
+/* ── Noise texture overlay ──────────────────────── */
+const NOISE_SVG = `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E")`;
+
 /* ── Legislative Radar mock data ────────────────── */
 const RADAR_ITEMS = [
   {
@@ -72,14 +75,25 @@ export default function KnowledgePage() {
         {/* Ambient glow */}
         <div className="absolute inset-0 pointer-events-none overflow-hidden" aria-hidden>
           <div
-            className="absolute -top-32 right-[10%] w-[500px] h-[500px] rounded-full opacity-[0.03]"
-            style={{ background: "radial-gradient(circle, #10B981 0%, transparent 70%)" }}
+            className="absolute -top-32 right-[10%] rounded-full opacity-[0.03]"
+            style={{ width: 800, height: 800, background: "radial-gradient(circle, #10B981 0%, transparent 70%)" }}
           />
           <div
-            className="absolute top-[60%] -left-20 w-[350px] h-[350px] rounded-full opacity-[0.025]"
-            style={{ background: "radial-gradient(circle, #2563EB 0%, transparent 70%)" }}
+            className="absolute top-[60%] -left-20 rounded-full opacity-[0.025]"
+            style={{ width: 600, height: 600, background: "radial-gradient(circle, #2563EB 0%, transparent 70%)" }}
+          />
+          <div
+            className="absolute top-[30%] right-[-5%] rounded-full opacity-[0.02]"
+            style={{ width: 500, height: 500, background: "radial-gradient(circle, #8B5CF6 0%, transparent 70%)" }}
           />
         </div>
+
+        {/* Noise texture overlay */}
+        <div
+          className="absolute inset-0 pointer-events-none z-[1]"
+          aria-hidden
+          style={{ backgroundImage: NOISE_SVG, backgroundRepeat: "repeat", opacity: 1 }}
+        />
 
         <div className="relative z-10 max-w-[1100px] mx-auto px-5 sm:px-8 py-8 sm:py-12">
           {/* Header */}
@@ -136,6 +150,7 @@ export default function KnowledgePage() {
                     background: isActive ? "rgba(16,185,129,0.12)" : "var(--surface-card)",
                     border: `1.5px solid ${isActive ? "rgba(16,185,129,0.4)" : "var(--border-color)"}`,
                     color: isActive ? "#10B981" : "var(--text-muted)",
+                    boxShadow: isActive ? "0 0 20px rgba(16,185,129,0.15)" : "none",
                   }}
                 >
                   <Icon size={14} />
@@ -162,16 +177,20 @@ export default function KnowledgePage() {
                     transition={{ delay: i * 0.04, duration: 0.3 }}
                     className="group rounded-xl p-4 cursor-pointer transition-all duration-200"
                     style={{
-                      background: "var(--surface-card)",
-                      border: "1px solid var(--border-color)",
+                      background: "rgba(255,255,255,0.03)",
+                      border: "1px solid rgba(255,255,255,0.06)",
+                      backdropFilter: "blur(12px)",
+                      WebkitBackdropFilter: "blur(12px)",
                     }}
                     onMouseEnter={(e) => {
                       e.currentTarget.style.borderColor = "rgba(16,185,129,0.3)";
                       e.currentTarget.style.transform = "translateY(-2px)";
+                      e.currentTarget.style.boxShadow = "0 0 20px rgba(16,185,129,0.08)";
                     }}
                     onMouseLeave={(e) => {
-                      e.currentTarget.style.borderColor = "var(--border-color)";
+                      e.currentTarget.style.borderColor = "rgba(255,255,255,0.06)";
                       e.currentTarget.style.transform = "translateY(0)";
+                      e.currentTarget.style.boxShadow = "none";
                     }}
                   >
                     <span className="text-xl mb-2 block">{topic.icon}</span>
@@ -203,12 +222,17 @@ export default function KnowledgePage() {
             >
               {/* Radar intro */}
               <div
-                className="rounded-xl p-5 flex items-start gap-3"
+                className="rounded-xl p-5 flex items-start gap-3 relative"
                 style={{
                   background: "linear-gradient(135deg, rgba(239,68,68,0.06) 0%, rgba(245,158,11,0.04) 100%)",
                   border: "1px solid rgba(239,68,68,0.12)",
                 }}
               >
+                {/* Corner brackets */}
+                <div className="absolute top-2 left-2 w-4 h-4" style={{ borderTop: "2px solid rgba(239,68,68,0.4)", borderLeft: "2px solid rgba(239,68,68,0.4)" }} />
+                <div className="absolute top-2 right-2 w-4 h-4" style={{ borderTop: "2px solid rgba(239,68,68,0.4)", borderRight: "2px solid rgba(239,68,68,0.4)" }} />
+                <div className="absolute bottom-2 left-2 w-4 h-4" style={{ borderBottom: "2px solid rgba(239,68,68,0.4)", borderLeft: "2px solid rgba(239,68,68,0.4)" }} />
+                <div className="absolute bottom-2 right-2 w-4 h-4" style={{ borderBottom: "2px solid rgba(239,68,68,0.4)", borderRight: "2px solid rgba(239,68,68,0.4)" }} />
                 <Bell size={18} style={{ color: "#EF4444" }} className="shrink-0 mt-0.5" />
                 <div>
                   <h3 className="text-sm font-bold mb-1" style={{ color: "var(--text-primary)" }}>
@@ -232,16 +256,24 @@ export default function KnowledgePage() {
                     transition={{ delay: i * 0.06, duration: 0.3 }}
                     className="group rounded-xl p-4 cursor-pointer transition-all duration-200"
                     style={{
-                      background: "var(--surface-card)",
-                      border: "1px solid var(--border-color)",
+                      background: "rgba(255,255,255,0.03)",
+                      border: "1px solid rgba(255,255,255,0.06)",
+                      backdropFilter: "blur(12px)",
+                      WebkitBackdropFilter: "blur(12px)",
+                      borderLeft: `3px solid ${impact.color}`,
                     }}
                     onMouseEnter={(e) => {
                       e.currentTarget.style.borderColor = `${impact.color}30`;
+                      e.currentTarget.style.borderLeftColor = impact.color;
+                      e.currentTarget.style.borderLeftWidth = "3px";
                       e.currentTarget.style.transform = "translateX(4px)";
+                      e.currentTarget.style.boxShadow = `0 0 20px ${impact.color}15`;
                     }}
                     onMouseLeave={(e) => {
-                      e.currentTarget.style.borderColor = "var(--border-color)";
+                      e.currentTarget.style.border = "1px solid rgba(255,255,255,0.06)";
+                      e.currentTarget.style.borderLeft = `3px solid ${impact.color}`;
                       e.currentTarget.style.transform = "translateX(0)";
+                      e.currentTarget.style.boxShadow = "none";
                     }}
                   >
                     <div className="flex items-start gap-3">
@@ -297,14 +329,27 @@ export default function KnowledgePage() {
             >
               {/* AI intro */}
               <div
-                className="rounded-xl p-5"
+                className="rounded-xl p-5 relative overflow-hidden"
                 style={{
                   background: "linear-gradient(135deg, rgba(16,185,129,0.06) 0%, rgba(37,99,235,0.04) 100%)",
-                  border: "1px solid rgba(16,185,129,0.12)",
+                  border: "1px solid rgba(16,185,129,0.2)",
+                  boxShadow: "0 0 30px rgba(16,185,129,0.08)",
                 }}
               >
+                {/* Gradient border accent */}
+                <div
+                  className="absolute top-0 left-0 right-0 h-[1px]"
+                  style={{ background: "linear-gradient(90deg, transparent, #10B981, #2563EB, transparent)" }}
+                />
                 <div className="flex items-center gap-2 mb-3">
-                  <Sparkles size={16} style={{ color: "#10B981" }} />
+                  <Sparkles
+                    size={16}
+                    style={{
+                      color: "#10B981",
+                      animation: "pulse 2s ease-in-out infinite",
+                      filter: "drop-shadow(0 0 4px rgba(16,185,129,0.5))",
+                    }}
+                  />
                   <span className="text-xs font-bold uppercase tracking-wider" style={{ color: "#10B981" }}>
                     AI-помощник по ФЗ-127
                   </span>
@@ -373,17 +418,21 @@ export default function KnowledgePage() {
                       onClick={() => setAiQuery(q)}
                       className="flex items-center gap-2 text-left rounded-xl p-3 transition-all text-xs"
                       style={{
-                        background: "var(--surface-card)",
-                        border: "1px solid var(--border-color)",
+                        background: "rgba(255,255,255,0.03)",
+                        border: "1px solid rgba(255,255,255,0.06)",
+                        backdropFilter: "blur(12px)",
+                        WebkitBackdropFilter: "blur(12px)",
                         color: "var(--text-secondary)",
                       }}
                       onMouseEnter={(e) => {
                         e.currentTarget.style.borderColor = "rgba(16,185,129,0.3)";
                         e.currentTarget.style.color = "var(--text-primary)";
+                        e.currentTarget.style.boxShadow = "0 0 20px rgba(16,185,129,0.1)";
                       }}
                       onMouseLeave={(e) => {
-                        e.currentTarget.style.borderColor = "var(--border-color)";
+                        e.currentTarget.style.borderColor = "rgba(255,255,255,0.06)";
                         e.currentTarget.style.color = "var(--text-secondary)";
+                        e.currentTarget.style.boxShadow = "none";
                       }}
                     >
                       <MessageSquare size={12} className="shrink-0" style={{ color: "#10B981" }} />

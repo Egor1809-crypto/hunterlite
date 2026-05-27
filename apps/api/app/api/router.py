@@ -62,3 +62,6 @@ api_router.include_router(persona_view_router)
 
 from app.telegram.webhook import router as telegram_router
 api_router.include_router(telegram_router)
+
+from app.api.scenarios import router as scenarios_router
+api_router.include_router(scenarios_router, tags=["scenarios"])

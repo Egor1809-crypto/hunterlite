@@ -250,6 +250,71 @@ function QrPlaceholder() {
   );
 }
 
+/* ── Noise texture overlay ───────────────────────────────── */
+const NOISE_SVG = `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E")`;
+
+/* ── CSS keyframes (injected once) ──────────────────────── */
+const EXAM_KEYFRAMES = `
+@keyframes examCertBorderRotate {
+  0% { --cert-angle: 0deg; }
+  100% { --cert-angle: 360deg; }
+}
+@keyframes examCertShine {
+  0% { transform: translateX(-100%) skewX(-15deg); }
+  100% { transform: translateX(200%) skewX(-15deg); }
+}
+@keyframes examPulseDot {
+  0%, 100% { opacity: 0.3; transform: scale(1); }
+  50% { opacity: 0.8; transform: scale(1.5); }
+}
+`;
+
+/* ── Pulsing dot component ──────────────────────────────── */
+function PulsingDot({ color, delay, style }: { color: string; delay: number; style?: React.CSSProperties }) {
+  return (
+    <div
+      style={{
+        position: "absolute",
+        width: 4,
+        height: 4,
+        borderRadius: "50%",
+        background: color,
+        animation: `examPulseDot 2.5s ease-in-out ${delay}s infinite`,
+        ...style,
+      }}
+    />
+  );
+}
+
+/* ── Corner brackets component ──────────────────────────── */
+function CornerBrackets() {
+  const bracketStyle = (top: boolean, left: boolean): React.CSSProperties => ({
+    position: "absolute",
+    width: 16,
+    height: 16,
+    ...(top ? { top: 8 } : { bottom: 8 }),
+    ...(left ? { left: 8 } : { right: 8 }),
+    borderColor: "rgba(245,158,11,0.25)",
+    borderStyle: "solid",
+    borderWidth: 0,
+    ...(top && left ? { borderTopWidth: 2, borderLeftWidth: 2 } : {}),
+    ...(top && !left ? { borderTopWidth: 2, borderRightWidth: 2 } : {}),
+    ...(!top && left ? { borderBottomWidth: 2, borderLeftWidth: 2 } : {}),
+    ...(!top && !left ? { borderBottomWidth: 2, borderRightWidth: 2 } : {}),
+    borderRadius: top && left ? "4px 0 0 0" : top && !left ? "0 4px 0 0" : !top && left ? "0 0 0 4px" : "0 0 4px 0",
+    pointerEvents: "none",
+  });
+
+  return (
+    <>
+      <div style={bracketStyle(true, true)} />
+      <div style={bracketStyle(true, false)} />
+      <div style={bracketStyle(false, true)} />
+      <div style={bracketStyle(false, false)} />
+    </>
+  );
+}
+
 /* ── Page Component ──────────────────────────────────────── */
 export default function ExamPage() {
   const router = useRouter();
@@ -264,27 +329,54 @@ export default function ExamPage() {
 
   return (
     <AuthLayout>
+      {/* Inject keyframes */}
+      <style dangerouslySetInnerHTML={{ __html: EXAM_KEYFRAMES }} />
+
       <div
         className="min-h-screen relative"
         style={{ background: "var(--bg-primary)" }}
       >
-        {/* Ambient background */}
+        {/* Noise texture overlay */}
+        <div
+          className="absolute inset-0 pointer-events-none z-[1]"
+          aria-hidden
+          style={{
+            backgroundImage: NOISE_SVG,
+            backgroundRepeat: "repeat",
+            opacity: 1,
+          }}
+        />
+
+        {/* Ambient background — bigger orbs */}
         <div
           className="absolute inset-0 pointer-events-none overflow-hidden"
           aria-hidden
         >
           <div
-            className="absolute -top-32 right-[15%] w-[500px] h-[500px] rounded-full opacity-[0.03]"
+            className="absolute -top-32 right-[15%] rounded-full opacity-[0.03]"
             style={{
+              width: 850,
+              height: 850,
               background:
                 "radial-gradient(circle, #F59E0B 0%, transparent 70%)",
             }}
           />
           <div
-            className="absolute top-[70%] -left-20 w-[350px] h-[350px] rounded-full opacity-[0.025]"
+            className="absolute top-[70%] -left-20 rounded-full opacity-[0.025]"
             style={{
+              width: 650,
+              height: 650,
               background:
                 "radial-gradient(circle, #2563EB 0%, transparent 70%)",
+            }}
+          />
+          <div
+            className="absolute top-[35%] right-[-5%] rounded-full opacity-[0.02]"
+            style={{
+              width: 550,
+              height: 550,
+              background:
+                "radial-gradient(circle, #8B5CF6 0%, transparent 70%)",
             }}
           />
         </div>
@@ -328,14 +420,38 @@ export default function ExamPage() {
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.08 }}
-            className="mt-6 rounded-2xl overflow-hidden"
+            className="mt-6 rounded-2xl overflow-hidden relative"
             style={{
               background:
                 "linear-gradient(135deg, rgba(245,158,11,0.08) 0%, rgba(37,99,235,0.06) 100%)",
               border: "1px solid rgba(245,158,11,0.15)",
+              boxShadow: "0 0 40px rgba(245,158,11,0.08)",
             }}
           >
-            <div className="p-6 sm:p-8">
+            {/* Animated shine effect */}
+            <div
+              style={{
+                position: "absolute",
+                inset: 0,
+                overflow: "hidden",
+                borderRadius: "inherit",
+                pointerEvents: "none",
+                zIndex: 1,
+              }}
+            >
+              <div
+                style={{
+                  position: "absolute",
+                  top: 0,
+                  left: 0,
+                  width: "50%",
+                  height: "100%",
+                  background: "linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.04) 50%, transparent 100%)",
+                  animation: "examCertShine 4s ease-in-out infinite",
+                }}
+              />
+            </div>
+            <div className="p-6 sm:p-8 relative z-[2]">
               <div className="flex flex-col sm:flex-row sm:items-center gap-6">
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-3">
@@ -381,6 +497,7 @@ export default function ExamPage() {
                     <svg
                       viewBox="0 0 80 80"
                       className="w-full h-full -rotate-90"
+                      style={{ filter: "drop-shadow(0 0 8px rgba(245,158,11,0.3))" }}
                     >
                       <circle
                         cx="40"
@@ -454,17 +571,23 @@ export default function ExamPage() {
                 value: "QR",
                 color: "#8B5CF6",
               },
-            ].map((item) => {
+            ].map((item, idx) => {
               const Icon = item.icon;
               return (
                 <div
                   key={item.label}
-                  className="rounded-xl p-4 text-center"
+                  className="rounded-xl p-4 text-center relative overflow-hidden"
                   style={{
-                    background: "var(--surface-card)",
-                    border: "1px solid var(--border-color)",
+                    background: "rgba(255,255,255,0.03)",
+                    backdropFilter: "blur(12px)",
+                    WebkitBackdropFilter: "blur(12px)",
+                    border: "1px solid rgba(255,255,255,0.06)",
                   }}
                 >
+                  {/* Pulsing dots */}
+                  <PulsingDot color={item.color} delay={idx * 0.4} style={{ top: 6, right: 6 }} />
+                  <PulsingDot color={item.color} delay={idx * 0.4 + 1.2} style={{ bottom: 6, left: 6 }} />
+
                   <Icon
                     size={16}
                     className="mx-auto mb-1.5"
@@ -501,8 +624,10 @@ export default function ExamPage() {
                   transition={{ duration: 0.4, delay: 0.16 + i * 0.05 }}
                   className="rounded-2xl overflow-hidden transition-all duration-200"
                   style={{
-                    background: "var(--surface-card)",
-                    border: `1px solid ${isExpanded ? "rgba(245,158,11,0.3)" : "var(--border-color)"}`,
+                    background: "rgba(255,255,255,0.03)",
+                    backdropFilter: "blur(12px)",
+                    WebkitBackdropFilter: "blur(12px)",
+                    border: `1px solid ${isExpanded ? "rgba(245,158,11,0.3)" : "rgba(255,255,255,0.06)"}`,
                     opacity: module.locked ? 0.55 : 1,
                   }}
                 >
@@ -773,16 +898,42 @@ export default function ExamPage() {
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.55 }}
-            className="mt-10 rounded-2xl overflow-hidden"
+            className="mt-10 rounded-2xl overflow-hidden relative"
             style={{
-              background: "var(--surface-card)",
+              background: "rgba(255,255,255,0.03)",
+              backdropFilter: "blur(12px)",
+              WebkitBackdropFilter: "blur(12px)",
               border: "2px solid transparent",
               borderImage:
                 "linear-gradient(135deg, #F59E0B 0%, #D97706 40%, #B45309 70%, #F59E0B 100%) 1",
+              boxShadow: "0 0 40px rgba(245,158,11,0.08)",
             }}
           >
+            {/* Animated shine effect */}
             <div
-              className="p-6 sm:p-8"
+              style={{
+                position: "absolute",
+                inset: 0,
+                overflow: "hidden",
+                borderRadius: "inherit",
+                pointerEvents: "none",
+                zIndex: 1,
+              }}
+            >
+              <div
+                style={{
+                  position: "absolute",
+                  top: 0,
+                  left: 0,
+                  width: "50%",
+                  height: "100%",
+                  background: "linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.03) 50%, transparent 100%)",
+                  animation: "examCertShine 5s ease-in-out 1s infinite",
+                }}
+              />
+            </div>
+            <div
+              className="p-6 sm:p-8 relative z-[2]"
               style={{
                 background:
                   "linear-gradient(135deg, rgba(245,158,11,0.04) 0%, rgba(217,119,6,0.02) 100%)",
@@ -859,12 +1010,15 @@ export default function ExamPage() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.6 }}
-            className="mt-8 rounded-xl p-4"
+            className="mt-8 rounded-xl p-4 relative"
             style={{
-              background: "var(--surface-card)",
-              border: "1px solid var(--border-color)",
+              background: "rgba(255,255,255,0.03)",
+              backdropFilter: "blur(12px)",
+              WebkitBackdropFilter: "blur(12px)",
+              border: "1px solid rgba(255,255,255,0.06)",
             }}
           >
+            <CornerBrackets />
             <div className="flex items-start gap-3">
               <AlertTriangle
                 size={16}
