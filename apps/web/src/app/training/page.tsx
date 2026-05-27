@@ -1232,23 +1232,105 @@ function RetrainBadge({ character, sessionId, onDismiss }: RetrainBadgeProps) {
    Two test formats: Блиц (timed, spaced repetition) and Тематические
    (deep dive by topic). "Цена ошибки" mechanic after each wrong answer.    */
 
+/* ── Test categories mapped to real DB categories ──────────────────────────
+   `category` field matches `legal_knowledge_chunks.category` in the DB.
+   `null` means "all categories" (random mix). */
 const TEST_CATEGORIES = [
-  { id: "fz127-basics", title: "Основы ФЗ-127", questions: 25, icon: "📘", color: "var(--accent)", description: "Общие положения, стадии, участники процесса банкротства" },
-  { id: "fz127-contest", title: "Конкурсное производство", questions: 30, icon: "🏛️", color: "var(--info)", description: "Конкурсная масса, очерёдность, торги, отчётность" },
-  { id: "disputes", title: "Оспаривание сделок", questions: 20, icon: "⚖️", color: "#8B5CF6", description: "Ст.61.2-61.3, подозрительные сделки, сделки с предпочтением" },
-  { id: "subsidiary", title: "Субсидиарная ответственность", questions: 20, icon: "🎯", color: "var(--danger)", description: "КДЛ, ст.61.10-61.12, доказывание, судебная практика" },
-  { id: "creditors", title: "Работа с кредиторами", questions: 15, icon: "👥", color: "var(--success)", description: "Собрания, реестр требований, очерёдность удовлетворения" },
-  { id: "auctions", title: "Торги в банкротстве", questions: 15, icon: "🔨", color: "var(--warning)", description: "Порядок проведения торгов, электронные площадки, оспаривание" },
-  { id: "individual", title: "Банкротство физлиц", questions: 25, icon: "👤", color: "#6366F1", description: "Глава X ФЗ-127, реструктуризация, реализация имущества" },
-  { id: "vs-practice", title: "Практика ВС РФ 2024-2026", questions: 20, icon: "📋", color: "#EC4899", description: "Актуальные определения и разъяснения Верховного Суда" },
+  { id: "all",           category: null,             title: "Все темы (микс)",                questions: 20, icon: "🎲", color: "var(--accent)",   description: "Случайные вопросы из всех категорий — полная проверка знаний" },
+  { id: "eligibility",   category: "eligibility",    title: "Условия подачи на банкротство",  questions: 34, icon: "📘", color: "var(--info)",     description: "Кто может подать, условия, ограничения, пороги долга" },
+  { id: "procedure",     category: "procedure",      title: "Порядок процедуры",              questions: 40, icon: "🏛️", color: "#8B5CF6",        description: "Наблюдение, финансовое оздоровление, внешнее управление, конкурс" },
+  { id: "property",      category: "property",       title: "Имущество должника",             questions: 50, icon: "🏠", color: "var(--warning)",  description: "Конкурсная масса, оценка, реализация, исключения из массы" },
+  { id: "consequences",  category: "consequences",   title: "Последствия банкротства",         questions: 45, icon: "⚖️", color: "var(--danger)",   description: "Ограничения, списание долгов, субсидиарная ответственность" },
+  { id: "creditors",     category: "creditors",      title: "Работа с кредиторами",           questions: 37, icon: "👥", color: "var(--success)",  description: "Собрания, реестр требований, очерёдность удовлетворения" },
+  { id: "court",         category: "court",          title: "Судебные процессы",              questions: 38, icon: "🔨", color: "#EC4899",        description: "Оспаривание сделок, привлечение КДЛ, судебная практика ВС" },
+  { id: "rights",        category: "rights",         title: "Права должника",                 questions: 37, icon: "🛡️", color: "#6366F1",        description: "Защита прав, обжалование, мораторий, реструктуризация" },
+  { id: "costs",         category: "costs",          title: "Стоимость процедуры",            questions: 33, icon: "💰", color: "#F59E0B",        description: "Госпошлина, вознаграждение АУ, расходы на торги" },
+  { id: "documents",     category: "documents",      title: "Документы",                      questions: 30, icon: "📋", color: "#14B8A6",        description: "Заявления, отчёты АУ, реестры, уведомления" },
+  { id: "timeline",      category: "timeline",       title: "Сроки в банкротстве",            questions: 31, icon: "⏰", color: "#F97316",        description: "Процессуальные сроки, давность, продление процедур" },
 ];
 
 function TestsTab() {
   const router = useRouter();
   const [testMode, setTestMode] = useState<"blitz" | "themed">("blitz");
+  const [startingCat, setStartingCat] = useState<string | null>(null);
+  const [startError, setStartError] = useState<string | null>(null);
+
+  const startQuiz = async (category: string | null) => {
+    const catKey = category ?? "all";
+    if (startingCat) return;
+    setStartingCat(catKey);
+    setStartError(null);
+
+    const watchdog = setTimeout(() => {
+      setStartingCat(null);
+      setStartError("Сервер долго отвечает. Попробуйте ещё раз.");
+    }, 10_000);
+
+    const mode = testMode === "blitz" ? "blitz" : "free_dialog";
+    const personality = mode === "blitz" ? "showman" : "professor";
+
+    try {
+      const res = await api.post("/knowledge/sessions", {
+        mode,
+        category: category ?? null,
+        ai_personality: personality,
+        choices_format: true,
+      }) as { id?: string; session_id?: string };
+      clearTimeout(watchdog);
+      const sid = res?.id || res?.session_id;
+      if (sid) {
+        const params = new URLSearchParams({ mode });
+        if (category) params.set("category", category);
+        params.set("personality", personality);
+        params.set("choices_format", "1");
+        router.push(`/pvp/quiz/${sid}?${params.toString()}`);
+      } else {
+        setStartError("Не удалось создать сессию. Попробуйте ещё раз.");
+        setStartingCat(null);
+      }
+    } catch (err) {
+      clearTimeout(watchdog);
+      const message = err instanceof Error ? err.message : "Ошибка при запуске теста";
+      setStartError(message);
+      setStartingCat(null);
+    }
+  };
+
+  // Auto-dismiss error after 5 seconds
+  useEffect(() => {
+    if (startError) {
+      const t = setTimeout(() => setStartError(null), 5000);
+      return () => clearTimeout(t);
+    }
+  }, [startError]);
 
   return (
     <div className="mt-6 space-y-6">
+      {/* Error toast */}
+      <AnimatePresence>
+        {startError && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="fixed top-4 left-1/2 z-50 -translate-x-1/2"
+          >
+            <div
+              className="flex items-center gap-3 px-5 py-3 text-sm rounded-xl"
+              style={{
+                background: "var(--surface-card)",
+                border: "1px solid var(--danger)",
+                color: "var(--danger)",
+                boxShadow: "0 8px 32px rgba(0,0,0,0.3)",
+              }}
+            >
+              <AlertTriangle size={16} />
+              {startError}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Mode selector */}
       <div className="flex gap-2">
         {([
@@ -1284,7 +1366,6 @@ function TestsTab() {
           boxShadow: "0 0 20px rgba(239,68,68,0.06), inset 0 0 30px rgba(239,68,68,0.03)",
         }}
       >
-        {/* Gradient border glow */}
         <div className="pointer-events-none absolute inset-0 rounded-xl" style={{ background: "linear-gradient(135deg, rgba(239,68,68,0.08) 0%, transparent 50%, rgba(239,68,68,0.04) 100%)" }} />
         <span className="text-lg shrink-0">💀</span>
         <div>
@@ -1318,7 +1399,9 @@ function TestsTab() {
 
       {/* Test categories grid */}
       <div className="grid gap-3 sm:grid-cols-2">
-        {TEST_CATEGORIES.map((cat, i) => (
+        {TEST_CATEGORIES.map((cat, i) => {
+          const isStarting = startingCat === (cat.category ?? "all");
+          return (
           <motion.div
             key={cat.id}
             initial={{ opacity: 0, y: 12 }}
@@ -1327,19 +1410,25 @@ function TestsTab() {
             className="group rounded-xl p-5 transition-all duration-200 cursor-pointer"
             style={{
               background: "rgba(255,255,255,0.03)",
-              border: "1px solid var(--border-color)",
+              border: `1px solid ${isStarting ? cat.color : "var(--border-color)"}`,
               backdropFilter: "blur(8px)",
               WebkitBackdropFilter: "blur(8px)",
+              opacity: startingCat && !isStarting ? 0.5 : 1,
             }}
+            onClick={() => startQuiz(cat.category)}
             onMouseEnter={(e) => {
-              e.currentTarget.style.borderColor = cat.color;
-              e.currentTarget.style.transform = "translateY(-2px)";
-              e.currentTarget.style.boxShadow = `0 8px 24px color-mix(in srgb, ${cat.color} 10%, transparent)`;
+              if (!startingCat) {
+                e.currentTarget.style.borderColor = cat.color;
+                e.currentTarget.style.transform = "translateY(-2px)";
+                e.currentTarget.style.boxShadow = `0 8px 24px color-mix(in srgb, ${cat.color} 10%, transparent)`;
+              }
             }}
             onMouseLeave={(e) => {
-              e.currentTarget.style.borderColor = "var(--border-color)";
-              e.currentTarget.style.transform = "translateY(0)";
-              e.currentTarget.style.boxShadow = "none";
+              if (!startingCat) {
+                e.currentTarget.style.borderColor = "var(--border-color)";
+                e.currentTarget.style.transform = "translateY(0)";
+                e.currentTarget.style.boxShadow = "none";
+              }
             }}
           >
             <div className="flex items-start justify-between mb-3">
@@ -1358,21 +1447,31 @@ function TestsTab() {
               {cat.description}
             </p>
             <div className="flex items-center gap-2">
-              {testMode === "blitz" ? (
-                <span className="flex items-center gap-1 text-[11px] font-semibold" style={{ color: "var(--warning)" }}>
-                  ⚡ 30-60 сек/вопрос
+              {isStarting ? (
+                <span className="flex items-center gap-2 text-xs font-bold" style={{ color: cat.color }}>
+                  <Loader2 size={14} className="animate-spin" />
+                  Запускаем...
                 </span>
               ) : (
-                <span className="flex items-center gap-1 text-[11px] font-semibold" style={{ color: "var(--info)" }}>
-                  📖 15-25 мин
-                </span>
+                <>
+                  {testMode === "blitz" ? (
+                    <span className="flex items-center gap-1 text-[11px] font-semibold" style={{ color: "var(--warning)" }}>
+                      ⚡ 30-60 сек/вопрос
+                    </span>
+                  ) : (
+                    <span className="flex items-center gap-1 text-[11px] font-semibold" style={{ color: "var(--info)" }}>
+                      📖 15-25 мин
+                    </span>
+                  )}
+                  <span className="ml-auto flex items-center gap-1 text-xs font-bold opacity-0 group-hover:opacity-100 transition-opacity" style={{ color: cat.color }}>
+                    Начать <ArrowRight size={12} />
+                  </span>
+                </>
               )}
-              <span className="ml-auto flex items-center gap-1 text-xs font-bold opacity-0 group-hover:opacity-100 transition-opacity" style={{ color: cat.color }}>
-                Начать <ArrowRight size={12} />
-              </span>
             </div>
           </motion.div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
