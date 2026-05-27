@@ -1237,16 +1237,16 @@ function RetrainBadge({ character, sessionId, onDismiss }: RetrainBadgeProps) {
    `null` means "all categories" (random mix). */
 const TEST_CATEGORIES = [
   { id: "all",           category: null,             title: "Все темы (микс)",                questions: 20, icon: "🎲", color: "var(--accent)",   description: "Случайные вопросы из всех категорий — полная проверка знаний" },
-  { id: "eligibility",   category: "eligibility",    title: "Условия подачи на банкротство",  questions: 34, icon: "📘", color: "var(--info)",     description: "Кто может подать, условия, ограничения, пороги долга" },
-  { id: "procedure",     category: "procedure",      title: "Порядок процедуры",              questions: 40, icon: "🏛️", color: "#8B5CF6",        description: "Наблюдение, финансовое оздоровление, внешнее управление, конкурс" },
-  { id: "property",      category: "property",       title: "Имущество должника",             questions: 50, icon: "🏠", color: "var(--warning)",  description: "Конкурсная масса, оценка, реализация, исключения из массы" },
-  { id: "consequences",  category: "consequences",   title: "Последствия банкротства",         questions: 45, icon: "⚖️", color: "var(--danger)",   description: "Ограничения, списание долгов, субсидиарная ответственность" },
-  { id: "creditors",     category: "creditors",      title: "Работа с кредиторами",           questions: 37, icon: "👥", color: "var(--success)",  description: "Собрания, реестр требований, очерёдность удовлетворения" },
-  { id: "court",         category: "court",          title: "Судебные процессы",              questions: 38, icon: "🔨", color: "#EC4899",        description: "Оспаривание сделок, привлечение КДЛ, судебная практика ВС" },
-  { id: "rights",        category: "rights",         title: "Права должника",                 questions: 37, icon: "🛡️", color: "#6366F1",        description: "Защита прав, обжалование, мораторий, реструктуризация" },
-  { id: "costs",         category: "costs",          title: "Стоимость процедуры",            questions: 33, icon: "💰", color: "#F59E0B",        description: "Госпошлина, вознаграждение АУ, расходы на торги" },
-  { id: "documents",     category: "documents",      title: "Документы",                      questions: 30, icon: "📋", color: "#14B8A6",        description: "Заявления, отчёты АУ, реестры, уведомления" },
-  { id: "timeline",      category: "timeline",       title: "Сроки в банкротстве",            questions: 31, icon: "⏰", color: "#F97316",        description: "Процессуальные сроки, давность, продление процедур" },
+  { id: "property",      category: "property",       title: "Имущество должника",             questions: 131, icon: "🏠", color: "var(--warning)",  description: "Конкурсная масса, оценка, реализация, исключения из массы" },
+  { id: "creditors",     category: "creditors",      title: "Работа с кредиторами",           questions: 74, icon: "👥", color: "var(--success)",  description: "Собрания, реестр требований, очерёдность удовлетворения" },
+  { id: "court",         category: "court",          title: "Судебные процессы",              questions: 69, icon: "🔨", color: "#EC4899",        description: "Оспаривание сделок, привлечение КДЛ, судебная практика ВС" },
+  { id: "procedure",     category: "procedure",      title: "Порядок процедуры",              questions: 69, icon: "🏛️", color: "#8B5CF6",        description: "Наблюдение, финансовое оздоровление, внешнее управление, конкурс" },
+  { id: "rights",        category: "rights",         title: "Права должника",                 questions: 65, icon: "🛡️", color: "#6366F1",        description: "Защита прав, обжалование, мораторий, реструктуризация" },
+  { id: "eligibility",   category: "eligibility",    title: "Условия подачи на банкротство",  questions: 50, icon: "📘", color: "var(--info)",     description: "Кто может подать, условия, ограничения, пороги долга" },
+  { id: "consequences",  category: "consequences",   title: "Последствия банкротства",         questions: 48, icon: "⚖️", color: "var(--danger)",   description: "Ограничения, списание долгов, субсидиарная ответственность" },
+  { id: "costs",         category: "costs",          title: "Стоимость процедуры",            questions: 40, icon: "💰", color: "#F59E0B",        description: "Госпошлина, вознаграждение АУ, расходы на торги" },
+  { id: "timeline",      category: "timeline",       title: "Сроки в банкротстве",            questions: 40, icon: "⏰", color: "#F97316",        description: "Процессуальные сроки, давность, продление процедур" },
+  { id: "documents",     category: "documents",      title: "Документы",                      questions: 38, icon: "📋", color: "#14B8A6",        description: "Заявления, отчёты АУ, реестры, уведомления" },
 ];
 
 function TestsTab() {
