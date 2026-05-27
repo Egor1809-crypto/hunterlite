@@ -221,7 +221,32 @@ export function LandingLayout({ children }: { children: React.ReactNode }) {
                 aria-label={activePanel === "login" ? "Вход в систему" : "Регистрация"}
                 initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%" }}
                 transition={{ type: "spring", stiffness: 320, damping: 32 }}
-                className="fixed right-0 top-0 bottom-0 z-[201] w-full sm:max-w-[440px] overflow-y-auto bg-white border-l border-gray-100 shadow-2xl"
+                className="fixed right-0 top-0 bottom-0 z-[201] w-full sm:max-w-[440px] overflow-y-auto border-l border-gray-100 shadow-2xl"
+                style={{
+                  background: "#FFFFFF",
+                  // Force light-mode CSS variables inside the drawer
+                  // so vh-input, vh-label etc. render correctly regardless of theme
+                  ["--text-primary" as string]: "#0F172A",
+                  ["--text-secondary" as string]: "#475569",
+                  ["--text-muted" as string]: "#94A3B8",
+                  ["--input-bg" as string]: "#F8FAFC",
+                  ["--input-border" as string]: "#E2E8F0",
+                  ["--input-focus" as string]: "#2563EB",
+                  ["--border-color" as string]: "#E2E8F0",
+                  ["--ocean" as string]: "#2563EB",
+                  ["--ocean-muted" as string]: "rgba(37, 99, 235, 0.12)",
+                  ["--primary" as string]: "#F97316",
+                  ["--primary-hover" as string]: "#EA580C",
+                  ["--accent" as string]: "#2563EB",
+                  ["--accent-hover" as string]: "#1D4ED8",
+                  ["--accent-muted" as string]: "rgba(37, 99, 235, 0.12)",
+                  ["--accent-glow" as string]: "rgba(37, 99, 235, 0.3)",
+                  ["--bg-secondary" as string]: "#F1F5F9",
+                  ["--radius-md" as string]: "0.75rem",
+                  ["--fs-sm" as string]: "0.875rem",
+                  ["--fs-xs" as string]: "0.75rem",
+                  ["--ls-wide" as string]: "0.025em",
+                }}
               >
                 {/* Drawer header */}
                 <div className="sticky top-0 z-10 flex items-center justify-center relative px-5 sm:px-8 py-5 bg-white border-b border-gray-100">

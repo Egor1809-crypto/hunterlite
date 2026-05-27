@@ -3,7 +3,7 @@
 import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, History } from "lucide-react";
 import {
   Clock,
   CheckCircle,
@@ -136,17 +136,25 @@ export default function HistoryPage() {
           <motion.div
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
-            className="flex items-start justify-between gap-3"
+            className="flex items-center gap-4"
           >
+            <div
+              className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0"
+              style={{
+                background: "var(--magenta-muted)",
+                boxShadow: "0 0 0 1px color-mix(in srgb, var(--magenta) 20%, transparent)",
+              }}
+            >
+              <History size={22} style={{ color: "var(--magenta)" }} />
+            </div>
             <div>
-              <h1 className="t-page-title">
+              <h1 className="text-2xl sm:text-3xl font-bold tracking-tight" style={{ color: "var(--text-primary)" }}>
                 История
               </h1>
-              <p className="mt-1 text-sm" style={{ color: "var(--text-muted)" }}>
+              <p className="mt-0.5 text-sm" style={{ color: "var(--text-muted)" }}>
                 Все ваши прошлые сессии
               </p>
             </div>
-            {/* Info button removed */}
           </motion.div>
 
           {/* Summary stats */}

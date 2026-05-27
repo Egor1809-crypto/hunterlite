@@ -82,7 +82,7 @@ export default function AppSidebar({ collapsed, onToggle }: AppSidebarProps) {
     <aside
       className="fixed top-0 left-0 z-40 flex h-screen flex-col border-r select-none overflow-hidden"
       style={{
-        background: "var(--surface-card)",
+        background: "linear-gradient(180deg, var(--surface-elevated) 0%, var(--surface-card) 50%, var(--bg-primary) 100%)",
         borderColor: "var(--border-color)",
         width: sidebarWidth,
         transition: "width 0.2s cubic-bezier(0.25, 0.1, 0.25, 1)",
@@ -90,8 +90,8 @@ export default function AppSidebar({ collapsed, onToggle }: AppSidebarProps) {
     >
       {/* ── Logo ──────────────────────────────────────── */}
       <div
-        className="flex h-16 items-center gap-2.5 border-b px-4"
-        style={{ borderColor: "var(--border-color)" }}
+        className="flex h-16 items-center gap-2.5 px-4 relative"
+        style={{ borderBottom: "1px solid var(--border-color)" }}
       >
         <Link
           href="/home"
@@ -99,9 +99,10 @@ export default function AppSidebar({ collapsed, onToggle }: AppSidebarProps) {
           prefetch
         >
           <div
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl"
             style={{
               background: "linear-gradient(135deg, #F97316 0%, #EA580C 100%)",
+              boxShadow: "0 2px 8px rgba(249, 115, 22, 0.3)",
             }}
           >
             <Scale size={18} className="text-white" />
@@ -185,13 +186,13 @@ export default function AppSidebar({ collapsed, onToggle }: AppSidebarProps) {
                 aria-current={active ? "page" : undefined}
                 className="group relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-150 overflow-hidden"
                 style={{
-                  color: active ? "var(--primary)" : "var(--text-secondary)",
-                  background: active ? "var(--primary-muted)" : "transparent",
+                  color: active ? "#3B82F6" : "var(--text-secondary)",
+                  background: active ? "rgba(37, 99, 235, 0.1)" : "transparent",
                   justifyContent: collapsed ? "center" : "flex-start",
                 }}
                 onMouseEnter={(e) => {
                   if (!active) {
-                    e.currentTarget.style.background = "var(--bg-secondary)";
+                    e.currentTarget.style.background = "var(--bg-tertiary)";
                     e.currentTarget.style.color = "var(--text-primary)";
                   }
                 }}

@@ -4,7 +4,7 @@ import { Suspense, useEffect, useState, useCallback, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { Loader2 } from "lucide-react";
-import { Sword, Trophy, Lightning, Target, Sparkle } from "@phosphor-icons/react";
+import { Sword, Trophy, Lightning, Target, Sparkle, Briefcase } from "@phosphor-icons/react";
 import AuthLayout from "@/components/layout/AuthLayout";
 import { api } from "@/lib/api";
 import { useWebSocket } from "@/hooks/useWebSocket";
@@ -15,7 +15,7 @@ import { MatchmakingOverlay } from "@/components/pvp/MatchmakingOverlay";
 import { logger } from "@/lib/logger";
 // PixelIcon removed — clean design system
 import { CharacterPicker } from "@/components/pvp/CharacterPicker";
-import { KnowledgeBaseBrowser } from "@/components/pvp/KnowledgeBaseBrowser";
+// KnowledgeBaseBrowser moved to standalone /knowledge page
 import { HonestNavigator } from "@/components/pvp/HonestNavigator";
 import { TopPlayersPanel } from "@/components/pvp/TopPlayersPanel";
 import { ArenaLivePanel } from "@/components/pvp/ArenaLivePanel";
@@ -29,16 +29,16 @@ function PvPLobbyContent() {
   const tabParam = searchParams.get("tab");
   // PR-19: 3 tabs — combat (бой), knowledge_base (изучать), history (история).
   // «combat» — default; legacy ?tab=knowledge_base|rag → knowledge_base.
-  type LobbyTab = "combat" | "knowledge_base" | "history";
+  type LobbyTab = "combat" | "history" | "cases";
   const initialTab: LobbyTab =
-    tabParam === "knowledge_base" || tabParam === "rag" ? "knowledge_base"
-    : tabParam === "history" ? "history"
+    tabParam === "history" ? "history"
+    : tabParam === "cases" ? "cases"
     : "combat";
   const [tab, setTab] = useState<LobbyTab>(initialTab);
-  // Reactively flip tab when ?tab= changes (e.g. KB-panel click on the same /pvp page).
+  // Reactively flip tab when ?tab= changes.
   useEffect(() => {
-    if (tabParam === "knowledge_base" || tabParam === "rag") setTab("knowledge_base");
-    else if (tabParam === "history") setTab("history");
+    if (tabParam === "history") setTab("history");
+    else if (tabParam === "cases") setTab("cases");
     else if (tabParam === null) setTab("combat");
   }, [tabParam]);
   const [quizStarting, setQuizStarting] = useState(false);
@@ -289,13 +289,21 @@ function PvPLobbyContent() {
           {/* Header */}
           <motion.div initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.3 }}>
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <Sword size={28} weight="duotone" style={{ color: "var(--accent)" }} />
+              <div className="flex items-center gap-4">
+                <div
+                  className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0"
+                  style={{
+                    background: "rgba(248, 113, 113, 0.12)",
+                    boxShadow: "0 0 0 1px rgba(248, 113, 113, 0.2)",
+                  }}
+                >
+                  <Sword size={22} weight="duotone" style={{ color: "#F87171" }} />
+                </div>
                 <div>
-                  <h1 className="font-display text-xl sm:text-2xl font-bold tracking-wide" style={{ color: "var(--text-primary)" }}>
+                  <h1 className="text-2xl sm:text-3xl font-bold tracking-tight" style={{ color: "var(--text-primary)" }}>
                     PVP Арена
                   </h1>
-                  <p className="text-xs mt-0.5 font-medium" style={{ color: "var(--text-muted)" }}>
+                  <p className="text-sm mt-0.5" style={{ color: "var(--text-muted)" }}>
                     Дуэли 1 на 1 · Glicko-2 рейтинг
                   </p>
                 </div>
@@ -460,9 +468,9 @@ function PvPLobbyContent() {
                 aria-label="Режим арены"
               >
                 {([
-                  { id: "combat" as const,         label: "Бой",     accent: "var(--accent)" },
-                  { id: "knowledge_base" as const, label: "Изучать", accent: "var(--magenta, #d946ef)" },
-                  { id: "history" as const,        label: "История", accent: "var(--gf-xp, #facc15)" },
+                  { id: "combat" as const,  label: "Бой",     accent: "var(--accent)" },
+                  { id: "cases" as const,   label: "Кейсы",   accent: "var(--magenta, #d946ef)" },
+                  { id: "history" as const, label: "История", accent: "var(--gf-xp, #facc15)" },
                 ]).map((t) => {
                   const active = tab === t.id;
                   return (
@@ -534,15 +542,32 @@ function PvPLobbyContent() {
                     </details>
                   </motion.div>
                 )}
-                {tab === "knowledge_base" && (
+                {tab === "cases" && (
                   <motion.div
-                    key="knowledge-tab"
+                    key="cases-tab"
                     initial={{ opacity: 0, x: 8 }}
                     animate={{ opacity: 1, x: 0 }}
                     exit={{ opacity: 0, x: -8 }}
                     transition={{ duration: 0.18 }}
                   >
-                    <KnowledgeBaseBrowser />
+                    <div
+                      className="lh-card flex flex-col items-center justify-center py-16 text-center rounded-xl"
+                      style={{
+                        background: "var(--bg-panel)",
+                        border: "1px solid var(--border-color)",
+                      }}
+                    >
+                      <Briefcase size={40} weight="duotone" style={{ color: "var(--text-muted)" }} />
+                      <h3
+                        className="mt-4 font-display text-lg font-semibold"
+                        style={{ color: "var(--text-primary)" }}
+                      >
+                        Кейсы — скоро
+                      </h3>
+                      <p className="mt-2 text-sm max-w-sm" style={{ color: "var(--text-muted)" }}>
+                        Разбор реальных ситуаций с клиентами. Раздел появится в ближайшем обновлении.
+                      </p>
+                    </div>
                   </motion.div>
                 )}
                 {tab === "history" && (
@@ -592,8 +617,8 @@ function PvPLobbyContent() {
             ? "cheer"
             : store.queueStatus === "searching"
               ? "walk"
-              : tab === "knowledge_base"
-                ? "think"  // лев «думает» на табе Изучать
+              : tab === "cases"
+                ? "think"  // лев «думает» на табе Кейсы
                 : tab === "history"
                   ? "wink"  // лев подмигивает на табе История
                   : undefined  // combat tab → auto-derive from anchor target

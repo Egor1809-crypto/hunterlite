@@ -2,14 +2,8 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { ArrowRight, Menu, X as XIcon, Scale } from "lucide-react";
-
-const NAV_LINKS = [
-  { href: "/", label: "Главная" },
-  { href: "/product", label: "Продукт" },
-] as const;
 
 interface LandingNavbarProps {
   onLogin: () => void;
@@ -17,7 +11,6 @@ interface LandingNavbarProps {
 }
 
 export function LandingNavbar({ onLogin, onRegister }: LandingNavbarProps) {
-  const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
 
@@ -41,52 +34,33 @@ export function LandingNavbar({ onLogin, onRegister }: LandingNavbarProps) {
       />
 
       <div
-        className="relative z-10 flex items-center justify-between h-16 sm:h-[68px] w-full max-w-7xl mx-auto px-5 sm:px-8 lg:px-10"
+        className="relative z-10 flex items-center justify-between h-20 w-full mx-auto px-8 sm:px-12 lg:px-16"
       >
-        {/* Left: Logo */}
-        <Link href="/" className="flex items-center gap-2.5 transition-opacity hover:opacity-80">
-          <div className="w-8 h-8 rounded-lg bg-[#F97316] flex items-center justify-center">
-            <Scale size={18} className="text-white" />
-          </div>
-          <span className="text-lg font-bold tracking-tight text-gray-900">
-            LegalHunter
-          </span>
-        </Link>
-
-        {/* Center: Nav links (desktop) */}
-        <nav
-          className="hidden md:flex items-center gap-8"
-          aria-label="Основная навигация"
-        >
-          {NAV_LINKS.map(({ href, label }) => {
-            const isActive = pathname === href;
-            return (
-              <Link
-                key={href}
-                href={href}
-                className="text-sm font-medium transition-colors duration-200"
-                aria-current={isActive ? "page" : undefined}
-                style={{
-                  color: isActive ? "#F97316" : "#6B7280",
-                }}
-              >
-                {label}
-              </Link>
-            );
-          })}
-        </nav>
-
-        {/* Right: Actions */}
-        <div className="flex items-center gap-3">
+        {/* Left: spacer for centering */}
+        <div className="flex items-center gap-3 w-[180px]">
           <button
             onClick={onLogin}
             className="hidden sm:block text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors"
           >
             Войти
           </button>
+        </div>
+
+        {/* Center: Logo */}
+        <Link href="/" className="flex items-center gap-3 transition-opacity hover:opacity-80">
+          <div className="w-11 h-11 rounded-xl bg-[#F97316] flex items-center justify-center">
+            <Scale size={22} className="text-white" />
+          </div>
+          <span className="text-2xl font-black tracking-tight text-gray-900">
+            LegalHunter
+          </span>
+        </Link>
+
+        {/* Right: Actions */}
+        <div className="flex items-center justify-end gap-3 w-[180px]">
           <motion.button
             onClick={onRegister}
-            className="hidden sm:flex items-center gap-1.5 px-5 py-2 rounded-lg text-sm font-semibold text-white transition-transform bg-[#F97316] hover:bg-[#EA580C]"
+            className="hidden sm:flex items-center gap-2 px-6 py-2.5 rounded-lg text-sm font-bold text-white transition-transform bg-[#2563EB] hover:bg-[#1D4ED8]"
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.97 }}
           >
@@ -118,41 +92,20 @@ export function LandingNavbar({ onLogin, onRegister }: LandingNavbarProps) {
             transition={{ duration: 0.2 }}
             className="md:hidden relative z-10 px-5 pb-5 bg-white border-b border-gray-100"
           >
-            <nav className="flex flex-col gap-1" aria-label="Мобильная навигация">
-              {NAV_LINKS.map(({ href, label }) => {
-                const isActive = pathname === href;
-                return (
-                  <Link
-                    key={href}
-                    href={href}
-                    onClick={() => setMobileMenuOpen(false)}
-                    className="text-sm font-medium py-3 px-4 rounded-lg transition-colors"
-                    aria-current={isActive ? "page" : undefined}
-                    style={{
-                      color: isActive ? "#F97316" : "#6B7280",
-                      background: isActive ? "#FFF7ED" : "transparent",
-                    }}
-                  >
-                    {label}
-                  </Link>
-                );
-              })}
-              <div className="h-px my-2 bg-gray-100" />
-              <div className="flex gap-3">
-                <button
-                  onClick={() => { setMobileMenuOpen(false); onLogin(); }}
-                  className="flex-1 py-3 rounded-lg text-sm font-medium border border-gray-200 text-gray-600"
-                >
-                  Войти
-                </button>
-                <button
-                  onClick={() => { setMobileMenuOpen(false); onRegister(); }}
-                  className="flex-1 py-3 rounded-lg text-sm font-bold bg-[#F97316] text-white"
-                >
-                  Начать
-                </button>
-              </div>
-            </nav>
+            <div className="flex gap-3">
+              <button
+                onClick={() => { setMobileMenuOpen(false); onLogin(); }}
+                className="flex-1 py-3 rounded-lg text-sm font-medium border border-gray-200 text-gray-600"
+              >
+                Войти
+              </button>
+              <button
+                onClick={() => { setMobileMenuOpen(false); onRegister(); }}
+                className="flex-1 py-3 rounded-lg text-sm font-bold bg-[#2563EB] text-white"
+              >
+                Начать
+              </button>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>

@@ -5,23 +5,17 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import {
-  ArrowRight, Loader2, X, Phone, Clock, BookOpen,
+  ArrowRight, Loader2, Phone, Clock, BookOpen, BarChart3,
+  Swords, MessageSquare, Trophy,
 } from "lucide-react";
-import {
-  Lightning, TrendUp, Target, Crosshair,
-  ClipboardText,
-} from "@phosphor-icons/react";
 import { api, ApiError } from "@/lib/api";
 import { useAuth } from "@/hooks/useAuth";
 import AuthLayout from "@/components/layout/AuthLayout";
-import { useTrainingStore } from "@/stores/useTrainingStore";
 import type { DashboardManager } from "@/types";
 import { scoreColor } from "@/lib/utils";
 import { useNotificationStore } from "@/stores/useNotificationStore";
 import { logger } from "@/lib/logger";
 
-
-// ── Time-of-day greeting ──────────────────────────────────────────────
 function getTimeGreeting(): string {
   const h = new Date().getHours();
   if (h >= 5 && h < 12) return "Доброе утро";
@@ -71,34 +65,26 @@ export default function HomePage() {
       .finally(() => setLoading(false));
     api.get<{ client: typeof waitingClient }>("/home/waiting-client")
       .then((data) => setWaitingClient(data.client))
-      .catch(() => { /* optional -- fallback to old quickStart */ })
+      .catch(() => {})
       .finally(() => setWaitingClientLoaded(true));
   };
 
-  useEffect(() => {
-    fetchDashboard();
-  }, [user]);
+  useEffect(() => { fetchDashboard(); }, [user]);
 
-  // Refetch when user returns to tab
   useEffect(() => {
     const onVisible = () => {
-      if (document.visibilityState === "visible") {
-        fetchDashboard();
-      }
+      if (document.visibilityState === "visible") fetchDashboard();
     };
     document.addEventListener("visibilitychange", onVisible);
     return () => document.removeEventListener("visibilitychange", onVisible);
   }, [user]);
 
-  // Auto-refresh every 60s
   useEffect(() => {
     if (!user) return;
-    const intervalId = setInterval(() => {
-      if (document.visibilityState === "visible") {
-        fetchDashboard();
-      }
+    const id = setInterval(() => {
+      if (document.visibilityState === "visible") fetchDashboard();
     }, 60_000);
-    return () => clearInterval(intervalId);
+    return () => clearInterval(id);
   }, [user]);
 
   const recommendations = dashboard?.recommendations ?? [];
@@ -110,7 +96,6 @@ export default function HomePage() {
     if (starting) return;
     setStarting(true);
     try {
-      // Prefer the waiting client (new /home/start flow)
       if (waitingClient) {
         try {
           const session = await api.post("/home/start", {});
@@ -122,18 +107,16 @@ export default function HomePage() {
         } catch (err: unknown) {
           const status = (err as { status?: number })?.status;
           if (status === 409) {
-            logger.log("Waiting client expired, refetching preview");
             try {
               const { client } = await api.get<{ client: typeof waitingClient }>("/home/waiting-client");
               setWaitingClient(client);
-            } catch { /* preview refetch failed, leave as-is */ }
+            } catch {}
             setStarting(false);
             return;
           }
           throw err;
         }
       }
-      // Fallback: old random scenario flow
       let scenarioId: string;
       if (recommendations.length > 0) {
         const rec = recommendations[Math.floor(Math.random() * recommendations.length)];
@@ -153,11 +136,7 @@ export default function HomePage() {
       router.push(`/training/${session.id}`);
       setTimeout(() => setStarting(false), 1000);
     } catch (err) {
-      if (
-        err instanceof ApiError &&
-        err.status === 409 &&
-        err.detail?.code === "profile_incomplete"
-      ) {
+      if (err instanceof ApiError && err.status === 409 && err.detail?.code === "profile_incomplete") {
         router.push("/home");
         return;
       }
@@ -171,316 +150,329 @@ export default function HomePage() {
     }
   };
 
+  const statusLabel = (s: string) => {
+    switch (s) {
+      case "completed": return "Завершена";
+      case "in_progress": return "В процессе";
+      case "error": return "Прервана";
+      case "cancelled": return "Отменена";
+      default: return "Сессия";
+    }
+  };
+
   return (
     <AuthLayout>
-      <div className="min-h-screen" style={{ background: "var(--bg-primary)" }}>
-        <div className="app-page">
+      <div className="min-h-screen relative overflow-hidden" style={{ background: "var(--bg-primary)" }}>
 
-          {/* ── WELCOME SECTION ─────────────────────────────────────── */}
-          <motion.section
-            initial={{ opacity: 0, y: 12 }}
+        {/* ── Ambient background orbs ──────────────────────── */}
+        <div className="absolute inset-0 pointer-events-none overflow-hidden" aria-hidden>
+          <div
+            className="absolute -top-40 -right-40 w-[600px] h-[600px] rounded-full opacity-[0.04]"
+            style={{ background: "radial-gradient(circle, #2563EB 0%, transparent 70%)" }}
+          />
+          <div
+            className="absolute top-[50%] -left-48 w-[450px] h-[450px] rounded-full opacity-[0.025]"
+            style={{ background: "radial-gradient(circle, #2563EB 0%, transparent 70%)" }}
+          />
+        </div>
+
+        <div className="relative z-10 max-w-[1100px] mx-auto px-5 sm:px-8 py-8 sm:py-12">
+
+          {/* ── Hero welcome ─────────────────────────────────── */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4 }}
-            className="mb-8"
+            transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+            className="mb-10"
           >
-            <p className="t-label mb-1">{getTimeGreeting()}</p>
-            <h1 className="t-page-title">{firstName}</h1>
-            <p className="t-lead mt-1">Менеджер</p>
-          </motion.section>
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] mb-3" style={{ color: "var(--text-muted)" }}>
+              {getTimeGreeting()}
+            </p>
+            <h1 className="text-4xl sm:text-5xl font-black tracking-tight leading-[1.1] text-gradient-hero">
+              {firstName}
+            </h1>
+            <div
+              className="mt-3 h-[2px] w-16 rounded-full"
+              style={{ background: "linear-gradient(90deg, #2563EB, transparent)" }}
+            />
+          </motion.div>
 
-          {/* ── INCOMING CALL CARD ──────────────────────────────────── */}
+          {/* ── Incoming call card ────────────────────────────── */}
           {waitingClient && (
-            <motion.section
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.35 }}
-              className="lh-card p-5 sm:p-6 mb-6"
-              style={{ borderLeft: "3px solid var(--success)" }}
+            <motion.div
+              initial={{ opacity: 0, y: 20, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+              className="relative rounded-2xl p-6 sm:p-8 mb-8 overflow-hidden group"
+              style={{
+                background: "linear-gradient(135deg, #059669 0%, #047857 50%, #065F46 100%)",
+                boxShadow: "0 12px 40px rgba(5, 150, 105, 0.3), inset 0 1px 0 rgba(255,255,255,0.12)",
+              }}
             >
-              <div className="flex items-center gap-2.5 mb-3">
-                <span
-                  className="relative flex h-7 w-7 items-center justify-center rounded-full"
-                  style={{ background: "var(--success-muted)" }}
-                >
-                  <span
-                    className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-50"
-                    style={{ background: "var(--success)" }}
-                  />
-                  <motion.span
-                    className="relative inline-flex items-center justify-center"
-                    animate={{ rotate: [0, -14, 14, -14, 14, -8, 8, 0] }}
-                    transition={{
-                      duration: 0.9,
-                      repeat: Infinity,
-                      repeatDelay: 1.3,
-                      ease: "easeInOut",
-                    }}
-                  >
-                    <Phone size={14} strokeWidth={2.5} style={{ color: "var(--success)" }} />
-                  </motion.span>
-                </span>
-                <span className="t-label">Входящий звонок</span>
-              </div>
-
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                <div className="min-w-0">
-                  <h3 className="t-card-title truncate">{waitingClient.full_name}</h3>
-                  <div className="flex flex-wrap items-center gap-2 mt-1.5">
-                    <span className="badge badge-accent">{waitingClient.city}</span>
-                    <span className="badge" style={{ background: "var(--bg-secondary)", color: "var(--text-secondary)" }}>
-                      Долг: {(waitingClient.total_debt / 1000).toFixed(0)}K
-                    </span>
-                    <span className="badge" style={{ background: "var(--bg-secondary)", color: "var(--text-secondary)" }}>
-                      {"★".repeat(Math.min(waitingClient.difficulty, 5))}{"☆".repeat(Math.max(0, 5 - waitingClient.difficulty))}
-                    </span>
-                  </div>
-                </div>
-
-                <button
-                  onClick={quickStart}
-                  disabled={starting}
-                  className="lh-btn-primary shrink-0"
-                  style={{
-                    background: "linear-gradient(135deg, var(--success) 0%, #15803d 100%)",
-                    boxShadow: "0 2px 8px var(--success-muted)",
-                  }}
-                >
-                  {starting
-                    ? <Loader2 size={16} className="animate-spin" />
-                    : <><Crosshair weight="duotone" size={16} /><span>Ответить</span></>
-                  }
-                </button>
-              </div>
-            </motion.section>
-          )}
-
-          {/* ── QUICK ACTIONS ──────────────────────────────────────── */}
-          <motion.section
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4, delay: 0.1 }}
-            className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8"
-          >
-            {/* Start training -- primary CTA */}
-            {waitingClientLoaded && !waitingClient && (
-              <button
-                onClick={quickStart}
-                disabled={starting}
-                className="lh-card glass-panel-interactive p-5 flex items-center gap-4 text-left"
-                style={{ borderLeft: "3px solid var(--primary)" }}
-              >
-                <div
-                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl"
-                  style={{ background: "var(--primary-muted)" }}
-                >
-                  {starting
-                    ? <Loader2 size={20} className="animate-spin" style={{ color: "var(--primary)" }} />
-                    : <Lightning weight="duotone" size={20} style={{ color: "var(--primary)" }} />
-                  }
-                </div>
-                <div className="min-w-0">
-                  <div className="t-card-title" style={{ fontSize: "var(--fs-md)" }}>Начать тренировку</div>
-                  <div className="t-caption mt-0.5">Быстрый старт с рекомендуемым сценарием</div>
-                </div>
-                <ArrowRight size={18} className="ml-auto shrink-0" style={{ color: "var(--text-muted)" }} />
-              </button>
-            )}
-
-            {/* History */}
-            <Link
-              href="/history"
-              className="lh-card glass-panel-interactive p-5 flex items-center gap-4 no-underline"
-              style={{ borderLeft: "3px solid var(--ocean)" }}
-            >
+              {/* Animated shimmer */}
               <div
-                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl"
-                style={{ background: "var(--ocean-muted)" }}
-              >
-                <Clock size={20} style={{ color: "var(--ocean)" }} />
-              </div>
-              <div className="min-w-0">
-                <div className="t-card-title" style={{ fontSize: "var(--fs-md)", color: "var(--text-primary)" }}>История сессий</div>
-                <div className="t-caption mt-0.5">Просмотр прошлых тренировок</div>
-              </div>
-              <ArrowRight size={18} className="ml-auto shrink-0" style={{ color: "var(--text-muted)" }} />
-            </Link>
-
-            {/* Training catalog */}
-            <Link
-              href="/training"
-              className="lh-card glass-panel-interactive p-5 flex items-center gap-4 no-underline"
-              style={{ borderLeft: "3px solid var(--info)" }}
-            >
+                className="absolute inset-0 opacity-[0.06]"
+                style={{
+                  backgroundImage: "radial-gradient(circle at 1px 1px, white 1px, transparent 0)",
+                  backgroundSize: "20px 20px",
+                }}
+              />
               <div
-                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl"
-                style={{ background: "var(--info-muted)" }}
-              >
-                <BookOpen size={20} style={{ color: "var(--info)" }} />
-              </div>
-              <div className="min-w-0">
-                <div className="t-card-title" style={{ fontSize: "var(--fs-md)", color: "var(--text-primary)" }}>База знаний</div>
-                <div className="t-caption mt-0.5">Все доступные сценарии</div>
-              </div>
-              <ArrowRight size={18} className="ml-auto shrink-0" style={{ color: "var(--text-muted)" }} />
-            </Link>
-          </motion.section>
+                className="absolute -top-20 -right-20 w-40 h-40 rounded-full opacity-20"
+                style={{ background: "radial-gradient(circle, rgba(255,255,255,0.3) 0%, transparent 70%)" }}
+              />
 
-          {/* ── STATS ROW ──────────────────────────────────────────── */}
-          {!loading && stats && (
-            <motion.section
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.35, delay: 0.15 }}
-              className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8"
-            >
-              <StatCard
-                label="Сессий"
-                value={stats.completed_sessions ?? 0}
-                icon={<Target weight="duotone" size={20} style={{ color: "var(--primary)" }} />}
-                accentColor="var(--primary)"
-              />
-              <StatCard
-                label="Ср. балл"
-                value={stats.avg_score != null ? Math.round(stats.avg_score) : 0}
-                icon={<TrendUp weight="duotone" size={20} style={{ color: scoreColor(stats.avg_score ?? null) }} />}
-                accentColor={scoreColor(stats.avg_score ?? null)}
-              />
-              <StatCard
-                label="Лучший"
-                value={stats.best_score != null ? Math.round(stats.best_score) : 0}
-                icon={<Target weight="duotone" size={20} style={{ color: scoreColor(stats.best_score ?? null) }} />}
-                accentColor={scoreColor(stats.best_score ?? null)}
-              />
-              <StatCard
-                label="За неделю"
-                value={stats.sessions_this_week ?? 0}
-                icon={<Clock size={20} style={{ color: "var(--ocean)" }} />}
-                accentColor="var(--ocean)"
-              />
-            </motion.section>
-          )}
+              <div className="relative z-10">
+                <div className="flex items-center gap-3 mb-5">
+                  <span className="relative flex h-10 w-10 items-center justify-center rounded-xl bg-white/15 backdrop-blur-sm">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-xl bg-white/20" />
+                    <Phone size={18} strokeWidth={2.5} className="relative text-white" />
+                  </span>
+                  <span className="text-[11px] font-black text-white/60 uppercase tracking-[0.2em]">
+                    Входящий звонок
+                  </span>
+                </div>
 
-          {/* ── RECENT SESSIONS ────────────────────────────────────── */}
-          {!loading && recentSessions.length > 0 && (
-            <motion.section
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.35, delay: 0.2 }}
-              className="mb-8"
-            >
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="t-section-title" style={{ fontSize: "var(--fs-lg)" }}>Последние сессии</h2>
-                <Link
-                  href="/history"
-                  className="t-label flex items-center gap-1 no-underline"
-                  style={{ color: "var(--ocean)" }}
-                >
-                  Все <ArrowRight size={14} />
-                </Link>
-              </div>
-              <div className="space-y-3">
-                {recentSessions.slice(0, 5).map((session) => (
-                  <div
-                    key={session.id}
-                    onClick={() => {
-                      if (session.status === "completed" && session.score_total !== null) {
-                        router.push(`/results/${session.id}`);
-                      }
-                    }}
-                    className="lh-card glass-panel-interactive p-4 flex items-center gap-4"
-                    style={{ cursor: session.status === "completed" ? "pointer" : "default" }}
-                  >
-                    {/* Score circle */}
-                    <div
-                      className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full"
-                      style={{
-                        background: session.score_total != null
-                          ? `color-mix(in srgb, ${scoreColor(session.score_total)} 10%, transparent)`
-                          : "var(--bg-secondary)",
-                        border: `2px solid ${session.score_total != null ? scoreColor(session.score_total) : "var(--border-color)"}`,
-                      }}
-                    >
-                      <span
-                        className="text-sm font-bold t-data"
-                        style={{ color: session.score_total != null ? scoreColor(session.score_total) : "var(--text-muted)" }}
-                      >
-                        {session.score_total != null ? Math.round(session.score_total) : "--"}
+                <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-5">
+                  <div>
+                    <h3 className="text-2xl sm:text-3xl font-black text-white mb-3 tracking-tight">{waitingClient.full_name}</h3>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="px-3 py-1.5 rounded-lg text-xs font-bold bg-white/20 text-white backdrop-blur-sm border border-white/10">
+                        {waitingClient.city}
+                      </span>
+                      <span className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-white/10 text-white/70 border border-white/5">
+                        Долг: {(waitingClient.total_debt / 1000).toFixed(0)}K ₽
+                      </span>
+                      <span className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-white/10 text-white/70 border border-white/5">
+                        {"★".repeat(Math.min(waitingClient.difficulty, 5))}
                       </span>
                     </div>
-
-                    {/* Info */}
-                    <div className="flex-1 min-w-0">
-                      <div className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>
-                        {session.status === "completed" ? "Завершена" : session.status === "in_progress" ? "В процессе" : session.status}
-                      </div>
-                      <div className="t-caption mt-0.5 flex items-center gap-3">
-                        {session.started_at && <span>{formatDate(session.started_at)}</span>}
-                        {session.duration_seconds != null && session.duration_seconds > 0 && (
-                          <span>{formatDuration(session.duration_seconds)}</span>
-                        )}
-                      </div>
-                    </div>
-
-                    {session.status === "completed" && (
-                      <ArrowRight size={16} className="shrink-0" style={{ color: "var(--text-muted)" }} />
-                    )}
                   </div>
-                ))}
+
+                  <button
+                    onClick={quickStart}
+                    disabled={starting}
+                    className="inline-flex items-center gap-2.5 px-8 py-4 rounded-xl text-sm font-black transition-all duration-300 shrink-0"
+                    style={{
+                      background: "rgba(255,255,255,0.95)",
+                      color: "#047857",
+                      boxShadow: "0 4px 16px rgba(0,0,0,0.2), inset 0 1px 0 rgba(255,255,255,1)",
+                    }}
+                    onMouseEnter={(e) => { e.currentTarget.style.transform = "translateY(-3px) scale(1.02)"; e.currentTarget.style.boxShadow = "0 8px 28px rgba(0,0,0,0.25)"; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.transform = "translateY(0) scale(1)"; e.currentTarget.style.boxShadow = "0 4px 16px rgba(0,0,0,0.2), inset 0 1px 0 rgba(255,255,255,1)"; }}
+                  >
+                    {starting
+                      ? <Loader2 size={16} className="animate-spin" />
+                      : <><Phone size={16} /> Ответить</>
+                    }
+                  </button>
+                </div>
               </div>
-            </motion.section>
+            </motion.div>
           )}
 
-          {/* ── RECOMMENDED SCENARIOS ──────────────────────────────── */}
-          {!loading && recommendations.length > 0 && (
-            <motion.section
-              initial={{ opacity: 0, y: 12 }}
+          {/* ── Stats row ─────────────────────────────────────── */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.08, ease: [0.22, 1, 0.36, 1] }}
+            className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4"
+          >
+            {!loading && stats ? (
+              <>
+                <StatCard label="Сессий" value={String(stats.completed_sessions ?? 0)} icon={<BarChart3 size={16} />} color="#2563EB" idx={0} />
+                <StatCard label="Ср. балл" value={String(stats.avg_score != null ? Math.round(stats.avg_score) : 0)} icon={<Trophy size={16} />} color={scoreColor(stats.avg_score ?? null)} idx={1} />
+                <StatCard label="Лучший" value={String(stats.best_score != null ? Math.round(stats.best_score) : 0)} icon={<Trophy size={16} />} color={scoreColor(stats.best_score ?? null)} idx={2} />
+                <StatCard label="За неделю" value={String(stats.sessions_this_week ?? 0)} icon={<Clock size={16} />} color="#8B5CF6" idx={3} />
+              </>
+            ) : loading ? (
+              <>
+                {[1, 2, 3, 4].map((i) => (
+                  <div key={i} className="rounded-2xl p-5 space-y-3" style={{ background: "var(--surface-card)", border: "1px solid var(--border-color)" }}>
+                    <div className="h-8 w-16 rounded-lg animate-pulse" style={{ background: "var(--bg-tertiary)" }} />
+                    <div className="h-3 w-12 rounded animate-pulse" style={{ background: "var(--bg-tertiary)" }} />
+                  </div>
+                ))}
+              </>
+            ) : null}
+          </motion.div>
+
+          {/* ── Navigation cards ──────────────────────────────── */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.12, ease: [0.22, 1, 0.36, 1] }}
+            className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-10"
+          >
+            <NavCard
+              href="/training"
+              icon={<MessageSquare size={22} />}
+              title="Тренировка"
+              subtitle="Сценарии и практика"
+              color="#2563EB"
+              onClick={waitingClientLoaded && !waitingClient ? quickStart : undefined}
+              loading={starting && !waitingClient}
+              idx={0}
+            />
+            <NavCard
+              href="/pvp"
+              icon={<Swords size={22} />}
+              title="Арена"
+              subtitle="PvP и квизы"
+              color="#8B5CF6"
+              idx={1}
+            />
+            <NavCard
+              href="/knowledge"
+              icon={<BookOpen size={22} />}
+              title="Знания"
+              subtitle="127-ФЗ библиотека"
+              color="#10B981"
+              idx={2}
+            />
+            <NavCard
+              href="/history"
+              icon={<Clock size={22} />}
+              title="История"
+              subtitle="Прошлые сессии"
+              color="#6366F1"
+              idx={3}
+            />
+          </motion.div>
+
+          {/* ── Recent sessions ───────────────────────────────── */}
+          {!loading && recentSessions.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.35, delay: 0.25 }}
-              className="mb-8"
+              transition={{ duration: 0.45, delay: 0.14, ease: [0.22, 1, 0.36, 1] }}
+              className="mb-10"
             >
               <div className="flex items-center justify-between mb-4">
-                <h2 className="t-section-title" style={{ fontSize: "var(--fs-lg)" }}>Рекомендуемые сценарии</h2>
+                <h2 className="text-sm font-bold uppercase tracking-[0.1em]" style={{ color: "var(--text-muted)" }}>
+                  Последние сессии
+                </h2>
                 <Link
-                  href="/training"
-                  className="t-label flex items-center gap-1 no-underline"
-                  style={{ color: "var(--ocean)" }}
+                  href="/history"
+                  className="text-xs font-semibold flex items-center gap-1 no-underline transition-colors hover:opacity-80"
+                  style={{ color: "#2563EB" }}
                 >
-                  Все сценарии <ArrowRight size={14} />
+                  Все <ArrowRight size={12} />
                 </Link>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div
+                className="rounded-2xl overflow-hidden"
+                style={{ background: "var(--surface-card)", border: "1px solid var(--border-color)" }}
+              >
+                {recentSessions.slice(0, 5).map((session, idx) => {
+                  const sc = session.score_total != null ? scoreColor(session.score_total) : null;
+                  return (
+                    <div
+                      key={session.id}
+                      onClick={() => {
+                        if (session.status === "completed" && session.score_total !== null) {
+                          router.push(`/results/${session.id}`);
+                        }
+                      }}
+                      className="flex items-center gap-4 px-5 py-4 transition-all duration-200"
+                      style={{
+                        borderBottom: idx < Math.min(recentSessions.length, 5) - 1 ? "1px solid var(--border-color)" : "none",
+                        cursor: session.status === "completed" ? "pointer" : "default",
+                      }}
+                      onMouseEnter={(e) => { e.currentTarget.style.background = "var(--surface-card-hover)"; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+                    >
+                      <div
+                        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-sm font-black tabular-nums"
+                        style={{
+                          background: sc
+                            ? `color-mix(in srgb, ${sc} 12%, transparent)`
+                            : "var(--bg-tertiary)",
+                          color: sc || "var(--text-muted)",
+                          boxShadow: sc ? `0 0 0 1px color-mix(in srgb, ${sc} 20%, transparent)` : "none",
+                        }}
+                      >
+                        {session.score_total != null ? Math.round(session.score_total) : "--"}
+                      </div>
+
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
+                          {statusLabel(session.status)}
+                        </div>
+                        <div className="text-xs mt-0.5 flex items-center gap-3" style={{ color: "var(--text-muted)" }}>
+                          {session.started_at && <span>{formatDate(session.started_at)}</span>}
+                          {session.duration_seconds != null && session.duration_seconds > 0 && (
+                            <span>{formatDuration(session.duration_seconds)}</span>
+                          )}
+                        </div>
+                      </div>
+
+                      {session.status === "completed" && (
+                        <ArrowRight size={14} className="shrink-0 transition-transform duration-200 group-hover:translate-x-1" style={{ color: "var(--text-muted)" }} />
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </motion.div>
+          )}
+
+          {/* ── Recommended scenarios ─────────────────────────── */}
+          {!loading && recommendations.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.45, delay: 0.18, ease: [0.22, 1, 0.36, 1] }}
+            >
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-sm font-bold uppercase tracking-[0.1em]" style={{ color: "var(--text-muted)" }}>
+                  Рекомендуемые сценарии
+                </h2>
+                <Link
+                  href="/training"
+                  className="text-xs font-semibold flex items-center gap-1 no-underline transition-colors hover:opacity-80"
+                  style={{ color: "#2563EB" }}
+                >
+                  Все сценарии <ArrowRight size={12} />
+                </Link>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                 {recommendations.slice(0, 3).map((rec, i) => {
                   const diffColor =
-                    rec.difficulty >= 7
-                      ? "var(--danger)"
-                      : rec.difficulty >= 4
-                      ? "var(--warning)"
-                      : "var(--success)";
+                    rec.difficulty >= 7 ? "var(--danger)"
+                    : rec.difficulty >= 4 ? "var(--warning)"
+                    : "var(--success)";
                   return (
                     <motion.div
                       key={rec.scenario_id}
                       initial={{ opacity: 0, y: 8 }}
                       animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: 0.25 + i * 0.06, duration: 0.3 }}
-                      className="lh-card glass-panel-interactive p-5 group"
+                      transition={{ delay: 0.18 + i * 0.06, duration: 0.3 }}
+                      className="group rounded-xl p-5 transition-all duration-200 cursor-pointer"
+                      style={{
+                        background: "var(--surface-card)",
+                        border: "1px solid var(--border-color)",
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.borderColor = "var(--border-hover)";
+                        e.currentTarget.style.transform = "translateY(-2px)";
+                        e.currentTarget.style.boxShadow = "var(--shadow-md)";
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.borderColor = "var(--border-color)";
+                        e.currentTarget.style.transform = "translateY(0)";
+                        e.currentTarget.style.boxShadow = "none";
+                      }}
                       onClick={async () => {
                         try {
-                          const session = await api.post(
-                            "/training/sessions",
-                            {
-                              scenario_id: rec.scenario_id,
-                              mode: "chat",
-                              runtime_type: "training_simulation",
-                            },
-                          );
+                          const session = await api.post("/training/sessions", {
+                            scenario_id: rec.scenario_id,
+                            mode: "chat",
+                            runtime_type: "training_simulation",
+                          });
                           router.push(`/training/${session.id}`);
                         } catch (err) {
-                          logger.error("Failed to start training session:", err);
-                          if (
-                            err instanceof ApiError &&
-                            err.status === 409 &&
-                            err.detail?.code === "profile_incomplete"
-                          ) {
+                          if (err instanceof ApiError && err.status === 409 && err.detail?.code === "profile_incomplete") {
                             router.push("/home");
                             return;
                           }
@@ -493,24 +485,30 @@ export default function HomePage() {
                       }}
                     >
                       <div className="flex items-center justify-between mb-3">
-                        <span className="badge badge-accent">{rec.archetype}</span>
+                        <span
+                          className="px-2.5 py-1 rounded-md text-[11px] font-bold uppercase tracking-wide"
+                          style={{
+                            background: "var(--primary-muted)",
+                            color: "var(--primary)",
+                          }}
+                        >
+                          {rec.archetype}
+                        </span>
                         <div className="flex gap-1">
                           {[...Array(5)].map((_, j) => (
                             <div
                               key={j}
                               className="w-1.5 h-1.5 rounded-full"
                               style={{
-                                background:
-                                  j < Math.ceil(rec.difficulty / 2)
-                                    ? diffColor
-                                    : "var(--bg-tertiary)",
+                                background: j < Math.ceil(rec.difficulty / 2)
+                                  ? diffColor : "var(--bg-tertiary)",
                               }}
                             />
                           ))}
                         </div>
                       </div>
                       <div
-                        className="text-sm font-semibold leading-snug line-clamp-2 group-hover:text-[var(--primary)] transition-colors"
+                        className="text-sm font-semibold leading-snug line-clamp-2 group-hover:text-[#2563EB] transition-colors"
                         style={{ color: "var(--text-primary)" }}
                       >
                         {rec.title}
@@ -520,11 +518,8 @@ export default function HomePage() {
                           {rec.tags.slice(0, 3).map((tag) => (
                             <span
                               key={tag}
-                              className="text-xs px-2 py-0.5 rounded-full"
-                              style={{
-                                background: "var(--bg-secondary)",
-                                color: "var(--text-muted)",
-                              }}
+                              className="text-[11px] px-2 py-0.5 rounded-md"
+                              style={{ background: "var(--bg-tertiary)", color: "var(--text-muted)" }}
                             >
                               {tag}
                             </span>
@@ -532,41 +527,14 @@ export default function HomePage() {
                         </div>
                       )}
                       <div className="mt-3 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <span className="text-xs font-medium" style={{ color: "var(--primary)" }}>Начать</span>
-                        <ArrowRight size={12} style={{ color: "var(--primary)" }} />
+                        <span className="text-xs font-bold" style={{ color: "#2563EB" }}>Начать</span>
+                        <ArrowRight size={12} style={{ color: "#2563EB" }} />
                       </div>
                     </motion.div>
                   );
                 })}
               </div>
-            </motion.section>
-          )}
-
-          {/* ── ASSIGNED TRAININGS ─────────────────────────────────── */}
-          <AssignedBadge />
-
-          {/* ── LOADING STATE ──────────────────────────────────────── */}
-          {loading && (
-            <div className="space-y-4 stagger-cascade">
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                {[1, 2, 3, 4].map((i) => (
-                  <div key={i} className="lh-card p-5 space-y-3">
-                    <div className="h-9 w-9 rounded-xl skeleton-shimmer" />
-                    <div className="h-8 w-16 rounded-lg skeleton-shimmer" />
-                    <div className="h-3 w-12 rounded skeleton-shimmer" />
-                  </div>
-                ))}
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                {[1, 2, 3].map((j) => (
-                  <div key={j} className="lh-card p-5 space-y-3">
-                    <div className="h-4 w-20 rounded-full skeleton-shimmer" />
-                    <div className="h-5 w-3/4 rounded-lg skeleton-shimmer" />
-                    <div className="h-3 w-1/2 rounded skeleton-shimmer" />
-                  </div>
-                ))}
-              </div>
-            </div>
+            </motion.div>
           )}
         </div>
       </div>
@@ -575,92 +543,140 @@ export default function HomePage() {
 }
 
 
-/* ─── Stat Card ───────────────────────────────────────────────────────── */
+/* ── Stat Card ─────────────────────────────────────────────── */
 
-interface StatCardProps {
-  label: string;
-  value: number;
-  icon: React.ReactNode;
-  accentColor: string;
-}
-
-function StatCard({ label, value, icon, accentColor }: StatCardProps) {
+function StatCard({ label, value, color, icon, idx }: { label: string; value: string; color: string; icon: React.ReactNode; idx: number }) {
   return (
-    <div
-      className="lh-card p-5"
-      style={{ borderTop: `3px solid ${accentColor}` }}
+    <motion.div
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4, delay: 0.08 + idx * 0.05, ease: [0.22, 1, 0.36, 1] }}
+      className="group rounded-2xl p-4 sm:p-5 relative overflow-hidden transition-all duration-300"
+      style={{
+        background: "var(--surface-card)",
+        border: "1px solid var(--border-color)",
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.borderColor = `color-mix(in srgb, ${color} 30%, transparent)`;
+        e.currentTarget.style.boxShadow = `0 4px 20px color-mix(in srgb, ${color} 8%, transparent)`;
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.borderColor = "var(--border-color)";
+        e.currentTarget.style.boxShadow = "none";
+      }}
     >
-      <div className="flex items-center justify-between mb-3">
+      {/* Subtle colored glow in corner */}
+      <div
+        className="absolute -top-8 -right-8 w-24 h-24 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-500"
+        style={{ background: `radial-gradient(circle, color-mix(in srgb, ${color} 15%, transparent) 0%, transparent 70%)` }}
+      />
+
+      <div className="relative z-10">
         <div
-          className="flex h-10 w-10 items-center justify-center rounded-xl"
-          style={{ background: `color-mix(in srgb, ${accentColor} 10%, transparent)` }}
+          className="w-8 h-8 rounded-lg flex items-center justify-center mb-3"
+          style={{ background: `color-mix(in srgb, ${color} 12%, transparent)`, color }}
         >
           {icon}
         </div>
+        <div
+          className="text-2xl sm:text-3xl font-black tabular-nums tracking-tight"
+          style={{ color: "var(--text-primary)" }}
+        >
+          {value}
+        </div>
+        <div className="text-[10px] font-bold mt-1 uppercase tracking-[0.15em]" style={{ color: "var(--text-muted)" }}>
+          {label}
+        </div>
       </div>
+
       <div
-        className="text-2xl font-bold t-data"
-        style={{ color: "var(--text-primary)" }}
-      >
-        {value}
-      </div>
-      <div className="t-label mt-1">{label}</div>
-    </div>
+        className="absolute bottom-0 left-0 right-0 h-[2px]"
+        style={{ background: `linear-gradient(90deg, ${color}, transparent 80%)` }}
+      />
+    </motion.div>
   );
 }
 
 
-/* ─── Assigned Trainings Badge ─────────────────────────────────────────── */
+/* ── Nav Card ──────────────────────────────────────────────── */
 
-function AssignedBadge() {
-  const router = useRouter();
-  const { assigned, assignedLoading, fetchAssigned } = useTrainingStore();
-
-  useEffect(() => {
-    fetchAssigned();
-  }, [fetchAssigned]);
-
-  if (assignedLoading || assigned.length === 0) return null;
-
-  const now = new Date();
-  const overdueCount = assigned.filter((a) => a.deadline && new Date(a.deadline) < now).length;
+function NavCard({
+  href, icon, title, subtitle, color, onClick, loading: isLoading, idx,
+}: {
+  href: string;
+  icon: React.ReactNode;
+  title: string;
+  subtitle: string;
+  color: string;
+  onClick?: () => void;
+  loading?: boolean;
+  idx: number;
+}) {
+  const Wrapper = onClick ? "button" : Link;
+  const props = onClick
+    ? { onClick, disabled: isLoading }
+    : { href };
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 8 }}
+      initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
-      className="mb-6 lh-card glass-panel-interactive p-4 flex items-center gap-4"
-      style={{
-        borderLeft: overdueCount > 0 ? "3px solid var(--danger)" : "3px solid var(--primary)",
-      }}
-      onClick={() => router.push("/training?tab=assigned")}
+      transition={{ duration: 0.4, delay: 0.12 + idx * 0.05, ease: [0.22, 1, 0.36, 1] }}
     >
-      <div
-        className="flex h-10 w-10 items-center justify-center rounded-xl"
-        style={{ background: overdueCount > 0 ? "var(--danger-muted)" : "var(--primary-muted)" }}
+      {/* @ts-expect-error -- dynamic wrapper element */}
+      <Wrapper
+        {...props}
+        className="group flex flex-col rounded-2xl p-5 sm:p-6 transition-all duration-300 no-underline text-left relative overflow-hidden h-full"
+        style={{
+          background: "var(--surface-card)",
+          border: "1px solid var(--border-color)",
+        }}
+        onMouseEnter={(e: React.MouseEvent<HTMLElement>) => {
+          e.currentTarget.style.borderColor = `color-mix(in srgb, ${color} 40%, transparent)`;
+          e.currentTarget.style.transform = "translateY(-4px)";
+          e.currentTarget.style.boxShadow = `0 12px 32px color-mix(in srgb, ${color} 12%, transparent)`;
+        }}
+        onMouseLeave={(e: React.MouseEvent<HTMLElement>) => {
+          e.currentTarget.style.borderColor = "var(--border-color)";
+          e.currentTarget.style.transform = "translateY(0)";
+          e.currentTarget.style.boxShadow = "none";
+        }}
       >
-        <ClipboardText weight="duotone" size={18} style={{ color: overdueCount > 0 ? "var(--danger)" : "var(--primary)" }} />
-      </div>
-      <div className="flex-1">
-        <div className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>
-          Назначенные тренировки
+        {/* Hover glow orb */}
+        <div
+          className="absolute -top-10 -right-10 w-28 h-28 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-500"
+          style={{ background: `radial-gradient(circle, color-mix(in srgb, ${color} 18%, transparent) 0%, transparent 70%)` }}
+        />
+
+        <div className="relative z-10">
+          <div
+            className="w-11 h-11 rounded-xl flex items-center justify-center mb-4 transition-transform duration-300 group-hover:scale-110"
+            style={{
+              background: `color-mix(in srgb, ${color} 12%, transparent)`,
+              color,
+              boxShadow: `0 0 0 1px color-mix(in srgb, ${color} 15%, transparent)`,
+            }}
+          >
+            {isLoading ? <Loader2 size={20} className="animate-spin" /> : icon}
+          </div>
+          <div className="text-[15px] font-bold mb-1" style={{ color: "var(--text-primary)" }}>
+            {title}
+          </div>
+          <div className="text-xs font-medium" style={{ color: "var(--text-muted)" }}>
+            {subtitle}
+          </div>
+
+          <div className="mt-3 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all duration-300 translate-x-[-4px] group-hover:translate-x-0">
+            <ArrowRight size={14} style={{ color }} />
+          </div>
         </div>
-        <div className="t-caption mt-0.5">
-          {assigned.length} {assigned.length === 1 ? "сценарий" : assigned.length < 5 ? "сценария" : "сценариев"}
-          {overdueCount > 0 && (
-            <span style={{ color: "var(--danger)", fontWeight: 600 }}>
-              {" "} · {overdueCount} просрочено!
-            </span>
-          )}
-        </div>
-      </div>
-      <span
-        className="min-w-[24px] h-6 flex items-center justify-center rounded-full text-xs font-bold text-white px-1.5"
-        style={{ background: overdueCount > 0 ? "var(--danger)" : "var(--primary)" }}
-      >
-        {assigned.length}
-      </span>
-      <ArrowRight size={16} style={{ color: "var(--text-muted)" }} />
+
+        {/* Top accent line */}
+        <div
+          className="absolute top-0 left-0 right-0 h-[2px] opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+          style={{ background: `linear-gradient(90deg, ${color}, transparent 80%)` }}
+        />
+      </Wrapper>
     </motion.div>
   );
 }
