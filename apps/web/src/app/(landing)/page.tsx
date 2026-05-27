@@ -14,6 +14,12 @@ import {
   BookOpen,
   CheckCircle2,
   Play,
+  Award,
+  AlertTriangle,
+  Briefcase,
+  GraduationCap,
+  TrendingUp,
+  Clock,
 } from "lucide-react";
 import { useLandingAuth } from "@/components/landing/LandingAuthContext";
 
@@ -64,12 +70,12 @@ function MarqueeStrip() {
   const items = [
     "Переговоры с должниками",
     "Работа с возражениями",
-    "Кризисные ситуации",
+    "Интерактивные кейсы",
     "Арбитражное управление",
     "127-ФЗ о банкротстве",
     "AI-аналитика звонков",
-    "Голосовые тренировки",
-    "Холодные звонки",
+    "Сертификация",
+    "24 ак. часа ПК",
   ];
   const doubled = [...items, ...items];
 
@@ -103,32 +109,32 @@ const SERVICES = [
   {
     num: "1",
     icon: MessageSquare,
-    title: "AI-переговоры",
-    subtitle: "100+ архетипов должников",
+    title: "AI-тренировки",
+    subtitle: "60+ сценариев из практики",
     description:
-      "Скептики, манипуляторы, паникёры — каждый AI-клиент с уникальной историей. Реалистичные диалоги, где ваши решения определяют исход.",
+      "Общайтесь с AI-должниками голосом или текстом. Скептики, манипуляторы, паникёры — каждый с уникальной историей. Ваши решения определяют исход.",
     color: "#2563EB",
-    features: ["Адаптивное поведение AI", "60+ сценариев из практики", "Уникальные истории должников"],
+    features: ["Адаптивное поведение AI", "Голосовые и текстовые тренировки", "Детальный разбор после сессии"],
   },
   {
     num: "2",
-    icon: Phone,
-    title: "Голос",
-    subtitle: "Живые звонки с AI",
+    icon: Briefcase,
+    title: "Интерактивные кейсы",
+    subtitle: "Реальные ситуации",
     description:
-      "Тренируйтесь голосом. AI слышит интонацию, реагирует на паузы, перебивает. Полный эффект реального звонка.",
-    color: "#F97316",
-    features: ["Распознавание речи", "Анализ интонации", "Мгновенная обратная связь"],
+      "Разбирайте настоящие дела из арбитражной практики. Ветвящиеся сценарии, где каждое решение ведёт к разным последствиям.",
+    color: "#8B5CF6",
+    features: ["Кейсы из реальной практики", "Ветвление решений", "Анализ последствий"],
   },
   {
     num: "3",
-    icon: BarChart3,
-    title: "Аналитика",
-    subtitle: "10 параметров оценки",
+    icon: GraduationCap,
+    title: "Экзамены и сертификация",
+    subtitle: "24 ак. часа ПК",
     description:
-      "После каждой сессии — детальный разбор: возражения, юридическая точность, эмпатия, структура диалога.",
-    color: "#2563EB",
-    features: ["Персональные рекомендации", "Трекинг прогресса", "Сравнение с командой"],
+      "Пройдите модули аттестации, сдайте экзамены под AI-прокторингом и получите сертификат повышения квалификации.",
+    color: "#F59E0B",
+    features: ["AI-прокторинг", "Электронный сертификат с QR", "Засчитывается как ПК"],
   },
 ] as const;
 
@@ -185,7 +191,7 @@ export default function Home() {
                   className="w-8 h-[2px]"
                   style={{ background: "#2563EB" }}
                 />
-                AI-тренажёр для арбитражных управляющих
+                Учебная платформа для арбитражных управляющих
               </span>
             </motion.div>
 
@@ -197,11 +203,11 @@ export default function Home() {
               className="text-[clamp(2.5rem,7vw,5.5rem)] font-black leading-[0.95] tracking-[-0.03em] mb-8"
               style={{ color: "#FAFAFA" }}
             >
-              Переговоры,
+              Обучение,
               <br />
-              которые
+              которое
               <br />
-              <span style={{ color: "#2563EB" }}>закаляют</span>
+              <span style={{ color: "#2563EB" }}>сертифицирует</span>
             </motion.h1>
 
             {/* Sub */}
@@ -212,9 +218,9 @@ export default function Home() {
               className="text-lg sm:text-xl leading-relaxed max-w-lg mb-12"
               style={{ color: "#71717A" }}
             >
-              Тренажёр для арбитражных управляющих. Реальные сценарии
-              банкротства, AI-должники с характером, детальный разбор
-              каждого звонка.
+              AI-тренировки, интерактивные кейсы, экзамены с&nbsp;сертификацией.
+              24 ак.&nbsp;часа повышения квалификации для&nbsp;арбитражных
+              управляющих — онлайн, в&nbsp;своём темпе.
             </motion.p>
 
             {/* CTAs */}
@@ -239,7 +245,7 @@ export default function Home() {
                   e.currentTarget.style.boxShadow = "none";
                 }}
               >
-                Начать тренировку
+                Начать обучение
                 <ArrowRight
                   size={16}
                   className="transition-transform group-hover:translate-x-0.5"
@@ -276,10 +282,10 @@ export default function Home() {
             style={{ borderColor: "#18181B" }}
           >
             {[
-              { target: 100, suffix: "+", label: "архетипов клиентов" },
+              { target: 24, suffix: "", label: "ак. часов в программе" },
               { target: 60, suffix: "+", label: "сценариев" },
-              { target: 10, suffix: "", label: "параметров оценки" },
-              { target: 95, suffix: "%", label: "точность AI" },
+              { target: 5, suffix: "", label: "экзаменов" },
+              { target: 100, suffix: "%", label: "онлайн-формат" },
             ].map(({ target, suffix, label }) => (
               <div key={label} className="flex items-baseline gap-3">
                 <span
@@ -304,6 +310,96 @@ export default function Home() {
       {/* ═══ MARQUEE ═════════════════════════════════════════════ */}
       <MarqueeStrip />
 
+      {/* ═══ PROBLEM (Fear trigger) ════════════════════════════════ */}
+      <section className="py-24 sm:py-32" style={{ background: "#09090B" }}>
+        <div className="max-w-[1200px] mx-auto px-6 sm:px-10">
+          <motion.div
+            initial={{ opacity: 0, y: 24 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.6 }}
+            className="text-center mb-16"
+          >
+            <span
+              className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-[0.2em] mb-4"
+              style={{ color: "#EF4444" }}
+            >
+              <AlertTriangle size={14} />
+              Знаете ли вы
+            </span>
+            <h2
+              className="text-3xl sm:text-4xl lg:text-5xl font-black tracking-tight leading-[1.1]"
+              style={{ color: "#FAFAFA" }}
+            >
+              24 ак.&nbsp;часа в год — <span style={{ color: "#EF4444" }}>обязанность</span>,
+              <br />не выбор
+            </h2>
+            <p
+              className="text-base sm:text-lg leading-relaxed max-w-2xl mx-auto mt-6"
+              style={{ color: "#71717A" }}
+            >
+              Каждый арбитражный управляющий обязан ежегодно проходить повышение
+              квалификации. Без подтверждения — риск приостановки статуса СРО.
+            </p>
+          </motion.div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {[
+              {
+                icon: Clock,
+                stat: "24 ч/год",
+                title: "Обязательный минимум",
+                text: "Закон требует не менее 24 академических часов повышения квалификации ежегодно.",
+                color: "#EF4444",
+              },
+              {
+                icon: TrendingUp,
+                stat: "15-20K",
+                title: "Управляющих в России",
+                text: "И все нуждаются в актуальном обучении. Ни один конкурент не предлагает AI-формат.",
+                color: "#F59E0B",
+              },
+              {
+                icon: Award,
+                stat: "0",
+                title: "Альтернатив с AI",
+                text: "Никто в России не даёт интерактивное обучение с AI-клиентами и сертификацией.",
+                color: "#2563EB",
+              },
+            ].map(({ icon: Icon, stat, title, text, color }, i) => (
+              <motion.div
+                key={title}
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ delay: i * 0.1, duration: 0.5 }}
+                className="rounded-2xl p-8 text-center"
+                style={{ background: "#18181B", border: "1px solid #27272A" }}
+              >
+                <div
+                  className="w-12 h-12 rounded-xl flex items-center justify-center mx-auto mb-4"
+                  style={{ background: `${color}15` }}
+                >
+                  <Icon size={22} style={{ color }} />
+                </div>
+                <div
+                  className="text-3xl font-black mb-2"
+                  style={{ color }}
+                >
+                  {stat}
+                </div>
+                <h3 className="text-base font-bold mb-2" style={{ color: "#FAFAFA" }}>
+                  {title}
+                </h3>
+                <p className="text-sm leading-relaxed" style={{ color: "#71717A" }}>
+                  {text}
+                </p>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* ═══ SERVICES ════════════════════════════════════════════ */}
       <section className="py-28 sm:py-36" style={{ background: "#FAFAFA" }}>
         <div className="max-w-[1200px] mx-auto px-6 sm:px-10">
@@ -319,15 +415,15 @@ export default function Home() {
                 className="text-xs font-bold uppercase tracking-[0.2em] mb-4 block"
                 style={{ color: "#2563EB" }}
               >
-                Возможности
+                Платформа
               </span>
               <h2
                 className="text-4xl sm:text-5xl lg:text-[3.5rem] font-black tracking-tight leading-[1.05]"
                 style={{ color: "#09090B" }}
               >
-                Всё, что нужно
+                Полный цикл
                 <br />
-                для роста команды
+                обучения и аттестации
               </h2>
             </motion.div>
 
@@ -339,8 +435,8 @@ export default function Home() {
               className="text-base leading-relaxed max-w-sm"
               style={{ color: "#71717A" }}
             >
-              Три инструмента, которые превращают новичков в&nbsp;уверенных
-              переговорщиков за&nbsp;недели, а&nbsp;не&nbsp;месяцы.
+              Тренировки, кейсы и&nbsp;экзамены — единая экосистема,
+              где каждый час засчитывается в&nbsp;повышение квалификации.
             </motion.p>
           </div>
 
@@ -444,9 +540,9 @@ export default function Home() {
           >
             <span
               className="text-xs font-bold uppercase tracking-[0.2em] mb-4 block"
-              style={{ color: "#F97316" }}
+              style={{ color: "#2563EB" }}
             >
-              Почему мы
+              Преимущества
             </span>
             <h2
               className="text-4xl sm:text-5xl font-black tracking-tight"
@@ -460,28 +556,28 @@ export default function Home() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {[
               {
-                icon: Zap,
-                title: "Мгновенный старт",
-                description: "Выберите сценарий — и через 30 секунд вы уже ведёте переговоры. Никаких настроек, никакого ожидания.",
-                accent: "#2563EB",
+                icon: Award,
+                title: "Реальный сертификат",
+                description: "Электронный сертификат с QR-кодом верификации. Засчитывается как повышение квалификации по 127-ФЗ.",
+                accent: "#F59E0B",
               },
               {
                 icon: Shield,
-                title: "Безопасная среда",
-                description: "Пробуйте новые подходы, ошибайтесь, экспериментируйте — без риска потерять реального клиента.",
-                accent: "#F97316",
+                title: "AI-прокторинг",
+                description: "Экзамены проходят под контролем AI-наблюдателя. Гарантия честности и объективности оценки.",
+                accent: "#2563EB",
               },
               {
                 icon: Target,
                 title: "Измеримый прогресс",
-                description: "Каждый параметр — в цифрах. Видьте, как растут навыки команды от недели к неделе.",
-                accent: "#F97316",
+                description: "Карта компетенций обновляется после каждой сессии. Видите свой рост в реальном времени.",
+                accent: "#8B5CF6",
               },
               {
-                icon: BookOpen,
-                title: "База знаний 127-ФЗ",
-                description: "Встроенные квизы по закону о банкротстве, адаптированные под уровень каждого сотрудника.",
-                accent: "#2563EB",
+                icon: Zap,
+                title: "В своём темпе",
+                description: "Учитесь когда удобно — без расписания, без поездок. Весь курс доступен онлайн 24/7.",
+                accent: "#10B981",
               },
             ].map(({ icon: Icon, title, description, accent }, i) => (
               <motion.div
@@ -554,18 +650,18 @@ export default function Home() {
             {[
               {
                 step: "1",
-                title: "Выберите сценарий",
-                text: "Холодный звонок, работа с возражениями, кризис — 60+ ситуаций из реальной практики управляющих.",
+                title: "Тренируйтесь",
+                text: "AI-тренировки с реалистичными должниками, интерактивные кейсы из арбитражной практики. Каждая сессия — ак. час в копилку.",
               },
               {
                 step: "2",
-                title: "Проведите переговоры",
-                text: "Общайтесь с AI-должником голосом или текстом. Он давит, торгуется, паникует — как настоящий.",
+                title: "Сдайте экзамены",
+                text: "5 модулей аттестации под AI-прокторингом. Вопросы из реальной практики, не из учебника.",
               },
               {
                 step: "3",
-                title: "Получите разбор",
-                text: "Детальный анализ: что сработало, где потеряли клиента, как сделать лучше в следующий раз.",
+                title: "Получите сертификат",
+                text: "Электронный сертификат с QR-верификацией. 24 ак. часа повышения квалификации — без поездок и очных семинаров.",
               },
             ].map(({ step, title, text }, i) => (
               <motion.div
@@ -586,7 +682,7 @@ export default function Home() {
                 {/* Colored top line */}
                 <div
                   className="w-12 h-1 rounded-full mb-5"
-                  style={{ background: i === 1 ? "#F97316" : "#2563EB" }}
+                  style={{ background: i === 1 ? "#8B5CF6" : "#2563EB" }}
                 />
                 <h3
                   className="text-xl font-bold mb-3"
@@ -630,14 +726,14 @@ export default function Home() {
               className="text-4xl sm:text-5xl lg:text-6xl font-black tracking-tight mb-6 leading-[1.05]"
               style={{ color: "#FFFFFF" }}
             >
-              Готовы начать?
+              Начните набирать часы ПК
             </h2>
             <p
               className="text-lg max-w-md mx-auto mb-10 leading-relaxed"
               style={{ color: "rgba(255,255,255,0.7)" }}
             >
-              Первые тренировки бесплатно. Без обязательств,
-              без кредитной карты.
+              Первые модули бесплатно. Без обязательств,
+              без кредитной карты. 24 ак. часа — ваша цель на год.
             </p>
             <button
               onClick={openRegister}
@@ -655,7 +751,7 @@ export default function Home() {
                 e.currentTarget.style.boxShadow = "none";
               }}
             >
-              Начать тренировку
+              Начать обучение
               <ArrowRight
                 size={16}
                 className="transition-transform group-hover:translate-x-0.5"

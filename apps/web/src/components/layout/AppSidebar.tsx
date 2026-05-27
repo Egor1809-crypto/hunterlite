@@ -6,7 +6,6 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Home,
   Crosshair,
-  Swords,
   History,
   BookOpen,
   User,
@@ -17,6 +16,8 @@ import {
   Scale,
   PanelLeftClose,
   PanelLeft,
+  Briefcase,
+  GraduationCap,
 } from "lucide-react";
 import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/hooks/useAuth";
@@ -39,10 +40,11 @@ type NavItem = {
 function buildNavForRole(_role: UserRole | undefined): NavItem[] {
   return [
     { href: "/home", label: "Центр", icon: Home },
-    { href: "/training", label: "Тренировка", icon: Crosshair },
-    { href: "/pvp", label: "Арена", icon: Swords },
+    { href: "/training", label: "Обучение", icon: Crosshair },
+    { href: "/cases", label: "Кейсы", icon: Briefcase },
+    { href: "/exam", label: "Экзамен", icon: GraduationCap },
     { href: "/history", label: "История", icon: History },
-    { href: "/knowledge", label: "Знания", icon: BookOpen },
+    { href: "/knowledge", label: "База знаний", icon: BookOpen },
   ];
 }
 
@@ -101,8 +103,8 @@ export default function AppSidebar({ collapsed, onToggle }: AppSidebarProps) {
           <div
             className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl"
             style={{
-              background: "linear-gradient(135deg, #F97316 0%, #EA580C 100%)",
-              boxShadow: "0 2px 8px rgba(249, 115, 22, 0.3)",
+              background: "linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%)",
+              boxShadow: "0 2px 8px rgba(37, 99, 235, 0.3)",
             }}
           >
             <Scale size={18} className="text-white" />

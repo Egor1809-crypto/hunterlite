@@ -6,7 +6,7 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import {
   ArrowRight, Loader2, Phone, Clock, BookOpen, BarChart3,
-  Swords, MessageSquare, Trophy,
+  MessageSquare, Trophy, Briefcase, GraduationCap, Award,
 } from "lucide-react";
 import { api, ApiError } from "@/lib/api";
 import { useAuth } from "@/hooks/useAuth";
@@ -298,6 +298,50 @@ export default function HomePage() {
           </motion.div>
 
           {/* ── Navigation cards ──────────────────────────────── */}
+          {/* ── CPD Progress Banner ────────────────────────── */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.1, ease: [0.22, 1, 0.36, 1] }}
+            className="mb-6 rounded-2xl overflow-hidden"
+            style={{
+              background: "linear-gradient(135deg, rgba(37,99,235,0.06) 0%, rgba(139,92,246,0.04) 100%)",
+              border: "1px solid rgba(37,99,235,0.12)",
+            }}
+          >
+            <div className="p-5 sm:p-6 flex flex-col sm:flex-row sm:items-center gap-4">
+              <div className="flex items-center gap-3 flex-1">
+                <div
+                  className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+                  style={{ background: "rgba(37,99,235,0.12)", color: "#2563EB" }}
+                >
+                  <Award size={18} />
+                </div>
+                <div>
+                  <div className="text-xs font-bold uppercase tracking-wider mb-0.5" style={{ color: "#2563EB" }}>
+                    Повышение квалификации
+                  </div>
+                  <div className="text-sm" style={{ color: "var(--text-secondary)" }}>
+                    <span className="font-bold" style={{ color: "var(--text-primary)" }}>0</span> из 24 ак. часов набрано в этом году
+                  </div>
+                </div>
+              </div>
+              <div className="flex-1 max-w-[280px]">
+                <div className="flex justify-between text-[10px] font-semibold mb-1">
+                  <span style={{ color: "var(--text-muted)" }}>Прогресс</span>
+                  <span style={{ color: "#2563EB" }}>0%</span>
+                </div>
+                <div className="h-2 rounded-full overflow-hidden" style={{ background: "var(--bg-tertiary)" }}>
+                  <div
+                    className="h-full rounded-full transition-all duration-500"
+                    style={{ width: "0%", background: "linear-gradient(90deg, #2563EB, #8B5CF6)" }}
+                  />
+                </div>
+              </div>
+            </div>
+          </motion.div>
+
+          {/* ── Navigation cards ──────────────────────────────── */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -307,37 +351,201 @@ export default function HomePage() {
             <NavCard
               href="/training"
               icon={<MessageSquare size={22} />}
-              title="Тренировка"
-              subtitle="Сценарии и практика"
+              title="Обучение"
+              subtitle="AI-тренировки"
               color="#2563EB"
               onClick={waitingClientLoaded && !waitingClient ? quickStart : undefined}
               loading={starting && !waitingClient}
               idx={0}
             />
             <NavCard
-              href="/pvp"
-              icon={<Swords size={22} />}
-              title="Арена"
-              subtitle="PvP и квизы"
+              href="/cases"
+              icon={<Briefcase size={22} />}
+              title="Кейсы"
+              subtitle="Разбор ситуаций"
               color="#8B5CF6"
               idx={1}
             />
             <NavCard
-              href="/knowledge"
-              icon={<BookOpen size={22} />}
-              title="Знания"
-              subtitle="127-ФЗ библиотека"
-              color="#10B981"
+              href="/exam"
+              icon={<GraduationCap size={22} />}
+              title="Экзамен"
+              subtitle="Сертификация"
+              color="#F59E0B"
               idx={2}
             />
             <NavCard
-              href="/history"
-              icon={<Clock size={22} />}
-              title="История"
-              subtitle="Прошлые сессии"
-              color="#6366F1"
+              href="/knowledge"
+              icon={<BookOpen size={22} />}
+              title="База знаний"
+              subtitle="127-ФЗ справочник"
+              color="#10B981"
               idx={3}
             />
+          </motion.div>
+
+          {/* ── Competency Radar + Daily Challenge ─────────────── */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.16, ease: [0.22, 1, 0.36, 1] }}
+            className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-10"
+          >
+            {/* Competency Spider */}
+            <div
+              className="rounded-2xl p-5 sm:p-6"
+              style={{ background: "var(--surface-card)", border: "1px solid var(--border-color)" }}
+            >
+              <h3 className="text-xs font-bold uppercase tracking-wider mb-4" style={{ color: "var(--text-muted)" }}>
+                Карта компетенций
+              </h3>
+              <div className="flex items-center justify-center">
+                <svg viewBox="0 0 200 200" className="w-full max-w-[220px]">
+                  {/* Grid circles */}
+                  {[20, 40, 60, 80].map((r) => (
+                    <circle key={r} cx="100" cy="100" r={r} fill="none" stroke="var(--border-color)" strokeWidth="0.5" opacity="0.5" />
+                  ))}
+                  {/* Axis lines */}
+                  {[0, 60, 120, 180, 240, 300].map((angle) => {
+                    const rad = (angle * Math.PI) / 180;
+                    const x2 = 100 + 80 * Math.cos(rad - Math.PI / 2);
+                    const y2 = 100 + 80 * Math.sin(rad - Math.PI / 2);
+                    return <line key={angle} x1="100" y1="100" x2={x2} y2={y2} stroke="var(--border-color)" strokeWidth="0.5" opacity="0.5" />;
+                  })}
+                  {/* Data polygon — placeholder scores */}
+                  {(() => {
+                    const scores = [45, 60, 35, 55, 40, 50]; // placeholder competency scores
+                    const labels = ["Скрипт", "Возражения", "Коммуникация", "Закрытие", "Анализ", "Право"];
+                    const points = scores.map((s, i) => {
+                      const angle = (i * 60 * Math.PI) / 180 - Math.PI / 2;
+                      const r = (s / 100) * 80;
+                      return `${100 + r * Math.cos(angle)},${100 + r * Math.sin(angle)}`;
+                    }).join(" ");
+                    return (
+                      <>
+                        <polygon
+                          points={points}
+                          fill="rgba(37, 99, 235, 0.12)"
+                          stroke="#2563EB"
+                          strokeWidth="1.5"
+                        />
+                        {scores.map((s, i) => {
+                          const angle = (i * 60 * Math.PI) / 180 - Math.PI / 2;
+                          const r = (s / 100) * 80;
+                          return (
+                            <circle
+                              key={i}
+                              cx={100 + r * Math.cos(angle)}
+                              cy={100 + r * Math.sin(angle)}
+                              r="3"
+                              fill="#2563EB"
+                            />
+                          );
+                        })}
+                        {labels.map((label, i) => {
+                          const angle = (i * 60 * Math.PI) / 180 - Math.PI / 2;
+                          const lx = 100 + 95 * Math.cos(angle);
+                          const ly = 100 + 95 * Math.sin(angle);
+                          return (
+                            <text
+                              key={i}
+                              x={lx}
+                              y={ly}
+                              textAnchor="middle"
+                              dominantBaseline="middle"
+                              fill="var(--text-muted)"
+                              fontSize="8"
+                              fontWeight="600"
+                            >
+                              {label}
+                            </text>
+                          );
+                        })}
+                      </>
+                    );
+                  })()}
+                </svg>
+              </div>
+              <p className="text-xs text-center mt-3" style={{ color: "var(--text-muted)" }}>
+                Данные обновляются после каждой сессии
+              </p>
+            </div>
+
+            {/* Daily Challenge */}
+            <div
+              className="rounded-2xl p-5 sm:p-6 flex flex-col"
+              style={{ background: "var(--surface-card)", border: "1px solid var(--border-color)" }}
+            >
+              <h3 className="text-xs font-bold uppercase tracking-wider mb-4" style={{ color: "var(--text-muted)" }}>
+                Ежедневная разминка
+              </h3>
+              <div className="flex-1 flex flex-col gap-3">
+                {[
+                  {
+                    title: "Быстрый тест",
+                    desc: "5 вопросов по ФЗ-127 за 3 минуты",
+                    color: "#2563EB",
+                    href: "/exam",
+                    time: "~3 мин",
+                  },
+                  {
+                    title: "Мини-кейс",
+                    desc: "Разберите одну ситуацию из практики",
+                    color: "#8B5CF6",
+                    href: "/cases",
+                    time: "~10 мин",
+                  },
+                  {
+                    title: "Тренировочный звонок",
+                    desc: "Один звонок с AI-клиентом средней сложности",
+                    color: "#10B981",
+                    href: "/training",
+                    time: "~15 мин",
+                  },
+                ].map((item) => (
+                  <Link
+                    key={item.title}
+                    href={item.href}
+                    className="group flex items-center gap-3 rounded-xl p-3 transition-all duration-200 no-underline"
+                    style={{ background: "var(--bg-tertiary)" }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.background = `color-mix(in srgb, ${item.color} 8%, var(--bg-tertiary))`;
+                      e.currentTarget.style.transform = "translateX(4px)";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.background = "var(--bg-tertiary)";
+                      e.currentTarget.style.transform = "translateX(0)";
+                    }}
+                  >
+                    <div
+                      className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
+                      style={{ background: `color-mix(in srgb, ${item.color} 12%, transparent)`, color: item.color }}
+                    >
+                      <ArrowRight size={14} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
+                        {item.title}
+                      </div>
+                      <div className="text-xs" style={{ color: "var(--text-muted)" }}>
+                        {item.desc}
+                      </div>
+                    </div>
+                    <span className="text-[10px] font-medium shrink-0" style={{ color: "var(--text-muted)" }}>
+                      {item.time}
+                    </span>
+                  </Link>
+                ))}
+              </div>
+              <div
+                className="mt-4 pt-3 text-center"
+                style={{ borderTop: "1px solid var(--border-color)" }}
+              >
+                <span className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
+                  Серия: 0 дней подряд
+                </span>
+              </div>
+            </div>
           </motion.div>
 
           {/* ── Recent sessions ───────────────────────────────── */}

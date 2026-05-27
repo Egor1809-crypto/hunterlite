@@ -219,7 +219,7 @@ export default function HistoryPage() {
               <Tray size={40} weight="duotone" style={{ color: "var(--text-muted)" }} />
               <p className="mt-3 text-sm" style={{ color: "var(--text-muted)" }}>Твоя история начнётся с первой тренировки.</p>
               <Button onClick={() => router.push("/training")} className="mt-4" iconRight={<ArrowRight size={16} />}>
-                Начать первую охоту
+                Начать обучение
               </Button>
             </motion.div>
           ) : (
