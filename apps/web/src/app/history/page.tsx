@@ -13,12 +13,16 @@ import {
   ChartBar,
   Stack,
   Sparkle,
+  TrendUp,
+  TrendDown,
 } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/Button";
 import { api } from "@/lib/api";
 import { scoreColor } from "@/lib/utils";
 import AuthLayout from "@/components/layout/AuthLayout";
 import type { HistoryEntry } from "@/types";
+
+const NOISE_SVG = `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E")`;
 
 function statusConfig(status: string) {
   switch (status) {
@@ -69,6 +73,19 @@ function MiniScoreBars({ session }: { session: HistoryEntry["latest_session"] })
     </div>
   );
 }
+
+const PREMIUM_STYLES = `
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(0.85); }
+}
+.history-session-card {
+  transition: box-shadow 0.3s ease, transform 0.15s ease;
+}
+.history-session-card:hover {
+  box-shadow: 0 0 20px rgba(168,85,247,0.06), 0 0 40px rgba(59,130,246,0.04), 0 4px 16px rgba(0,0,0,0.15) !important;
+}
+`;
 
 export default function HistoryPage() {
   const router = useRouter();
@@ -131,8 +148,68 @@ export default function HistoryPage() {
 
   return (
     <AuthLayout>
+      <style dangerouslySetInnerHTML={{ __html: PREMIUM_STYLES }} />
       <div className="relative panel-grid-bg min-h-screen">
-        <div className="app-page max-w-4xl">
+        {/* Ambient gradient orbs */}
+        <div
+          aria-hidden
+          style={{
+            position: "absolute",
+            top: "-200px",
+            left: "-200px",
+            width: 800,
+            height: 800,
+            borderRadius: "50%",
+            background: "radial-gradient(circle, rgba(168,85,247,0.45) 0%, transparent 70%)",
+            opacity: 0.03,
+            pointerEvents: "none",
+            filter: "blur(80px)",
+          }}
+        />
+        <div
+          aria-hidden
+          style={{
+            position: "absolute",
+            bottom: "-100px",
+            right: "-150px",
+            width: 650,
+            height: 650,
+            borderRadius: "50%",
+            background: "radial-gradient(circle, rgba(59,130,246,0.5) 0%, transparent 70%)",
+            opacity: 0.025,
+            pointerEvents: "none",
+            filter: "blur(80px)",
+          }}
+        />
+        <div
+          aria-hidden
+          style={{
+            position: "absolute",
+            top: "30%",
+            left: "50%",
+            transform: "translateX(-50%)",
+            width: 500,
+            height: 500,
+            borderRadius: "50%",
+            background: "radial-gradient(circle, rgba(236,72,153,0.4) 0%, transparent 70%)",
+            opacity: 0.02,
+            pointerEvents: "none",
+            filter: "blur(80px)",
+          }}
+        />
+        {/* Noise texture overlay */}
+        <div
+          aria-hidden
+          style={{
+            position: "absolute",
+            inset: 0,
+            backgroundImage: NOISE_SVG,
+            backgroundRepeat: "repeat",
+            pointerEvents: "none",
+            zIndex: 0,
+          }}
+        />
+        <div className="app-page max-w-4xl" style={{ position: "relative", zIndex: 1 }}>
           <motion.div
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
@@ -142,7 +219,7 @@ export default function HistoryPage() {
               className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0"
               style={{
                 background: "var(--magenta-muted)",
-                boxShadow: "0 0 0 1px color-mix(in srgb, var(--magenta) 20%, transparent)",
+                boxShadow: "0 0 0 1px color-mix(in srgb, var(--magenta) 20%, transparent), 0 0 20px rgba(236,72,153,0.15), 0 0 40px rgba(236,72,153,0.05)",
               }}
             >
               <History size={22} style={{ color: "var(--magenta)" }} />
@@ -156,6 +233,75 @@ export default function HistoryPage() {
               </p>
             </div>
           </motion.div>
+
+          {/* Было / Стало comparison */}
+          {!loading && completed.length >= 2 && (() => {
+            const sorted = [...completed].sort((a, b) => new Date(a.started_at).getTime() - new Date(b.started_at).getTime());
+            const firstScore = sorted[0].score_total ?? 0;
+            const lastScore = sorted[sorted.length - 1].score_total ?? 0;
+            const diff = Math.round(lastScore - firstScore);
+            const isPositive = diff > 0;
+            return (
+              <motion.div
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.08 }}
+                className="mt-6 rounded-xl overflow-hidden"
+                style={{
+                  background: isPositive ? "rgba(34,197,94,0.04)" : "rgba(239,68,68,0.04)",
+                  border: `1px solid ${isPositive ? "rgba(34,197,94,0.18)" : "rgba(239,68,68,0.18)"}`,
+                  boxShadow: isPositive
+                    ? "0 0 20px rgba(34,197,94,0.08), 0 0 40px rgba(34,197,94,0.03), inset 0 1px 0 rgba(34,197,94,0.06)"
+                    : "0 0 20px rgba(239,68,68,0.08), 0 0 40px rgba(239,68,68,0.03), inset 0 1px 0 rgba(239,68,68,0.06)",
+                }}
+              >
+                <div className="p-4 flex items-center gap-4">
+                  <div className="flex items-center gap-2">
+                    <span
+                      style={{
+                        width: 6,
+                        height: 6,
+                        borderRadius: "50%",
+                        background: isPositive ? "var(--success)" : "var(--danger)",
+                        boxShadow: isPositive
+                          ? "0 0 6px rgba(34,197,94,0.6)"
+                          : "0 0 6px rgba(239,68,68,0.6)",
+                        animation: "pulse 2s ease-in-out infinite",
+                        flexShrink: 0,
+                      }}
+                    />
+                    {isPositive
+                      ? <TrendUp size={18} weight="bold" style={{ color: "var(--success)" }} />
+                      : <TrendDown size={18} weight="bold" style={{ color: "var(--danger)" }} />
+                    }
+                    <span className="text-xs font-bold uppercase tracking-wider" style={{ color: isPositive ? "var(--success)" : "var(--danger)" }}>
+                      Было / Стало
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-3 flex-1">
+                    <div className="text-center">
+                      <div className="text-[10px] font-semibold uppercase" style={{ color: "var(--text-muted)" }}>Первая</div>
+                      <div className="text-lg font-bold" style={{ color: "var(--text-secondary)" }}>{Math.round(firstScore)}</div>
+                    </div>
+                    <ArrowRight size={14} style={{ color: "var(--text-muted)" }} />
+                    <div className="text-center">
+                      <div className="text-[10px] font-semibold uppercase" style={{ color: "var(--text-muted)" }}>Последняя</div>
+                      <div className="text-lg font-bold" style={{ color: scoreColor(lastScore) }}>{Math.round(lastScore)}</div>
+                    </div>
+                  </div>
+                  <div
+                    className="text-sm font-bold px-3 py-1 rounded-lg"
+                    style={{
+                      background: isPositive ? "rgba(34,197,94,0.12)" : "rgba(239,68,68,0.12)",
+                      color: isPositive ? "var(--success)" : "var(--danger)",
+                    }}
+                  >
+                    {isPositive ? "+" : ""}{diff} баллов
+                  </div>
+                </div>
+              </motion.div>
+            );
+          })()}
 
           {/* Summary stats */}
           {!loading && entries.length > 0 && (
@@ -177,7 +323,10 @@ export default function HistoryPage() {
                   <div
                     key={item.label}
                     className="glass-panel p-4 text-center"
-                    style={isHero ? { borderBottom: `2px solid ${item.color}` } : undefined}
+                    style={{
+                      ...(isHero ? { borderBottom: `2px solid ${item.color}` } : {}),
+                      boxShadow: `0 0 15px color-mix(in srgb, ${item.color} 8%, transparent), 0 0 30px color-mix(in srgb, ${item.color} 3%, transparent)`,
+                    }}
                   >
                     <Icon size={isHero ? 18 : 14} weight="duotone" className="mx-auto mb-1" style={{ color: item.color }} />
                     <div className={`font-display font-bold ${isHero ? "text-2xl" : "text-xl"}`} style={{ color: isHero ? item.color : "var(--text-primary)" }}>{item.value}</div>
@@ -219,7 +368,7 @@ export default function HistoryPage() {
               <Tray size={40} weight="duotone" style={{ color: "var(--text-muted)" }} />
               <p className="mt-3 text-sm" style={{ color: "var(--text-muted)" }}>Твоя история начнётся с первой тренировки.</p>
               <Button onClick={() => router.push("/training")} className="mt-4" iconRight={<ArrowRight size={16} />}>
-                Начать первую охоту
+                Начать обучение
               </Button>
             </motion.div>
           ) : (
@@ -252,7 +401,7 @@ export default function HistoryPage() {
                           initial={{ opacity: 0, y: 12 }}
                           animate={{ opacity: 1, y: 0 }}
                           transition={{ delay: i * 0.04 }}
-                          className={`glass-panel p-5 flex items-center gap-4 transition-all ${canOpenEntry ? "cursor-pointer" : ""}`}
+                          className={`glass-panel history-session-card p-5 flex items-center gap-4 transition-all ${canOpenEntry ? "cursor-pointer" : ""}`}
                           style={{ boxShadow: `inset 3px 0 0 ${scoreColor(entry.avg_score ?? session.score_total)}` }}
                           whileHover={canOpenEntry ? { y: -2, boxShadow: "var(--shadow-md)" } : undefined}
                           onClick={() => canOpenEntry && router.push(targetHref)}

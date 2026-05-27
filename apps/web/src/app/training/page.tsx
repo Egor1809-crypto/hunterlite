@@ -38,10 +38,12 @@ import { ScenarioCatalogCard } from "@/components/training/ScenarioCatalogCard";
 import type { Scenario } from "@/types";
 import { Skeleton } from "@/components/ui/Skeleton";
 
+const NOISE_SVG = `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E")`;
+
 // 2026-04-18: вкладка "Рекомендуемые" убрана из /training — она сбивала
 // пользователя с главного flow. Из /home кнопка "Рекомендуемые" теперь
 // ведёт в /training?tab=scenarios (та же логика подбора работает там же).
-type Tab = "scenarios" | "builder" | "exams" | "tests";
+type Tab = "scenarios" | "builder" | "tests";
 
 const TABS: {
   id: Tab;
@@ -50,10 +52,9 @@ const TABS: {
   emoji: string;
   hue: string;
 }[] = [
-  { id: "scenarios", label: "Сценарии",    icon: BookOpen,       emoji: "🎭", hue: "var(--accent)" },
-  { id: "builder",   label: "Конструктор", icon: Puzzle,         emoji: "🧩", hue: "var(--success)" },
-  { id: "exams",     label: "Экзамен",     icon: ClipboardList,  emoji: "📝", hue: "var(--danger)" },
-  { id: "tests",     label: "Тесты",       icon: Target,         emoji: "🎯", hue: "var(--info)" },
+  { id: "tests",     label: "Тесты",        icon: Target,         emoji: "🎯", hue: "var(--info)" },
+  { id: "builder",   label: "Конструктор",  icon: Puzzle,         emoji: "🧩", hue: "var(--success)" },
+  { id: "scenarios", label: "Мои клиенты",  icon: BookOpen,       emoji: "🎭", hue: "var(--accent)" },
 ];
 
 const TYPE_FILTERS = [
@@ -87,7 +88,7 @@ function TrainingPageContent() {
   const searchParams = useSearchParams();
   // Extract tab param as string to avoid unstable searchParams object reference
   const tabParam = searchParams.get("tab");
-  const [tab, setTab] = useState<Tab>("scenarios");
+  const [tab, setTab] = useState<Tab>("tests");
   // Track both scenario id and optional archetype code so RecommendedTab
   // (where multiple cards can share the same matched scenario) lights up
   // the spinner ONLY on the specific card the user clicked.
@@ -108,9 +109,9 @@ function TrainingPageContent() {
   useEffect(() => {
     // Legacy ?tab=recommended (из /home или старых ссылок) маршрутизирует на scenarios.
     // Legacy ?tab=assigned|saved → scenarios (tabs removed).
-    if (tabParam === "recommended" || tabParam === "assigned" || tabParam === "saved") {
+    if (tabParam === "recommended" || tabParam === "assigned" || tabParam === "saved" || tabParam === "exams") {
       setTab("scenarios");
-    } else if (tabParam === "builder" || tabParam === "scenarios" || tabParam === "exams" || tabParam === "tests") {
+    } else if (tabParam === "builder" || tabParam === "scenarios" || tabParam === "tests") {
       setTab(tabParam);
     }
   }, [tabParam]);
@@ -210,6 +211,15 @@ function TrainingPageContent() {
   return (
     <AuthLayout>
       <div className="relative panel-grid-bg min-h-screen">
+        {/* Ambient gradient orbs */}
+        <div className="pointer-events-none absolute inset-0 z-0 overflow-hidden">
+          <div className="absolute -top-[200px] -right-[200px] w-[900px] h-[900px] rounded-full" style={{ background: "radial-gradient(circle, rgba(59,130,246,0.035) 0%, transparent 70%)" }} />
+          <div className="absolute -bottom-[150px] -left-[150px] w-[700px] h-[700px] rounded-full" style={{ background: "radial-gradient(circle, rgba(139,92,246,0.025) 0%, transparent 70%)" }} />
+          <div className="absolute top-1/3 -right-[100px] w-[500px] h-[500px] rounded-full" style={{ background: "radial-gradient(circle, rgba(34,197,94,0.02) 0%, transparent 70%)" }} />
+        </div>
+        {/* Noise texture overlay */}
+        <div className="pointer-events-none absolute inset-0 z-0" style={{ backgroundImage: NOISE_SVG, backgroundRepeat: "repeat", opacity: 0.4 }} />
+
         {/* Error toast */}
         <AnimatePresence>
           {startError && (
@@ -239,17 +249,17 @@ function TrainingPageContent() {
                   className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0"
                   style={{
                     background: "var(--accent-muted)",
-                    boxShadow: "0 0 0 1px color-mix(in srgb, var(--accent) 20%, transparent)",
+                    boxShadow: "0 0 0 1px color-mix(in srgb, var(--accent) 20%, transparent), 0 0 20px rgba(59,130,246,0.15), 0 0 40px rgba(59,130,246,0.05)",
                   }}
                 >
                   <Crosshair size={22} style={{ color: "var(--accent)" }} />
                 </div>
                 <div>
                   <h1 className="text-2xl sm:text-3xl font-bold tracking-tight" style={{ color: "var(--text-primary)" }}>
-                    Тренировки
+                    Обучение
                   </h1>
                   <p className="mt-0.5 text-sm" style={{ color: "var(--text-muted)" }}>
-                    Выберите формат и сложность
+                    AI-тренировки с реалистичными клиентами
                   </p>
                 </div>
               </div>
@@ -355,95 +365,12 @@ function TrainingPageContent() {
               </motion.div>
             )}
 
-            {tab === "exams" && (
-              <motion.div key="exams" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.18 }}>
-                <div
-                  className="mt-6 relative overflow-hidden flex flex-col items-center justify-center py-20 text-center rounded-2xl"
-                  style={{
-                    background: "var(--surface-card)",
-                    border: "1px solid var(--border-color)",
-                  }}
-                >
-                  {/* Ambient glow */}
-                  <div
-                    className="absolute -top-20 left-1/2 -translate-x-1/2 w-[300px] h-[300px] rounded-full opacity-[0.06]"
-                    style={{ background: "radial-gradient(circle, var(--danger) 0%, transparent 70%)" }}
-                  />
-                  <div className="relative z-10 flex flex-col items-center">
-                    <div
-                      className="w-16 h-16 rounded-2xl flex items-center justify-center mb-5"
-                      style={{
-                        background: "var(--danger-muted)",
-                        boxShadow: "0 0 0 1px color-mix(in srgb, var(--danger) 20%, transparent)",
-                      }}
-                    >
-                      <ClipboardList size={28} style={{ color: "var(--danger)" }} />
-                    </div>
-                    <div
-                      className="px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-[0.15em] mb-4"
-                      style={{ background: "var(--danger-muted)", color: "var(--danger)" }}
-                    >
-                      В разработке
-                    </div>
-                    <h3
-                      className="text-xl font-bold tracking-tight"
-                      style={{ color: "var(--text-primary)" }}
-                    >
-                      Экзамены
-                    </h3>
-                    <p className="mt-3 text-sm max-w-md leading-relaxed" style={{ color: "var(--text-muted)" }}>
-                      Экзаменационные сценарии с оценкой и сертификацией.<br />
-                      Проверьте свои навыки в условиях, максимально приближённых к реальным.
-                    </p>
-                  </div>
-                </div>
+            {tab === "tests" && (
+              <motion.div key="tests" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.18 }}>
+                <TestsTab />
               </motion.div>
             )}
 
-            {tab === "tests" && (
-              <motion.div key="tests" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.18 }}>
-                <div
-                  className="mt-6 relative overflow-hidden flex flex-col items-center justify-center py-20 text-center rounded-2xl"
-                  style={{
-                    background: "var(--surface-card)",
-                    border: "1px solid var(--border-color)",
-                  }}
-                >
-                  {/* Ambient glow */}
-                  <div
-                    className="absolute -top-20 left-1/2 -translate-x-1/2 w-[300px] h-[300px] rounded-full opacity-[0.06]"
-                    style={{ background: "radial-gradient(circle, var(--info) 0%, transparent 70%)" }}
-                  />
-                  <div className="relative z-10 flex flex-col items-center">
-                    <div
-                      className="w-16 h-16 rounded-2xl flex items-center justify-center mb-5"
-                      style={{
-                        background: "var(--info-muted)",
-                        boxShadow: "0 0 0 1px color-mix(in srgb, var(--info) 20%, transparent)",
-                      }}
-                    >
-                      <Target size={28} style={{ color: "var(--info)" }} />
-                    </div>
-                    <div
-                      className="px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-[0.15em] mb-4"
-                      style={{ background: "var(--info-muted)", color: "var(--info)" }}
-                    >
-                      В разработке
-                    </div>
-                    <h3
-                      className="text-xl font-bold tracking-tight"
-                      style={{ color: "var(--text-primary)" }}
-                    >
-                      Быстрые тесты
-                    </h3>
-                    <p className="mt-3 text-sm max-w-md leading-relaxed" style={{ color: "var(--text-muted)" }}>
-                      Тесты на знание ФЗ-127, скриптов и техник работы с клиентами.<br />
-                      Мгновенная проверка с подробным разбором ошибок.
-                    </p>
-                  </div>
-                </div>
-              </motion.div>
-            )}
           </AnimatePresence>
           </div>
         </div>
@@ -529,13 +456,15 @@ function ScenariosTab({
           structurally — pilot feedback was «чисто визуально можно
           улучшить не сильно». */}
       <div
-        className="mt-6 overflow-hidden rounded-2xl"
+        className="mt-6 overflow-hidden rounded-2xl relative"
         style={{
           background: "var(--surface-card)",
           border: "1px solid var(--border-color)",
-          boxShadow: "var(--shadow-md)",
+          boxShadow: "var(--shadow-md), 0 0 30px rgba(139,92,246,0.08)",
         }}
       >
+        {/* Gradient top accent line */}
+        <div className="absolute top-0 left-0 right-0 h-[1px]" style={{ background: "linear-gradient(90deg, transparent, rgba(139,92,246,0.4), rgba(59,130,246,0.4), transparent)" }} />
         <div className="grid gap-6 px-5 py-5 md:grid-cols-[1.1fr_0.9fr] md:px-6">
           <div>
             <div className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide" style={{ color: "var(--accent)" }}>
@@ -1296,5 +1225,155 @@ function RetrainBadge({ character, sessionId, onDismiss }: RetrainBadgeProps) {
         Закрыть
       </button>
     </motion.div>
+  );
+}
+
+/* ─── Tests Tab ──────────────────────────────────────────────────────────────
+   Two test formats: Блиц (timed, spaced repetition) and Тематические
+   (deep dive by topic). "Цена ошибки" mechanic after each wrong answer.    */
+
+const TEST_CATEGORIES = [
+  { id: "fz127-basics", title: "Основы ФЗ-127", questions: 25, icon: "📘", color: "var(--accent)", description: "Общие положения, стадии, участники процесса банкротства" },
+  { id: "fz127-contest", title: "Конкурсное производство", questions: 30, icon: "🏛️", color: "var(--info)", description: "Конкурсная масса, очерёдность, торги, отчётность" },
+  { id: "disputes", title: "Оспаривание сделок", questions: 20, icon: "⚖️", color: "#8B5CF6", description: "Ст.61.2-61.3, подозрительные сделки, сделки с предпочтением" },
+  { id: "subsidiary", title: "Субсидиарная ответственность", questions: 20, icon: "🎯", color: "var(--danger)", description: "КДЛ, ст.61.10-61.12, доказывание, судебная практика" },
+  { id: "creditors", title: "Работа с кредиторами", questions: 15, icon: "👥", color: "var(--success)", description: "Собрания, реестр требований, очерёдность удовлетворения" },
+  { id: "auctions", title: "Торги в банкротстве", questions: 15, icon: "🔨", color: "var(--warning)", description: "Порядок проведения торгов, электронные площадки, оспаривание" },
+  { id: "individual", title: "Банкротство физлиц", questions: 25, icon: "👤", color: "#6366F1", description: "Глава X ФЗ-127, реструктуризация, реализация имущества" },
+  { id: "vs-practice", title: "Практика ВС РФ 2024-2026", questions: 20, icon: "📋", color: "#EC4899", description: "Актуальные определения и разъяснения Верховного Суда" },
+];
+
+function TestsTab() {
+  const router = useRouter();
+  const [testMode, setTestMode] = useState<"blitz" | "themed">("blitz");
+
+  return (
+    <div className="mt-6 space-y-6">
+      {/* Mode selector */}
+      <div className="flex gap-2">
+        {([
+          { id: "blitz" as const, label: "Блиц", desc: "30-60 сек на вопрос", icon: "⚡" },
+          { id: "themed" as const, label: "По темам", desc: "Глубокое погружение", icon: "📚" },
+        ]).map((mode) => (
+          <button
+            key={mode.id}
+            onClick={() => setTestMode(mode.id)}
+            className="flex-1 flex items-center gap-3 rounded-xl p-4 transition-all text-left"
+            style={{
+              background: testMode === mode.id ? "var(--accent-muted)" : "var(--surface-card)",
+              border: `1.5px solid ${testMode === mode.id ? "var(--accent)" : "var(--border-color)"}`,
+            }}
+          >
+            <span className="text-2xl">{mode.icon}</span>
+            <div>
+              <div className="text-sm font-bold" style={{ color: testMode === mode.id ? "var(--accent)" : "var(--text-primary)" }}>
+                {mode.label}
+              </div>
+              <div className="text-xs" style={{ color: "var(--text-muted)" }}>{mode.desc}</div>
+            </div>
+          </button>
+        ))}
+      </div>
+
+      {/* "Цена ошибки" explainer */}
+      <div
+        className="flex items-start gap-3 rounded-xl p-4 relative overflow-hidden"
+        style={{
+          background: "rgba(239, 68, 68, 0.06)",
+          border: "1px solid rgba(239, 68, 68, 0.18)",
+          boxShadow: "0 0 20px rgba(239,68,68,0.06), inset 0 0 30px rgba(239,68,68,0.03)",
+        }}
+      >
+        {/* Gradient border glow */}
+        <div className="pointer-events-none absolute inset-0 rounded-xl" style={{ background: "linear-gradient(135deg, rgba(239,68,68,0.08) 0%, transparent 50%, rgba(239,68,68,0.04) 100%)" }} />
+        <span className="text-lg shrink-0">💀</span>
+        <div>
+          <div className="text-xs font-bold mb-0.5" style={{ color: "var(--danger)" }}>Цена ошибки</div>
+          <p className="text-xs leading-relaxed" style={{ color: "var(--text-muted)" }}>
+            После каждой ошибки — не просто правильный ответ, а реальное последствие:
+            «В деле №А40-12345/2025 такая ошибка привела к...». Учитесь на чужих промахах.
+          </p>
+        </div>
+      </div>
+
+      {/* Spaced repetition info (blitz only) */}
+      {testMode === "blitz" && (
+        <div
+          className="flex items-start gap-3 rounded-xl p-4"
+          style={{
+            background: "rgba(37, 99, 235, 0.06)",
+            border: "1px solid rgba(37, 99, 235, 0.12)",
+          }}
+        >
+          <span className="text-lg shrink-0">🧠</span>
+          <div>
+            <div className="text-xs font-bold mb-0.5" style={{ color: "var(--accent)" }}>Spaced Repetition (SM-2)</div>
+            <p className="text-xs leading-relaxed" style={{ color: "var(--text-muted)" }}>
+              Вопросы, которые вы провалили, возвращаются через 1 → 3 → 7 → 30 дней.
+              Исследования: 89% ретенции vs 21% без повторений (Suffolk University).
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Test categories grid */}
+      <div className="grid gap-3 sm:grid-cols-2">
+        {TEST_CATEGORIES.map((cat, i) => (
+          <motion.div
+            key={cat.id}
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: i * 0.04, duration: 0.3 }}
+            className="group rounded-xl p-5 transition-all duration-200 cursor-pointer"
+            style={{
+              background: "rgba(255,255,255,0.03)",
+              border: "1px solid var(--border-color)",
+              backdropFilter: "blur(8px)",
+              WebkitBackdropFilter: "blur(8px)",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.borderColor = cat.color;
+              e.currentTarget.style.transform = "translateY(-2px)";
+              e.currentTarget.style.boxShadow = `0 8px 24px color-mix(in srgb, ${cat.color} 10%, transparent)`;
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.borderColor = "var(--border-color)";
+              e.currentTarget.style.transform = "translateY(0)";
+              e.currentTarget.style.boxShadow = "none";
+            }}
+          >
+            <div className="flex items-start justify-between mb-3">
+              <span className="text-2xl">{cat.icon}</span>
+              <span
+                className="text-[10px] font-bold px-2 py-0.5 rounded-md"
+                style={{ background: `color-mix(in srgb, ${cat.color} 12%, transparent)`, color: cat.color }}
+              >
+                {cat.questions} вопросов
+              </span>
+            </div>
+            <h4 className="text-sm font-bold mb-1" style={{ color: "var(--text-primary)" }}>
+              {cat.title}
+            </h4>
+            <p className="text-xs leading-relaxed mb-3" style={{ color: "var(--text-muted)" }}>
+              {cat.description}
+            </p>
+            <div className="flex items-center gap-2">
+              {testMode === "blitz" ? (
+                <span className="flex items-center gap-1 text-[11px] font-semibold" style={{ color: "var(--warning)" }}>
+                  ⚡ 30-60 сек/вопрос
+                </span>
+              ) : (
+                <span className="flex items-center gap-1 text-[11px] font-semibold" style={{ color: "var(--info)" }}>
+                  📖 15-25 мин
+                </span>
+              )}
+              <span className="ml-auto flex items-center gap-1 text-xs font-bold opacity-0 group-hover:opacity-100 transition-opacity" style={{ color: cat.color }}>
+                Начать <ArrowRight size={12} />
+              </span>
+            </div>
+          </motion.div>
+        ))}
+      </div>
+    </div>
   );
 }

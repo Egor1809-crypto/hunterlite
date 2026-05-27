@@ -180,6 +180,10 @@ function Sparkline({
       .map((v, i) => `${i === 0 ? "M" : "L"} ${xAt(i).toFixed(2)} ${yAt(v).toFixed(2)}`)
       .join(" ");
 
+  if (cumMe.length < 2) {
+    return <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} aria-hidden />;
+  }
+
   const areaPath = `${linePath(cumMe)} L ${xAt(cumMe.length - 1).toFixed(2)} ${H - pad} L ${pad} ${H - pad} Z`;
 
   return (
