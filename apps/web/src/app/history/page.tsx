@@ -379,29 +379,33 @@ const PREMIUM_STYLES = `
 }
 .history-card {
   transition: box-shadow 0.3s ease, transform 0.2s ease, border-color 0.2s ease;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3);
 }
 .history-card:hover {
-  box-shadow: 0 0 24px rgba(168,85,247,0.08), 0 0 48px rgba(59,130,246,0.05), 0 8px 24px rgba(0,0,0,0.2) !important;
-  border-color: var(--border-hover) !important;
-  transform: translateY(-2px);
+  box-shadow: 0 0 24px rgba(168,85,247,0.1), 0 0 48px rgba(59,130,246,0.06), 0 12px 36px rgba(0,0,0,0.4) !important;
+  border-color: rgba(139, 92, 246, 0.25) !important;
+  transform: translateY(-3px);
 }
 .stat-card {
-  transition: box-shadow 0.3s ease, transform 0.2s ease;
+  transition: box-shadow 0.3s ease, transform 0.2s ease, border-color 0.2s ease;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3);
 }
 .stat-card:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 20px rgba(0,0,0,0.3) !important;
+  transform: translateY(-4px) scale(1.02);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.4), 0 0 20px rgba(59,130,246,0.08) !important;
+  border-color: rgba(59, 130, 246, 0.2) !important;
 }
 .featured-card {
-  background: linear-gradient(135deg, rgba(74,222,128,0.06) 0%, rgba(59,130,246,0.04) 100%) !important;
-  border-color: rgba(74,222,128,0.2) !important;
+  background: linear-gradient(135deg, rgba(74,222,128,0.08) 0%, rgba(15,15,30,0.98) 100%) !important;
+  border-color: rgba(74,222,128,0.25) !important;
+  box-shadow: 0 0 30px rgba(74,222,128,0.08), 0 8px 32px rgba(0,0,0,0.4) !important;
 }
 .featured-card::before {
   content: '';
   position: absolute;
   inset: 0;
   border-radius: inherit;
-  background: linear-gradient(135deg, rgba(74,222,128,0.04), transparent 60%);
+  background: linear-gradient(135deg, rgba(74,222,128,0.06), transparent 60%);
   pointer-events: none;
 }
 `;
@@ -664,20 +668,20 @@ export default function HistoryPage() {
             className="flex items-center gap-4"
           >
             <div
-              className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0"
+              className="w-14 h-14 rounded-2xl flex items-center justify-center shrink-0"
               style={{
-                background: "var(--magenta-muted)",
-                boxShadow: "0 0 0 1px color-mix(in srgb, var(--magenta) 20%, transparent), 0 0 20px rgba(236,72,153,0.15), 0 0 40px rgba(236,72,153,0.05)",
+                background: "linear-gradient(135deg, rgba(168,85,247,0.15), rgba(236,72,153,0.1))",
+                boxShadow: "0 0 0 1px rgba(168,85,247,0.2), 0 0 24px rgba(168,85,247,0.15), 0 0 48px rgba(236,72,153,0.08)",
               }}
             >
-              <History size={22} style={{ color: "var(--magenta)" }} />
+              <History size={24} style={{ color: "#A855F7" }} />
             </div>
             <div>
-              <h1 className="text-2xl sm:text-3xl font-bold tracking-tight" style={{ color: "var(--text-primary)" }}>
+              <h1 className="text-3xl sm:text-4xl font-black tracking-tight" style={{ background: "linear-gradient(135deg, #F5F5F5 0%, #A855F7 60%, #EC4899 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text" }}>
                 История
               </h1>
-              <p className="mt-0.5 text-sm" style={{ color: "var(--text-muted)" }}>
-                Все ваши прошлые сессии и аналитика прогресса
+              <p className="mt-1 text-sm font-medium" style={{ color: "var(--text-muted)" }}>
+                Аналитика прогресса и все прошлые сессии
               </p>
             </div>
           </motion.div>
@@ -690,9 +694,9 @@ export default function HistoryPage() {
               transition={{ delay: 0.05 }}
               className="mt-6 rounded-2xl overflow-hidden"
               style={{
-                background: "var(--surface-card)",
-                border: "1px solid var(--border-color)",
-                boxShadow: "var(--shadow-md)",
+                background: "rgba(15, 15, 30, 0.95)",
+                border: "1px solid rgba(37, 99, 235, 0.12)",
+                boxShadow: "0 8px 40px rgba(0, 0, 0, 0.4), 0 0 20px rgba(37, 99, 235, 0.06)",
               }}
             >
               <div className="p-4 pb-2 flex items-center justify-between">
@@ -772,11 +776,11 @@ export default function HistoryPage() {
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.1 + idx * 0.04 }}
-                    className="stat-card rounded-xl p-4 relative overflow-hidden"
+                    className="stat-card rounded-2xl p-5 relative overflow-hidden"
                     style={{
-                      background: "var(--surface-card)",
-                      border: "1px solid var(--border-color)",
-                      boxShadow: "var(--shadow-sm)",
+                      background: "rgba(15, 15, 30, 0.95)",
+                      border: "1px solid rgba(255, 255, 255, 0.06)",
+                      boxShadow: "0 4px 24px rgba(0, 0, 0, 0.3)",
                     }}
                   >
                     {/* Color accent overlay */}
@@ -793,8 +797,17 @@ export default function HistoryPage() {
                         pointerEvents: "none",
                       }}
                     />
-                    <div className="flex items-start justify-between mb-2">
-                      <Icon size={18} weight="duotone" style={{ color: item.color }} />
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="relative inline-block">
+                        <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: `color-mix(in srgb, ${item.color} 12%, transparent)`, color: item.color }}>
+                          <Icon size={18} weight="duotone" />
+                        </div>
+                        <motion.div
+                          animate={{ opacity: [0.4, 1, 0.4], boxShadow: [`0 0 4px ${item.color}`, `0 0 12px ${item.color}`, `0 0 4px ${item.color}`] }}
+                          transition={{ duration: 2, repeat: Infinity, ease: "easeInOut", delay: idx * 0.3 }}
+                          style={{ position: "absolute", top: "0px", right: "-2px", width: "6px", height: "6px", borderRadius: "50%", background: item.color }}
+                        />
+                      </div>
                       {item.trend !== null && (
                         <span
                           className="text-[10px] font-bold flex items-center gap-0.5"
@@ -805,10 +818,10 @@ export default function HistoryPage() {
                         </span>
                       )}
                     </div>
-                    <div className="font-display text-2xl font-bold" style={{ color: "var(--text-primary)" }}>
+                    <div className="text-2xl sm:text-3xl font-black tabular-nums tracking-tight" style={{ color: "var(--text-primary)" }}>
                       {item.value}
                     </div>
-                    <div className="text-[10px] font-semibold uppercase tracking-wider mt-0.5" style={{ color: "var(--text-muted)" }}>
+                    <div className="text-[10px] font-bold uppercase tracking-[0.15em] mt-1" style={{ color: "var(--text-muted)" }}>
                       {item.label}
                     </div>
                     {item.sparkValues.length >= 2 && (
@@ -816,6 +829,7 @@ export default function HistoryPage() {
                         <MiniSparkline values={item.sparkValues} color={item.color} width={80} height={20} />
                       </div>
                     )}
+                    <div className="absolute bottom-0 left-0 right-0 h-[2px]" style={{ background: `linear-gradient(90deg, ${item.color}, transparent 80%)` }} />
                   </motion.div>
                 );
               })}
@@ -828,10 +842,11 @@ export default function HistoryPage() {
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.15 }}
-              className="mt-6 rounded-xl p-3"
+              className="mt-6 rounded-2xl p-4"
               style={{
-                background: "var(--surface-card)",
-                border: "1px solid var(--border-color)",
+                background: "rgba(15, 15, 30, 0.95)",
+                border: "1px solid rgba(255, 255, 255, 0.06)",
+                boxShadow: "0 4px 24px rgba(0, 0, 0, 0.3)",
               }}
             >
               <div className="flex flex-wrap items-center gap-2">
@@ -967,7 +982,7 @@ export default function HistoryPage() {
                   <div
                     className="rounded-xl p-4 relative overflow-hidden"
                     style={{
-                      background: "var(--surface-card)",
+                      background: "rgba(15, 15, 30, 0.95)",
                       border: "1px solid var(--border-color)",
                     }}
                   >
@@ -1003,7 +1018,7 @@ export default function HistoryPage() {
                   <div
                     className="rounded-xl p-4 relative overflow-hidden"
                     style={{
-                      background: "var(--surface-card)",
+                      background: "rgba(15, 15, 30, 0.95)",
                       border: `1px solid ${isPositive ? "rgba(74,222,128,0.2)" : "rgba(248,113,113,0.2)"}`,
                       boxShadow: isPositive
                         ? "0 0 20px rgba(74,222,128,0.08)"
@@ -1037,7 +1052,7 @@ export default function HistoryPage() {
                 <div
                   key={i}
                   className="rounded-xl p-5 flex items-center gap-4 animate-pulse"
-                  style={{ background: "var(--surface-card)", border: "1px solid var(--border-color)" }}
+                  style={{ background: "rgba(15, 15, 30, 0.95)", border: "1px solid var(--border-color)" }}
                 >
                   <div className="w-11 h-11 rounded-full bg-[var(--input-bg)]" />
                   <div className="flex-1 space-y-2">
@@ -1129,7 +1144,7 @@ export default function HistoryPage() {
                           transition={{ delay: i * 0.04, duration: 0.35 }}
                           className={`history-card rounded-xl p-5 relative overflow-hidden ${canOpenEntry ? "cursor-pointer" : ""} ${isFeatured ? "featured-card" : ""}`}
                           style={{
-                            background: "var(--surface-card)",
+                            background: "rgba(15, 15, 30, 0.95)",
                             border: "1px solid var(--border-color)",
                             boxShadow: "var(--shadow-sm)",
                           }}
