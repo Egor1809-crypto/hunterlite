@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import { ArrowRight, History, Search } from "lucide-react";
 import {
   Clock,
@@ -82,8 +82,6 @@ function ScoreTrendChart({ sessions }: { sessions: Array<{ score: number; date: 
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
   const svgRef = useRef<SVGSVGElement>(null);
 
-  if (sessions.length < 2) return null;
-
   const W = 700;
   const H = 180;
   const PAD_X = 40;
@@ -97,18 +95,22 @@ function ScoreTrendChart({ sessions }: { sessions: Array<{ score: number; date: 
   const maxScore = Math.min(100, Math.max(...scores) + 10);
   const range = maxScore - minScore || 1;
 
-  const points = sessions.map((s, i) => ({
-    x: PAD_X + (i / (sessions.length - 1)) * chartW,
-    y: PAD_Y + chartH - ((s.score - minScore) / range) * chartH,
-    score: s.score,
-    date: s.date,
-  }));
+  const points = sessions.length >= 2
+    ? sessions.map((s, i) => ({
+        x: PAD_X + (i / (sessions.length - 1)) * chartW,
+        y: PAD_Y + chartH - ((s.score - minScore) / range) * chartH,
+        score: s.score,
+        date: s.date,
+      }))
+    : [];
 
   const pathD = points.map((p, i) => (i === 0 ? `M${p.x},${p.y}` : `L${p.x},${p.y}`)).join(" ");
-  const areaD = `${pathD} L${points[points.length - 1].x},${PAD_Y + chartH} L${points[0].x},${PAD_Y + chartH} Z`;
+  const areaD = points.length >= 2
+    ? `${pathD} L${points[points.length - 1].x},${PAD_Y + chartH} L${points[0].x},${PAD_Y + chartH} Z`
+    : "";
 
-  const firstScore = scores[0];
-  const lastScore = scores[scores.length - 1];
+  const firstScore = scores[0] ?? 0;
+  const lastScore = scores[scores.length - 1] ?? 0;
   const isUptrend = lastScore >= firstScore;
 
   const gradientId = "score-gradient";
@@ -132,6 +134,8 @@ function ScoreTrendChart({ sessions }: { sessions: Array<{ score: number; date: 
     }
     setHoveredIdx(closestIdx);
   }, [points]);
+
+  if (sessions.length < 2) return null;
 
   return (
     <div style={{ position: "relative" }}>
