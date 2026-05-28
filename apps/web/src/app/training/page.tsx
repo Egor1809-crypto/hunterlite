@@ -2,12 +2,14 @@
 
 import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Crosshair,
   Puzzle,
   Target,
   Sparkles,
+  BookOpen,
 } from "lucide-react";
 import AuthLayout from "@/components/layout/AuthLayout";
 import CharacterBuilder from "@/components/training/CharacterBuilder";
@@ -68,6 +70,62 @@ function PresetRecommendation({ onGoToPresets }: { onGoToPresets: () => void }) 
   );
 }
 
+const LP_STAGES = [
+  { key: "knowledge", icon: "\u{1f4da}", label: "Знания", href: "/knowledge" },
+  { key: "tests", icon: "\u{1f5fa}️", label: "Тесты", href: "/training" },
+  { key: "cases", icon: "\u{1f4cb}", label: "Кейсы", href: "/cases" },
+  { key: "exams", icon: "\u{1f393}", label: "Экзамены", href: "/exam" },
+  { key: "practice", icon: "\u{1f3af}", label: "Практика", href: "/training" },
+];
+
+function LearningPathWidget() {
+  const [progress, setProgress] = useState<Record<string, number> | null>(null);
+  useEffect(() => {
+    api.get<{ progress: Record<string, number> }>("/learning-path/progress")
+      .then((d) => { if (d.progress) setProgress(d.progress); })
+      .catch(() => {});
+  }, []);
+  if (!progress) return null;
+  const activeIdx = LP_STAGES.findIndex((s) => (progress[s.key] ?? 0) < 100);
+  const active = activeIdx >= 0 ? activeIdx : LP_STAGES.length - 1;
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="mt-4 rounded-xl p-3 sm:p-4"
+      style={{ background: "var(--glass-bg)", border: "1px solid color-mix(in srgb, var(--accent) 15%, transparent)" }}
+    >
+      <div className="flex items-center gap-2 mb-2">
+        <BookOpen size={12} style={{ color: "var(--accent)" }} />
+        <span className="text-[10px] font-bold uppercase tracking-[0.12em]" style={{ color: "var(--text-muted)" }}>Ваш путь обучения</span>
+      </div>
+      <div className="flex items-center justify-between relative">
+        <div className="absolute top-3 left-[10%] right-[10%] h-[1px]" style={{ background: "var(--border-color)" }} />
+        {LP_STAGES.map((s, i) => {
+          const p = progress[s.key] ?? 0;
+          const isActive = i === active;
+          const done = p >= 100;
+          return (
+            <Link key={s.key} href={s.href} className="no-underline flex flex-col items-center relative z-10" style={{ flex: 1 }}>
+              <div
+                className="w-7 h-7 rounded-full flex items-center justify-center text-sm mb-1"
+                style={{
+                  background: done ? "var(--success)" : isActive ? "var(--accent)" : "var(--input-bg)",
+                  border: isActive ? "2px solid var(--accent)" : done ? "2px solid var(--success)" : "1px solid var(--border-color)",
+                  fontSize: "12px",
+                }}
+              >
+                {s.icon}
+              </div>
+              <span className="text-[8px] font-bold" style={{ color: isActive ? "var(--accent)" : done ? "var(--success)" : "var(--text-muted)" }}>{p}%</span>
+            </Link>
+          );
+        })}
+      </div>
+    </motion.div>
+  );
+}
+
 function TrainingPageContent() {
   const searchParams = useSearchParams();
   const tabParam = searchParams.get("tab");
@@ -121,6 +179,9 @@ function TrainingPageContent() {
               </div>
             </div>
           </motion.div>
+
+          {/* Learning Path Widget */}
+          <LearningPathWidget />
 
           {/* Tabs */}
           <div className="mt-6 flex gap-1 rounded-xl p-1 overflow-x-auto" style={{ background: "var(--input-bg)" }}>
