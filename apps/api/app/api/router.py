@@ -80,3 +80,6 @@ api_router.include_router(cases_router, tags=["cases"])
 
 from app.api.exams import router as exams_router
 api_router.include_router(exams_router, tags=["exams"])
+
+from app.api.manyasha import router as manyasha_router
+api_router.include_router(manyasha_router, tags=["manyasha"])

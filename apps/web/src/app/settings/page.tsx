@@ -32,6 +32,7 @@ import {
 import {
   Gear, SpeakerHigh, Bell, Envelope, ChatCircle,
   GameController, Kanban, User as UserIcon, Palette, LinkSimple,
+  Robot,
 } from "@phosphor-icons/react";
 import { useTheme } from "next-themes";
 import { api } from "@/lib/api";
@@ -313,6 +314,8 @@ export default function SettingsPage() {
   const [compactMode, setCompactMode] = useState(false);
   const [accentColor, setAccentColor] = useState<string>("violet");
 
+  const [manyashaEnabled, setManyashaEnabled] = useState(true);
+
   const [micDeviceId, setMicDeviceId] = useState<string>("default");
   const [speakerDeviceId, setSpeakerDeviceId] = useState<string>("default");
   const [noiseSuppression, setNoiseSuppression] = useState<boolean>(true);
@@ -337,7 +340,12 @@ export default function SettingsPage() {
   // gamification store removed — level/streak display cleaned up
 
   const [hydrated, setHydrated] = useState(false);
-  useEffect(() => { mountedRef.current = true; setHydrated(true); }, []);
+  useEffect(() => {
+    mountedRef.current = true;
+    setHydrated(true);
+    const manyashaStored = localStorage.getItem("hunterlite_manyasha_enabled");
+    if (manyashaStored === "false") setManyashaEnabled(false);
+  }, []);
 
   useEffect(() => {
     if (!user) return;
@@ -753,6 +761,41 @@ export default function SettingsPage() {
               </SettingsCard>
 
             </div>
+          </SettingsSection>
+
+          {/* ═══ SECTION 4.5: AI-ПОМОЩНИК МАНЯША ═══ */}
+          <SettingsSection
+            accent="#c084fc"
+            title="🪆 AI-ПОМОЩНИК"
+            icon={Robot}
+            description="Маняша — ваш AI-помощник. Она поможет с вопросами по платформе и банкротному праву."
+          >
+            <SettingsCard>
+              <div className="flex items-center justify-between">
+                <div>
+                  <span className="text-sm font-medium" style={{ color: "var(--text-primary)", fontSize: 14 }}>
+                    Маняша AI
+                  </span>
+                  <p className="text-sm mt-1" style={{ color: "var(--text-muted)", fontSize: 13 }}>
+                    Плавающий чат-бот на каждой странице
+                  </p>
+                </div>
+                <PixelToggle
+                  on={manyashaEnabled}
+                  onChange={() => {
+                    const next = !manyashaEnabled;
+                    setManyashaEnabled(next);
+                    localStorage.setItem("hunterlite_manyasha_enabled", String(next));
+                    // Notify other components via storage event
+                    window.dispatchEvent(new StorageEvent("storage", {
+                      key: "hunterlite_manyasha_enabled",
+                      newValue: String(next),
+                    }));
+                  }}
+                  accent="#c084fc"
+                />
+              </div>
+            </SettingsCard>
           </SettingsSection>
 
           {/* ═══ SECTION 5: УВЕДОМЛЕНИЯ ═══ */}

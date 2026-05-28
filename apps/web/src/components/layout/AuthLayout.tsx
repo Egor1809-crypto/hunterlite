@@ -13,6 +13,7 @@ import { AutoBreadcrumbs } from "./AutoBreadcrumbs";
 import { KeyboardShortcutsOverlay } from "@/components/ui/KeyboardShortcutsOverlay";
 import { CommandPalette } from "@/components/ui/CommandPalette";
 import { LLMDegradationBanner } from "@/components/ui/LLMDegradationBanner";
+import ManyashaWidget from "@/components/ManyashaWidget";
 
 /** Check if vh_authenticated marker cookie exists (survives page reload). */
 function hasAuthMarkerCookie(): boolean {
@@ -288,6 +289,7 @@ export default function AuthLayout({
         {children}
         <KeyboardShortcutsOverlay />
         <CommandPalette />
+        <ManyashaWidget />
       </AppShell>
     </AuthErrorBoundary>
   );
