@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   BookOpen,
@@ -162,8 +163,10 @@ function TypewriterText({ text }: { text: string }) {
 }
 
 export default function KnowledgePage() {
+  const router = useRouter();
   const [aiQuery, setAiQuery] = useState("");
   const [activeSection, setActiveSection] = useState<"browse" | "radar" | "ai">("browse");
+  const [browserKey, setBrowserKey] = useState(0);
 
   const [stats, setStats] = useState<KnowledgeStats | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
@@ -348,6 +351,7 @@ export default function KnowledgePage() {
                       transition={{ delay: i * 0.05, duration: 0.4, ease: PREMIUM_EASE }}
                       className="group relative rounded-xl overflow-hidden cursor-pointer transition-all duration-300"
                       style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)" }}
+                      onClick={() => { router.push(`/knowledge?category=${topic.category}`); setBrowserKey((k) => k + 1); }}
                       onMouseEnter={(e) => { e.currentTarget.style.borderColor = `${topic.color}40`; e.currentTarget.style.transform = "translateY(-3px)"; e.currentTarget.style.boxShadow = `0 8px 30px ${topic.color}15`; }}
                       onMouseLeave={(e) => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.06)"; e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = "none"; }}
                     >
@@ -369,7 +373,7 @@ export default function KnowledgePage() {
                     </motion.div>
                   ))}
                 </div>
-                <KnowledgeBaseBrowser />
+                <KnowledgeBaseBrowser key={browserKey} />
               </motion.div>
             )}
 

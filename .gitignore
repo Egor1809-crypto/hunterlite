@@ -79,3 +79,9 @@ nohup.out
 .claude/*
 !.claude/skills/
 !.claude/skills/**
+
+# Reference project copies (not part of this repo)
+manyasha-main*/
+
+# Agent TZ specs (planning docs, not shipped)
+TZ_AGENT_*.md

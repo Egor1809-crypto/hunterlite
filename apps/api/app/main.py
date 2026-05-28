@@ -317,6 +317,14 @@ async def lifespan(application: FastAPI):
     except Exception:
         logger.warning("Lifespan: Telegram bot setup failed", exc_info=True)
 
+    # Legal radar background update loop
+    try:
+        from app.services.legal_radar import radar_update_loop
+        application.state.legal_radar_task = asyncio.create_task(radar_update_loop())
+        logger.info("Lifespan: Legal radar update loop started")
+    except Exception:
+        logger.warning("Lifespan: Legal radar setup failed", exc_info=True)
+
     logger.info("Lifespan: startup complete")
     yield
     # ── Shutdown ──

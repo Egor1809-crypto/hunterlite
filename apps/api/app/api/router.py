@@ -83,3 +83,6 @@ api_router.include_router(exams_router, tags=["exams"])
 
 from app.api.manyasha import router as manyasha_router
 api_router.include_router(manyasha_router, tags=["manyasha"])
+
+from app.api.learning_path import router as learning_path_router
+api_router.include_router(learning_path_router, tags=["learning-path"])

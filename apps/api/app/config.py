@@ -101,6 +101,12 @@ class Settings(BaseSettings):
     # override (back-compat). Tested values on navy.api: ``claude-haiku-4-5``,
     # ``gpt-4o-mini``, ``gemini-2.5-flash``. Haiku is the recommended default
     # for Russian dialog quality.
+    # Knowledge AI assistant model (used by knowledge_assistant.py and legal_radar.py).
+    # Default: deepseek-v4-pro via navy proxy.
+    knowledge_ai_model: str = Field(
+        default="deepseek-v4-pro",
+        validation_alias=AliasChoices("KNOWLEDGE_AI_MODEL"),
+    )
     local_llm_persona_model: str = ""
     # Context window of the local LLM — controls when auto-router pushes to cloud.
     # 128K fits Claude/GPT-4/Gemini Pro via navy.api. Set to 6000 for local Gemma 4 (limited).

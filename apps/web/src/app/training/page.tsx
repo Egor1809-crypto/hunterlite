@@ -7,11 +7,14 @@ import {
   Crosshair,
   Puzzle,
   Target,
+  Sparkles,
 } from "lucide-react";
 import AuthLayout from "@/components/layout/AuthLayout";
 import CharacterBuilder from "@/components/training/CharacterBuilder";
 import TestWorldMap from "@/components/training/TestWorldMap";
 import { useTrainingMapSync } from "@/hooks/useTrainingMapProgress";
+import { api } from "@/lib/api";
+import { AppIcon } from "@/components/ui/AppIcon";
 
 const NOISE_SVG = `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E")`;
 
@@ -27,6 +30,43 @@ const TABS: {
   { id: "tests",     label: "Карта тестов",  icon: Target,         emoji: "🗺️", hue: "var(--info)" },
   { id: "builder",   label: "Конструктор",   icon: Puzzle,         emoji: "🧩", hue: "var(--success)" },
 ];
+
+interface RecommendedPreset {
+  slug: string;
+  title: string;
+  icon_emoji: string;
+  category: string;
+}
+
+function PresetRecommendation({ onGoToPresets }: { onGoToPresets: () => void }) {
+  const [preset, setPreset] = useState<RecommendedPreset | null>(null);
+  useEffect(() => {
+    api.get("/training-presets/recommended").then((data: RecommendedPreset[]) => {
+      if (data.length > 0) setPreset(data[0]);
+    }).catch(() => {});
+  }, []);
+  if (!preset) return null;
+  return (
+    <motion.button
+      onClick={onGoToPresets}
+      className="mt-3 w-full glass-panel rounded-xl p-3 flex items-center gap-3 text-left"
+      style={{ borderColor: "var(--accent)30" }}
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      whileHover={{ y: -1, boxShadow: "0 4px 16px rgba(99,102,241,0.12)" }}
+    >
+      <span className="text-xl"><AppIcon emoji={preset.icon_emoji} size={20} /></span>
+      <div className="min-w-0 flex-1">
+        <div className="text-xs font-bold truncate" style={{ color: "var(--text-primary)" }}>{preset.title}</div>
+        <div className="text-xs" style={{ color: "var(--text-muted)" }}>{preset.category}</div>
+      </div>
+      <div className="flex items-center gap-1 text-xs font-bold flex-shrink-0" style={{ color: "var(--accent)" }}>
+        <Sparkles size={12} />
+        <span>Попробовать</span>
+      </div>
+    </motion.button>
+  );
+}
 
 function TrainingPageContent() {
   const searchParams = useSearchParams();
@@ -139,6 +179,11 @@ function TrainingPageContent() {
               );
             })}
           </div>
+
+          {/* Preset recommendation when on tests tab */}
+          {tab === "tests" && (
+            <PresetRecommendation onGoToPresets={() => setTab("builder")} />
+          )}
 
           {/* Tab content */}
           <div style={{ overflow: "hidden" }}>
