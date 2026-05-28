@@ -32,11 +32,11 @@ const NOISE_SVG = `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='h
 
 /* ── Learning path stages ────────────────────────────────────── */
 const LEARNING_STAGES = [
-  { key: "knowledge", icon: "\u{1f4da}", label: "Знания", href: "/knowledge" },
-  { key: "tests", icon: "\u{1f5fa}️", label: "Тесты", href: "/training" },
-  { key: "cases", icon: "\u{1f4cb}", label: "Кейсы", href: "/cases" },
-  { key: "exams", icon: "\u{1f393}", label: "Экзамены", href: "/exam" },
-  { key: "practice", icon: "\u{1f3af}", label: "Практика", href: "/training" },
+  { key: "knowledge", icon: "📚", label: "Знания", href: "/knowledge" },
+  { key: "tests", icon: "🗺️", label: "Тесты", href: "/training" },
+  { key: "cases", icon: "📋", label: "Кейсы", href: "/cases" },
+  { key: "exams", icon: "🎓", label: "Экзамены", href: "/exam" },
+  { key: "practice", icon: "🎯", label: "Практика", href: "/training" },
 ];
 
 /* ── Skills radar labels (10 axes) ────────────────────────────── */
@@ -399,7 +399,7 @@ export default function HomePage() {
   const renderRadar = (skillsData: Record<string, number>) => {
     const axes = SKILL_KEYS;
     const n = axes.length;
-    const cx = 100, cy = 100, maxR = 75;
+    const cx = 150, cy = 150, maxR = 100;
     const angleStep = (2 * Math.PI) / n;
 
     const getPoint = (index: number, value: number) => {
@@ -408,12 +408,12 @@ export default function HomePage() {
       return { x: cx + r * Math.cos(angle), y: cy + r * Math.sin(angle) };
     };
 
-    const gridLevels = [20, 40, 60, 80];
+    const gridLevels = [20, 40, 60, 80, 100];
     const points = axes.map((key, i) => getPoint(i, skillsData[key] || 0));
     const polygon = points.map((p) => `${p.x},${p.y}`).join(" ");
 
     return (
-      <svg viewBox="0 0 200 200" className="w-full max-w-[280px]">
+      <svg viewBox="0 0 300 300" className="w-full max-w-[380px]">
         <defs>
           <filter id="radarGlow" x="-50%" y="-50%" width="200%" height="200%">
             <feGaussianBlur stdDeviation="4" result="blur" />
@@ -425,32 +425,36 @@ export default function HomePage() {
             </feMerge>
           </filter>
         </defs>
-        {/* Grid circles */}
+        {/* Grid circles — visible */}
         {gridLevels.map((r) => (
-          <circle key={r} cx={cx} cy={cy} r={(r / 100) * maxR} fill="none" stroke="var(--border-color)" strokeWidth="0.5" opacity="0.08" />
+          <circle key={r} cx={cx} cy={cy} r={(r / 100) * maxR} fill="none" stroke="rgba(148, 163, 184, 0.25)" strokeWidth="1" strokeDasharray={r === 100 ? "none" : "3,3"} />
         ))}
-        {/* Axis lines */}
+        {/* Grid level labels */}
+        {[20, 40, 60, 80].map((r) => (
+          <text key={`lbl-${r}`} x={cx + 3} y={cy - (r / 100) * maxR + 1} fill="rgba(148, 163, 184, 0.4)" fontSize="8" fontWeight="500">{r}</text>
+        ))}
+        {/* Axis lines — visible */}
         {axes.map((_, i) => {
           const end = getPoint(i, 100);
-          return <line key={i} x1={cx} y1={cy} x2={end.x} y2={end.y} stroke="var(--border-color)" strokeWidth="0.5" opacity="0.08" />;
+          return <line key={i} x1={cx} y1={cy} x2={end.x} y2={end.y} stroke="rgba(148, 163, 184, 0.2)" strokeWidth="1" />;
         })}
         {/* Data polygon */}
-        <polygon points={polygon} fill="rgba(37, 99, 235, 0.12)" stroke="#2563EB" strokeWidth="1.5" filter="url(#radarGlow)" />
+        <polygon points={polygon} fill="rgba(37, 99, 235, 0.15)" stroke="#2563EB" strokeWidth="2" filter="url(#radarGlow)" />
         {/* Data points */}
         {points.map((p, i) => (
           <g key={i}>
-            <circle cx={p.x} cy={p.y} r="5" fill="none" stroke="#2563EB" strokeWidth="0.5" opacity="0.3">
-              <animate attributeName="r" values="3;7;3" dur="3s" repeatCount="indefinite" begin={`${i * 0.3}s`} />
+            <circle cx={p.x} cy={p.y} r="6" fill="none" stroke="#2563EB" strokeWidth="0.8" opacity="0.3">
+              <animate attributeName="r" values="4;8;4" dur="3s" repeatCount="indefinite" begin={`${i * 0.3}s`} />
               <animate attributeName="opacity" values="0.4;0;0.4" dur="3s" repeatCount="indefinite" begin={`${i * 0.3}s`} />
             </circle>
-            <circle cx={p.x} cy={p.y} r="3" fill="#2563EB" filter="url(#radarGlow)" />
+            <circle cx={p.x} cy={p.y} r="4" fill="#2563EB" filter="url(#radarGlow)" />
           </g>
         ))}
-        {/* Labels */}
+        {/* Labels — size 12, bold, well positioned */}
         {axes.map((key, i) => {
-          const lp = getPoint(i, 115);
+          const lp = getPoint(i, 125);
           return (
-            <text key={key} x={lp.x} y={lp.y} textAnchor="middle" dominantBaseline="middle" fill="var(--text-muted)" fontSize="6.5" fontWeight="600">
+            <text key={key} x={lp.x} y={lp.y} textAnchor="middle" dominantBaseline="middle" fill="rgba(226, 232, 240, 0.9)" fontSize="12" fontWeight="700" style={{ textShadow: "0 1px 3px rgba(0,0,0,0.5)" }}>
               {SKILL_LABELS[key]}
             </text>
           );
@@ -629,7 +633,7 @@ export default function HomePage() {
                       />
                       <DrillCard
                         layoutId="drill-case"
-                        icon="\u{1f4cb}"
+                        icon="📋"
                         title="Мини-кейс"
                         desc="Один юридический сценарий"
                         completed={drillsCompleted.has("case")}
@@ -643,7 +647,7 @@ export default function HomePage() {
                           <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500" style={{ background: "linear-gradient(135deg, rgba(16,185,129,0.08), rgba(37,99,235,0.04))" }} />
                           <div className="relative z-10">
                             <div className="flex items-center justify-between mb-3">
-                              <span className="text-lg">{"\u{1f4de}"}</span>
+                              <span className="text-lg">📞</span>
                               <ChevronRight size={14} style={{ color: "var(--text-muted)" }} />
                             </div>
                             <h3 className="text-sm font-bold mb-1" style={{ color: "var(--text-primary)" }}>Тренировочный звонок</h3>
@@ -759,7 +763,7 @@ export default function HomePage() {
                 </div>
               ) : (
                 <div className="flex flex-col items-center justify-center py-8 text-center">
-                  <div className="text-3xl mb-3 opacity-50">{"\u{1f3af}"}</div>
+                  <div className="text-3xl mb-3 opacity-50">🎯</div>
                   <p className="text-sm font-medium" style={{ color: "var(--text-secondary)" }}>Пройдите 3 тренировки для калибровки</p>
                   <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>{stats ? `${stats.total_sessions}/3 выполнено` : "0/3 выполнено"}</p>
                 </div>
@@ -904,7 +908,7 @@ function ExpandedQuiz({ quizLoading, quizFinished, quizQuestions, quizCurrent, q
         </div>
       ) : quizFinished ? (
         <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="text-center py-8">
-          <div className="text-4xl mb-4">{quizScore >= 4 ? "\u{1f389}" : quizScore >= 3 ? "\u{1f44d}" : "\u{1f4aa}"}</div>
+          <div className="text-4xl mb-4">{quizScore >= 4 ? "🎉" : quizScore >= 3 ? "👍" : "💪"}</div>
           <h4 className="text-xl font-black mb-2" style={{ color: "var(--text-primary)" }}>{quizScore}/{quizQuestions.length} правильно</h4>
           <p className="text-sm mb-6" style={{ color: "var(--text-muted)" }}>{quizScore >= 4 ? "Отличный результат!" : quizScore >= 3 ? "Хороший результат!" : "Есть над чем поработать"}</p>
           <button onClick={onCollapse} className="px-6 py-2.5 rounded-xl text-sm font-bold" style={{ background: "linear-gradient(135deg, #2563EB, #8B5CF6)", color: "white" }}>Готово</button>
@@ -971,7 +975,7 @@ function ExpandedCase({ caseLoading, miniCase, caseChoice, onChoose, onCollapse 
     >
       <div className="flex items-center justify-between mb-5">
         <div className="flex items-center gap-3">
-          <span className="text-lg">{"\u{1f4cb}"}</span>
+          <span className="text-lg">📋</span>
           <h3 className="text-base font-bold" style={{ color: "var(--text-primary)" }}>Мини-кейс</h3>
         </div>
         <button onClick={onCollapse} className="text-xs font-semibold px-3 py-1.5 rounded-lg" style={{ background: "rgba(255,255,255,0.05)", color: "var(--text-muted)", border: "1px solid rgba(255,255,255,0.1)" }}>
