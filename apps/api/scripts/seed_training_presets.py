@@ -1,0 +1,542 @@
+"""Seed training presets for the CharacterBuilder guided mode.
+
+Usage:
+    cd apps/api
+    python -m scripts.seed_training_presets
+"""
+
+from __future__ import annotations
+
+import asyncio
+import uuid
+
+from sqlalchemy import select, text
+
+from app.database import async_session
+from app.models.training_preset import TrainingPreset
+
+PRESETS: list[dict] = [
+    # ── Базовые (difficulty=1) ──
+    {
+        "slug": "typical-shareholder",
+        "title": "Типичный дольщик",
+        "description": "Дольщик, который потерял квартиру из-за банкротства застройщика. Тревожный, но готовый слушать. Хочет разобраться в процедуре и понять свои шансы.",
+        "category": "Застройщик-банкрот",
+        "difficulty": 1,
+        "icon_emoji": "\U0001f3d7️",
+        "archetype": "anxious",
+        "profession": "worker",
+        "lead_source": "incoming",
+        "emotion_preset": "anxious",
+        "context_params": {
+            "debt_range": "3m_10m",
+            "debt_stage": "pre_court",
+            "family_preset": "married_kids",
+            "creditors_preset": "1",
+        },
+        "bg_noise": None,
+        "learning_goals": [
+            "Научиться работать с тревожным клиентом",
+            "Объяснить §7 ФЗ-127 простыми словами",
+            "Выявить реальные потребности за эмоциями",
+        ],
+        "tips": [
+            "Обратите внимание на эмоциональное состояние клиента — сначала стабилизируйте, потом информируйте",
+            "Дольщики часто не понимают разницу между §7 и реструктуризацией — объясните на примере",
+            "Не давите с продажей — этот типаж ценит терпеливый подход",
+        ],
+        "recommended_after_level": 1,
+        "recommended_after_case": None,
+        "related_knowledge_categories": ["Застройщик-банкрот", "Процедура §7"],
+        "order_index": 1,
+    },
+    {
+        "slug": "worried-debtor",
+        "title": "Тревожный должник",
+        "description": "Физическое лицо с ипотекой на грани невыплаты. Испуган, не знает куда обращаться. Нуждается в поддержке и чётком плане действий.",
+        "category": "Физлица",
+        "difficulty": 1,
+        "icon_emoji": "\U0001f628",
+        "archetype": "desperate",
+        "profession": "budget",
+        "lead_source": "website_form",
+        "emotion_preset": "anxious",
+        "context_params": {
+            "debt_range": "500k_1m",
+            "debt_stage": "pre_court",
+            "family_preset": "married_kids",
+            "creditors_preset": "2_3",
+        },
+        "bg_noise": None,
+        "learning_goals": [
+            "Научиться успокаивать клиента в состоянии паники",
+            "Объяснить процедуру банкротства физлица",
+            "Оценить перспективы сохранения ипотечной квартиры",
+        ],
+        "tips": [
+            "Клиент в панике — первые 2 минуты потратьте на установление контакта",
+            "Ипотечная квартира — ключевая боль, не игнорируйте её",
+            "Дайте конкретный план из 3-4 шагов, а не общие фразы",
+        ],
+        "recommended_after_level": 1,
+        "recommended_after_case": None,
+        "related_knowledge_categories": ["Физлица", "Ипотека в банкротстве"],
+        "order_index": 2,
+    },
+    {
+        "slug": "pragmatic-businessman",
+        "title": "Прагматичный бизнесмен",
+        "description": "ИП с долгами по налогам и перед поставщиками. Прагматичный, ценит конкретику. Хочет понять стоимость и сроки.",
+        "category": "Юрлица",
+        "difficulty": 1,
+        "icon_emoji": "\U0001f4bc",
+        "archetype": "pragmatic",
+        "profession": "entrepreneur",
+        "lead_source": "referral",
+        "emotion_preset": "neutral",
+        "context_params": {
+            "debt_range": "1m_3m",
+            "debt_stage": "pre_court",
+            "family_preset": "single",
+            "creditors_preset": "4_5",
+        },
+        "bg_noise": "office",
+        "learning_goals": [
+            "Работать с прагматичным клиентом: факты, цифры, сроки",
+            "Различать банкротство ИП и физлица",
+            "Формировать коммерческое предложение на консультации",
+        ],
+        "tips": [
+            "Этот тип клиента ценит конкретные цифры — подготовьте стоимость и сроки",
+            "Не тратьте время на эмоции — переходите к делу",
+            "ИП — особый статус, объясните разницу с банкротством юрлица",
+        ],
+        "recommended_after_level": 1,
+        "recommended_after_case": None,
+        "related_knowledge_categories": ["Юрлица", "ИП банкротство"],
+        "order_index": 3,
+    },
+    {
+        "slug": "confused-pensioner",
+        "title": "Растерянный пенсионер",
+        "description": "Пожилой человек, обманутый МФО. Плохо понимает юридические термины. Нуждается в терпеливом и простом объяснении.",
+        "category": "Физлица",
+        "difficulty": 1,
+        "icon_emoji": "\U0001f474",
+        "archetype": "elderly",
+        "profession": "pensioner",
+        "lead_source": "incoming",
+        "emotion_preset": "anxious",
+        "context_params": {
+            "debt_range": "under_500k",
+            "debt_stage": "execution",
+            "family_preset": "single",
+            "creditors_preset": "2_3",
+        },
+        "bg_noise": None,
+        "learning_goals": [
+            "Адаптировать речь под пожилого клиента",
+            "Объяснить сложные понятия простым языком",
+            "Выявить все долги (пенсионеры часто скрывают из стыда)",
+        ],
+        "tips": [
+            "Говорите медленно и без юридического жаргона",
+            "Пенсионеры часто стыдятся долгов — создайте безопасную атмосферу",
+            "Спросите про все микрозаймы — обычно их больше, чем клиент говорит изначально",
+        ],
+        "recommended_after_level": 2,
+        "recommended_after_case": None,
+        "related_knowledge_categories": ["Физлица", "МФО"],
+        "order_index": 4,
+    },
+    {
+        "slug": "emotional-wife",
+        "title": "Эмоциональная жена-поручитель",
+        "description": "Женщина, которая стала поручителем за мужа. Эмоциональная, плачет. Чувствует себя преданной и обманутой.",
+        "category": "Физлица",
+        "difficulty": 1,
+        "icon_emoji": "\U0001f622",
+        "archetype": "crying",
+        "profession": "homemaker",
+        "lead_source": "incoming",
+        "emotion_preset": "anxious",
+        "context_params": {
+            "debt_range": "500k_1m",
+            "debt_stage": "execution",
+            "family_preset": "married_kids",
+            "creditors_preset": "1",
+        },
+        "bg_noise": None,
+        "learning_goals": [
+            "Работать с плачущим клиентом",
+            "Объяснить ответственность поручителя",
+            "Найти варианты защиты имущества семьи",
+        ],
+        "tips": [
+            "Не перебивайте — дайте выговориться первые 3-5 минут",
+            "Поручительство — сложная тема, объясните последствия честно",
+            "Предложите конкретные шаги по защите, а не просто сочувствие",
+        ],
+        "recommended_after_level": 2,
+        "recommended_after_case": None,
+        "related_knowledge_categories": ["Физлица", "Поручительство"],
+        "order_index": 5,
+    },
+
+    # ── Средние (difficulty=2) ──
+    {
+        "slug": "skeptic-lawyer",
+        "title": "Скептичный юрист",
+        "description": "Клиент с юридическим образованием, который «сам всё знает». Проверяет каждое ваше слово, цитирует законы. Ищет подвох.",
+        "category": "Юрлица",
+        "difficulty": 2,
+        "icon_emoji": "⚖️",
+        "archetype": "know_it_all",
+        "profession": "freelancer",
+        "lead_source": "website_form",
+        "emotion_preset": "neutral",
+        "context_params": {
+            "debt_range": "1m_3m",
+            "debt_stage": "pre_court",
+            "family_preset": "single",
+            "creditors_preset": "2_3",
+        },
+        "bg_noise": "office",
+        "learning_goals": [
+            "Работать с клиентом-экспертом без потери авторитета",
+            "Находить ценность услуги для того, кто «сам разбирается»",
+            "Использовать знания клиента как ресурс, а не барьер",
+        ],
+        "tips": [
+            "Не спорьте — признайте его компетенцию и добавьте свою экспертизу",
+            "Используйте конкретные статьи закона и судебную практику",
+            "Покажите кейсы, где «самостоятельное» банкротство привело к проблемам",
+        ],
+        "recommended_after_level": 4,
+        "recommended_after_case": None,
+        "related_knowledge_categories": ["Юрлица", "Судебная практика"],
+        "order_index": 6,
+    },
+    {
+        "slug": "aggressive-creditor",
+        "title": "Агрессивный кредитор",
+        "description": "Человек, которому должны деньги. Агрессивный, требует немедленных действий. Не хочет слышать про сроки и процедуры.",
+        "category": "Кредиторы",
+        "difficulty": 2,
+        "icon_emoji": "\U0001f4a2",
+        "archetype": "aggressive",
+        "profession": "entrepreneur",
+        "lead_source": "cold_social",
+        "emotion_preset": "angry",
+        "context_params": {
+            "debt_range": "3m_10m",
+            "debt_stage": "execution",
+            "family_preset": "single",
+            "creditors_preset": "1",
+        },
+        "bg_noise": None,
+        "learning_goals": [
+            "Снизить агрессию клиента техникой активного слушания",
+            "Объяснить права кредитора в процедуре банкротства",
+            "Перевести разговор из эмоций в конструктивное русло",
+        ],
+        "tips": [
+            "Первые 2-3 минуты — только слушайте, не перебивайте и не оправдывайтесь",
+            "Не обещайте 100% возврат — объясните реалистичные перспективы",
+            "Предложите конкретный план действий по включению в реестр кредиторов",
+        ],
+        "recommended_after_level": 5,
+        "recommended_after_case": None,
+        "related_knowledge_categories": ["Кредиторы", "Реестр требований"],
+        "order_index": 7,
+    },
+    {
+        "slug": "cunning-beneficiary",
+        "title": "Хитрый бенефициар",
+        "description": "Бенефициар компании, который пытается скрыть активы. Уклончивый, даёт неполную информацию. Проверяет вашу реакцию на серые схемы.",
+        "category": "Юрлица",
+        "difficulty": 2,
+        "icon_emoji": "\U0001f3ad",
+        "archetype": "manipulator",
+        "profession": "finance",
+        "lead_source": "referral",
+        "emotion_preset": "neutral",
+        "context_params": {
+            "debt_range": "over_10m",
+            "debt_stage": "pre_court",
+            "family_preset": "married_kids",
+            "creditors_preset": "6_plus",
+        },
+        "bg_noise": "office",
+        "learning_goals": [
+            "Распознать попытки манипуляции и скрытия активов",
+            "Объяснить риски сокрытия имущества (ст. 195-196 УК)",
+            "Выстроить доверие без соучастия в незаконных схемах",
+        ],
+        "tips": [
+            "Если клиент намекает на вывод активов — чётко обозначьте уголовные риски",
+            "Задавайте конкретные вопросы про имущество — уклончивые ответы = красный флаг",
+            "Предложите законные способы защиты бизнеса вместо серых схем",
+        ],
+        "recommended_after_level": 5,
+        "recommended_after_case": None,
+        "related_knowledge_categories": ["Юрлица", "Сокрытие активов"],
+        "order_index": 8,
+    },
+    {
+        "slug": "couple-disagreement",
+        "title": "Пара с разногласиями",
+        "description": "Супруги, которые не могут договориться о совместном банкротстве. Один хочет банкротиться, другой — против. Нужно работать с обоими.",
+        "category": "Физлица",
+        "difficulty": 2,
+        "icon_emoji": "\U0001f46b",
+        "archetype": "couple_disagreeing",
+        "profession": "worker",
+        "lead_source": "referral",
+        "emotion_preset": "anxious",
+        "context_params": {
+            "debt_range": "1m_3m",
+            "debt_stage": "pre_court",
+            "family_preset": "married_kids",
+            "creditors_preset": "4_5",
+        },
+        "bg_noise": None,
+        "learning_goals": [
+            "Работать одновременно с двумя клиентами с разными позициями",
+            "Объяснить плюсы и минусы совместного банкротства",
+            "Находить компромиссные решения",
+        ],
+        "tips": [
+            "Обращайтесь к обоим супругам поочерёдно — не игнорируйте «молчащего»",
+            "Совместное банкротство экономит деньги — это часто ключевой аргумент",
+            "Если один «против» — выясните его реальный страх, а не формальное возражение",
+        ],
+        "recommended_after_level": 6,
+        "recommended_after_case": None,
+        "related_knowledge_categories": ["Физлица", "Совместное банкротство"],
+        "order_index": 9,
+    },
+    {
+        "slug": "tough-negotiator",
+        "title": "Переговорщик",
+        "description": "Клиент, который торгуется за каждый рубль. Сравнивает с конкурентами, просит скидки, ищет бесплатные варианты.",
+        "category": "Физлица",
+        "difficulty": 2,
+        "icon_emoji": "\U0001f91d",
+        "archetype": "negotiator",
+        "profession": "trade_service",
+        "lead_source": "ad_retarget",
+        "emotion_preset": "neutral",
+        "context_params": {
+            "debt_range": "500k_1m",
+            "debt_stage": "pre_court",
+            "family_preset": "single",
+            "creditors_preset": "2_3",
+        },
+        "bg_noise": None,
+        "learning_goals": [
+            "Работать с возражениями о цене",
+            "Показать ценность услуги через ROI",
+            "Не уступать в цене, а добавлять ценность",
+        ],
+        "tips": [
+            "Не снижайте цену первым — спросите, что конкретно сравнивает",
+            "Покажите, сколько клиент потеряет БЕЗ профессионального сопровождения",
+            "Предложите поэтапную оплату, а не скидку",
+        ],
+        "recommended_after_level": 6,
+        "recommended_after_case": None,
+        "related_knowledge_categories": ["Продажи", "Работа с возражениями"],
+        "order_index": 10,
+    },
+
+    # ── Продвинутые (difficulty=3) ──
+    {
+        "slug": "subsidiary-director",
+        "title": "Субсидиарный директор",
+        "description": "Бывший директор компании, которому грозит субсидиарная ответственность. Параноидальный, боится уголовного преследования. Каждое слово взвешивает.",
+        "category": "Управляющий",
+        "difficulty": 3,
+        "icon_emoji": "\U0001f513",
+        "archetype": "paranoid",
+        "profession": "finance",
+        "lead_source": "incoming",
+        "emotion_preset": "anxious",
+        "context_params": {
+            "debt_range": "over_10m",
+            "debt_stage": "execution",
+            "family_preset": "married_kids",
+            "creditors_preset": "6_plus",
+        },
+        "bg_noise": None,
+        "learning_goals": [
+            "Объяснить механизм субсидиарной ответственности",
+            "Работать с параноидальным клиентом — снизить тревогу фактами",
+            "Оценить реальные риски КДЛ и предложить стратегию защиты",
+        ],
+        "tips": [
+            "КДЛ боится всего — не усиливайте страх, а структурируйте риски",
+            "Разделите уголовные и гражданские последствия — клиент часто путает",
+            "Предложите аудит действий за 3 года до банкротства",
+        ],
+        "recommended_after_level": 8,
+        "recommended_after_case": None,
+        "related_knowledge_categories": ["Управляющий", "Субсидиарная ответственность"],
+        "order_index": 11,
+    },
+    {
+        "slug": "runaway-developer",
+        "title": "Застройщик в бегах",
+        "description": "Застройщик, который пытается уйти от ответственности. Уклончивый, даёт путаные ответы, меняет тему. Скрывает реальный масштаб проблемы.",
+        "category": "Застройщик-банкрот",
+        "difficulty": 3,
+        "icon_emoji": "\U0001f3c3",
+        "archetype": "smoke_screen",
+        "profession": "entrepreneur",
+        "lead_source": "cold_social",
+        "emotion_preset": "neutral",
+        "context_params": {
+            "debt_range": "over_10m",
+            "debt_stage": "execution",
+            "family_preset": "married_kids",
+            "creditors_preset": "6_plus",
+        },
+        "bg_noise": "street",
+        "learning_goals": [
+            "Распознавать уклончивые ответы и возвращать разговор в русло",
+            "Задавать прямые вопросы, не теряя контакт",
+            "Оценивать масштаб проблем застройщика по косвенным признакам",
+        ],
+        "tips": [
+            "Каждый уход от темы — сигнал. Фиксируйте вопрос и возвращайтесь к нему",
+            "Задавайте закрытые вопросы — «да/нет», чтобы сузить поле для манёвра",
+            "Если клиент звонит с улицы/из машины — возможно, скрывается от кредиторов",
+        ],
+        "recommended_after_level": 9,
+        "recommended_after_case": None,
+        "related_knowledge_categories": ["Застройщик-банкрот", "Уклонение от ответственности"],
+        "order_index": 12,
+    },
+    {
+        "slug": "corporate-raider",
+        "title": "Корпоративный рейдер",
+        "description": "Сложный клиент со схемой из нескольких юрлиц. Пытается использовать вас как инструмент в корпоративной войне. Знает закон лучше многих юристов.",
+        "category": "Юрлица",
+        "difficulty": 3,
+        "icon_emoji": "\U0001f9d0",
+        "archetype": "puppet_master",
+        "profession": "finance",
+        "lead_source": "referral",
+        "emotion_preset": "neutral",
+        "context_params": {
+            "debt_range": "over_10m",
+            "debt_stage": "pre_court",
+            "family_preset": "single",
+            "creditors_preset": "6_plus",
+        },
+        "bg_noise": "office",
+        "learning_goals": [
+            "Распознать попытку использования в корпоративном конфликте",
+            "Оценить схему из нескольких юрлиц",
+            "Определить границы допустимого и отказаться от незаконных действий",
+        ],
+        "tips": [
+            "Если клиент просит «обанкротить конкурента» — это красный флаг",
+            "Запросите полную схему владения всеми юрлицами",
+            "Не бойтесь отказать — репутационный риск выше потери клиента",
+        ],
+        "recommended_after_level": 10,
+        "recommended_after_case": None,
+        "related_knowledge_categories": ["Юрлица", "Корпоративные конфликты"],
+        "order_index": 13,
+    },
+    {
+        "slug": "mother-guarantor",
+        "title": "Многодетная мать-поручитель",
+        "description": "Многодетная мать, которая поручилась за родственника. Плачет, просит о помощи. Сложный моральный кейс — забирают квартиру у семьи с детьми.",
+        "category": "Физлица",
+        "difficulty": 3,
+        "icon_emoji": "\U0001f469‍\U0001f467‍\U0001f466",
+        "archetype": "manipulator_crying",
+        "profession": "homemaker",
+        "lead_source": "incoming",
+        "emotion_preset": "anxious",
+        "context_params": {
+            "debt_range": "1m_3m",
+            "debt_stage": "execution",
+            "family_preset": "married_kids",
+            "creditors_preset": "2_3",
+        },
+        "bg_noise": None,
+        "learning_goals": [
+            "Работать с морально сложным кейсом без потери профессионализма",
+            "Знать механизмы защиты единственного жилья",
+            "Отличать реальную нужду от манипуляции",
+        ],
+        "tips": [
+            "Эмоции реальные, но решения должны быть рациональными",
+            "Единственное жильё с детьми — есть механизмы защиты, знайте их",
+            "Некоторые клиенты неосознанно манипулируют слезами — не теряйте объективности",
+        ],
+        "recommended_after_level": 10,
+        "recommended_after_case": None,
+        "related_knowledge_categories": ["Физлица", "Единственное жильё", "Поручительство"],
+        "order_index": 14,
+    },
+    {
+        "slug": "opponent-trustee",
+        "title": "Арбитражный управляющий-оппонент",
+        "description": "Арбитражный управляющий, который звонит по поводу вашего клиента. Знает процедуру идеально. Требует информацию и проверяет вашу компетенцию.",
+        "category": "Управляющий",
+        "difficulty": 3,
+        "icon_emoji": "\U0001f9d1‍⚖️",
+        "archetype": "lawyer_level_2",
+        "profession": "freelancer",
+        "lead_source": "cold_base",
+        "emotion_preset": "neutral",
+        "context_params": {
+            "debt_range": "3m_10m",
+            "debt_stage": "execution",
+            "family_preset": "single",
+            "creditors_preset": "4_5",
+        },
+        "bg_noise": "office",
+        "learning_goals": [
+            "Вести профессиональный диалог с АУ на равных",
+            "Защитить интересы клиента перед управляющим",
+            "Знать права и обязанности АУ по ФЗ-127",
+        ],
+        "tips": [
+            "АУ проверяет вашу компетенцию — не блефуйте, лучше честно признать незнание",
+            "Не раскрывайте лишнюю информацию о клиенте без его согласия",
+            "Знайте сроки из ФЗ-127 наизусть — это ваш главный инструмент",
+        ],
+        "recommended_after_level": 12,
+        "recommended_after_case": None,
+        "related_knowledge_categories": ["Управляющий", "Права АУ", "ФЗ-127"],
+        "order_index": 15,
+    },
+]
+
+
+async def seed() -> None:
+    async with async_session() as session:
+        for p in PRESETS:
+            existing = await session.execute(
+                select(TrainingPreset).where(TrainingPreset.slug == p["slug"])
+            )
+            row = existing.scalar_one_or_none()
+            if row is not None:
+                for k, v in p.items():
+                    setattr(row, k, v)
+            else:
+                session.add(TrainingPreset(id=uuid.uuid4(), **p))
+        await session.commit()
+        count = await session.execute(
+            select(text("count(*)")).select_from(TrainingPreset.__table__)
+        )
+        print(f"Seeded {count.scalar()} training presets.")
+
+
+if __name__ == "__main__":
+    asyncio.run(seed())
