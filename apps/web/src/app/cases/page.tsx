@@ -1,39 +1,51 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Briefcase,
   ArrowRight,
   Clock,
-  Users,
-  Scale,
-  AlertTriangle,
-  ChevronRight,
-  FileText,
-  TrendingUp,
-  Shield,
-  Zap,
-  Lock,
   Star,
-  Bug,
-  EyeOff,
-  Timer,
+  FileText,
   Search,
   Award,
   GraduationCap,
-  Building2,
-  User,
-  Landmark,
-  Network,
-  Eye,
-  HelpCircle,
-  Info,
+  Lock,
+  TrendingUp,
+  CheckCircle2,
+  Loader2,
 } from "lucide-react";
 import AuthLayout from "@/components/layout/AuthLayout";
+import { api } from "@/lib/api";
 
-/* ── Case difficulty config ──────────────────────────────── */
+/* ── Types ──────────────────────────────────────────────── */
+interface CaseListItem {
+  id: string;
+  title: string;
+  description: string;
+  difficulty: 1 | 2 | 3;
+  category: string;
+  estimated_minutes: number;
+  max_score: number;
+  order_index: number;
+  completed: boolean;
+  best_score: number | null;
+  attempts: number;
+}
+
+interface CaseListResponse {
+  cases: CaseListItem[];
+  stats: {
+    total: number;
+    completed: number;
+    average_score: number | null;
+    total_attempts: number;
+  };
+}
+
+/* ── Difficulty config ──────────────────────────────────── */
 function getDiffConfig(level: 1 | 2 | 3) {
   switch (level) {
     case 1:
@@ -45,7 +57,7 @@ function getDiffConfig(level: 1 | 2 | 3) {
   }
 }
 
-/* ── Butterfly SVG icon (inline, small) ──────────────────── */
+/* ── Butterfly SVG icon ─────────────────────────────────── */
 function ButterflyIcon({ size = 16, className = "" }: { size?: number; className?: string }) {
   return (
     <svg
@@ -67,215 +79,6 @@ function ButterflyIcon({ size = 16, className = "" }: { size?: number; className
   );
 }
 
-/* ── Case data (will be API-driven later) ────────────────── */
-interface CaseItem {
-  id: string;
-  title: string;
-  description: string;
-  difficulty: 1 | 2 | 3;
-  category: string;
-  estimatedMinutes: number;
-  branchCount: number;
-  tags: string[];
-  locked: boolean;
-  completedByUser: boolean;
-  blindMode?: boolean;
-  timerMode?: boolean;
-  hiddenFacts?: number;
-  benchmarkPercentile?: number;
-}
-
-const SAMPLE_CASES: CaseItem[] = [
-  {
-    id: "case-1",
-    title: "Дольщики против застройщика-банкрота",
-    description:
-      "Застройщик признан банкротом. 340 дольщиков требуют передачи квартир, но конкурсной массы недостаточно. Выстройте стратегию защиты интересов дольщиков через реестр и Фонд развития территорий.",
-    difficulty: 1,
-    category: "Застройщик-банкрот",
-    estimatedMinutes: 20,
-    branchCount: 5,
-    tags: ["ФЗ-127 §7", "Дольщики", "Фонд развития"],
-    locked: false,
-    completedByUser: false,
-    hiddenFacts: 3,
-    benchmarkPercentile: 72,
-  },
-  {
-    id: "case-2",
-    title: "Личное банкротство предпринимателя",
-    description:
-      "ИП с долгами в 18 млн подал на банкротство. Кредиторы подозревают преднамеренность. Проведите анализ финансового состояния и определите, реальное ли это банкротство или попытка списать долги.",
-    difficulty: 1,
-    category: "Банкротство физлица",
-    estimatedMinutes: 15,
-    branchCount: 4,
-    tags: ["ФЗ-127", "Физлицо", "Преднамеренность"],
-    locked: false,
-    completedByUser: false,
-    blindMode: true,
-    hiddenFacts: 4,
-    benchmarkPercentile: 65,
-  },
-  {
-    id: "case-3",
-    title: "Ликвидация кредитного кооператива",
-    description:
-      "Кредитный потребительский кооператив с 1200 пайщиками входит в банкротство. Средства вкладчиков не застрахованы АСВ. Определите приоритет требований и стратегию максимального возврата.",
-    difficulty: 2,
-    category: "Финансовая организация",
-    estimatedMinutes: 25,
-    branchCount: 6,
-    tags: ["Кооператив", "АСВ", "Реестр"],
-    locked: false,
-    completedByUser: false,
-    timerMode: true,
-    hiddenFacts: 5,
-    benchmarkPercentile: 58,
-  },
-  {
-    id: "case-4",
-    title: "Холдинг: консолидация банкротств",
-    description:
-      "Группа из 7 компаний, связанных через бенефициара, банкротится по отдельности. Кредиторы просят объединить дела. Оцените основания для консолидации и риски для каждой стороны.",
-    difficulty: 2,
-    category: "Группа компаний",
-    estimatedMinutes: 30,
-    branchCount: 7,
-    tags: ["Консолидация", "Аффилированность", "ГК"],
-    locked: false,
-    completedByUser: false,
-    hiddenFacts: 6,
-    benchmarkPercentile: 51,
-  },
-  {
-    id: "case-5",
-    title: "Должник скрывает имущество за рубежом",
-    description:
-      "В ходе банкротства обнаружены признаки вывода активов в зарубежные юрисдикции. Недвижимость на Кипре, счета в ОАЭ. Постройте стратегию розыска и возврата активов.",
-    difficulty: 3,
-    category: "Сокрытие активов",
-    estimatedMinutes: 35,
-    branchCount: 8,
-    tags: ["Зарубежные активы", "Розыск", "Кипр"],
-    locked: false,
-    completedByUser: false,
-    blindMode: true,
-    timerMode: true,
-    hiddenFacts: 7,
-    benchmarkPercentile: 44,
-  },
-  {
-    id: "case-6",
-    title: "Цепочка сделок: вывод через подставных",
-    description:
-      "Должник за год до банкротства продал производственный комплекс. Покупатель перепродал его дважды. Последний приобретатель — добросовестный. Оцените перспективы оспаривания всей цепочки.",
-    difficulty: 2,
-    category: "Оспаривание сделок",
-    estimatedMinutes: 25,
-    branchCount: 6,
-    tags: ["Ст.61.2", "Цепочка сделок", "Добросовестность"],
-    locked: false,
-    completedByUser: false,
-    hiddenFacts: 4,
-    benchmarkPercentile: 63,
-  },
-  {
-    id: "case-7",
-    title: "Субсидиарная ответственность директора и бухгалтера",
-    description:
-      "Компания-банкрот. Директор утверждает, что все решения принимал бухгалтер. Бухгалтер ссылается на указания директора. Определите контролирующих лиц и распределите ответственность.",
-    difficulty: 3,
-    category: "Субсидиарная ответственность",
-    estimatedMinutes: 35,
-    branchCount: 8,
-    tags: ["Ст.61.11", "КДЛ", "Бухгалтер"],
-    locked: false,
-    completedByUser: false,
-    timerMode: true,
-    hiddenFacts: 5,
-    benchmarkPercentile: 47,
-  },
-  {
-    id: "case-8",
-    title: "Застройщик-банкрот: незавершённый ЖК",
-    description:
-      "Строительство ЖК остановлено на 70%. Появился инвестор, готовый достроить, но его условия ущемляют часть дольщиков. Найдите баланс интересов и проведите собрание.",
-    difficulty: 2,
-    category: "Застройщик-банкрот",
-    estimatedMinutes: 25,
-    branchCount: 6,
-    tags: ["Достройка", "Инвестор", "Собрание"],
-    locked: true,
-    completedByUser: false,
-    hiddenFacts: 4,
-    benchmarkPercentile: 55,
-  },
-  {
-    id: "case-9",
-    title: "Банкротство: сокрытие через доверительное управление",
-    description:
-      "Должник передал бизнес в доверительное управление родственнику за 2 года до банкротства. Формально активы ему не принадлежат. Докажите мнимость сделки.",
-    difficulty: 3,
-    category: "Сокрытие активов",
-    estimatedMinutes: 30,
-    branchCount: 7,
-    tags: ["Мнимость", "Доверительное управление", "Родственники"],
-    locked: true,
-    completedByUser: false,
-    blindMode: true,
-    hiddenFacts: 6,
-    benchmarkPercentile: 39,
-  },
-  {
-    id: "case-10",
-    title: "Привлечение теневого бенефициара",
-    description:
-      "Номинальный директор — подставное лицо. Реальный бенефициар управлял через мессенджеры. Постройте доказательную базу для привлечения к субсидиарной ответственности фактического контролирующего лица.",
-    difficulty: 3,
-    category: "Субсидиарная ответственность",
-    estimatedMinutes: 40,
-    branchCount: 9,
-    tags: ["Теневой бенефициар", "Мессенджеры", "Доказательства"],
-    locked: true,
-    completedByUser: false,
-    timerMode: true,
-    blindMode: true,
-    hiddenFacts: 8,
-    benchmarkPercentile: 33,
-  },
-  {
-    id: "case-11",
-    title: "Микрофинансовая организация: крах пирамиды",
-    description:
-      "МФО привлекала вклады под 30% годовых. Признана банкротом с дырой в 2 млрд. 5000 вкладчиков. Определите квалификацию требований и очерёдность удовлетворения.",
-    difficulty: 2,
-    category: "Финансовая организация",
-    estimatedMinutes: 25,
-    branchCount: 5,
-    tags: ["МФО", "Пирамида", "Очерёдность"],
-    locked: true,
-    completedByUser: false,
-    hiddenFacts: 5,
-    benchmarkPercentile: 52,
-  },
-  {
-    id: "case-12",
-    title: "Группа компаний: субординация внутригрупповых требований",
-    description:
-      "Компания из группы предъявляет требования к банкротящейся «сестре». Независимые кредиторы требуют субординации. Разберите, какие требования понизить, а какие оставить.",
-    difficulty: 3,
-    category: "Группа компаний",
-    estimatedMinutes: 30,
-    branchCount: 7,
-    tags: ["Субординация", "Внутригрупповые", "Компенсационное"],
-    locked: true,
-    completedByUser: false,
-    hiddenFacts: 5,
-    benchmarkPercentile: 41,
-  },
-];
-
 const CATEGORIES = [
   "Все",
   "Застройщик-банкрот",
@@ -295,21 +98,55 @@ const PREMIUM_EASE: [number, number, number, number] = [0.22, 1, 0.36, 1];
 export default function CasesPage() {
   const router = useRouter();
   const [selectedCategory, setSelectedCategory] = useState("Все");
+  const [selectedDifficulty, setSelectedDifficulty] = useState<number | null>(null);
+  const [selectedStatus, setSelectedStatus] = useState<"all" | "completed" | "incomplete">("all");
   const [hoveredCase, setHoveredCase] = useState<string | null>(null);
 
-  const filteredCases =
-    selectedCategory === "Все"
-      ? SAMPLE_CASES
-      : SAMPLE_CASES.filter((c) => c.category === selectedCategory);
+  const [data, setData] = useState<CaseListResponse | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  const completedCount = SAMPLE_CASES.filter((c) => c.completedByUser).length;
-  const totalCount = SAMPLE_CASES.length;
-  const unlockedCount = SAMPLE_CASES.filter((c) => !c.locked).length;
+  useEffect(() => {
+    let cancelled = false;
+    api.get<CaseListResponse>("/cases/").then((res) => {
+      if (!cancelled) {
+        setData(res);
+        setLoading(false);
+      }
+    }).catch(() => {
+      if (!cancelled) setLoading(false);
+    });
+    return () => { cancelled = true; };
+  }, []);
+
+  if (loading) {
+    return (
+      <AuthLayout>
+        <div className="min-h-screen flex items-center justify-center" style={{ background: "var(--bg-primary)" }}>
+          <Loader2 size={32} className="animate-spin" style={{ color: "#8B5CF6" }} />
+        </div>
+      </AuthLayout>
+    );
+  }
+
+  const cases = data?.cases ?? [];
+  const stats = data?.stats ?? { total: 0, completed: 0, average_score: null, total_attempts: 0 };
+
+  let filteredCases = cases;
+  if (selectedCategory !== "Все") {
+    filteredCases = filteredCases.filter((c) => c.category === selectedCategory);
+  }
+  if (selectedDifficulty !== null) {
+    filteredCases = filteredCases.filter((c) => c.difficulty === selectedDifficulty);
+  }
+  if (selectedStatus === "completed") {
+    filteredCases = filteredCases.filter((c) => c.completed);
+  } else if (selectedStatus === "incomplete") {
+    filteredCases = filteredCases.filter((c) => !c.completed);
+  }
 
   return (
     <AuthLayout>
       <div className="min-h-screen relative" style={{ background: "var(--bg-primary)" }}>
-        {/* Pulsing glow animation */}
         <style>{`
           @keyframes pulse-glow {
             0%, 100% { opacity: 1; transform: scale(1); }
@@ -326,12 +163,7 @@ export default function CasesPage() {
             className="absolute top-[60%] -right-32 w-[700px] h-[700px] rounded-full opacity-[0.025]"
             style={{ background: "radial-gradient(circle, #2563EB 0%, transparent 70%)" }}
           />
-          <div
-            className="absolute top-[30%] left-[60%] w-[500px] h-[500px] rounded-full opacity-[0.02]"
-            style={{ background: "radial-gradient(circle, #F59E0B 0%, transparent 70%)" }}
-          />
         </div>
-        {/* Noise texture overlay */}
         <div className="absolute inset-0 pointer-events-none opacity-30 mix-blend-overlay" style={{ backgroundImage: NOISE_SVG }} aria-hidden />
 
         <div className="relative z-10 max-w-[1100px] mx-auto px-5 sm:px-8 py-8 sm:py-12">
@@ -375,9 +207,9 @@ export default function CasesPage() {
             className="mt-6 grid grid-cols-3 gap-3"
           >
             {[
-              { label: "Доступно", value: unlockedCount, icon: Briefcase, color: "#8B5CF6" },
-              { label: "Пройдено", value: `${completedCount}/${totalCount}`, icon: Star, color: "var(--success)" },
-              { label: "Всего кейсов", value: totalCount, icon: FileText, color: "var(--info)" },
+              { label: "Всего кейсов", value: stats.total, icon: FileText, color: "var(--info)" },
+              { label: "Пройдено", value: `${stats.completed}/${stats.total}`, icon: Star, color: "var(--success)" },
+              { label: "Средний балл", value: stats.average_score != null ? `${Math.round(stats.average_score)}%` : "—", icon: Award, color: "#8B5CF6" },
             ].map((stat) => {
               const Icon = stat.icon;
               return (
@@ -391,7 +223,6 @@ export default function CasesPage() {
                     WebkitBackdropFilter: "blur(12px)",
                   }}
                 >
-                  {/* Pulsing glow dot */}
                   <span
                     className="absolute top-3 right-3 block w-[6px] h-[6px] rounded-full"
                     style={{
@@ -426,25 +257,21 @@ export default function CasesPage() {
               border: "1px solid rgba(139, 92, 246, 0.15)",
             }}
           >
-            {/* Corner bracket — top-left */}
             <div
               className="absolute top-0 left-0 pointer-events-none"
               aria-hidden
               style={{
-                width: 16,
-                height: 16,
+                width: 16, height: 16,
                 borderTop: "2px solid rgba(139,92,246,0.5)",
                 borderLeft: "2px solid rgba(139,92,246,0.5)",
                 borderRadius: "4px 0 0 0",
               }}
             />
-            {/* Corner bracket — bottom-right */}
             <div
               className="absolute bottom-0 right-0 pointer-events-none"
               aria-hidden
               style={{
-                width: 16,
-                height: 16,
+                width: 16, height: 16,
                 borderBottom: "2px solid rgba(139,92,246,0.5)",
                 borderRight: "2px solid rgba(139,92,246,0.5)",
                 borderRadius: "0 0 4px 0",
@@ -480,8 +307,7 @@ export default function CasesPage() {
                 onClick={() => setSelectedCategory(cat)}
                 className="shrink-0 rounded-lg px-3 py-1.5 text-xs font-medium transition-all whitespace-nowrap"
                 style={{
-                  background:
-                    selectedCategory === cat ? "rgba(139, 92, 246, 0.12)" : "var(--surface-card)",
+                  background: selectedCategory === cat ? "rgba(139, 92, 246, 0.12)" : "var(--surface-card)",
                   border: `1px solid ${selectedCategory === cat ? "rgba(139, 92, 246, 0.4)" : "var(--border-color)"}`,
                   color: selectedCategory === cat ? "#8B5CF6" : "var(--text-muted)",
                 }}
@@ -489,6 +315,51 @@ export default function CasesPage() {
                 {cat}
               </button>
             ))}
+          </motion.div>
+
+          {/* Status + Difficulty filters */}
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.13 }}
+            className="mt-3 flex gap-2 flex-wrap"
+          >
+            {(["all", "completed", "incomplete"] as const).map((s) => {
+              const labels = { all: "Все", completed: "Пройденные", incomplete: "Непройденные" };
+              return (
+                <button
+                  key={s}
+                  onClick={() => setSelectedStatus(s)}
+                  className="shrink-0 rounded-lg px-3 py-1.5 text-xs font-medium transition-all"
+                  style={{
+                    background: selectedStatus === s ? "rgba(34,197,94,0.12)" : "var(--surface-card)",
+                    border: `1px solid ${selectedStatus === s ? "rgba(34,197,94,0.4)" : "var(--border-color)"}`,
+                    color: selectedStatus === s ? "var(--success)" : "var(--text-muted)",
+                  }}
+                >
+                  {labels[s]}
+                </button>
+              );
+            })}
+            <div className="w-px h-6 self-center" style={{ background: "var(--border-color)" }} />
+            {([1, 2, 3] as const).map((d) => {
+              const cfg = getDiffConfig(d);
+              const active = selectedDifficulty === d;
+              return (
+                <button
+                  key={d}
+                  onClick={() => setSelectedDifficulty(active ? null : d)}
+                  className="shrink-0 rounded-lg px-3 py-1.5 text-xs font-medium transition-all"
+                  style={{
+                    background: active ? cfg.bg : "var(--surface-card)",
+                    border: `1px solid ${active ? cfg.border : "var(--border-color)"}`,
+                    color: active ? cfg.color : "var(--text-muted)",
+                  }}
+                >
+                  {cfg.label}
+                </button>
+              );
+            })}
           </motion.div>
 
           {/* Butterfly Effect hero card */}
@@ -515,16 +386,10 @@ export default function CasesPage() {
                 <ButterflyIcon size={20} className="text-white" />
               </div>
               <div>
-                <h2
-                  className="text-base sm:text-lg font-bold tracking-tight"
-                  style={{ color: "var(--text-primary)" }}
-                >
+                <h2 className="text-base sm:text-lg font-bold tracking-tight" style={{ color: "var(--text-primary)" }}>
                   Эффект бабочки
                 </h2>
-                <p
-                  className="text-sm mt-1 leading-relaxed"
-                  style={{ color: "var(--text-secondary)" }}
-                >
+                <p className="text-sm mt-1 leading-relaxed" style={{ color: "var(--text-secondary)" }}>
                   Интерактивные кейсы из реальной арбитражной практики. Каждое ваше решение ведёт
                   к разным последствиям — как в жизни. Нет правильных ответов, есть стратегия.
                 </p>
@@ -547,41 +412,28 @@ export default function CasesPage() {
                     exit={{ opacity: 0, y: -8 }}
                     transition={{ duration: 0.4, delay: 0.02 + i * 0.04 }}
                     layout
-                    className="group relative rounded-2xl overflow-hidden transition-all duration-300"
+                    className="group relative rounded-2xl overflow-hidden transition-all duration-300 cursor-pointer"
                     style={{
                       background: "rgba(255,255,255,0.03)",
                       backdropFilter: "blur(12px)",
                       WebkitBackdropFilter: "blur(12px)",
-                      border: `1px solid ${isHovered && !caseItem.locked ? "rgba(139, 92, 246, 0.3)" : "rgba(255,255,255,0.06)"}`,
-                      cursor: caseItem.locked ? "default" : "pointer",
-                      opacity: caseItem.locked ? 0.6 : 1,
-                      boxShadow: isHovered && !caseItem.locked ? "0 8px 32px rgba(139,92,246,0.12)" : "none",
+                      border: `1px solid ${isHovered ? "rgba(139, 92, 246, 0.3)" : "rgba(255,255,255,0.06)"}`,
+                      boxShadow: isHovered ? "0 8px 32px rgba(139,92,246,0.12)" : "none",
                       transition: `all 0.4s cubic-bezier(${PREMIUM_EASE.join(",")})`,
                     }}
                     onMouseEnter={() => setHoveredCase(caseItem.id)}
                     onMouseLeave={() => setHoveredCase(null)}
-                    onClick={() => {
-                      if (!caseItem.locked) {
-                        router.push(`/cases/${caseItem.id}`);
-                      }
-                    }}
+                    onClick={() => router.push(`/cases/${caseItem.id}`)}
                   >
                     {/* Top accent line */}
-                    <div
-                      className="h-[2px]"
-                      style={{ background: `linear-gradient(90deg, ${diff.color}, transparent 80%)` }}
-                    />
+                    <div className="h-[2px]" style={{ background: `linear-gradient(90deg, ${diff.color}, transparent 80%)` }} />
 
                     <div className="p-5">
                       {/* Header row: badges */}
                       <div className="flex items-center gap-2 flex-wrap mb-3">
                         <span
                           className="px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wide"
-                          style={{
-                            background: diff.bg,
-                            color: diff.color,
-                            border: `1px solid ${diff.border}`,
-                          }}
+                          style={{ background: diff.bg, color: diff.color, border: `1px solid ${diff.border}` }}
                         >
                           {diff.label}
                         </span>
@@ -591,141 +443,66 @@ export default function CasesPage() {
                         >
                           {caseItem.category}
                         </span>
-
-                        {/* Blind mode badge */}
-                        {caseItem.blindMode && (
+                        {caseItem.completed && (
                           <span
                             className="flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wide"
-                            style={{
-                              background: "rgba(239, 68, 68, 0.1)",
-                              color: "var(--danger)",
-                              border: "1px solid rgba(239, 68, 68, 0.2)",
-                            }}
-                            title="Минимум вводных — как в реальной жизни"
+                            style={{ background: "rgba(34,197,94,0.1)", color: "var(--success)", border: "1px solid rgba(34,197,94,0.2)" }}
                           >
-                            <EyeOff size={10} />
-                            Слепой кейс
+                            <CheckCircle2 size={10} />
+                            Пройден
                           </span>
-                        )}
-
-                        {/* Timer mode badge */}
-                        {caseItem.timerMode && (
-                          <span
-                            className="flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wide"
-                            style={{
-                              background: "rgba(245, 158, 11, 0.1)",
-                              color: "var(--warning)",
-                              border: "1px solid rgba(245, 158, 11, 0.2)",
-                            }}
-                            title="Ограничение по времени"
-                          >
-                            <Timer size={10} />
-                            Таймер
-                          </span>
-                        )}
-
-                        {/* Lock icon on the right */}
-                        {caseItem.locked && (
-                          <Lock size={14} className="ml-auto" style={{ color: "var(--text-muted)" }} />
                         )}
                       </div>
 
                       {/* Title & description */}
-                      <h3
-                        className="text-base font-bold tracking-tight leading-snug mb-2"
-                        style={{ color: "var(--text-primary)" }}
-                      >
+                      <h3 className="text-base font-bold tracking-tight leading-snug mb-2" style={{ color: "var(--text-primary)" }}>
                         {caseItem.title}
                       </h3>
-                      <p
-                        className="text-sm leading-relaxed line-clamp-2 mb-3"
-                        style={{ color: "var(--text-secondary)" }}
-                      >
+                      <p className="text-sm leading-relaxed line-clamp-2 mb-3" style={{ color: "var(--text-secondary)" }}>
                         {caseItem.description}
                       </p>
 
                       {/* Expert analysis teaser */}
-                      <div
-                        className="flex items-center gap-1.5 text-[11px] mb-3"
-                        style={{ color: "var(--text-muted)" }}
-                      >
+                      <div className="flex items-center gap-1.5 text-[11px] mb-3" style={{ color: "var(--text-muted)" }}>
                         <GraduationCap size={12} style={{ color: "#8B5CF6" }} />
                         По завершении — разбор эксперта
                       </div>
 
                       {/* Meta row */}
-                      <div
-                        className="flex items-center gap-4 text-xs mb-3"
-                        style={{ color: "var(--text-muted)" }}
-                      >
+                      <div className="flex items-center gap-4 text-xs mb-3" style={{ color: "var(--text-muted)" }}>
                         <span className="flex items-center gap-1">
-                          <Clock size={12} />~{caseItem.estimatedMinutes} мин
+                          <Clock size={12} />~{caseItem.estimated_minutes} мин
                         </span>
-                        <span className="flex items-center gap-1">
-                          <TrendingUp size={12} />
-                          {caseItem.branchCount} развилок
-                        </span>
-                        {caseItem.hiddenFacts && (
+                        {caseItem.attempts > 0 && (
                           <span className="flex items-center gap-1">
-                            <Search size={12} />
-                            {caseItem.hiddenFacts} скрытых фактов
+                            <TrendingUp size={12} />
+                            {caseItem.attempts} {caseItem.attempts === 1 ? "попытка" : caseItem.attempts < 5 ? "попытки" : "попыток"}
+                          </span>
+                        )}
+                        {caseItem.best_score != null && (
+                          <span className="flex items-center gap-1">
+                            <Award size={12} />
+                            Лучший: {caseItem.best_score}%
                           </span>
                         )}
                       </div>
 
-                      {/* Butterfly effect + benchmark row */}
+                      {/* Butterfly effect row */}
                       <div className="flex items-center justify-between mb-3">
-                        <div
-                          className="flex items-center gap-1.5 text-[11px]"
-                          style={{ color: "rgba(139, 92, 246, 0.7)" }}
-                        >
+                        <div className="flex items-center gap-1.5 text-[11px]" style={{ color: "rgba(139, 92, 246, 0.7)" }}>
                           <ButterflyIcon size={13} />
                           <span>Каждое решение меняет ход дела</span>
                         </div>
-                        {caseItem.benchmarkPercentile && (
-                          <div
-                            className="flex items-center gap-1 text-[11px] font-medium"
-                            style={{ color: "var(--text-muted)" }}
-                          >
-                            <Award size={11} style={{ color: "#8B5CF6" }} />
-                            <span>
-                              Лучше {caseItem.benchmarkPercentile}% участников
-                            </span>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Tags */}
-                      <div className="flex flex-wrap gap-1.5 mb-4">
-                        {caseItem.tags.map((tag) => (
-                          <span
-                            key={tag}
-                            className="text-[11px] px-2 py-0.5 rounded-md"
-                            style={{ background: "var(--bg-tertiary)", color: "var(--text-muted)" }}
-                          >
-                            {tag}
-                          </span>
-                        ))}
                       </div>
 
                       {/* Action */}
-                      {caseItem.locked ? (
-                        <div
-                          className="flex items-center gap-2 text-xs font-medium py-2"
-                          style={{ color: "var(--text-muted)" }}
-                        >
-                          <Lock size={12} />
-                          Пройдите предыдущие кейсы для разблокировки
-                        </div>
-                      ) : (
-                        <div
-                          className="flex items-center gap-1.5 text-xs font-bold opacity-0 group-hover:opacity-100 transition-opacity duration-200"
-                          style={{ color: "#8B5CF6" }}
-                        >
-                          Начать кейс
-                          <ArrowRight size={14} />
-                        </div>
-                      )}
+                      <div
+                        className="flex items-center gap-1.5 text-xs font-bold opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+                        style={{ color: "#8B5CF6" }}
+                      >
+                        {caseItem.completed ? "Пройти заново" : "Начать кейс"}
+                        <ArrowRight size={14} />
+                      </div>
                     </div>
                   </motion.div>
                 );
@@ -733,7 +510,13 @@ export default function CasesPage() {
             </AnimatePresence>
           </div>
 
-          {/* Coming soon note */}
+          {filteredCases.length === 0 && (
+            <div className="mt-8 text-center py-12">
+              <Briefcase size={40} className="mx-auto mb-3" style={{ color: "var(--text-muted)" }} />
+              <p className="text-sm" style={{ color: "var(--text-muted)" }}>Нет кейсов по выбранным фильтрам</p>
+            </div>
+          )}
+
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
