@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Send, Sparkles } from "lucide-react";
 import { api } from "@/lib/api";
+import Image from "next/image";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -26,7 +27,23 @@ const QUICK_ACTIONS = [
 ];
 
 /* ------------------------------------------------------------------ */
-/*  Inline keyframes (injected once)                                   */
+/*  Gzhel color palette — matching reference project                   */
+/* ------------------------------------------------------------------ */
+
+const GZHEL = {
+  primary: "#1565C0",
+  primaryLight: "#42A5F5",
+  accent: "#2196F3",
+  bgPanel: "rgba(10, 18, 40, 0.98)",
+  border: "rgba(21, 101, 192, 0.2)",
+  borderActive: "rgba(21, 101, 192, 0.45)",
+  glow: "rgba(33, 150, 243, 0.25)",
+  glowStrong: "rgba(33, 150, 243, 0.45)",
+  textMuted: "rgba(255, 255, 255, 0.45)",
+};
+
+/* ------------------------------------------------------------------ */
+/*  Inline keyframes (injected once) — Gzhel blue theme                */
 /* ------------------------------------------------------------------ */
 
 const KEYFRAMES_ID = "manyasha-keyframes";
@@ -37,14 +54,18 @@ function ensureKeyframes() {
   const style = document.createElement("style");
   style.id = KEYFRAMES_ID;
   style.textContent = `
-    @keyframes manyasha-pulse-ring {
-      0%   { transform: scale(1);   opacity: 0.5; }
-      70%  { transform: scale(1.5); opacity: 0; }
-      100% { transform: scale(1.5); opacity: 0; }
+    @keyframes manyasha-float {
+      0%, 100% { transform: translateY(0); }
+      50%      { transform: translateY(-6px); }
+    }
+    @keyframes manyasha-bubble-pop {
+      0%   { transform: scale(0) translateY(10px); opacity: 0; }
+      60%  { transform: scale(1.05) translateY(-2px); opacity: 1; }
+      100% { transform: scale(1) translateY(0); opacity: 1; }
     }
     @keyframes manyasha-glow-breathe {
-      0%, 100% { box-shadow: 0 0 20px rgba(236,72,153,0.25), 0 4px 14px rgba(0,0,0,0.3); }
-      50%      { box-shadow: 0 0 36px rgba(236,72,153,0.45), 0 4px 14px rgba(0,0,0,0.3); }
+      0%, 100% { filter: drop-shadow(0 0 12px ${GZHEL.glow}); }
+      50%      { filter: drop-shadow(0 0 24px ${GZHEL.glowStrong}); }
     }
     @keyframes manyasha-border-glow {
       0%, 100% { opacity: 0.4; }
@@ -53,11 +74,11 @@ function ensureKeyframes() {
     .manyasha-scrollbar::-webkit-scrollbar { width: 4px; }
     .manyasha-scrollbar::-webkit-scrollbar-track { background: transparent; }
     .manyasha-scrollbar::-webkit-scrollbar-thumb {
-      background: rgba(236,72,153,0.2);
+      background: rgba(21, 101, 192, 0.2);
       border-radius: 4px;
     }
     .manyasha-scrollbar::-webkit-scrollbar-thumb:hover {
-      background: rgba(236,72,153,0.35);
+      background: rgba(21, 101, 192, 0.35);
     }
   `;
   document.head.appendChild(style);
@@ -74,6 +95,7 @@ export default function ManyashaWidget() {
   const [loading, setLoading] = useState(false);
   const [enabled, setEnabled] = useState(true);
   const [inputFocused, setInputFocused] = useState(false);
+  const [hovered, setHovered] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -187,45 +209,77 @@ export default function ManyashaWidget() {
   return (
     <>
       {/* ---------------------------------------------------------- */}
-      {/*  FLOATING BUTTON                                            */}
+      {/*  FLOATING MASCOT — real Gzhel matryoshka image              */}
       {/* ---------------------------------------------------------- */}
       <AnimatePresence>
         {!open && (
-          <motion.button
+          <motion.div
             initial={{ scale: 0, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0, opacity: 0 }}
-            whileHover={{ scale: 1.12 }}
-            whileTap={{ scale: 0.92 }}
-            onClick={() => setOpen(true)}
-            className="fixed bottom-6 right-6 z-[9999] flex items-center justify-center rounded-full"
-            style={{
-              width: 56,
-              height: 56,
-              background: "linear-gradient(135deg, #EC4899, #8B5CF6)",
-              boxShadow:
-                "0 0 30px rgba(236, 72, 153, 0.3), 0 4px 14px rgba(0,0,0,0.3)",
-              animation: "manyasha-glow-breathe 3s ease-in-out infinite",
-            }}
-            aria-label="Открыть Маняшу"
+            className="fixed bottom-4 right-4 z-[9999] flex flex-col items-end"
+            onMouseEnter={() => setHovered(true)}
+            onMouseLeave={() => setHovered(false)}
           >
-            {/* Pulsing ring */}
-            <span
-              className="absolute inset-0 rounded-full"
+            {/* Speech bubble — "Нужна помощь?" */}
+            <AnimatePresence>
+              {hovered && (
+                <motion.div
+                  initial={{ scale: 0, opacity: 0, y: 10 }}
+                  animate={{ scale: 1, opacity: 1, y: 0 }}
+                  exit={{ scale: 0, opacity: 0, y: 10 }}
+                  transition={{ type: "spring", stiffness: 400, damping: 25 }}
+                  className="mb-2 mr-2 px-4 py-2.5 rounded-2xl relative"
+                  style={{
+                    background: "rgba(255, 255, 255, 0.95)",
+                    boxShadow: "0 4px 20px rgba(0, 0, 0, 0.15)",
+                    border: "1px solid rgba(21, 101, 192, 0.15)",
+                  }}
+                >
+                  <span className="text-sm font-semibold" style={{ color: "#1a2b3d" }}>
+                    Нужна помощь?
+                  </span>
+                  {/* Speech bubble tail */}
+                  <div
+                    className="absolute -bottom-2 right-6 w-4 h-4"
+                    style={{
+                      background: "rgba(255, 255, 255, 0.95)",
+                      transform: "rotate(45deg)",
+                      borderRight: "1px solid rgba(21, 101, 192, 0.15)",
+                      borderBottom: "1px solid rgba(21, 101, 192, 0.15)",
+                    }}
+                  />
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* Mascot image button */}
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => setOpen(true)}
+              className="relative rounded-full overflow-hidden border-0 bg-transparent p-0 cursor-pointer"
               style={{
-                border: "2px solid rgba(236, 72, 153, 0.5)",
-                animation:
-                  "manyasha-pulse-ring 2.5s cubic-bezier(0.4, 0, 0.6, 1) infinite",
+                width: 80,
+                height: 80,
+                animation: "manyasha-float 4s ease-in-out infinite, manyasha-glow-breathe 3s ease-in-out infinite",
               }}
-            />
-            <span
-              className="text-2xl select-none relative z-10"
-              role="img"
-              aria-label="matryoshka"
+              aria-label="Открыть Маняшу"
             >
-              {"🪆"}
-            </span>
-          </motion.button>
+              <Image
+                src="/mascot/mascot-idle.jpg"
+                alt="Маняша — AI-помощник"
+                width={80}
+                height={80}
+                className="rounded-full object-cover object-[center_20%]"
+                style={{
+                  border: "3px solid rgba(21, 101, 192, 0.4)",
+                  borderRadius: "50%",
+                }}
+                priority
+              />
+            </motion.button>
+          </motion.div>
         )}
       </AnimatePresence>
 
@@ -241,35 +295,39 @@ export default function ManyashaWidget() {
             transition={{ type: "spring", stiffness: 340, damping: 28 }}
             className="fixed bottom-6 right-6 z-[9999] flex flex-col overflow-hidden"
             style={{
-              width: "min(380px, calc(100vw - 48px))",
-              maxHeight: "min(520px, calc(100vh - 100px))",
-              background: "rgba(10, 10, 25, 0.98)",
-              border: "1px solid rgba(236, 72, 153, 0.15)",
+              width: "min(400px, calc(100vw - 48px))",
+              maxHeight: "min(560px, calc(100vh - 100px))",
+              background: GZHEL.bgPanel,
+              border: `1px solid ${GZHEL.border}`,
               borderRadius: 20,
               backdropFilter: "blur(40px)",
-              boxShadow:
-                "0 20px 60px rgba(0,0,0,0.5), 0 0 40px rgba(236,72,153,0.1)",
+              boxShadow: `0 20px 60px rgba(0,0,0,0.5), 0 0 40px ${GZHEL.glow}`,
             }}
           >
-            {/* ------ HEADER ------ */}
+            {/* ------ HEADER with real mascot ------ */}
             <div
-              className="relative shrink-0 flex items-center justify-between px-5 py-3.5"
+              className="relative shrink-0 flex items-center justify-between px-4 py-3"
               style={{
-                background:
-                  "linear-gradient(135deg, rgba(236,72,153,0.12), rgba(139,92,246,0.08))",
+                background: "linear-gradient(135deg, rgba(21,101,192,0.12), rgba(33,150,243,0.06))",
               }}
             >
               <div className="flex items-center gap-3">
                 <div
-                  className="flex items-center justify-center rounded-full"
+                  className="flex items-center justify-center rounded-full overflow-hidden shrink-0"
                   style={{
-                    width: 36,
-                    height: 36,
-                    background: "linear-gradient(135deg, #EC4899, #8B5CF6)",
-                    boxShadow: "0 0 12px rgba(236,72,153,0.3)",
+                    width: 42,
+                    height: 42,
+                    border: `2px solid rgba(21, 101, 192, 0.3)`,
+                    boxShadow: `0 0 12px ${GZHEL.glow}`,
                   }}
                 >
-                  <span className="text-lg select-none">{"🪆"}</span>
+                  <Image
+                    src="/mascot/mascot-idle.jpg"
+                    alt="Маняша"
+                    width={42}
+                    height={42}
+                    className="rounded-full object-cover object-[center_20%]"
+                  />
                 </div>
                 <div className="flex flex-col">
                   <span
@@ -280,10 +338,10 @@ export default function ManyashaWidget() {
                   </span>
                   <span
                     className="text-[11px] leading-tight flex items-center gap-1"
-                    style={{ color: "rgba(255,255,255,0.45)" }}
+                    style={{ color: GZHEL.textMuted }}
                   >
                     <Sparkles size={10} />
-                    AI-помощник
+                    AI-помощник по банкротству
                   </span>
                 </div>
               </div>
@@ -310,8 +368,7 @@ export default function ManyashaWidget() {
               <div
                 className="absolute bottom-0 left-4 right-4 h-px"
                 style={{
-                  background:
-                    "linear-gradient(90deg, transparent, rgba(236,72,153,0.4), rgba(139,92,246,0.3), transparent)",
+                  background: `linear-gradient(90deg, transparent, ${GZHEL.borderActive}, ${GZHEL.accent}40, transparent)`,
                   animation: "manyasha-border-glow 3s ease-in-out infinite",
                 }}
               />
@@ -329,19 +386,24 @@ export default function ManyashaWidget() {
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.15 }}
-                  className="flex flex-col items-center text-center py-6 px-2"
+                  className="flex flex-col items-center text-center py-4 px-2"
                 >
                   <div
-                    className="flex items-center justify-center rounded-full mb-4"
+                    className="rounded-full overflow-hidden mb-4"
                     style={{
-                      width: 64,
-                      height: 64,
-                      background:
-                        "linear-gradient(135deg, rgba(236,72,153,0.15), rgba(139,92,246,0.1))",
-                      border: "1px solid rgba(236,72,153,0.15)",
+                      width: 80,
+                      height: 80,
+                      border: `2px solid ${GZHEL.border}`,
+                      boxShadow: `0 0 20px ${GZHEL.glow}`,
                     }}
                   >
-                    <span className="text-3xl select-none">{"🪆"}</span>
+                    <Image
+                      src="/mascot/mascot-idle.jpg"
+                      alt="Маняша"
+                      width={80}
+                      height={80}
+                      className="rounded-full object-cover object-[center_20%]"
+                    />
                   </div>
                   <p
                     className="font-bold text-base mb-1"
@@ -351,7 +413,7 @@ export default function ManyashaWidget() {
                   </p>
                   <p
                     className="text-xs mb-5"
-                    style={{ color: "rgba(255,255,255,0.4)" }}
+                    style={{ color: GZHEL.textMuted }}
                   >
                     Задайте любой вопрос о банкротстве
                   </p>
@@ -364,26 +426,20 @@ export default function ManyashaWidget() {
                         onClick={() => sendMessage(label)}
                         className="rounded-full px-3 py-1.5 text-xs transition-all duration-200"
                         style={{
-                          background: "rgba(236, 72, 153, 0.08)",
-                          border: "1px solid rgba(236, 72, 153, 0.2)",
+                          background: "rgba(21, 101, 192, 0.08)",
+                          border: `1px solid ${GZHEL.border}`,
                           color: "rgba(255,255,255,0.7)",
                           cursor: "pointer",
                         }}
                         onMouseEnter={(e) => {
-                          e.currentTarget.style.background =
-                            "rgba(236, 72, 153, 0.18)";
-                          e.currentTarget.style.borderColor =
-                            "rgba(236, 72, 153, 0.4)";
-                          e.currentTarget.style.color =
-                            "rgba(255,255,255,0.95)";
+                          e.currentTarget.style.background = "rgba(21, 101, 192, 0.18)";
+                          e.currentTarget.style.borderColor = GZHEL.borderActive;
+                          e.currentTarget.style.color = "rgba(255,255,255,0.95)";
                         }}
                         onMouseLeave={(e) => {
-                          e.currentTarget.style.background =
-                            "rgba(236, 72, 153, 0.08)";
-                          e.currentTarget.style.borderColor =
-                            "rgba(236, 72, 153, 0.2)";
-                          e.currentTarget.style.color =
-                            "rgba(255,255,255,0.7)";
+                          e.currentTarget.style.background = "rgba(21, 101, 192, 0.08)";
+                          e.currentTarget.style.borderColor = GZHEL.border;
+                          e.currentTarget.style.color = "rgba(255,255,255,0.7)";
                         }}
                       >
                         {label}
@@ -404,16 +460,20 @@ export default function ManyashaWidget() {
                 >
                   {msg.role === "assistant" && (
                     <div
-                      className="shrink-0 mr-2 mt-1 flex items-center justify-center rounded-full"
+                      className="shrink-0 mr-2 mt-1 rounded-full overflow-hidden"
                       style={{
-                        width: 24,
-                        height: 24,
-                        background:
-                          "linear-gradient(135deg, rgba(236,72,153,0.2), rgba(139,92,246,0.15))",
-                        border: "1px solid rgba(236,72,153,0.15)",
+                        width: 26,
+                        height: 26,
+                        border: `1px solid ${GZHEL.border}`,
                       }}
                     >
-                      <span className="text-xs select-none">{"🪆"}</span>
+                      <Image
+                        src="/mascot/mascot-idle.jpg"
+                        alt="Маняша"
+                        width={26}
+                        height={26}
+                        className="rounded-full object-cover object-[center_20%]"
+                      />
                     </div>
                   )}
                   <div
@@ -421,9 +481,8 @@ export default function ManyashaWidget() {
                     style={
                       msg.role === "user"
                         ? {
-                            background:
-                              "linear-gradient(135deg, rgba(59,130,246,0.25), rgba(99,102,241,0.2))",
-                            border: "1px solid rgba(99,102,241,0.2)",
+                            background: "linear-gradient(135deg, rgba(21,101,192,0.25), rgba(33,150,243,0.15))",
+                            border: "1px solid rgba(21,101,192,0.25)",
                             color: "rgba(255,255,255,0.92)",
                             borderBottomRightRadius: 6,
                           }
@@ -448,16 +507,20 @@ export default function ManyashaWidget() {
                   className="flex justify-start"
                 >
                   <div
-                    className="shrink-0 mr-2 mt-1 flex items-center justify-center rounded-full"
+                    className="shrink-0 mr-2 mt-1 rounded-full overflow-hidden"
                     style={{
-                      width: 24,
-                      height: 24,
-                      background:
-                        "linear-gradient(135deg, rgba(236,72,153,0.2), rgba(139,92,246,0.15))",
-                      border: "1px solid rgba(236,72,153,0.15)",
+                      width: 26,
+                      height: 26,
+                      border: `1px solid ${GZHEL.border}`,
                     }}
                   >
-                    <span className="text-xs select-none">{"🪆"}</span>
+                    <Image
+                      src="/mascot/mascot-idle.jpg"
+                      alt="Маняша"
+                      width={26}
+                      height={26}
+                      className="rounded-full object-cover object-[center_20%]"
+                    />
                   </div>
                   <div
                     className="rounded-2xl px-4 py-3"
@@ -475,8 +538,7 @@ export default function ManyashaWidget() {
                           style={{
                             width: 6,
                             height: 6,
-                            background:
-                              "linear-gradient(135deg, #EC4899, #8B5CF6)",
+                            background: `linear-gradient(135deg, ${GZHEL.primary}, ${GZHEL.accent})`,
                           }}
                           animate={{
                             y: [0, -5, 0],
@@ -508,10 +570,10 @@ export default function ManyashaWidget() {
                 style={{
                   background: "rgba(255,255,255,0.03)",
                   border: inputFocused
-                    ? "1px solid rgba(236, 72, 153, 0.3)"
+                    ? `1px solid ${GZHEL.borderActive}`
                     : "1px solid rgba(255,255,255,0.06)",
                   boxShadow: inputFocused
-                    ? "0 0 20px rgba(236, 72, 153, 0.08), inset 0 0 20px rgba(236, 72, 153, 0.03)"
+                    ? "0 0 20px rgba(21, 101, 192, 0.08), inset 0 0 20px rgba(21, 101, 192, 0.03)"
                     : "none",
                 }}
               >
@@ -542,14 +604,14 @@ export default function ManyashaWidget() {
                     height: 34,
                     background:
                       input.trim() && !loading
-                        ? "linear-gradient(135deg, #EC4899, #8B5CF6)"
+                        ? `linear-gradient(135deg, ${GZHEL.primary}, ${GZHEL.accent})`
                         : "rgba(255,255,255,0.04)",
                     opacity: input.trim() && !loading ? 1 : 0.3,
                     cursor:
                       input.trim() && !loading ? "pointer" : "not-allowed",
                     boxShadow:
                       input.trim() && !loading
-                        ? "0 0 16px rgba(236,72,153,0.25)"
+                        ? `0 0 16px ${GZHEL.glow}`
                         : "none",
                   }}
                   aria-label="Отправить"
