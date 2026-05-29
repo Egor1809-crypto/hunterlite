@@ -366,7 +366,7 @@ export default function Header() {
 
       <AnimatePresence>
         {mobileOpen && (
-          <>
+          <motion.div key="mobile-menu-layer" className="contents">
             {/* Backdrop */}
             <motion.div
               initial={{ opacity: 0 }}
@@ -466,7 +466,7 @@ export default function Header() {
                 )}
               </div>
             </motion.nav>
-          </>
+          </motion.div>
         )}
       </AnimatePresence>
     </header>

@@ -11,24 +11,25 @@ import {
   User,
   Settings,
   LogOut,
-  ChevronLeft,
   ChevronDown,
   Scale,
   PanelLeftClose,
   PanelLeft,
   Briefcase,
   GraduationCap,
+  Zap,
 } from "lucide-react";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { UserAvatar } from "@/components/ui/UserAvatar";
 import { sanitizeText } from "@/lib/sanitize";
-import type { UserRole } from "@/types";
 
 /* ── Sidebar width tokens ─────────────────────────────────── */
 const SIDEBAR_EXPANDED = 260;
 const SIDEBAR_COLLAPSED = 68;
 const STORAGE_KEY = "lh-sidebar-collapsed";
+const ENERGY_STORAGE_KEY = "hunterlite_daily_energy";
+const DAILY_ENERGY = 20;
 
 /* ── Navigation items ─────────────────────────────────────── */
 type NavItem = {
@@ -37,7 +38,7 @@ type NavItem = {
   icon: typeof Home;
 };
 
-function buildNavForRole(_role: UserRole | undefined): NavItem[] {
+function buildNavForRole(): NavItem[] {
   return [
     { href: "/home", label: "Центр", icon: Home },
     { href: "/training", label: "Обучение", icon: Crosshair },
@@ -59,12 +60,12 @@ export default function AppSidebar({ collapsed, onToggle }: AppSidebarProps) {
   const router = useRouter();
   const { user, logout } = useAuth();
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [energy, setEnergy] = useState(DAILY_ENERGY);
 
   const isActive = (href: string) =>
     pathname === href || pathname.startsWith(`${href}/`);
 
-  const userRole = user?.role as UserRole | undefined;
-  const navItems = buildNavForRole(userRole);
+  const navItems = buildNavForRole();
   const displayName = sanitizeText(user?.full_name || "Пользователь");
   const roleLabel =
     user?.role === "admin"
@@ -80,35 +81,65 @@ export default function AppSidebar({ collapsed, onToggle }: AppSidebarProps) {
 
   const sidebarWidth = collapsed ? SIDEBAR_COLLAPSED : SIDEBAR_EXPANDED;
 
+  useEffect(() => {
+    const readEnergy = () => {
+      try {
+        const today = new Date().toISOString().slice(0, 10);
+        const raw = localStorage.getItem(ENERGY_STORAGE_KEY);
+        if (!raw) {
+          setEnergy(DAILY_ENERGY);
+          return;
+        }
+        const parsed = JSON.parse(raw) as { date?: string; remaining?: number };
+        setEnergy(parsed.date === today ? Math.max(0, Math.min(DAILY_ENERGY, Number(parsed.remaining ?? DAILY_ENERGY))) : DAILY_ENERGY);
+      } catch {
+        setEnergy(DAILY_ENERGY);
+      }
+    };
+
+    readEnergy();
+    window.addEventListener("storage", readEnergy);
+    window.addEventListener("hunterlite:energy", readEnergy);
+    return () => {
+      window.removeEventListener("storage", readEnergy);
+      window.removeEventListener("hunterlite:energy", readEnergy);
+    };
+  }, []);
+
   return (
     <aside
       className="fixed top-0 left-0 z-40 flex h-screen flex-col border-r select-none overflow-hidden"
-      style={{
-        background: "linear-gradient(180deg, var(--surface-elevated) 0%, var(--surface-card) 50%, var(--bg-primary) 100%)",
-        borderColor: "var(--border-color)",
-        width: sidebarWidth,
-        transition: "width 0.2s cubic-bezier(0.25, 0.1, 0.25, 1)",
-      }}
+	      style={{
+	        background: `
+            radial-gradient(circle at 18% 8%, rgba(59,130,246,0.16), transparent 30%),
+            radial-gradient(circle at 80% 40%, rgba(168,85,247,0.12), transparent 34%),
+            linear-gradient(180deg, rgba(22,24,33,0.98) 0%, rgba(14,16,22,0.98) 52%, rgba(7,9,14,0.99) 100%)
+          `,
+	        borderColor: "rgba(255,255,255,0.08)",
+	        width: sidebarWidth,
+	        transition: "width 0.2s cubic-bezier(0.25, 0.1, 0.25, 1)",
+          boxShadow: "18px 0 60px rgba(0,0,0,0.28)",
+	      }}
     >
       {/* ── Logo ──────────────────────────────────────── */}
       <div
-        className="flex h-16 items-center gap-2.5 px-4 relative"
-        style={{ borderBottom: "1px solid var(--border-color)" }}
-      >
+	        className="flex h-20 items-center gap-2.5 px-4 relative"
+	        style={{ borderBottom: "1px solid rgba(255,255,255,0.08)" }}
+	      >
         <Link
           href="/home"
           className="flex items-center gap-2.5 overflow-hidden"
           prefetch
         >
           <div
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl"
-            style={{
-              background: "linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%)",
-              boxShadow: "0 2px 8px rgba(37, 99, 235, 0.3)",
-            }}
-          >
-            <Scale size={18} className="text-white" />
-          </div>
+	            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl"
+	            style={{
+	              background: "linear-gradient(135deg, #3B82F6 0%, #1D4ED8 55%, #7C3AED 100%)",
+	              boxShadow: "0 10px 28px rgba(37, 99, 235, 0.35)",
+	            }}
+	          >
+	            <Scale size={22} className="text-white" />
+	          </div>
           <AnimatePresence mode="wait">
             {!collapsed && (
               <motion.span
@@ -117,7 +148,7 @@ export default function AppSidebar({ collapsed, onToggle }: AppSidebarProps) {
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: -8 }}
                 transition={{ duration: 0.15 }}
-                className="whitespace-nowrap text-base font-bold tracking-tight"
+	                className="whitespace-nowrap text-xl font-bold tracking-tight"
                 style={{ color: "var(--text-primary)" }}
               >
                 LegalHunter
@@ -153,7 +184,7 @@ export default function AppSidebar({ collapsed, onToggle }: AppSidebarProps) {
       </div>
 
       {/* ── Expand button when collapsed ─────────────── */}
-      {collapsed && (
+	      {collapsed && (
         <div className="flex justify-center py-2">
           <button
             onClick={onToggle}
@@ -172,11 +203,51 @@ export default function AppSidebar({ collapsed, onToggle }: AppSidebarProps) {
             <PanelLeft size={16} />
           </button>
         </div>
-      )}
+	      )}
+
+        {!collapsed && (
+          <div className="px-4 pt-3">
+            <div
+              className="rounded-2xl border px-3 py-3"
+              style={{
+                background: "linear-gradient(135deg, rgba(59,130,246,0.12), rgba(168,85,247,0.08))",
+                borderColor: "rgba(96,165,250,0.22)",
+              }}
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span
+                    className="flex h-8 w-8 items-center justify-center rounded-xl"
+                    style={{ background: "rgba(59,130,246,0.18)", color: "#60A5FA" }}
+                  >
+                    <Zap size={16} />
+                  </span>
+                  <div>
+                    <div className="text-xs font-bold uppercase tracking-widest" style={{ color: "rgba(255,255,255,0.62)" }}>
+                      Энергия
+                    </div>
+                    <div className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
+                      {energy}/{DAILY_ENERGY}
+                    </div>
+                  </div>
+                </div>
+                <div className="h-2 w-16 overflow-hidden rounded-full" style={{ background: "rgba(255,255,255,0.08)" }}>
+                  <div
+                    className="h-full rounded-full"
+                    style={{
+                      width: `${Math.max(0, Math.min(100, (energy / DAILY_ENERGY) * 100))}%`,
+                      background: "linear-gradient(90deg, #22D3EE, #60A5FA, #A78BFA)",
+                    }}
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
       {/* ── Navigation ────────────────────────────────── */}
-      <nav className="flex-1 overflow-y-auto px-3 py-3">
-        <div className="flex flex-col gap-1">
+	      <nav className="flex-1 overflow-y-auto px-3 py-4">
+	        <div className="flex flex-col gap-2">
           {navItems.map((item) => {
             const Icon = item.icon;
             const active = isActive(item.href);
@@ -186,12 +257,16 @@ export default function AppSidebar({ collapsed, onToggle }: AppSidebarProps) {
                 href={item.href}
                 prefetch
                 aria-current={active ? "page" : undefined}
-                className="group relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-150 overflow-hidden"
-                style={{
-                  color: active ? "#3B82F6" : "var(--text-secondary)",
-                  background: active ? "rgba(37, 99, 235, 0.1)" : "transparent",
-                  justifyContent: collapsed ? "center" : "flex-start",
-                }}
+	                className="group relative flex items-center gap-3 rounded-2xl px-3 py-3 text-sm font-semibold transition-all duration-150 overflow-hidden"
+	                style={{
+	                  color: active ? "#78A7FF" : "var(--text-secondary)",
+	                  background: active
+                      ? "linear-gradient(135deg, rgba(59,130,246,0.18), rgba(124,58,237,0.10))"
+                      : "transparent",
+                    border: active ? "1px solid rgba(96,165,250,0.22)" : "1px solid transparent",
+                    boxShadow: active ? "0 10px 28px rgba(37,99,235,0.12)" : "none",
+	                  justifyContent: collapsed ? "center" : "flex-start",
+	                }}
                 onMouseEnter={(e) => {
                   if (!active) {
                     e.currentTarget.style.background = "var(--bg-tertiary)";

@@ -113,6 +113,69 @@ def _story_to_summary(story: ClientStory, sessions: list[TrainingSession]) -> St
     )
 
 
+def _apply_transcript_fallback_scores(session: TrainingSession, messages: list[Message]) -> None:
+    """Build a usable report when WS/call scoring did not finish."""
+    if session.score_total is not None:
+        return
+
+    user_msgs = [m for m in messages if m.role == MessageRole.user]
+    assistant_msgs = [m for m in messages if m.role == MessageRole.assistant]
+    if not user_msgs:
+        return
+
+    text = "\n".join(m.content for m in user_msgs)
+    lower = text.lower()
+    user_count = len(user_msgs)
+    assistant_count = len(assistant_msgs)
+    avg_len = sum(len(m.content) for m in user_msgs) / max(1, user_count)
+    question_count = sum(1 for m in user_msgs if "?" in m.content)
+
+    empathy_hits = sum(1 for word in ("понима", "давайте", "помогу", "ситуац", "спокой") if word in lower)
+    legal_hits = sum(1 for word in ("банкрот", "долг", "суд", "закон", "процедур", "кредитор", "имуще") if word in lower)
+    structure_hits = sum(1 for word in ("сначала", "далее", "документ", "встреч", "план", "шаг") if word in lower)
+    risky_hits = sum(1 for word in ("гарантир", "обещаю", "точно спиш", "без суда", "не скажем") if word in lower)
+
+    script = min(30.0, 8 + user_count * 3 + structure_hits * 2 + min(avg_len / 35, 6))
+    objections = min(20.0, 5 + assistant_count * 2 + question_count * 2 + empathy_hits)
+    communication = min(20.0, 6 + min(avg_len / 28, 6) + empathy_hits * 2 + min(user_count, 4))
+    anti_patterns = max(-10.0, -float(risky_hits * 2))
+    result = min(10.0, 2 + legal_hits + structure_hits + question_count)
+    total = round(max(18.0, min(78.0, script + objections + communication + anti_patterns + result)), 1)
+
+    session.score_script_adherence = round(script, 1)
+    session.score_objection_handling = round(objections, 1)
+    session.score_communication = round(communication, 1)
+    session.score_anti_patterns = round(anti_patterns, 1)
+    session.score_result = round(result, 1)
+    session.score_total = total
+
+    details = dict(session.scoring_details or {})
+    details.setdefault("_fallback_report", True)
+    details.setdefault("_fallback_reason", "technical_disconnect_with_saved_transcript")
+    details.setdefault("_user_message_count", user_count)
+    details.setdefault("_assistant_message_count", assistant_count)
+    details.setdefault("_analysis_summary", {
+        "title": "Разбор восстановлен по сохранённому диалогу",
+        "strong_points": [
+            "Контакт с клиентом был начат и зафиксирован в истории.",
+            "В разговоре есть юридические ориентиры и вопросы к ситуации клиента.",
+        ],
+        "growth_points": [
+            "Нужно быстрее структурировать следующий шаг: документы, сроки, план действий.",
+            "После возражений клиента стоит явно подводить итог договорённости.",
+        ],
+    })
+    details.setdefault("judge", {
+        "summary": "Сессия завершилась техническим сбоем, но переписка сохранена. Оценка рассчитана по фактическим сообщениям пользователя.",
+        "recommendation": "Повтори тренировку и доведи клиента до финального шага: резюме проблемы, список документов, срок следующего контакта.",
+    })
+    session.scoring_details = details
+    session.feedback_text = (
+        "Разговор оборвался технически, но мы сохранили переписку и собрали отчёт по вашим сообщениям. "
+        "Для более точной оценки пройдите тренировку до штатного завершения."
+    )
+
+
 async def _load_story_context(
     db: AsyncSession,
     story_id: uuid.UUID | None,
@@ -292,6 +355,8 @@ async def _build_session_result(
             ]
 
     story, story_calls = await _load_story_context(db, session.client_story_id, user_id=user.id)
+    _apply_transcript_fallback_scores(session, messages)
+
     return SessionResultResponse(
         session=_session_to_response(session),
         messages=[MessageResponse.model_validate(m) for m in messages],
@@ -338,13 +403,23 @@ async def start_session(
     # callers (sending body.mode) and any pre-canonical caller still using
     # custom_session_mode only.
     _engine_mode = body.mode or normalize_session_mode(body.custom_session_mode)
-    _start_violations = evaluate_start_guards(
+    _all_start_violations = evaluate_start_guards(
         user=user,
         mode=_engine_mode,
         runtime_type=body.runtime_type,
         real_client_id=body.real_client_id,
         source=body.source,
     )
+    _start_violations = [
+        violation
+        for violation in _all_start_violations
+        if not (
+            # Free practice/constructor sessions are not CRM work, so they
+            # should not block on manager-profile CRM readiness fields.
+            violation.code == GUARD_PROFILE_INCOMPLETE
+            and body.real_client_id is None
+        )
+    ]
     if _start_violations:
         v = _start_violations[0]
         # TZ-2 §18 observability — record every blocked start so SRE

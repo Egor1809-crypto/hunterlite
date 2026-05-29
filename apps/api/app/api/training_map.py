@@ -16,15 +16,15 @@ router = APIRouter(prefix="/training-map", tags=["training-map"])
 
 
 class TrainingMapResponse(BaseModel):
-    test_map: dict[str, Any]
-    exams: dict[str, Any]
-    cases: dict[str, Any]
+    test_map: Any
+    exams: Any
+    cases: Any
 
 
 class TrainingMapUpdate(BaseModel):
-    test_map: dict[str, Any] | None = None
-    exams: dict[str, Any] | None = None
-    cases: dict[str, Any] | None = None
+    test_map: Any | None = None
+    exams: Any | None = None
+    cases: Any | None = None
 
 
 @router.get("/progress", response_model=TrainingMapResponse)

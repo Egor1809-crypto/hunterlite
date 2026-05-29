@@ -623,7 +623,8 @@ async def get_embeddings_batch(texts: list[str]) -> list[list[float]] | None:
     _embed_base = settings.local_embedding_url or (
         settings.local_llm_url if settings.local_llm_enabled else ""
     )
-    if _embed_base and settings.local_embedding_model:
+    embedding_model = settings.local_embedding_model or settings.embedding_model
+    if _embed_base and embedding_model:
         try:
             embed_url = f"{_embed_base.rstrip('/')}/embeddings"
             # Prefer dedicated embedding key (e.g. navy.api or different Ollama host);
@@ -633,7 +634,7 @@ async def get_embeddings_batch(texts: list[str]) -> list[list[float]] | None:
             # OpenAI text-embedding-3-* and Gemini via OpenAI-compat both support "dimensions" (Matryoshka).
             # Ollama nomic-embed-text ignores extra field and returns native 768. Safe no-op.
             _embed_payload = {
-                "model": settings.local_embedding_model or settings.local_llm_model,
+                "model": embedding_model,
                 "input": texts,
                 "dimensions": 768,
             }

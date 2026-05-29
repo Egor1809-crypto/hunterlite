@@ -5,13 +5,11 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import {
-  Clock,
   ArrowRight,
   Home,
   Users,
   Zap,
   MessageSquare,
-  TrendingDown,
   TrendingUp,
   Loader2,
   AlertCircle,
@@ -99,7 +97,7 @@ export default function ResultsPage() {
   const [showVerdict, setShowVerdict] = useState(true);
   const [copied, setCopied] = useState(false);
   const [transcriptCopied, setTranscriptCopied] = useState(false);
-  const [achievement, setAchievement] = useState<{ id: string; title: string; description: string; icon?: string } | null>(null);
+  const [, setAchievement] = useState<{ id: string; title: string; description: string; icon?: string } | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [addedToCRM, setAddedToCRM] = useState(false);
   const [createdClientId, setCreatedClientId] = useState<string | null>(null);
@@ -291,9 +289,16 @@ export default function ResultsPage() {
   // CallDroppedCard treatment instead of the verdict overlay — the
   // user is NOT at fault and shouldn't be framed as such.
   const errorOutcomes = new Set(["technical_failed", "timeout", "operator_aborted"]);
-  const isCallDropped = !!(session.terminal_outcome && errorOutcomes.has(session.terminal_outcome));
   const completeness = (result.score_breakdown as unknown as Record<string, number>)?._completeness ?? 1;
   const userMsgCount = (result.score_breakdown as unknown as Record<string, number>)?._user_message_count ?? 0;
+  const hasUserTranscript = messages.some((msg) => msg.role === "user" && msg.content?.trim());
+  const isCallDropped = !!(
+    session.terminal_outcome &&
+    errorOutcomes.has(session.terminal_outcome) &&
+    !hasScores &&
+    userMsgCount === 0 &&
+    !hasUserTranscript
+  );
 
   // Layer-based score bars — the canonical 5 categories.
   // Phase C (2026-05-08): consolidated to a single 5-axis truth source.

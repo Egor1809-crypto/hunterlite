@@ -182,7 +182,7 @@ export default function HomePage() {
     lead_source: string;
     gender: string;
   } | null>(null);
-  const [waitingClientLoaded, setWaitingClientLoaded] = useState(false);
+  const [, setWaitingClientLoaded] = useState(false);
 
   /* ── Learning path progress from API ───────────────────────── */
   const [lpData, setLpData] = useState<LearningPathProgress | null>(null);
@@ -487,37 +487,51 @@ export default function HomePage() {
               </p>
             </motion.div>
 
-            <div className="flex items-end justify-between gap-4 mb-2">
-              <h1 style={{ fontSize: "clamp(2.5rem, 6vw, 4.5rem)", lineHeight: "0.95", letterSpacing: "-0.03em", fontWeight: 900, background: "linear-gradient(135deg, #F5F5F5 0%, #A1A1AA 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text", margin: 0 }}>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between mb-2">
+              <h1 style={{ fontSize: "clamp(2.25rem, 4.5vw, 3.75rem)", lineHeight: "0.95", fontWeight: 900, background: "linear-gradient(135deg, #F5F5F5 0%, #A1A1AA 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text", margin: 0 }}>
                 {firstName}
               </h1>
               {!loading && (
-                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex items-center gap-2 pb-2">
-                  <span className="text-3xl font-black" style={{ color: "#2563EB" }}>{overallPercent}%</span>
-                  <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>общий<br />прогресс</span>
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="flex w-fit items-center gap-3 rounded-xl px-4 py-2"
+                  style={{ background: "rgba(37,99,235,0.08)", border: "1px solid rgba(37,99,235,0.18)" }}
+                >
+                  <span className="text-2xl font-black" style={{ color: "#60A5FA" }}>{overallPercent}%</span>
+                  <span className="text-[10px] font-bold uppercase leading-tight" style={{ color: "var(--text-muted)" }}>общий прогресс</span>
                 </motion.div>
               )}
             </div>
 
             {/* Learning Path Progress Bar */}
-            <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: 0.5, ease: PREMIUM_EASE }} className="mt-6 rounded-2xl p-5 sm:p-6" style={{ background: "rgba(15, 15, 30, 0.95)", border: "1px solid rgba(37, 99, 235, 0.15)", boxShadow: "0 4px 24px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255,255,255,0.03)" }}>
-              <div className="flex items-center gap-2 mb-4">
+            <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: 0.5, ease: PREMIUM_EASE }} className="mt-6 rounded-2xl p-4 sm:p-5" style={{ background: "rgba(10, 14, 31, 0.94)", border: "1px solid rgba(37, 99, 235, 0.18)", boxShadow: "0 18px 55px rgba(0, 0, 0, 0.28), inset 0 1px 0 rgba(255,255,255,0.04)" }}>
+              <div className="flex items-center justify-between gap-3 mb-4">
+                <div className="flex items-center gap-2">
                 <BookOpen size={14} style={{ color: "#2563EB" }} />
                 <span className="text-[10px] font-bold uppercase tracking-[0.15em]" style={{ color: "var(--text-muted)" }}>Путь обучения</span>
+                </div>
+                <span className="text-[10px] font-bold uppercase" style={{ color: "#60A5FA" }}>{activeStage + 1}/5 шаг</span>
               </div>
-              <div className="flex items-center justify-between relative">
-                {/* Connection line */}
-                <div className="absolute top-5 left-[10%] right-[10%] h-[2px]" style={{ background: "rgba(255,255,255,0.06)" }} />
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
                 {LEARNING_STAGES.map((stage, i) => {
                   const progress = pathProgress[stage.key] ?? 0;
                   const isActive = i === activeStage;
                   const isComplete = progress >= 100;
                   return (
-                    <Link key={stage.key} href={stage.href} className="no-underline flex flex-col items-center relative z-10" style={{ flex: 1 }}>
+                    <Link
+                      key={stage.key}
+                      href={stage.href}
+                      className="no-underline rounded-xl p-3 transition-transform hover:-translate-y-0.5"
+                      style={{
+                        background: isActive ? "rgba(37,99,235,0.12)" : "rgba(255,255,255,0.035)",
+                        border: isActive ? "1px solid rgba(96,165,250,0.38)" : "1px solid rgba(255,255,255,0.07)",
+                      }}
+                    >
                       <motion.div
-                        animate={isActive ? { scale: [1, 1.1, 1] } : {}}
+                        animate={isActive ? { scale: [1, 1.06, 1] } : {}}
                         transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-                        className="w-10 h-10 rounded-full flex items-center justify-center text-lg mb-2"
+                        className="w-10 h-10 rounded-xl flex items-center justify-center text-lg mb-3"
                         style={{
                           background: isComplete ? "linear-gradient(135deg, #10B981, #059669)" : isActive ? "linear-gradient(135deg, #2563EB, #8B5CF6)" : "rgba(255,255,255,0.05)",
                           border: isActive ? "2px solid rgba(37, 99, 235, 0.6)" : isComplete ? "2px solid rgba(16, 185, 129, 0.4)" : "1px solid rgba(255,255,255,0.08)",
@@ -526,10 +540,19 @@ export default function HomePage() {
                       >
                         {stage.icon}
                       </motion.div>
-                      <span className="text-[10px] font-semibold text-center" style={{ color: isActive ? "#2563EB" : isComplete ? "#10B981" : "var(--text-muted)" }}>
+                      <span className="block text-xs font-semibold" style={{ color: isActive ? "#60A5FA" : isComplete ? "#10B981" : "var(--text-secondary)" }}>
                         {stage.label}
                       </span>
-                      <span className="text-[9px] font-bold mt-0.5" style={{ color: isActive ? "#2563EB" : "var(--text-muted)" }}>
+                      <div className="mt-2 h-1.5 overflow-hidden rounded-full" style={{ background: "rgba(255,255,255,0.07)" }}>
+                        <div
+                          className="h-full rounded-full"
+                          style={{
+                            width: `${Math.min(100, Math.max(0, progress))}%`,
+                            background: isComplete ? "#10B981" : "linear-gradient(90deg, #2563EB, #8B5CF6)",
+                          }}
+                        />
+                      </div>
+                      <span className="mt-1 block text-[10px] font-bold" style={{ color: isActive ? "#60A5FA" : "var(--text-muted)" }}>
                         {progress}%
                       </span>
                     </Link>
@@ -618,7 +641,10 @@ export default function HomePage() {
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
                 <AnimatePresence mode="popLayout">
                   {expandedDrill === null ? (
-                    <>
+                    <motion.div
+                      key="drill-cards"
+                      className="contents"
+                    >
                       {/* Three drill cards */}
                       <DrillCard
                         layoutId="drill-quiz"
@@ -656,7 +682,7 @@ export default function HomePage() {
                           <div className="absolute bottom-0 left-0 right-0 h-[2px]" style={{ background: "linear-gradient(90deg, #10B981, transparent 80%)" }} />
                         </motion.div>
                       </Link>
-                    </>
+                    </motion.div>
                   ) : expandedDrill === "quiz" ? (
                     <ExpandedQuiz
                       quizLoading={quizLoading}

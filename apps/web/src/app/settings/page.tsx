@@ -8,8 +8,8 @@
  *     «⚙ НАСТРОЙКИ ⚙» (тот же эффект что на /leaderboard и /profile,
  *     но с серебряно-голубым градиентом для UI-«пульта»).
  *   - autosave-индикатор теперь пиксельный плашка справа
- *   - 6 секций (Игрок · Тренировка · Звук · Внешний вид · Уведомления ·
- *     Связки) + опциональная Воронка для CRM-ролей
+ *   - рабочие секции: Игрок · Внешний вид · AI-помощник
+ *     + опциональная Воронка для CRM-ролей
  *   - каждая секция в `<SettingsSection accent={...}>` с цветной рамкой
  *     и заголовком-плашкой слева сверху (симметрично /profile)
  *   - все Toggle/Chip/input получили пиксельный стиль (2-3px borders,
@@ -17,11 +17,9 @@
  *   - все шрифты ≥ 14px (text-sm font-medium для
  *     лейблов, font-medium 14-16px для текста)
  *
- * НЕ ТРОГАЛ:
- *   - всю логику сохранения (autosave, password, OAuth, avatar upload)
- *   - все 18 preferences keys
- *   - SoundSettings, AudioDevicesPanel, AvatarUpload (они уже пиксельные)
- *   - API-вызовы и payload'ы
+ * Убрано:
+ *   - неработающие блоки звука, уведомлений, связок и тренировочных режимов
+ *   - переключатель Маняши: AI-помощник всегда включён
  */
 
 import { useState, useEffect, useCallback, useRef, type ReactNode } from "react";
@@ -30,9 +28,7 @@ import {
   Save, Loader2, Check, type LucideIcon,
 } from "lucide-react";
 import {
-  Gear, SpeakerHigh, Bell, Envelope, ChatCircle,
-  GameController, Kanban, User as UserIcon, Palette, LinkSimple,
-  Robot,
+  Kanban, User as UserIcon, Palette, Robot,
 } from "@phosphor-icons/react";
 import { useTheme } from "next-themes";
 import { api } from "@/lib/api";
@@ -43,8 +39,6 @@ import AuthLayout from "@/components/layout/AuthLayout";
 import { BackButton } from "@/components/ui/BackButton";
 import { Button } from "@/components/ui/Button";
 import { AvatarUpload } from "@/components/settings/AvatarUpload";
-import { SoundSettings } from "@/components/settings/SoundSettings";
-import { AudioDevicesPanel } from "@/components/settings/AudioDevicesPanel";
 import { toast } from "sonner";
 import { PIPELINE_STATUSES, CLIENT_STATUS_LABELS, CLIENT_STATUS_COLORS } from "@/types";
 import type { ClientStatus } from "@/types";
@@ -62,21 +56,6 @@ const roleLabels: Record<string, string> = {
   admin: "Администратор",
 };
 
-const TRAINING_MODES = [
-  { key: "voice", label: "Голос" },
-  { key: "text", label: "Текст" },
-  { key: "mixed", label: "Микс" },
-  { key: "structured", label: "Структура" },
-  { key: "freestyle", label: "Свобода" },
-  { key: "challenge", label: "Вызов" },
-] as const;
-
-const EXPERIENCE_LEVELS = [
-  { key: "beginner", label: "Новичок" },
-  { key: "intermediate", label: "Средний" },
-  { key: "advanced", label: "Продвинутый" },
-] as const;
-
 const GENDERS = [
   { key: "male", label: "Мужской" },
   { key: "female", label: "Женский" },
@@ -91,56 +70,11 @@ const ACCENT_COLORS = [
   { key: "rose", label: "Rose", color: "#F43F5E" },
 ] as const;
 
-const NOTIFY_FREQUENCIES = [
-  { key: "realtime", label: "Сразу" },
-  { key: "daily", label: "Раз в день" },
-  { key: "weekly", label: "Раз в неделю" },
-] as const;
-
 const THEMES = [
   { key: "dark", label: "Тёмная" },
   { key: "light", label: "Светлая" },
   { key: "system", label: "Авто" },
 ] as const;
-
-/* ═══ Pixel Toggle ═══════════════════════════════════════════════════════ */
-
-function PixelToggle({
-  on,
-  onChange,
-  accent = "var(--accent)",
-}: {
-  on: boolean;
-  onChange: () => void;
-  accent?: string;
-}) {
-  return (
-    <motion.button
-      type="button"
-      onClick={onChange}
-      whileTap={{ scale: 0.95 }}
-      aria-pressed={on}
-      className="relative shrink-0 rounded-full transition-colors"
-      style={{
-        width: 48,
-        height: 24,
-        background: on ? accent : "rgba(0,0,0,0.45)",
-        border: `1px solid ${on ? accent : "rgba(255,255,255,0.18)"}`,
-      }}
-    >
-      <motion.div
-        className="absolute top-0.5 rounded-full"
-        animate={{ left: on ? 26 : 2 }}
-        transition={{ type: "spring", stiffness: 500, damping: 30 }}
-        style={{
-          width: 16,
-          height: 16,
-          background: on ? "#0b0b14" : "#fff",
-        }}
-      />
-    </motion.button>
-  );
-}
 
 /* ═══ Pixel Chip ═════════════════════════════════════════════════════════ */
 
@@ -300,28 +234,12 @@ export default function SettingsPage() {
   const mountedRef = useRef(false);
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  const [ttsEnabled, setTtsEnabled] = useState(true);
-  const [notifyEmail, setNotifyEmail] = useState(false);
-  const [notifyPush, setNotifyPush] = useState(true);
-  const [notifyFrequency, setNotifyFrequency] = useState<"realtime" | "daily" | "weekly">("realtime");
-  const [trainingMode, setTrainingMode] = useState<string>("mixed");
-  const [experienceLevel, setExperienceLevel] = useState<string>("beginner");
   const [gender, setGender] = useState<string>("");
   const [roleTitle, setRoleTitle] = useState<string>("");
   const [primaryContact, setPrimaryContact] = useState<string>("");
   const [specialization, setSpecialization] = useState<string>("");
   const [pipelineColumns, setPipelineColumns] = useState<string[]>(PIPELINE_STATUSES as string[]);
-  const [compactMode, setCompactMode] = useState(false);
   const [accentColor, setAccentColor] = useState<string>("violet");
-
-  const [manyashaEnabled, setManyashaEnabled] = useState(true);
-
-  const [micDeviceId, setMicDeviceId] = useState<string>("default");
-  const [speakerDeviceId, setSpeakerDeviceId] = useState<string>("default");
-  const [noiseSuppression, setNoiseSuppression] = useState<boolean>(true);
-  const [echoCancellation, setEchoCancellation] = useState<boolean>(true);
-  const [ttsVoice, setTtsVoice] = useState<string>("default");
-  const [ttsRate, setTtsRate] = useState<number>(0.95);
 
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -331,11 +249,6 @@ export default function SettingsPage() {
   const [fullNameError, setFullNameError] = useState<string | null>(null);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
 
-  const [oauthStatus, setOauthStatus] = useState<{ google: boolean; yandex: boolean }>({ google: false, yandex: false });
-  const [linkedGoogle, setLinkedGoogle] = useState(false);
-  const [linkedYandex, setLinkedYandex] = useState(false);
-  const [unlinking, setUnlinking] = useState<string | null>(null);
-
   const showCRM = user?.role && ["admin", "rop", "manager"].includes(user.role);
   // gamification store removed — level/streak display cleaned up
 
@@ -343,8 +256,11 @@ export default function SettingsPage() {
   useEffect(() => {
     mountedRef.current = true;
     setHydrated(true);
-    const manyashaStored = localStorage.getItem("hunterlite_manyasha_enabled");
-    if (manyashaStored === "false") setManyashaEnabled(false);
+    localStorage.setItem("hunterlite_manyasha_enabled", "true");
+    window.dispatchEvent(new StorageEvent("storage", {
+      key: "hunterlite_manyasha_enabled",
+      newValue: "true",
+    }));
   }, []);
 
   useEffect(() => {
@@ -352,30 +268,12 @@ export default function SettingsPage() {
     if (user.avatar_url) setAvatarUrl(user.avatar_url);
     if (user.full_name) setFullName(user.full_name);
     const p = (user.preferences as Record<string, unknown>) || {};
-    if (typeof p.tts_enabled === "boolean") setTtsEnabled(p.tts_enabled);
-    if (typeof p.notify_email === "boolean") setNotifyEmail(p.notify_email);
-    if (typeof p.notify_push === "boolean") setNotifyPush(p.notify_push);
-    if (typeof p.notify_frequency === "string") setNotifyFrequency(p.notify_frequency as "realtime" | "daily" | "weekly");
-    if (typeof p.training_mode === "string") setTrainingMode(p.training_mode);
-    if (typeof p.experience_level === "string") setExperienceLevel(p.experience_level);
     if (typeof p.gender === "string") setGender(p.gender);
     if (typeof p.role_title === "string") setRoleTitle(p.role_title);
     if (typeof p.primary_contact === "string") setPrimaryContact(p.primary_contact);
     if (typeof p.specialization === "string") setSpecialization(p.specialization);
     if (Array.isArray(p.pipeline_columns)) setPipelineColumns(p.pipeline_columns as string[]);
-    if (typeof p.compact_mode === "boolean") setCompactMode(p.compact_mode);
     if (typeof p.accent_color === "string") setAccentColor(p.accent_color);
-    if (typeof p.mic_device_id === "string") setMicDeviceId(p.mic_device_id);
-    if (typeof p.speaker_device_id === "string") setSpeakerDeviceId(p.speaker_device_id);
-    if (typeof p.noise_suppression === "boolean") setNoiseSuppression(p.noise_suppression);
-    if (typeof p.echo_cancellation === "boolean") setEchoCancellation(p.echo_cancellation);
-    if (typeof p.tts_voice === "string") setTtsVoice(p.tts_voice);
-    if (typeof p.tts_rate === "number") setTtsRate(p.tts_rate);
-    setLinkedGoogle(!!user.google_id);
-    setLinkedYandex(!!user.yandex_id);
-    api.get("/auth/oauth/status")
-      .then((data: { google: boolean; yandex: boolean }) => setOauthStatus(data))
-      .catch((err) => { logger.error("Failed to load OAuth status:", err); });
   }, [user]);
 
   useEffect(() => {
@@ -387,11 +285,6 @@ export default function SettingsPage() {
     }
   }, [accentColor]);
 
-  useEffect(() => {
-    if (!mountedRef.current) return;
-    document.body.classList.toggle("compact-mode", compactMode);
-  }, [compactMode]);
-
   // fetchProgress removed — gamification display cleaned up
 
   const triggerAutosave = useCallback(async () => {
@@ -401,21 +294,8 @@ export default function SettingsPage() {
       const trimmedRoleTitle = roleTitle.trim();
       const trimmedContact = primaryContact.trim();
       const prefs: Record<string, unknown> = {
-        tts_enabled: ttsEnabled,
-        notify_email: notifyEmail,
-        notify_push: notifyPush,
-        notify_frequency: notifyFrequency,
-        training_mode: trainingMode,
-        experience_level: experienceLevel,
         pipeline_columns: pipelineColumns,
-        compact_mode: compactMode,
         accent_color: accentColor,
-        mic_device_id: micDeviceId,
-        speaker_device_id: speakerDeviceId,
-        noise_suppression: noiseSuppression,
-        echo_cancellation: echoCancellation,
-        tts_voice: ttsVoice,
-        tts_rate: ttsRate,
       };
       if (gender) prefs.gender = gender;
       if (trimmedRoleTitle.length >= 2) prefs.role_title = trimmedRoleTitle;
@@ -431,7 +311,7 @@ export default function SettingsPage() {
       toast.error("Ошибка сохранения", { description: msg });
     }
     setSaving(false);
-  }, [ttsEnabled, gender, roleTitle, primaryContact, specialization, notifyEmail, notifyPush, notifyFrequency, trainingMode, experienceLevel, pipelineColumns, compactMode, accentColor, micDeviceId, speakerDeviceId, noiseSuppression, echoCancellation, ttsVoice, ttsRate, user]);
+  }, [gender, roleTitle, primaryContact, specialization, pipelineColumns, accentColor, user]);
 
   useEffect(() => {
     if (!mountedRef.current || !user) return;
@@ -439,7 +319,7 @@ export default function SettingsPage() {
     const timeout = setTimeout(() => { triggerAutosave(); }, 1500);
     saveTimeoutRef.current = timeout;
     return () => { if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current); };
-  }, [ttsEnabled, gender, roleTitle, primaryContact, specialization, notifyEmail, notifyPush, notifyFrequency, trainingMode, experienceLevel, pipelineColumns, compactMode, accentColor, micDeviceId, speakerDeviceId, noiseSuppression, echoCancellation, ttsVoice, ttsRate, triggerAutosave]);
+  }, [gender, roleTitle, primaryContact, specialization, pipelineColumns, accentColor, triggerAutosave, user]);
 
   const handleSaveName = async () => {
     const trimmed = fullName.trim();
@@ -624,90 +504,12 @@ export default function SettingsPage() {
             </div>
           </SettingsSection>
 
-          {/* ═══ SECTION 2: ТРЕНИРОВКА ═══ */}
-          <SettingsSection
-            accent="#4ade80"
-            title="🎮 ТРЕНИРОВКА"
-            icon={GameController}
-            description="Режим, уровень, озвучка"
-          >
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <SettingsCard className="md:col-span-2">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-3">
-                    <SpeakerHigh weight="duotone" size={20} style={{ color: "#4ade80" }} />
-                    <span className="text-sm font-medium" style={{ color: "var(--text-primary)", fontSize: 14 }}>
-                      Озвучка AI
-                    </span>
-                  </div>
-                  <PixelToggle on={ttsEnabled} onChange={() => setTtsEnabled(!ttsEnabled)} accent="#4ade80" />
-                </div>
-              </SettingsCard>
-
-              <SettingsCard className="md:col-span-2">
-                <SettingsLabel>Режим тренировки</SettingsLabel>
-                <div className="flex flex-wrap gap-2">
-                  {TRAINING_MODES.map((m) => (
-                    <PixelChip
-                      key={m.key}
-                      active={trainingMode === m.key}
-                      label={m.label}
-                      onClick={() => setTrainingMode(m.key)}
-                      accent="#4ade80"
-                    />
-                  ))}
-                </div>
-              </SettingsCard>
-
-              <SettingsCard className="md:col-span-2">
-                <SettingsLabel>Уровень сложности</SettingsLabel>
-                <div className="flex gap-2 flex-wrap">
-                  {EXPERIENCE_LEVELS.map((l) => (
-                    <PixelChip
-                      key={l.key}
-                      active={experienceLevel === l.key}
-                      label={l.label}
-                      onClick={() => setExperienceLevel(l.key)}
-                      accent="#4ade80"
-                    />
-                  ))}
-                </div>
-              </SettingsCard>
-            </div>
-          </SettingsSection>
-
-          {/* ═══ SECTION 3: ЗВУК ═══ */}
-          <SettingsSection
-            accent="#facc15"
-            title="🔊 ЗВУК"
-            icon={SpeakerHigh}
-            description="Громкость, устройства, голос"
-          >
-            <SoundSettings />
-            <div className="mt-4">
-              <AudioDevicesPanel
-                micDeviceId={micDeviceId}
-                speakerDeviceId={speakerDeviceId}
-                noiseSuppression={noiseSuppression}
-                echoCancellation={echoCancellation}
-                ttsVoice={ttsVoice}
-                ttsRate={ttsRate}
-                onChangeMicDevice={setMicDeviceId}
-                onChangeSpeakerDevice={setSpeakerDeviceId}
-                onChangeNoiseSuppression={setNoiseSuppression}
-                onChangeEchoCancellation={setEchoCancellation}
-                onChangeTtsVoice={setTtsVoice}
-                onChangeTtsRate={setTtsRate}
-              />
-            </div>
-          </SettingsSection>
-
-          {/* ═══ SECTION 4: ВНЕШНИЙ ВИД ═══ */}
+          {/* ═══ SECTION 2: ВНЕШНИЙ ВИД ═══ */}
           <SettingsSection
             accent="#fb923c"
             title="🎨 ВНЕШНИЙ ВИД"
             icon={Palette}
-            description="Тема, акцент, эффекты"
+            description="Тема и цветовой акцент интерфейса"
           >
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <SettingsCard>
@@ -751,252 +553,41 @@ export default function SettingsPage() {
                 </div>
               </SettingsCard>
 
-              <SettingsCard className="md:col-span-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium" style={{ color: "var(--text-primary)", fontSize: 14 }}>
-                    Компактный режим
-                  </span>
-                  <PixelToggle on={compactMode} onChange={() => setCompactMode(!compactMode)} accent="#fb923c" />
-                </div>
-              </SettingsCard>
-
             </div>
           </SettingsSection>
 
-          {/* ═══ SECTION 4.5: AI-ПОМОЩНИК МАНЯША ═══ */}
+          {/* ═══ SECTION 3: AI-ПОМОЩНИК МАНЯША ═══ */}
           <SettingsSection
             accent="#c084fc"
             title="🪆 AI-ПОМОЩНИК"
             icon={Robot}
-            description="Маняша — ваш AI-помощник. Она поможет с вопросами по платформе и банкротному праву."
+            description="Маняша всегда включена и доступна на страницах платформы."
           >
             <SettingsCard>
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-4">
                 <div>
                   <span className="text-sm font-medium" style={{ color: "var(--text-primary)", fontSize: 14 }}>
                     Маняша AI
                   </span>
                   <p className="text-sm mt-1" style={{ color: "var(--text-muted)", fontSize: 13 }}>
-                    Плавающий чат-бот на каждой странице
+                    Плавающий чат-бот с подсказками по платформе и банкротному праву.
                   </p>
                 </div>
-                <PixelToggle
-                  on={manyashaEnabled}
-                  onChange={() => {
-                    const next = !manyashaEnabled;
-                    setManyashaEnabled(next);
-                    localStorage.setItem("hunterlite_manyasha_enabled", String(next));
-                    // Notify other components via storage event
-                    window.dispatchEvent(new StorageEvent("storage", {
-                      key: "hunterlite_manyasha_enabled",
-                      newValue: String(next),
-                    }));
+                <span
+                  className="rounded-xl px-3 py-1.5 text-sm font-semibold"
+                  style={{
+                    background: "rgba(192,132,252,0.14)",
+                    border: "1px solid rgba(192,132,252,0.35)",
+                    color: "#c084fc",
                   }}
-                  accent="#c084fc"
-                />
+                >
+                  Всегда включена
+                </span>
               </div>
             </SettingsCard>
           </SettingsSection>
 
-          {/* ═══ SECTION 5: УВЕДОМЛЕНИЯ ═══ */}
-          <SettingsSection
-            accent="#f87171"
-            title="🔔 УВЕДОМЛЕНИЯ"
-            icon={Bell}
-            description="Когда и как сообщать"
-          >
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <SettingsCard>
-                <div className="flex items-center justify-between mb-3">
-                  <span className="inline-flex items-center gap-2 text-sm font-medium" style={{ color: "var(--text-primary)", fontSize: 14 }}>
-                    <ChatCircle weight="duotone" size={16} style={{ color: "#f87171" }} /> В приложении
-                  </span>
-                  <PixelToggle on={notifyPush} onChange={() => setNotifyPush(!notifyPush)} accent="#f87171" />
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="inline-flex items-center gap-2 text-sm font-medium" style={{ color: "var(--text-primary)", fontSize: 14 }}>
-                    <Envelope weight="duotone" size={16} style={{ color: "#f87171" }} /> Email
-                  </span>
-                  <PixelToggle on={notifyEmail} onChange={() => setNotifyEmail(!notifyEmail)} accent="#f87171" />
-                </div>
-              </SettingsCard>
-
-              <SettingsCard>
-                <SettingsLabel>Частота</SettingsLabel>
-                <div className="flex flex-wrap gap-2">
-                  {NOTIFY_FREQUENCIES.map((f) => (
-                    <PixelChip
-                      key={f.key}
-                      active={notifyFrequency === f.key}
-                      label={f.label}
-                      onClick={() => setNotifyFrequency(f.key as "realtime" | "daily" | "weekly")}
-                      accent="#f87171"
-                    />
-                  ))}
-                </div>
-              </SettingsCard>
-            </div>
-          </SettingsSection>
-
-          {/* ═══ SECTION 6: СВЯЗКИ ═══ */}
-          <SettingsSection
-            accent="#06b6d4"
-            title="🔗 СВЯЗКИ"
-            icon={LinkSimple}
-            description="Внешние аккаунты"
-          >
-            <div className="space-y-2">
-              {/* Google */}
-              <div
-                className="flex items-center justify-between rounded-xl px-3 py-2.5"
-                style={{
-                  background: "rgba(0,0,0,0.35)",
-                  border: "1px solid rgba(255,255,255,0.08)",
-                }}
-              >
-                <div className="flex items-center gap-2.5">
-                  <svg width="18" height="18" viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
-                  <span className="text-sm font-medium" style={{ color: "var(--text-secondary)", fontSize: 14 }}>
-                    Google
-                  </span>
-                </div>
-                {linkedGoogle ? (
-                  <button
-                    onClick={async () => {
-                      setUnlinking("google");
-                      try {
-                        await api.post("/auth/google/disconnect", {});
-                        setLinkedGoogle(false);
-                        toast.success("Google отвязан");
-                      } catch (e) {
-                        logger.error("Google unlink failed:", e);
-                        toast.error("Не удалось отвязать Google", { description: e instanceof Error ? e.message : undefined });
-                      }
-                      setUnlinking(null);
-                    }}
-                    disabled={unlinking === "google"}
-                    className="rounded-xl text-sm font-medium"
-                    style={{
-                      padding: "6px 12px",
-                      background: "rgba(248,113,113,0.18)",
-                      color: "#f87171",
-                      border: "2px solid #f87171",
-                      fontSize: 14,
-                    }}
-                  >
-                    {unlinking === "google" ? <Loader2 size={12} className="animate-spin" /> : "Отвязать"}
-                  </button>
-                ) : oauthStatus.google ? (
-                  <button
-                    onClick={async () => {
-                      try {
-                        const d = await api.get<{ url?: string }>("/auth/google/login");
-                        if (d?.url) {
-                          const { validateOAuthUrl } = await import("@/lib/sanitize");
-                          const safeUrl = validateOAuthUrl(d.url);
-                          if (safeUrl) window.location.href = safeUrl;
-                          else toast.error("Получен небезопасный URL для OAuth");
-                        } else {
-                          toast.error("Сервер не вернул URL для входа Google");
-                        }
-                      } catch (e) {
-                        logger.error("Google link failed:", e);
-                        toast.error("Не удалось начать привязку Google");
-                      }
-                    }}
-                    className="rounded-xl text-sm font-medium"
-                    style={{
-                      padding: "6px 12px",
-                      background: "rgba(167,139,250,0.18)",
-                      color: "var(--accent)",
-                      border: "2px solid var(--accent)",
-                      fontSize: 14,
-                    }}
-                  >
-                    Привязать
-                  </button>
-                ) : (
-                  <span className="text-sm font-medium" style={{ color: "var(--text-muted)", fontSize: 14 }}>—</span>
-                )}
-              </div>
-
-              {/* Yandex */}
-              <div
-                className="flex items-center justify-between rounded-xl px-3 py-2.5"
-                style={{
-                  background: "rgba(0,0,0,0.35)",
-                  border: "1px solid rgba(255,255,255,0.08)",
-                }}
-              >
-                <div className="flex items-center gap-2.5">
-                  <svg width="18" height="18" viewBox="0 0 24 24"><path d="M2 12C2 6.48 6.48 2 12 2s10 4.48 10 10-4.48 10-10 10S2 17.52 2 12z" fill="#FC3F1D"/><path d="M13.32 17.5h-1.88V7.38h-.97c-1.57 0-2.39.8-2.39 1.95 0 1.3.59 1.9 1.8 2.7l1 .65-2.9 4.82H6l2.62-4.33C7.37 12.26 6.56 11.22 6.56 9.5c0-2.07 1.45-3.5 4-3.5h2.76V17.5z" fill="white"/></svg>
-                  <span className="text-sm font-medium" style={{ color: "var(--text-secondary)", fontSize: 14 }}>
-                    Yandex
-                  </span>
-                </div>
-                {linkedYandex ? (
-                  <button
-                    onClick={async () => {
-                      setUnlinking("yandex");
-                      try {
-                        await api.post("/auth/yandex/disconnect", {});
-                        setLinkedYandex(false);
-                        toast.success("Яндекс отвязан");
-                      } catch (e) {
-                        logger.error("Yandex unlink failed:", e);
-                        toast.error("Не удалось отвязать Яндекс", { description: e instanceof Error ? e.message : undefined });
-                      }
-                      setUnlinking(null);
-                    }}
-                    disabled={unlinking === "yandex"}
-                    className="rounded-xl text-sm font-medium"
-                    style={{
-                      padding: "6px 12px",
-                      background: "rgba(248,113,113,0.18)",
-                      color: "#f87171",
-                      border: "2px solid #f87171",
-                      fontSize: 14,
-                    }}
-                  >
-                    {unlinking === "yandex" ? <Loader2 size={12} className="animate-spin" /> : "Отвязать"}
-                  </button>
-                ) : oauthStatus.yandex ? (
-                  <button
-                    onClick={async () => {
-                      try {
-                        const d = await api.get<{ url?: string }>("/auth/yandex/login");
-                        if (d?.url) {
-                          const { validateOAuthUrl } = await import("@/lib/sanitize");
-                          const safeUrl = validateOAuthUrl(d.url);
-                          if (safeUrl) window.location.href = safeUrl;
-                          else toast.error("Получен небезопасный URL для OAuth");
-                        } else {
-                          toast.error("Сервер не вернул URL для входа Яндекса");
-                        }
-                      } catch (e) {
-                        logger.error("Yandex link failed:", e);
-                        toast.error("Не удалось начать привязку Яндекса");
-                      }
-                    }}
-                    className="rounded-xl text-sm font-medium"
-                    style={{
-                      padding: "6px 12px",
-                      background: "rgba(167,139,250,0.18)",
-                      color: "var(--accent)",
-                      border: "2px solid var(--accent)",
-                      fontSize: 14,
-                    }}
-                  >
-                    Привязать
-                  </button>
-                ) : (
-                  <span className="text-sm font-medium" style={{ color: "var(--text-muted)", fontSize: 14 }}>—</span>
-                )}
-              </div>
-            </div>
-          </SettingsSection>
-
-          {/* ═══ SECTION 7: ВОРОНКА (CRM only) ═══ */}
+          {/* ═══ SECTION 4: ВОРОНКА (CRM only) ═══ */}
           {showCRM && (
             <SettingsSection
               accent="#ff3ec8"

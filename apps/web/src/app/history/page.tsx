@@ -29,6 +29,11 @@ import type { HistoryEntry } from "@/types";
 /* ── Constants ──────────────────────────────────────────── */
 
 const NOISE_SVG = `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E")`;
+const HISTORY_SCHEME_SVG = `url("data:image/svg+xml,%3Csvg width='640' height='420' viewBox='0 0 640 420' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' stroke='%2385f7e8' stroke-width='1' stroke-opacity='.12'%3E%3Cpath d='M42 74h98v64h118v72h126v88h188'/%3E%3Cpath d='M96 330h104v-68h114v-76h116v-92h128'/%3E%3Cpath d='M180 42v96m166-72v120m112 132v74'/%3E%3Ccircle cx='140' cy='138' r='4'/%3E%3Ccircle cx='258' cy='210' r='4'/%3E%3Ccircle cx='384' cy='298' r='4'/%3E%3Ccircle cx='430' cy='186' r='4'/%3E%3C/g%3E%3Cg fill='%23a78bfa' fill-opacity='.08'%3E%3Crect x='72' y='302' width='8' height='8' rx='2'/%3E%3Crect x='552' y='90' width='8' height='8' rx='2'/%3E%3Crect x='336' y='60' width='8' height='8' rx='2'/%3E%3C/g%3E%3C/svg%3E")`;
+const HISTORY_BACKGROUND = `
+  linear-gradient(135deg, rgba(7, 13, 35, 0.98) 0%, rgba(24, 18, 62, 0.96) 34%, rgba(9, 68, 92, 0.88) 58%, rgba(16, 103, 88, 0.76) 78%, rgba(72, 29, 97, 0.92) 100%),
+  linear-gradient(55deg, rgba(59,130,246,0.12), transparent 30%, rgba(45,212,191,0.1) 58%, rgba(236,72,153,0.1))
+`;
 
 type StatusFilter = "all" | "completed" | "active";
 type TypeFilter = "all" | "training" | "story";
@@ -95,14 +100,14 @@ function ScoreTrendChart({ sessions }: { sessions: Array<{ score: number; date: 
   const maxScore = Math.min(100, Math.max(...scores) + 10);
   const range = maxScore - minScore || 1;
 
-  const points = sessions.length >= 2
+  const points = useMemo(() => sessions.length >= 2
     ? sessions.map((s, i) => ({
         x: PAD_X + (i / (sessions.length - 1)) * chartW,
         y: PAD_Y + chartH - ((s.score - minScore) / range) * chartH,
         score: s.score,
         date: s.date,
       }))
-    : [];
+    : [], [sessions, chartW, chartH, minScore, range]);
 
   const pathD = points.map((p, i) => (i === 0 ? `M${p.x},${p.y}` : `L${p.x},${p.y}`)).join(" ");
   const areaD = points.length >= 2
@@ -598,52 +603,18 @@ export default function HistoryPage() {
   return (
     <AuthLayout>
       <style dangerouslySetInnerHTML={{ __html: PREMIUM_STYLES }} />
-      <div className="relative panel-grid-bg min-h-screen">
-        {/* Ambient gradient orbs */}
+      <div className="relative panel-grid-bg min-h-screen" style={{ background: HISTORY_BACKGROUND }}>
         <div
           aria-hidden
           style={{
             position: "absolute",
-            top: "-200px",
-            left: "-200px",
-            width: 800,
-            height: 800,
-            borderRadius: "50%",
-            background: "radial-gradient(circle, rgba(168,85,247,0.45) 0%, transparent 70%)",
-            opacity: 0.03,
+            inset: 0,
+            backgroundImage: `${HISTORY_SCHEME_SVG}, linear-gradient(rgba(133,247,232,0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(167,139,250,0.035) 1px, transparent 1px)`,
+            backgroundSize: "640px 420px, 80px 80px, 80px 80px",
+            backgroundPosition: "center 40px, center center, center center",
+            opacity: 0.65,
             pointerEvents: "none",
-            filter: "blur(80px)",
-          }}
-        />
-        <div
-          aria-hidden
-          style={{
-            position: "absolute",
-            bottom: "-100px",
-            right: "-150px",
-            width: 650,
-            height: 650,
-            borderRadius: "50%",
-            background: "radial-gradient(circle, rgba(59,130,246,0.5) 0%, transparent 70%)",
-            opacity: 0.025,
-            pointerEvents: "none",
-            filter: "blur(80px)",
-          }}
-        />
-        <div
-          aria-hidden
-          style={{
-            position: "absolute",
-            top: "30%",
-            left: "50%",
-            transform: "translateX(-50%)",
-            width: 500,
-            height: 500,
-            borderRadius: "50%",
-            background: "radial-gradient(circle, rgba(236,72,153,0.4) 0%, transparent 70%)",
-            opacity: 0.02,
-            pointerEvents: "none",
-            filter: "blur(80px)",
+            maskImage: "linear-gradient(to bottom, rgba(0,0,0,0.9), rgba(0,0,0,0.35) 72%, rgba(0,0,0,0.12))",
           }}
         />
         {/* Noise overlay */}

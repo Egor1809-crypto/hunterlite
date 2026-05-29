@@ -82,7 +82,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
       {/* ── Mobile overlay sidebar ──────────────────────── */}
       <AnimatePresence>
         {!isDesktop && mobileOpen && (
-          <>
+          <motion.div key="mobile-sidebar-layer" className="contents">
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -104,7 +104,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
             >
               <AppSidebar collapsed={false} onToggle={() => setMobileOpen(false)} />
             </motion.div>
-          </>
+          </motion.div>
         )}
       </AnimatePresence>
 

@@ -45,6 +45,8 @@ interface QuizResultsScreenProps {
   messages: QuizMessage[];
   onPlayAgain: () => void;
   onBackToArena: () => void;
+  primaryCtaLabel?: string;
+  secondaryCtaLabel?: string;
 }
 
 type Level = "correct" | "partial" | "off_topic" | "wrong";
@@ -184,6 +186,8 @@ export function QuizResultsScreen({
   messages,
   onPlayAgain,
   onBackToArena,
+  primaryCtaLabel = "Сыграть ещё",
+  secondaryCtaLabel = "К арене",
 }: QuizResultsScreenProps) {
   const accuracy = totalQuestions > 0 ? Math.round((correct / totalQuestions) * 100) : 0;
   const total = correct + incorrect;
@@ -496,7 +500,7 @@ export function QuizResultsScreen({
               backdropFilter: "blur(20px)",
             }}
           >
-            <ChevronLeft size={16} /> К арене
+            <ChevronLeft size={16} /> {secondaryCtaLabel}
           </motion.button>
           <motion.button
             type="button"
@@ -515,7 +519,7 @@ export function QuizResultsScreen({
               cursor: "pointer",
             }}
           >
-            Сыграть ещё <ArrowRight size={16} />
+            {primaryCtaLabel} <ArrowRight size={16} />
           </motion.button>
         </motion.div>
       </div>

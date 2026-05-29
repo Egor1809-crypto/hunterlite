@@ -68,11 +68,30 @@ export function PostSessionVerdict({ score, onContinue, xpGained = 0 }: PostSess
   return (
     <div
       className="fixed inset-0 z-[200] flex items-center justify-center"
-      style={{ background: "var(--bg-primary)" }}
+      style={{
+        backgroundColor: "var(--bg-primary)",
+        backgroundImage: `
+          radial-gradient(circle at 50% 38%, ${verdict.glow} 0%, transparent 28%),
+          radial-gradient(circle at 18% 18%, rgba(59,130,246,0.12) 0%, transparent 24%),
+          radial-gradient(circle at 80% 72%, rgba(168,85,247,0.12) 0%, transparent 26%),
+          linear-gradient(180deg, rgba(255,255,255,0.02), transparent 45%)
+        `,
+      }}
     >
       <Confetti trigger={confettiTrigger} />
+      <div
+        className="pointer-events-none absolute inset-0 opacity-40"
+        style={{
+          backgroundImage: `
+            linear-gradient(rgba(255,255,255,0.035) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(255,255,255,0.035) 1px, transparent 1px)
+          `,
+          backgroundSize: "48px 48px",
+          maskImage: "radial-gradient(circle at 50% 45%, #000 0%, transparent 72%)",
+        }}
+      />
 
-      <div className="relative z-[202] text-center">
+      <div className="relative z-[202] w-full max-w-4xl px-6 text-center">
         <AnimatePresence mode="wait">
           {/* Phase 1: Score count-up */}
           {phase === "counting" && (
@@ -183,11 +202,18 @@ export function PostSessionVerdict({ score, onContinue, xpGained = 0 }: PostSess
               key="details"
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              className="space-y-8"
-            >
-              {/* Score with optional gold frame */}
-              <div className="relative inline-block">
-                {isPerfect && (
+	              className="mx-auto max-w-3xl rounded-[28px] border px-6 py-10 shadow-2xl md:px-12 md:py-12"
+                style={{
+                  background: "linear-gradient(180deg, rgba(255,255,255,0.075), rgba(255,255,255,0.025))",
+                  borderColor: "rgba(255,255,255,0.12)",
+                  boxShadow: `0 30px 90px rgba(0,0,0,0.42), 0 0 80px ${verdict.glow}`,
+                  backdropFilter: "blur(28px) saturate(1.25)",
+                  WebkitBackdropFilter: "blur(28px) saturate(1.25)",
+                }}
+	            >
+	              {/* Score with optional gold frame */}
+	              <div className="relative inline-flex flex-col items-center">
+	                {isPerfect && (
                   <motion.div
                     className="absolute inset-[-16px] rounded-2xl pointer-events-none"
                     style={{
@@ -199,49 +225,74 @@ export function PostSessionVerdict({ score, onContinue, xpGained = 0 }: PostSess
                     transition={{ duration: 2, repeat: Infinity }}
                   />
                 )}
-                <div
-                  className="font-display text-7xl font-bold"
-                  style={{ color: verdict.color, textShadow: `0 0 30px ${verdict.glow}` }}
-                >
-                  {score}
-                  <span className="text-3xl" style={{ color: "var(--text-muted)" }}>/100</span>
-                </div>
-                <div
-                  className="font-medium text-4xl font-bold tracking-wide mt-2"
-                  style={{
-                    color: verdict.color,
-                    WebkitFontSmoothing: "none",
-                    MozOsxFontSmoothing: "grayscale",
-                    letterSpacing: "0.05em",
-                  }}
-                >
-                  {verdict.wordRu}
-                </div>
-              </div>
+                  <div
+                    className="relative mb-6 flex h-48 w-48 items-center justify-center rounded-full md:h-56 md:w-56"
+                    style={{
+                      background: `conic-gradient(${verdict.color} ${Math.max(0, Math.min(100, score)) * 3.6}deg, rgba(255,255,255,0.08) 0deg)`,
+                      boxShadow: `0 0 42px ${verdict.glow}`,
+                    }}
+                  >
+                    <div
+                      className="absolute inset-[10px] rounded-full"
+                      style={{ background: "rgba(5,7,13,0.92)", border: "1px solid rgba(255,255,255,0.08)" }}
+                    />
+	                  <div className="relative">
+                      <div
+                        className="font-display text-6xl font-bold md:text-7xl"
+                        style={{ color: "var(--text-primary)", textShadow: `0 0 30px ${verdict.glow}` }}
+                      >
+                        {score.toFixed(1)}
+                        <span className="text-2xl" style={{ color: "var(--text-muted)" }}>/100</span>
+                      </div>
+                      <div className="mt-1 text-xs uppercase tracking-[0.28em]" style={{ color: verdict.color }}>
+                        Общий балл
+                      </div>
+                    </div>
+	                </div>
+	                <div
+	                  className="font-display text-3xl font-bold uppercase tracking-wide md:text-5xl"
+	                  style={{
+	                    color: verdict.color,
+	                    textShadow: `0 0 32px ${verdict.glow}`,
+	                    letterSpacing: "0.05em",
+	                  }}
+	                >
+	                  {verdict.wordRu}
+	                </div>
+                  <p className="mt-4 max-w-xl text-base md:text-lg" style={{ color: "var(--text-secondary)" }}>
+                    Разбор готов: сильные места, ошибки, динамика клиента и рекомендации AI-коуча собраны ниже.
+                  </p>
+	              </div>
 
-              {/* XP gained */}
-              {xpGained > 0 && (
+	              {/* XP gained */}
+	              {xpGained > 0 && (
                 <motion.div
                   initial={{ scale: 0, opacity: 0 }}
                   animate={{ scale: 1, opacity: 1 }}
                   transition={{ delay: 0.3, type: "spring" }}
-                  className="inline-flex items-center gap-2 rounded-full px-5 py-2"
+	                  className="inline-flex items-center gap-2 rounded-full px-5 py-2"
                   style={{
                     background: "var(--accent-muted)",
                     border: "1px solid var(--accent)",
                     boxShadow: `0 0 20px ${verdict.glow}`,
                   }}
-                >
-                  <span className="font-display text-lg font-bold" style={{ color: "var(--accent)" }}>
-                    +{xpGained} XP
-                  </span>
-                </motion.div>
-              )}
+	                >
+                    <Star size={16} fill="currentColor" style={{ color: "var(--accent)" }} />
+	                  <span className="font-display text-lg font-bold" style={{ color: "var(--accent)" }}>
+	                    +{xpGained} XP
+	                  </span>
+	                </motion.div>
+	              )}
 
-              {/* Continue button */}
-              <motion.button
-                onClick={onContinue}
-                className="btn-neon flex items-center gap-2 mx-auto text-lg px-8 py-4"
+	              {/* Continue button */}
+	              <motion.button
+	                onClick={onContinue}
+	                className="mt-8 flex items-center gap-2 mx-auto rounded-2xl px-8 py-4 text-lg font-bold"
+                  style={{
+                    background: `linear-gradient(135deg, ${verdict.color}, color-mix(in srgb, ${verdict.color} 60%, #ffffff 18%))`,
+                    color: "#05070d",
+                    boxShadow: `0 18px 48px ${verdict.glow}`,
+                  }}
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ delay: 0.5 }}

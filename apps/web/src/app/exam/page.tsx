@@ -13,7 +13,6 @@ import {
   AlertTriangle,
   RefreshCw,
   Loader2,
-  BookOpen,
   FileText,
   Star,
 } from "lucide-react";
@@ -21,6 +20,12 @@ import AuthLayout from "@/components/layout/AuthLayout";
 import { api } from "@/lib/api";
 
 const NOISE_SVG = `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E")`;
+const EXAM_SCHEME_SVG = `url("data:image/svg+xml,%3Csvg width='520' height='520' viewBox='0 0 520 520' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' stroke='%2385f7e8' stroke-opacity='.14' stroke-width='1'%3E%3Cpath d='M42 96h126v68h88v92h118v72h104'/%3E%3Cpath d='M62 418h92v-82h118v-76h92v-112h92'/%3E%3Cpath d='M120 46v88m188-42v116m86 138v96M204 292h174'/%3E%3Ccircle cx='168' cy='164' r='5'/%3E%3Ccircle cx='256' cy='256' r='5'/%3E%3Ccircle cx='374' cy='328' r='5'/%3E%3Ccircle cx='154' cy='336' r='5'/%3E%3C/g%3E%3Cg fill='%23ff7adf' fill-opacity='.09'%3E%3Crect x='86' y='78' width='10' height='10' rx='2'/%3E%3Crect x='300' y='86' width='10' height='10' rx='2'/%3E%3Crect x='450' y='144' width='10' height='10' rx='2'/%3E%3Crect x='390' y='438' width='10' height='10' rx='2'/%3E%3C/g%3E%3C/svg%3E")`;
+
+const EXAM_BACKGROUND = `
+  linear-gradient(135deg, rgba(11, 23, 64, 0.98) 0%, rgba(31, 19, 75, 0.96) 30%, rgba(12, 83, 105, 0.9) 58%, rgba(18, 118, 101, 0.82) 78%, rgba(92, 34, 115, 0.92) 100%),
+  linear-gradient(45deg, rgba(58, 118, 255, 0.18) 0%, transparent 34%, rgba(69, 255, 207, 0.14) 56%, rgba(236, 72, 153, 0.14) 100%)
+`;
 
 const EXAM_KEYFRAMES = `
 @keyframes examShine {
@@ -30,6 +35,14 @@ const EXAM_KEYFRAMES = `
 @keyframes examGlow {
   0%, 100% { box-shadow: 0 0 20px rgba(245,158,11,0.1); }
   50% { box-shadow: 0 0 40px rgba(245,158,11,0.2); }
+}
+@keyframes examSchemeDrift {
+  0% { background-position: center 0, center 0, center 0; }
+  100% { background-position: center 520px, center 72px, center 72px; }
+}
+@keyframes examSchemePulse {
+  0%, 100% { opacity: 0.56; filter: hue-rotate(0deg) saturate(1); }
+  50% { opacity: 0.78; filter: hue-rotate(18deg) saturate(1.22); }
 }
 `;
 
@@ -256,15 +269,23 @@ export default function ExamPage() {
   }
 
   return (
-    <AuthLayout>
+    <AuthLayout showBreadcrumbs={false}>
       <style dangerouslySetInnerHTML={{ __html: EXAM_KEYFRAMES }} />
 
-      <div className="min-h-screen relative" style={{ background: "var(--bg-primary)" }}>
+      <div className="min-h-screen relative" style={{ background: EXAM_BACKGROUND }}>
         <div className="absolute inset-0 pointer-events-none z-[1]" aria-hidden style={{ backgroundImage: NOISE_SVG, backgroundRepeat: "repeat", opacity: 1 }} />
-        <div className="absolute inset-0 pointer-events-none overflow-hidden" aria-hidden>
-          <div className="absolute -top-32 right-[15%] rounded-full opacity-[0.03]" style={{ width: 850, height: 850, background: "radial-gradient(circle, #F59E0B 0%, transparent 70%)" }} />
-          <div className="absolute top-[70%] -left-20 rounded-full opacity-[0.025]" style={{ width: 650, height: 650, background: "radial-gradient(circle, #6366F1 0%, transparent 70%)" }} />
-        </div>
+        <div
+          className="absolute inset-0 pointer-events-none overflow-hidden"
+          aria-hidden
+          style={{
+            backgroundImage: `${EXAM_SCHEME_SVG}, linear-gradient(rgba(133,247,232,0.055) 1px, transparent 1px), linear-gradient(90deg, rgba(133,247,232,0.045) 1px, transparent 1px)`,
+            backgroundSize: "520px 520px, 72px 72px, 72px 72px",
+            backgroundPosition: "center 0, center 0, center 0",
+            animation: "examSchemeDrift 34s linear infinite, examSchemePulse 7s ease-in-out infinite",
+            maskImage: "linear-gradient(to bottom, rgba(0,0,0,0.95), rgba(0,0,0,0.45) 70%, rgba(0,0,0,0.2))",
+          }}
+        />
+        <div className="absolute inset-0 pointer-events-none" aria-hidden style={{ background: "linear-gradient(180deg, rgba(3,7,18,0.12) 0%, rgba(3,7,18,0.5) 100%)" }} />
 
         <div className="relative z-10 max-w-[900px] mx-auto px-5 sm:px-8 py-8 sm:py-12">
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>

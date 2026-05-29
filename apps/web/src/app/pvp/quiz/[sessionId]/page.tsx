@@ -27,6 +27,7 @@ import { QuizHistoryStrip } from "@/components/pvp/QuizHistoryStrip";
 import { QuizResultsScreen } from "@/components/pvp/QuizResultsScreen";
 import { PixelMascot } from "@/components/pvp/PixelMascot";
 import type { MascotState } from "@/components/pvp/PixelMascotSprites";
+import { api } from "@/lib/api";
 import { categoryLabel } from "@/lib/categories";
 import { ErrorBoundary } from "@/components/errors/ErrorBoundary";
 import { PageAuthGate } from "@/components/layout/PageAuthGate";
@@ -34,6 +35,8 @@ import { logger } from "@/lib/logger";
 import type { WSMessage } from "@/types";
 
 /* ─── Quiz Session Page ──────────────────────────────────────────────────── */
+
+const TRAINING_MAP_PASS_SCORE = 88;
 
 export default function KnowledgeSessionPageWrapper() {
   return (
@@ -78,7 +81,9 @@ function KnowledgeSessionPage() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const completionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const userExitedRef = useRef(false);
+  const manyashaFailAnnouncedRef = useRef(false);
 
   // PR-12 (2026-05-07): pull the most-recent answerId from the store so
   // the panel-level «Сообщить о проблеме» button knows which row to flag.
@@ -147,6 +152,55 @@ function KnowledgeSessionPage() {
   // tier=null means "no hint used yet"; tiersRemaining=0 disables the button.
   const [hintTier, setHintTier] = useState<number | null>(null);
   const [hintTiersRemaining, setHintTiersRemaining] = useState<number | null>(null);
+  const mapLevel = useMemo(() => {
+    const raw = searchParams?.get("map_level");
+    const parsed = raw ? Number(raw) : NaN;
+    return Number.isFinite(parsed) && parsed >= 1 && parsed <= 100 ? parsed : null;
+  }, [searchParams]);
+
+  const syncMapLevelProgress = useCallback((results: Record<string, unknown>) => {
+    if (mapLevel === null || typeof window === "undefined") return;
+
+    const total = typeof results.total_questions === "number"
+      ? results.total_questions
+      : store.totalQuestions || (store.correct + store.incorrect);
+    const correct = typeof results.correct === "number" ? results.correct : store.correct;
+    const scorePercent = typeof results.score === "number"
+      ? results.score
+      : total > 0 ? Math.round((correct / total) * 100) : 0;
+
+    const key = "hunterlite_test_map_progress";
+    try {
+      const current = JSON.parse(localStorage.getItem(key) || "[]");
+      if (!Array.isArray(current)) return;
+
+      const idx = mapLevel - 1;
+      const bestScore = Math.max(Number(current[idx]?.bestScore || 0), scorePercent);
+      current[idx] = {
+        ...(current[idx] || { level: mapLevel }),
+        level: mapLevel,
+        status: bestScore >= TRAINING_MAP_PASS_SCORE ? "completed" : "failed",
+        bestScore,
+      };
+
+      if (bestScore >= TRAINING_MAP_PASS_SCORE && mapLevel < 100) {
+        const nextIdx = mapLevel;
+        const next = current[nextIdx] || { level: mapLevel + 1 };
+        if (!next.status || next.status === "locked") {
+          current[nextIdx] = { ...next, level: mapLevel + 1, status: "available" };
+        }
+      } else if (mapLevel < 100) {
+        const nextIdx = mapLevel;
+        const next = current[nextIdx] || { level: mapLevel + 1 };
+        if (next.status !== "completed") {
+          current[nextIdx] = { ...next, level: mapLevel + 1, status: "locked" };
+        }
+      }
+
+      localStorage.setItem(key, JSON.stringify(current));
+      api.put("/training-map/progress", { test_map: current }).catch(() => {});
+    } catch { /* local training-map progress is best-effort */ }
+  }, [mapLevel, store.correct, store.incorrect, store.totalQuestions]);
 
   // Initialize store.mode from URL on mount so blitz UI is correct
   // before the first WS message. The WS handler still re-inits when
@@ -177,6 +231,12 @@ function KnowledgeSessionPage() {
     store.setSessionId(sessionId);
     store.setStatus("connecting");
   }, [sessionId]); // eslint-disable-line react-hooks/exhaustive-deps -- store setters are stable Zustand actions
+
+  useEffect(() => {
+    return () => {
+      if (completionTimerRef.current) clearTimeout(completionTimerRef.current);
+    };
+  }, []);
 
   // WebSocket message handler
   const handleMessage = useCallback(
@@ -493,8 +553,8 @@ function KnowledgeSessionPage() {
             ? (data.cumulative_penalty as number)
             : null;
           const header = tier
-            ? `▸ ПОДСКАЗКА ${tier}/3${cumPenalty !== null ? `  (${cumPenalty} pt)` : ""}`
-            : "▸ ПОДСКАЗКА";
+            ? `Подсказка ${tier}/3${cumPenalty !== null ? ` · штраф ${Math.abs(cumPenalty)} балл.` : ""}`
+            : "Подсказка";
           store.addMessage({
             type: "hint",
             content: `${header}\n${hintText}`,
@@ -530,16 +590,30 @@ function KnowledgeSessionPage() {
         case "session_completed":
         case "quiz.completed": {
           if (userExitedRef.current) break;
-          store.setResults(data.results as Record<string, unknown>);
-          store.setStatus("completed");
-          setShowResults(true);
+          const results = data.results as Record<string, unknown>;
+          store.setResults(results);
+          syncMapLevelProgress(results);
           if (timerRef.current) {
             clearInterval(timerRef.current);
             timerRef.current = null;
           }
+          if (completionTimerRef.current) clearTimeout(completionTimerRef.current);
+          completionTimerRef.current = setTimeout(() => {
+            store.setStatus("completed");
+            setShowResults(true);
+          }, 1800);
           // SFX: victory or defeat based on score
-          const resultScore = ((data.results as Record<string, unknown>)?.score as number) ?? 0;
+          const resultScore = (results.score as number) ?? 0;
           playSound(resultScore >= 50 ? "victory" : "defeat", 0.5);
+          if (mapLevel !== null && resultScore < TRAINING_MAP_PASS_SCORE && !manyashaFailAnnouncedRef.current) {
+            manyashaFailAnnouncedRef.current = true;
+            window.dispatchEvent(new CustomEvent("manyasha:say", {
+              detail: {
+                text: `Тест пока не сдан. Нужно набрать минимум ${TRAINING_MAP_PASS_SCORE} процентов. Пройди уровень заново, я помогу разобрать ошибки.`,
+                open: true,
+              },
+            }));
+          }
           break;
         }
 
@@ -655,7 +729,6 @@ function KnowledgeSessionPage() {
   const MIN_ANSWER_LENGTH = 3;
   const sanitizeInput = (raw: string): string => {
     // Remove zero-width and control characters (keep newlines/tabs)
-    // eslint-disable-next-line no-control-regex
     return raw.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F\u200B-\u200F\uFEFF]/g, "").slice(0, MAX_ANSWER_LENGTH);
   };
 
@@ -719,8 +792,8 @@ function KnowledgeSessionPage() {
       if (store.status === "active") sendMessage({ type: "quiz.end" });
     } catch { /* WS may be down */ }
     store.reset();
-    router.push("/pvp");
-  }, [store, sendMessage, router]);
+    router.push(mapLevel !== null ? "/training?tab=tests" : "/pvp");
+  }, [store, sendMessage, router, mapLevel]);
 
   useEffect(() => {
     if (store.status !== "active") return;
@@ -758,6 +831,37 @@ function KnowledgeSessionPage() {
     }
   };
 
+  useEffect(() => {
+    if (mapLevel === null || store.status !== "completed" || manyashaFailAnnouncedRef.current) return;
+
+    const results = store.results || {};
+    const total = typeof results.total_questions === "number"
+      ? results.total_questions
+      : store.totalQuestions || (store.correct + store.incorrect);
+    const correct = typeof results.correct === "number" ? results.correct : store.correct;
+    const scorePercent = typeof results.score === "number"
+      ? results.score
+      : total > 0 ? Math.round((correct / total) * 100) : store.score;
+
+    if (scorePercent >= TRAINING_MAP_PASS_SCORE) return;
+
+    manyashaFailAnnouncedRef.current = true;
+    window.dispatchEvent(new CustomEvent("manyasha:say", {
+      detail: {
+        text: `Тест пока не сдан. Нужно набрать минимум ${TRAINING_MAP_PASS_SCORE} процентов. Пройди уровень заново, я рядом и помогу разобрать ошибки.`,
+        open: false,
+      },
+    }));
+  }, [
+    mapLevel,
+    store.status,
+    store.results,
+    store.totalQuestions,
+    store.correct,
+    store.incorrect,
+    store.score,
+  ]);
+
   // PR-20: formatTime + progressPct переехали в QuizHUD; сюда не нужны.
 
   // ─── Results Screen ────────────────────────────────
@@ -768,7 +872,7 @@ function KnowledgeSessionPage() {
         ? results.duration_seconds
         : 0;
     return (
-      <div className="flex min-h-screen flex-col" style={{ background: "var(--bg-primary)" }}>
+      <div className="flex min-h-screen flex-col" style={{ backgroundColor: "var(--bg-primary)" }}>
         <QuizResultsScreen
           mode={store.mode}
           category={store.category}
@@ -785,12 +889,14 @@ function KnowledgeSessionPage() {
             const c = store.category ?? undefined;
             store.reset();
             store.init(m, c);
-            router.push("/pvp");
+            router.push(mapLevel !== null ? "/training?tab=tests" : "/pvp");
           }}
           onBackToArena={() => {
             store.reset();
-            router.push("/pvp");
+            router.push(mapLevel !== null ? "/training?tab=tests" : "/pvp");
           }}
+          primaryCtaLabel={mapLevel !== null ? "К карте тестов" : "Сыграть ещё"}
+          secondaryCtaLabel={mapLevel !== null ? "К обучению" : "К арене"}
         />
       </div>
     );
@@ -801,7 +907,7 @@ function KnowledgeSessionPage() {
     <div
       className="flex h-screen flex-col relative"
       style={{
-        background: "var(--bg-primary)",
+        backgroundColor: "var(--bg-primary)",
         // PR-20 polish: smoother ambient gradient + subtle grid (вместо
         // жёсткой 23px-сетки). Sub-pixel смотрится тоньше на ретине.
         backgroundImage: `
@@ -851,12 +957,12 @@ function KnowledgeSessionPage() {
            прихода первого quiz.question, со скелетоном вариантов. Иначе
            юзер видел вспышку textarea на первом paint'е. */}
       {(store.currentChoices && store.currentChoices.length >= 2) || isMcByUrl ? (
-        <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
+        <div className="flex-1 flex flex-col lg:flex-row overflow-hidden pb-8 lg:pb-10">
           {/* ── LEFT: MC Choices Panel (1/3) ── PR-20: glass-arena style. */}
           <aside
             className="order-2 lg:order-1 shrink-0 lg:w-[36%] overflow-y-auto"
             style={{
-              background: "var(--bg-primary)",
+	              backgroundColor: "var(--bg-primary)",
               borderRight: "1px solid var(--glass-border, rgba(255,255,255,0.08))",
             }}
           >
@@ -983,14 +1089,14 @@ function KnowledgeSessionPage() {
                 <motion.div
                   key={quizMascotState}
                   animate={
-                    quizMascotState === "cheer" ? { scale: [1, 1.18, 1.08] }
-                    : quizMascotState === "sad" ? { scale: [1, 0.92, 0.96], rotate: [-3, 3, -2, 0] }
+                    quizMascotState === "cheer" ? { scale: [1, 1.08] }
+                    : quizMascotState === "sad" ? { scale: [1, 0.94], rotate: [-2, 2] }
                     : { scale: 1 }
                   }
                   transition={
                     quizMascotState === "cheer"
-                      ? { duration: 0.5, type: "spring", stiffness: 280, damping: 16 }
-                      : { duration: 0.6 }
+                      ? { duration: 0.35, type: "tween", ease: [0.22, 1, 0.36, 1] }
+                      : { duration: 0.35, type: "tween" }
                   }
                   className="rounded-2xl flex items-center justify-center"
                   style={{
@@ -1030,7 +1136,7 @@ function KnowledgeSessionPage() {
               `,
             }}
           >
-            <div className="px-4 py-6 space-y-4 relative">
+            <div className="px-4 pt-6 pb-16 lg:pb-20 space-y-4 relative">
               {/* PR-22 (Phase 2): VerdictOverlay sticky-top — большая
                   карточка вердикта с particle-burst, авто-адванс в блице. */}
               {latestVerdict && (
@@ -1120,7 +1226,7 @@ function KnowledgeSessionPage() {
               `,
             }}
           >
-            <div className="mx-auto max-w-3xl px-4 py-6 space-y-4 relative">
+            <div className="mx-auto max-w-3xl px-4 pt-6 pb-16 lg:pb-20 space-y-4 relative">
               {connectionState !== "connected" && (
                 <motion.div
                   initial={{ opacity: 0, y: 8 }}
@@ -1247,7 +1353,7 @@ function KnowledgeSessionPage() {
             className="shrink-0 relative"
             style={{
               borderTop: "2px solid var(--accent)",
-              background: "var(--bg-primary)",
+	              backgroundColor: "var(--bg-primary)",
               boxShadow: "0 -2px 0 0 rgba(0,0,0,0.15)",
               zIndex: 10,
               padding: "14px 12px",
@@ -1351,7 +1457,6 @@ function KnowledgeSessionPage() {
 /* ─── Message Bubble Component ────────────────────────────────────────────── */
 
 function MessageBubble({ message }: { message: QuizMessage }) {
-  const isUser = message.type === "answer";
   const isSystem = message.type === "system";
   const isFeedback = message.type === "feedback";
   const isHint = message.type === "hint";
@@ -1498,7 +1603,7 @@ function MessageBubble({ message }: { message: QuizMessage }) {
         icon: XCircle,
       },
     };
-    const { color, bg: bgColor, label: verdictLabel, icon: VerdictIcon } = palette[level];
+    const { color, label: verdictLabel, icon: VerdictIcon } = palette[level];
 
     // 2026-05-04 dedup: the LLM judge usually puts the correct answer
     // INTO `explanation`, then backend ALSO sends a separate

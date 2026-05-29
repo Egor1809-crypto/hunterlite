@@ -95,25 +95,56 @@ export default function ManyashaWidget() {
   const [loading, setLoading] = useState(false);
   const [enabled, setEnabled] = useState(true);
   const [inputFocused, setInputFocused] = useState(false);
-  const [hovered, setHovered] = useState(false);
+  const [bubbleText, setBubbleText] = useState("Нужна помощь?");
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   // Inject keyframes
   useEffect(() => ensureKeyframes(), []);
 
-  // Check if disabled in settings
+  // Маняша всегда включена: в настройках больше нет рабочего выключателя,
+  // поэтому старое значение localStorage=false не должно прятать помощника.
   useEffect(() => {
-    const stored = localStorage.getItem("hunterlite_manyasha_enabled");
-    if (stored === "false") setEnabled(false);
+    localStorage.setItem("hunterlite_manyasha_enabled", "true");
+    setEnabled(true);
 
     const handler = () => {
-      const val = localStorage.getItem("hunterlite_manyasha_enabled");
-      setEnabled(val !== "false");
+      localStorage.setItem("hunterlite_manyasha_enabled", "true");
+      setEnabled(true);
     };
     window.addEventListener("storage", handler);
     return () => window.removeEventListener("storage", handler);
   }, []);
+
+  const speak = useCallback((text: string) => {
+    if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = "ru-RU";
+    utterance.rate = 0.96;
+    utterance.pitch = 1.08;
+    window.speechSynthesis.speak(utterance);
+  }, []);
+
+  useEffect(() => {
+    const handler = (event: Event) => {
+      const detail = (event as CustomEvent<{ text?: string; open?: boolean }>).detail;
+      const text = detail?.text?.trim();
+      if (!text) return;
+
+      setEnabled(true);
+      localStorage.setItem("hunterlite_manyasha_enabled", "true");
+      setBubbleText(text);
+      setMessages((prev) => [...prev, { role: "assistant", content: text }]);
+      if (detail?.open) setOpen(true);
+      speak(text);
+
+      window.setTimeout(() => setBubbleText("Нужна помощь?"), 12000);
+    };
+
+    window.addEventListener("manyasha:say", handler);
+    return () => window.removeEventListener("manyasha:say", handler);
+  }, [speak]);
 
   // Load chat history from sessionStorage
   useEffect(() => {
@@ -218,63 +249,57 @@ export default function ManyashaWidget() {
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0, opacity: 0 }}
             className="fixed bottom-4 right-4 z-[9999] flex flex-col items-end"
-            onMouseEnter={() => setHovered(true)}
-            onMouseLeave={() => setHovered(false)}
           >
             {/* Speech bubble — "Нужна помощь?" */}
-            <AnimatePresence>
-              {hovered && (
-                <motion.div
-                  initial={{ scale: 0, opacity: 0, y: 10 }}
-                  animate={{ scale: 1, opacity: 1, y: 0 }}
-                  exit={{ scale: 0, opacity: 0, y: 10 }}
-                  transition={{ type: "spring", stiffness: 400, damping: 25 }}
-                  className="mb-2 mr-2 px-4 py-2.5 rounded-2xl relative"
-                  style={{
-                    background: "rgba(255, 255, 255, 0.95)",
-                    boxShadow: "0 4px 20px rgba(0, 0, 0, 0.15)",
-                    border: "1px solid rgba(21, 101, 192, 0.15)",
-                  }}
-                >
-                  <span className="text-sm font-semibold" style={{ color: "#1a2b3d" }}>
-                    Нужна помощь?
-                  </span>
-                  {/* Speech bubble tail */}
-                  <div
-                    className="absolute -bottom-2 right-6 w-4 h-4"
-                    style={{
-                      background: "rgba(255, 255, 255, 0.95)",
-                      transform: "rotate(45deg)",
-                      borderRight: "1px solid rgba(21, 101, 192, 0.15)",
-                      borderBottom: "1px solid rgba(21, 101, 192, 0.15)",
-                    }}
-                  />
-                </motion.div>
-              )}
-            </AnimatePresence>
+            <motion.div
+              initial={{ scale: 0.96, opacity: 0, y: 6 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              transition={{ type: "spring", stiffness: 360, damping: 28 }}
+              className="mb-3 mr-1 max-w-[320px] px-5 py-3 rounded-xl relative"
+              style={{
+                background: "rgba(7, 18, 34, 0.96)",
+                boxShadow: "0 10px 30px rgba(0, 0, 0, 0.35), 0 0 18px rgba(33, 150, 243, 0.12)",
+                border: "1px solid rgba(33, 150, 243, 0.55)",
+              }}
+            >
+              <span className="text-sm font-medium leading-relaxed" style={{ color: "rgba(255,255,255,0.92)" }}>
+                {bubbleText}
+              </span>
+              {/* Speech bubble tail */}
+              <div
+                className="absolute -bottom-2 left-1/2 w-4 h-4 -translate-x-1/2"
+                style={{
+                  background: "rgba(7, 18, 34, 0.96)",
+                  transform: "rotate(45deg)",
+                  borderRight: "1px solid rgba(33, 150, 243, 0.55)",
+                  borderBottom: "1px solid rgba(33, 150, 243, 0.55)",
+                }}
+              />
+            </motion.div>
 
             {/* Mascot image button */}
             <motion.button
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
               onClick={() => setOpen(true)}
-              className="relative rounded-full overflow-hidden border-0 bg-transparent p-0 cursor-pointer"
+              className="relative overflow-hidden border-0 bg-transparent p-0 cursor-pointer"
               style={{
-                width: 80,
-                height: 80,
+                width: 120,
+                height: 120,
                 animation: "manyasha-float 4s ease-in-out infinite, manyasha-glow-breathe 3s ease-in-out infinite",
               }}
               aria-label="Открыть Маняшу"
             >
               <Image
-                src="/mascot/mascot-idle.jpg"
+                src="/mascot/mascot-idle-blink.jpg"
                 alt="Маняша — AI-помощник"
-                width={80}
-                height={80}
-                className="rounded-full object-cover object-[center_20%]"
+                fill
+                sizes="120px"
+                className="object-cover object-[center_46%]"
                 style={{
-                  border: "3px solid rgba(21, 101, 192, 0.4)",
-                  borderRadius: "50%",
+                  borderRadius: 0,
+                  WebkitMaskImage: "radial-gradient(ellipse 58% 70% at 50% 54%, #000 60%, transparent 78%)",
+                  maskImage: "radial-gradient(ellipse 58% 70% at 50% 54%, #000 60%, transparent 78%)",
                 }}
                 priority
               />

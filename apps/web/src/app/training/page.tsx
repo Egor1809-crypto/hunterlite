@@ -19,6 +19,20 @@ import { api } from "@/lib/api";
 import { AppIcon } from "@/components/ui/AppIcon";
 
 const NOISE_SVG = `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E")`;
+const TRAINING_SURFACE_CSS = `
+.training-solid-page .glass-panel,
+.training-solid-page .premium-card,
+.training-solid-page .surface-card {
+  background: rgba(10, 16, 34, 0.92) !important;
+  border-color: rgba(148, 163, 184, 0.14) !important;
+  box-shadow: 0 18px 55px rgba(0, 0, 0, 0.26), inset 0 1px 0 rgba(255,255,255,0.04) !important;
+}
+.training-solid-page input,
+.training-solid-page textarea,
+.training-solid-page select {
+  background: rgba(6, 10, 24, 0.88) !important;
+}
+`;
 
 type Tab = "tests" | "builder";
 
@@ -143,16 +157,23 @@ function TrainingPageContent() {
   }, [tabParam]);
 
   return (
-    <AuthLayout>
-      <div className="relative panel-grid-bg min-h-screen">
-        {/* Ambient gradient orbs */}
-        <div className="pointer-events-none absolute inset-0 z-0 overflow-hidden">
-          <div className="absolute -top-[200px] -right-[200px] w-[900px] h-[900px] rounded-full" style={{ background: "radial-gradient(circle, rgba(59,130,246,0.035) 0%, transparent 70%)" }} />
-          <div className="absolute -bottom-[150px] -left-[150px] w-[700px] h-[700px] rounded-full" style={{ background: "radial-gradient(circle, rgba(139,92,246,0.025) 0%, transparent 70%)" }} />
-          <div className="absolute top-1/3 -right-[100px] w-[500px] h-[500px] rounded-full" style={{ background: "radial-gradient(circle, rgba(34,197,94,0.02) 0%, transparent 70%)" }} />
-        </div>
-        {/* Noise texture overlay */}
-        <div className="pointer-events-none absolute inset-0 z-0" style={{ backgroundImage: NOISE_SVG, backgroundRepeat: "repeat", opacity: 0.4 }} />
+    <AuthLayout showBreadcrumbs={false}>
+      <style dangerouslySetInnerHTML={{ __html: TRAINING_SURFACE_CSS }} />
+      <div
+        className="training-solid-page relative min-h-screen overflow-hidden"
+        style={{
+          background: "linear-gradient(135deg, rgba(5,12,34,0.98) 0%, rgba(13,18,43,0.98) 40%, rgba(5,36,43,0.96) 100%)",
+        }}
+      >
+        <div
+          className="pointer-events-none absolute inset-0 z-0"
+          style={{
+            backgroundImage: "linear-gradient(rgba(96,165,250,0.055) 1px, transparent 1px), linear-gradient(90deg, rgba(94,234,212,0.045) 1px, transparent 1px)",
+            backgroundSize: "68px 68px",
+            opacity: 0.5,
+          }}
+        />
+        <div className="pointer-events-none absolute inset-0 z-0" style={{ backgroundImage: NOISE_SVG, backgroundRepeat: "repeat", opacity: 0.36 }} />
 
         <div className="app-page">
           {/* Header */}
@@ -184,7 +205,7 @@ function TrainingPageContent() {
           <LearningPathWidget />
 
           {/* Tabs */}
-          <div className="mt-6 flex gap-1 rounded-xl p-1 overflow-x-auto" style={{ background: "var(--input-bg)" }}>
+          <div className="mt-6 flex gap-1 rounded-xl p-1 overflow-x-auto" style={{ background: "rgba(8, 13, 28, 0.9)", border: "1px solid rgba(148,163,184,0.12)", boxShadow: "0 18px 55px rgba(0,0,0,0.22)" }}>
             {TABS.map((t) => {
               const active = tab === t.id;
               return (

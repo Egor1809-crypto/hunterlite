@@ -10,10 +10,8 @@ import {
   Loader2,
   AlertTriangle,
   Trophy,
-  Star,
   Map,
   ChevronDown,
-  ChevronUp,
   GraduationCap,
   X,
 } from "lucide-react";
@@ -153,7 +151,8 @@ const EXAM_CHECKPOINTS = [30, 60, 90, 100];
 const QUESTIONS_PER_LEVEL_MIN = 10;
 const QUESTIONS_PER_LEVEL_MAX = 20;
 const MAX_ATTEMPTS = 5;
-const PASS_THRESHOLD = 0.7;
+const DAILY_ENERGY = 20;
+const PASS_THRESHOLD = 0.88;
 
 /* ═══════════════════════════════════════════════════════════════════════════
    LEVEL STATE
@@ -166,6 +165,7 @@ interface LevelState {
   status: LevelStatus;
   bestScore: number | null;
   attempts: number;
+  attemptsDate?: string | null;
   questionsCount: number;
 }
 
@@ -175,17 +175,116 @@ function getInitialLevelStates(): LevelState[] {
     status: i === 0 ? "available" : "locked",
     bestScore: null,
     attempts: 0,
+    attemptsDate: null,
     questionsCount: QUESTIONS_PER_LEVEL_MIN + Math.floor(Math.random() * (QUESTIONS_PER_LEVEL_MAX - QUESTIONS_PER_LEVEL_MIN + 1)),
   }));
 }
 
 const STORAGE_KEY = "hunterlite_test_map_progress";
+const ENERGY_STORAGE_KEY = "hunterlite_daily_energy";
+
+interface EnergyState {
+  date: string;
+  remaining: number;
+}
+
+function getEnergyDateKey(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function loadEnergy(): EnergyState {
+  if (typeof window === "undefined") return { date: getEnergyDateKey(), remaining: DAILY_ENERGY };
+  const today = getEnergyDateKey();
+  try {
+    const raw = localStorage.getItem(ENERGY_STORAGE_KEY);
+    if (!raw) return { date: today, remaining: DAILY_ENERGY };
+    const parsed = JSON.parse(raw) as Partial<EnergyState>;
+    if (parsed.date !== today) return { date: today, remaining: DAILY_ENERGY };
+    return {
+      date: today,
+      remaining: Math.max(0, Math.min(DAILY_ENERGY, Number(parsed.remaining ?? DAILY_ENERGY))),
+    };
+  } catch {
+    return { date: today, remaining: DAILY_ENERGY };
+  }
+}
+
+function saveEnergy(energy: EnergyState) {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(ENERGY_STORAGE_KEY, JSON.stringify(energy));
+  window.dispatchEvent(new CustomEvent("hunterlite:energy", { detail: energy }));
+}
+
+function tellManyasha(text: string) {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new CustomEvent("manyasha:say", { detail: { text, open: true } }));
+}
+
+function normalizeProgress(value: unknown): LevelState[] {
+  const initial = getInitialLevelStates();
+  if (!Array.isArray(value)) return initial;
+  const today = getEnergyDateKey();
+
+  const normalized = initial.map((fallback, index) => {
+    const raw = value[index];
+    if (!raw || typeof raw !== "object") return fallback;
+
+    const candidate = raw as Partial<LevelState>;
+    const status: LevelStatus = ["locked", "available", "completed", "failed"].includes(String(candidate.status))
+      ? candidate.status as LevelStatus
+      : fallback.status;
+    const attemptsDate = typeof candidate.attemptsDate === "string" ? candidate.attemptsDate : null;
+    const attempts = attemptsDate === today && Number.isFinite(candidate.attempts)
+      ? Math.max(0, Math.min(MAX_ATTEMPTS, Number(candidate.attempts)))
+      : fallback.attempts;
+    const questionsCount = Number.isFinite(candidate.questionsCount)
+      ? Math.max(QUESTIONS_PER_LEVEL_MIN, Math.min(QUESTIONS_PER_LEVEL_MAX, Number(candidate.questionsCount)))
+      : fallback.questionsCount;
+
+    return {
+      ...fallback,
+      ...candidate,
+      level: fallback.level,
+      status,
+      attempts,
+      attemptsDate,
+      questionsCount,
+      bestScore: typeof candidate.bestScore === "number" ? candidate.bestScore : fallback.bestScore,
+    };
+  });
+
+  for (let i = 0; i < normalized.length; i++) {
+    const bestScore = normalized[i].bestScore ?? 0;
+    const passed = bestScore >= PASS_THRESHOLD * 100;
+
+    if (i === 0) {
+      normalized[i] = {
+        ...normalized[i],
+        status: passed ? "completed" : normalized[i].status === "failed" ? "failed" : "available",
+      };
+      continue;
+    }
+
+    const previousPassed = (normalized[i - 1].bestScore ?? 0) >= PASS_THRESHOLD * 100;
+    if (passed) {
+      normalized[i] = { ...normalized[i], status: "completed" };
+    } else if (!previousPassed) {
+      normalized[i] = { ...normalized[i], status: "locked" };
+    } else if (normalized[i].attempts > 0 || normalized[i].status === "failed") {
+      normalized[i] = { ...normalized[i], status: "failed" };
+    } else {
+      normalized[i] = { ...normalized[i], status: "available" };
+    }
+  }
+
+  return normalized;
+}
 
 function loadProgress(): LevelState[] {
   if (typeof window === "undefined") return getInitialLevelStates();
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) return JSON.parse(raw);
+    if (raw) return normalizeProgress(JSON.parse(raw));
   } catch { /* ignore */ }
   return getInitialLevelStates();
 }
@@ -241,8 +340,6 @@ function LevelNode({
   isCheckpoint: boolean;
   onClick: () => void;
 }) {
-  const diff = getLevelDifficulty(state.level);
-  const diffCfg = getDifficultyConfig(diff);
   const isAvailable = state.status === "available";
   const isCompleted = state.status === "completed";
   const isFailed = state.status === "failed";
@@ -308,7 +405,7 @@ function LevelNode({
         {isCompleted && <Check size={18} style={{ color: islandColor }} strokeWidth={3} />}
         {isFailed && (
           <span className="text-xs font-bold" style={{ color: "var(--danger)" }}>
-            {state.attempts}/{MAX_ATTEMPTS}
+            {state.attempts > 0 ? `${state.attempts}/${MAX_ATTEMPTS}` : state.level}
           </span>
         )}
         {isAvailable && (
@@ -478,7 +575,7 @@ function IslandSection({
               <div className="px-5 pb-5">
                 {/* Level path — winding S-shape */}
                 <div className="grid grid-cols-5 gap-y-5 gap-x-3 justify-items-center py-3">
-                  {island.levels.map((lvl, idx) => {
+                  {island.levels.map((lvl) => {
                     const st = levelStates.find(s => s.level === lvl)!;
                     const isCheckpoint = island.checkpoint === lvl;
                     return (
@@ -525,20 +622,31 @@ function IslandSection({
 function LevelDetailModal({
   state,
   island,
+  energy,
   onClose,
   onStart,
   starting,
 }: {
   state: LevelState;
   island: Island;
+  energy: EnergyState;
   onClose: () => void;
   onStart: () => void;
   starting: boolean;
 }) {
   const diff = getLevelDifficulty(state.level);
   const diffCfg = getDifficultyConfig(diff);
-  const canRetry = state.attempts < MAX_ATTEMPTS;
   const isCompleted = state.status === "completed";
+  const attemptsRemaining = Math.max(0, MAX_ATTEMPTS - state.attempts);
+  const blockedByAttempts = !isCompleted && attemptsRemaining <= 0;
+  const blockedByEnergy = !isCompleted && energy.remaining <= 0;
+  const actionLabel = blockedByAttempts
+    ? "Лимит попыток"
+    : blockedByEnergy
+      ? "Энергия закончилась"
+      : state.attempts > 0
+        ? "Попробовать снова"
+        : "Начать";
 
   return (
     <motion.div
@@ -619,11 +727,43 @@ function LevelDetailModal({
               className="rounded-lg p-3 text-center"
               style={{ background: "rgba(255,255,255,0.03)", border: "1px solid var(--border-color)" }}
             >
-              <div className="text-lg font-bold" style={{ color: state.attempts >= MAX_ATTEMPTS ? "var(--danger)" : "var(--text-primary)" }}>
-                {MAX_ATTEMPTS - state.attempts}
+              <div className="text-lg font-bold" style={{ color: attemptsRemaining === 0 ? "var(--warning)" : "var(--text-primary)" }}>
+                {attemptsRemaining}/{MAX_ATTEMPTS}
               </div>
               <div className="text-[10px] mt-0.5" style={{ color: "var(--text-muted)" }}>Попыток</div>
             </div>
+          </div>
+
+          <div
+            className="mb-5 rounded-xl p-3"
+            style={{
+              background: energy.remaining > 0 ? "rgba(59,130,246,0.08)" : "rgba(245,158,11,0.08)",
+              border: `1px solid ${energy.remaining > 0 ? "rgba(59,130,246,0.22)" : "rgba(245,158,11,0.28)"}`,
+            }}
+          >
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <div className="text-[10px] uppercase tracking-widest" style={{ color: "var(--text-muted)" }}>
+                  Энергия на сегодня
+                </div>
+                <div className="mt-1 text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
+                  1 попытка = 1 энергия
+                </div>
+              </div>
+              <div className="text-xl font-bold" style={{ color: energy.remaining > 0 ? "var(--info)" : "var(--warning)" }}>
+                {energy.remaining}/{DAILY_ENERGY}
+              </div>
+            </div>
+            {blockedByAttempts && (
+              <div className="mt-3 text-xs leading-relaxed" style={{ color: "var(--warning)" }}>
+                Пять попыток на уровень закончились. Маняша предложит подождать обновления или купить дополнительные попытки.
+              </div>
+            )}
+            {blockedByEnergy && !blockedByAttempts && (
+              <div className="mt-3 text-xs leading-relaxed" style={{ color: "var(--warning)" }}>
+                Дневная энергия закончилась. Новые 20 единиц появятся завтра.
+              </div>
+            )}
           </div>
 
           {/* Best score */}
@@ -652,28 +792,32 @@ function LevelDetailModal({
           )}
 
           {/* Action button */}
-          {canRetry && !isCompleted ? (
-            <motion.button
-              onClick={onStart}
-              disabled={starting}
+          {!isCompleted ? (
+	            <motion.button
+	              onClick={onStart}
+	              disabled={starting}
               className="w-full py-3.5 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all"
               style={{
-                background: `linear-gradient(135deg, rgba(${island.colorRgb},0.2), rgba(${island.colorRgb},0.1))`,
-                border: `1.5px solid rgba(${island.colorRgb},0.4)`,
-                color: island.color,
-                boxShadow: `0 4px 20px rgba(${island.colorRgb},0.15)`,
-              }}
+	                background: blockedByAttempts || blockedByEnergy
+                    ? "rgba(245,158,11,0.08)"
+                    : `linear-gradient(135deg, rgba(${island.colorRgb},0.2), rgba(${island.colorRgb},0.1))`,
+	                border: blockedByAttempts || blockedByEnergy
+                    ? "1.5px solid rgba(245,158,11,0.35)"
+                    : `1.5px solid rgba(${island.colorRgb},0.4)`,
+	                color: blockedByAttempts || blockedByEnergy ? "var(--warning)" : island.color,
+	                boxShadow: `0 4px 20px rgba(${island.colorRgb},0.15)`,
+	              }}
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
             >
               {starting ? (
                 <Loader2 size={16} className="animate-spin" />
               ) : (
-                <>
-                  <ArrowRight size={16} />
-                  {state.attempts > 0 ? "Попробовать снова" : "Начать"}
-                </>
-              )}
+	                <>
+	                  {blockedByAttempts || blockedByEnergy ? <AlertTriangle size={16} /> : <ArrowRight size={16} />}
+	                  {actionLabel}
+	                </>
+	              )}
             </motion.button>
           ) : isCompleted ? (
             <div className="flex gap-3">
@@ -687,35 +831,22 @@ function LevelDetailModal({
               >
                 <Check size={16} /> Пройден
               </div>
-              {state.attempts < MAX_ATTEMPTS && (
-                <motion.button
-                  onClick={onStart}
-                  disabled={starting}
-                  className="py-3.5 px-5 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all"
-                  style={{
-                    background: "rgba(255,255,255,0.03)",
-                    border: "1px solid var(--border-color)",
-                    color: "var(--text-secondary)",
-                  }}
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                >
-                  {starting ? <Loader2 size={14} className="animate-spin" /> : "Пересдать"}
-                </motion.button>
-              )}
+              <motion.button
+                onClick={onStart}
+                disabled={starting}
+                className="py-3.5 px-5 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all"
+                style={{
+                  background: "rgba(255,255,255,0.03)",
+                  border: "1px solid var(--border-color)",
+                  color: "var(--text-secondary)",
+                }}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+              >
+                {starting ? <Loader2 size={14} className="animate-spin" /> : "Пересдать"}
+              </motion.button>
             </div>
-          ) : (
-            <div
-              className="w-full py-3.5 rounded-xl font-bold text-sm flex items-center justify-center gap-2"
-              style={{
-                background: "rgba(239,68,68,0.06)",
-                border: "1px solid rgba(239,68,68,0.15)",
-                color: "var(--danger)",
-              }}
-            >
-              <AlertTriangle size={14} /> Попытки исчерпаны
-            </div>
-          )}
+          ) : null}
         </div>
       </motion.div>
     </motion.div>
@@ -729,6 +860,7 @@ function LevelDetailModal({
 export default function TestWorldMap() {
   const router = useRouter();
   const [levelStates, setLevelStates] = useState<LevelState[]>(getInitialLevelStates);
+  const [energy, setEnergy] = useState<EnergyState>(() => ({ date: getEnergyDateKey(), remaining: DAILY_ENERGY }));
   const [expandedIsland, setExpandedIsland] = useState<string | null>(null);
   const [selectedLevel, setSelectedLevel] = useState<number | null>(null);
   const [starting, setStarting] = useState(false);
@@ -736,6 +868,9 @@ export default function TestWorldMap() {
 
   useEffect(() => {
     setLevelStates(loadProgress());
+    const restoredEnergy = loadEnergy();
+    setEnergy(restoredEnergy);
+    saveEnergy(restoredEnergy);
   }, []);
 
   useEffect(() => {
@@ -759,7 +894,7 @@ export default function TestWorldMap() {
 
   useEffect(() => {
     if (!expandedIsland) setExpandedIsland(autoExpandFirst);
-  }, [autoExpandFirst]);
+  }, [autoExpandFirst, expandedIsland]);
 
   const totalCompleted = levelStates.filter(s => s.status === "completed").length;
   const overallProgress = totalCompleted / 100;
@@ -774,12 +909,25 @@ export default function TestWorldMap() {
     setSelectedLevel(level);
   }, [levelStates]);
 
-  const startLevel = useCallback(async () => {
-    if (!selectedLevel || starting) return;
-    const state = levelStates.find(s => s.level === selectedLevel);
-    if (!state) return;
+	  const startLevel = useCallback(async () => {
+	    if (!selectedLevel || starting) return;
+	    const state = levelStates.find(s => s.level === selectedLevel);
+	    if (!state) return;
 
-    const island = findIslandForLevel(selectedLevel);
+      if (state.status !== "completed" && state.attempts >= MAX_ATTEMPTS) {
+        tellManyasha(`По уровню ${selectedLevel} уже использованы все ${MAX_ATTEMPTS} попыток. Можно подождать обновления завтра или купить дополнительные попытки. Я помогу разобрать ошибки перед повтором.`);
+        setStartError("Пять попыток на этот уровень закончились");
+        return;
+      }
+
+      const currentEnergy = loadEnergy();
+      setEnergy(currentEnergy);
+      if (state.status !== "completed" && currentEnergy.remaining <= 0) {
+        tellManyasha("Энергия на сегодня закончилась. Завтра снова будет 20 попыток. Если нужно продолжить сейчас, можно купить дополнительный пакет энергии.");
+        setStartError("Энергия на сегодня закончилась");
+        return;
+      }
+      const island = findIslandForLevel(selectedLevel);
     setStarting(true);
     setStartError(null);
 
@@ -798,11 +946,21 @@ export default function TestWorldMap() {
 
       const sid = res?.id || res?.session_id;
       if (sid) {
-        const newStates = [...levelStates];
-        const idx = newStates.findIndex(s => s.level === selectedLevel);
-        newStates[idx] = { ...newStates[idx], attempts: newStates[idx].attempts + 1 };
-        setLevelStates(newStates);
-        saveProgress(newStates);
+	        const newStates = [...levelStates];
+	        const idx = newStates.findIndex(s => s.level === selectedLevel);
+	        newStates[idx] = {
+            ...newStates[idx],
+            attempts: Math.min(MAX_ATTEMPTS, newStates[idx].attempts + 1),
+            attemptsDate: getEnergyDateKey(),
+          };
+	        setLevelStates(newStates);
+	        saveProgress(newStates);
+
+          if (state.status !== "completed") {
+            const nextEnergy = { ...currentEnergy, remaining: Math.max(0, currentEnergy.remaining - 1) };
+            setEnergy(nextEnergy);
+            saveEnergy(nextEnergy);
+          }
 
         const params = new URLSearchParams({
           mode: "themed",
@@ -861,20 +1019,30 @@ export default function TestWorldMap() {
           border: "1px solid var(--border-color)",
         }}
       >
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-3">
-            <Map size={18} style={{ color: "var(--accent)" }} />
-            <h3 className="font-bold text-sm" style={{ color: "var(--text-primary)" }}>
-              Карта знаний ФЗ-127
-            </h3>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-bold" style={{ color: "var(--accent)" }}>
-              {totalCompleted}/100
-            </span>
-            <span className="text-xs" style={{ color: "var(--text-muted)" }}>уровней</span>
-          </div>
-        </div>
+	        <div className="flex items-center justify-between mb-3">
+	          <div className="flex items-center gap-3">
+	            <Map size={18} style={{ color: "var(--accent)" }} />
+	            <h3 className="font-bold text-sm" style={{ color: "var(--text-primary)" }}>
+	              Карта знаний ФЗ-127
+	            </h3>
+	          </div>
+	          <div className="flex flex-wrap items-center justify-end gap-2">
+              <span
+                className="rounded-full border px-3 py-1 text-xs font-bold"
+                style={{
+                  color: energy.remaining > 0 ? "var(--info)" : "var(--warning)",
+                  borderColor: energy.remaining > 0 ? "rgba(59,130,246,0.35)" : "rgba(245,158,11,0.4)",
+                  background: energy.remaining > 0 ? "rgba(59,130,246,0.08)" : "rgba(245,158,11,0.08)",
+                }}
+              >
+                ⚡ {energy.remaining}/{DAILY_ENERGY}
+              </span>
+	            <span className="text-xs font-bold" style={{ color: "var(--accent)" }}>
+	              {totalCompleted}/100
+	            </span>
+	            <span className="text-xs" style={{ color: "var(--text-muted)" }}>уровней</span>
+	          </div>
+	        </div>
 
         {/* Overall progress bar */}
         <div className="h-2 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.05)" }}>
@@ -929,10 +1097,11 @@ export default function TestWorldMap() {
       {/* Level detail modal */}
       <AnimatePresence>
         {selectedLevel && selectedState && selectedIsland && (
-          <LevelDetailModal
-            state={selectedState}
-            island={selectedIsland}
-            onClose={() => setSelectedLevel(null)}
+	          <LevelDetailModal
+	            state={selectedState}
+	            island={selectedIsland}
+	            energy={energy}
+	            onClose={() => setSelectedLevel(null)}
             onStart={startLevel}
             starting={starting}
           />

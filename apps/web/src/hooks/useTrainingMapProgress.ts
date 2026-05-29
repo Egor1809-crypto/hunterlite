@@ -2,9 +2,9 @@ import { useEffect, useRef, useCallback, useState } from "react";
 import { api } from "@/lib/api";
 
 interface TrainingMapData {
-  test_map: Record<string, unknown>;
-  exams: Record<string, unknown>;
-  cases: Record<string, unknown>;
+  test_map: unknown;
+  exams: unknown;
+  cases: unknown;
 }
 
 const LS_TEST_MAP = "hunterlite_test_map_progress";
@@ -28,6 +28,11 @@ function writeLS(key: string, value: unknown) {
   } catch { /* quota exceeded — ignore */ }
 }
 
+function hasProgress(value: unknown) {
+  if (!value || typeof value !== "object") return false;
+  return Object.keys(value).length > 0;
+}
+
 export function useTrainingMapSync() {
   const synced = useRef(false);
 
@@ -39,22 +44,22 @@ export function useTrainingMapSync() {
       try {
         const remote = await api.get<TrainingMapData>("/training-map/progress");
         const hasRemote =
-          Object.keys(remote.test_map).length > 0 ||
-          Object.keys(remote.exams).length > 0 ||
-          Object.keys(remote.cases).length > 0;
+          hasProgress(remote.test_map) ||
+          hasProgress(remote.exams) ||
+          hasProgress(remote.cases);
 
         if (hasRemote) {
-          if (Object.keys(remote.test_map).length > 0) writeLS(LS_TEST_MAP, remote.test_map);
-          if (Object.keys(remote.exams).length > 0) writeLS(LS_EXAMS, remote.exams);
-          if (Object.keys(remote.cases).length > 0) writeLS(LS_CASES, remote.cases);
+          if (hasProgress(remote.test_map)) writeLS(LS_TEST_MAP, remote.test_map);
+          if (hasProgress(remote.exams)) writeLS(LS_EXAMS, remote.exams);
+          if (hasProgress(remote.cases)) writeLS(LS_CASES, remote.cases);
         } else {
           const local: Partial<TrainingMapData> = {};
           const tm = readLS(LS_TEST_MAP);
-          if (tm) local.test_map = tm as Record<string, unknown>;
+          if (tm) local.test_map = tm;
           const ex = readLS(LS_EXAMS);
-          if (ex) local.exams = ex as Record<string, unknown>;
+          if (ex) local.exams = ex;
           const cs = readLS(LS_CASES);
-          if (cs) local.cases = cs as Record<string, unknown>;
+          if (cs) local.cases = cs;
 
           if (Object.keys(local).length > 0) {
             await api.put("/training-map/progress", local);

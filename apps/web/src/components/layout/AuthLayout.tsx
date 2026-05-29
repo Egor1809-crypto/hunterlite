@@ -81,6 +81,7 @@ class AuthErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState
 interface AuthLayoutProps {
   children: ReactNode;
   requireConsent?: boolean;
+  showBreadcrumbs?: boolean;
 }
 
 // Module-level consent cache (avoids re-fetching on every page nav)
@@ -99,6 +100,7 @@ export function resetConsentCache() {
 export default function AuthLayout({
   children,
   requireConsent = false,
+  showBreadcrumbs = true,
 }: AuthLayoutProps) {
   const router = useRouter();
   const [state, setState] = useState<"loading" | "ready" | "redirecting" | "error">("loading");
@@ -283,9 +285,11 @@ export default function AuthLayout({
     <AuthErrorBoundary>
       <AppShell>
         <LLMDegradationBanner />
-        <div className="max-w-7xl mx-auto px-4 pt-3">
-          <AutoBreadcrumbs />
-        </div>
+        {showBreadcrumbs && (
+          <div className="max-w-7xl mx-auto px-4 pt-3">
+            <AutoBreadcrumbs />
+          </div>
+        )}
         {children}
         <KeyboardShortcutsOverlay />
         <CommandPalette />

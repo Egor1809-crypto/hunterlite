@@ -93,7 +93,7 @@ async def _get_case_progress(user_id: uuid.UUID, db: AsyncSession) -> CaseProgre
 async def _count_knowledge_sessions(user_id: uuid.UUID, db: AsyncSession) -> int:
     result = await db.execute(
         select(func.count()).select_from(KnowledgeQuizSession).where(
-            KnowledgeQuizSession.host_id == user_id,
+            KnowledgeQuizSession.user_id == user_id,
         )
     )
     return result.scalar_one() or 0
@@ -117,7 +117,7 @@ async def _count_training_sessions(user_id: uuid.UUID, db: AsyncSession) -> tupl
     result2 = await db.execute(
         select(func.count()).select_from(SessionHistory).where(
             SessionHistory.user_id == user_id,
-            SessionHistory.started_at >= week_ago,
+            SessionHistory.created_at >= week_ago,
         )
     )
     this_week = result2.scalar_one() or 0

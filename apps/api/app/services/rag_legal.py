@@ -651,7 +651,12 @@ async def populate_embeddings(db: AsyncSession, batch_size: int = 10) -> int:
             stmt = (
                 update(LegalKnowledgeChunk)
                 .where(LegalKnowledgeChunk.id == row.id)
-                .values(embedding=embedding, embedding_model=current_model)
+                .values(
+                    embedding=embedding,
+                    embedding_model=current_model,
+                    embedding_v2=embedding,
+                    embedding_v2_model=current_model,
+                )
             )
             await db.execute(stmt)
             updated += 1
