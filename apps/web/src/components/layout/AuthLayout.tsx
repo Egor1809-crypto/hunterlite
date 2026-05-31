@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef, Component, type ReactNode, type ErrorInfo } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { motion } from "framer-motion";
 import { logger } from "@/lib/logger";
 import { Loader2, RefreshCw, AlertTriangle } from "lucide-react";
@@ -103,6 +103,8 @@ export default function AuthLayout({
   showBreadcrumbs = true,
 }: AuthLayoutProps) {
   const router = useRouter();
+  const pathname = usePathname();
+  const hideAssistant = pathname?.startsWith("/cases") ?? false;
   const [state, setState] = useState<"loading" | "ready" | "redirecting" | "error">("loading");
   const [errorMessage, setErrorMessage] = useState("");
   const retryCount = useRef(0);
@@ -293,7 +295,7 @@ export default function AuthLayout({
         {children}
         <KeyboardShortcutsOverlay />
         <CommandPalette />
-        <ManyashaChat config={{ apiEndpoint: "/api/chat" }} />
+        {!hideAssistant && <ManyashaChat config={{ apiEndpoint: "/api/chat" }} />}
       </AppShell>
     </AuthErrorBoundary>
   );
