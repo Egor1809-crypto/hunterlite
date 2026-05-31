@@ -60,6 +60,15 @@ function formatCountdown(ms: number): string {
   return `${pad(h)}:${pad(m)}:${pad(s)}`;
 }
 
+/** Локальное время следующей полуночи по UTC — «вернутся в 03:00». */
+function formatResetLocalTime(): string {
+  const now = new Date();
+  const next = new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1, 0, 0, 0, 0),
+  );
+  return next.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
 export function AttemptsBooster({
   used,
   baseMax,
@@ -72,6 +81,7 @@ export function AttemptsBooster({
   const effectiveMax = baseMax + bonus;
   const remaining = Math.max(0, effectiveMax - used);
   const exhausted = remaining <= 0;
+  const lastOne = remaining === 1;
 
   const [countdown, setCountdown] = useState<number>(() => msUntilNextUtcMidnight());
   const [buying, setBuying] = useState(false);
@@ -124,6 +134,11 @@ export function AttemptsBooster({
             {remaining}/{effectiveMax}
           </span>
         </div>
+        {lastOne && (
+          <div className="mt-1 text-[10px]" style={{ color: "var(--warning)" }}>
+            Последняя попытка — действуй наверняка
+          </div>
+        )}
         <div className="mt-2 flex items-center gap-1.5">
           {pips.map((filled, i) => (
             <motion.span
@@ -161,7 +176,10 @@ export function AttemptsBooster({
               <Clock size={15} style={{ color: "var(--warning)" }} />
               <div className="min-w-0 flex-1">
                 <div className="text-[11px]" style={{ color: "var(--text-secondary)" }}>
-                  Свободные попытки вернутся через
+                  Новые попытки откроются через
+                </div>
+                <div className="text-[10px]" style={{ color: "var(--text-muted)" }}>
+                  Это произойдёт в {formatResetLocalTime()}
                 </div>
               </div>
               <div
