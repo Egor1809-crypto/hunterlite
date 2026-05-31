@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import AuthLayout from "@/components/layout/AuthLayout";
 import { api } from "@/lib/api";
+import { useAuthStore } from "@/stores/useAuthStore";
 
 const NOISE_SVG = `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E")`;
 const PREMIUM_EASE: [number, number, number, number] = [0.22, 1, 0.36, 1];
@@ -143,7 +144,9 @@ export default function ExamPlayerPage() {
       setResult(data);
 
       try {
-        const stored = localStorage.getItem("hunterlite_exam_progress");
+        const uid = useAuthStore.getState().user?.id ?? null;
+        const examKey = uid ? `hunterlite_exam_progress:${uid}` : "hunterlite_exam_progress";
+        const stored = localStorage.getItem(examKey);
         const progress = stored ? JSON.parse(stored) : {};
         const existing = progress[examId];
         if (!existing || data.score_percent > (existing.bestScore ?? 0)) {
@@ -155,7 +158,7 @@ export default function ExamPlayerPage() {
         } else {
           progress[examId] = { ...existing, attempts: (existing.attempts ?? 0) + 1 };
         }
-        localStorage.setItem("hunterlite_exam_progress", JSON.stringify(progress));
+        localStorage.setItem(examKey, JSON.stringify(progress));
       } catch { /* localStorage fallback */ }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Ошибка отправки";

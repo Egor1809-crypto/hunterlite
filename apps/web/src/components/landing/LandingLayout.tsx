@@ -186,7 +186,7 @@ export function LandingLayout({ children }: { children: React.ReactNode }) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-white">
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex items-center gap-3">
-          <div className="w-2 h-2 rounded-full animate-ping bg-[#F97316]" />
+          <div className="w-2 h-2 rounded-full animate-ping bg-[#7C3AED]" />
           <span className="text-sm tracking-wide text-gray-400">Загрузка...</span>
         </motion.div>
       </div>
@@ -210,7 +210,7 @@ export function LandingLayout({ children }: { children: React.ReactNode }) {
 
         {!isCustomLanding && <LandingFooter />}
 
-        {/* Auth Drawer */}
+        {/* Auth Modal */}
         <AnimatePresence>
           {activePanel && (
             <>
@@ -218,65 +218,76 @@ export function LandingLayout({ children }: { children: React.ReactNode }) {
                 key="backdrop"
                 initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
                 transition={{ duration: 0.2 }}
-                className="fixed inset-0 z-[200] cursor-pointer bg-black/40 backdrop-blur-sm"
+                className="fixed inset-0 z-[200] flex items-center justify-center cursor-pointer bg-[#18131D]/45 backdrop-blur-sm p-4"
                 onClick={closePanel}
-              />
-
+              >
               <motion.div
-                key="drawer"
+                key="modal"
                 role="dialog"
                 aria-modal="true"
                 aria-label={activePanel === "login" ? "Вход в систему" : "Регистрация"}
-                initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%" }}
-                transition={{ type: "spring", stiffness: 320, damping: 32 }}
-                className="fixed right-0 top-0 bottom-0 z-[201] w-full sm:max-w-[440px] overflow-y-auto border-l border-gray-100 shadow-2xl"
+                initial={{ opacity: 0, y: 24, scale: 0.97 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 16, scale: 0.98 }}
+                transition={{ type: "spring", stiffness: 320, damping: 30 }}
+                onClick={(e) => e.stopPropagation()}
+                className="relative z-[201] w-full max-w-[460px] max-h-[92vh] cursor-default overflow-y-auto rounded-[28px] border border-[#E7DAF2] shadow-[0_30px_80px_-20px_rgba(24,19,29,0.35)]"
                 style={{
-                  background: "#FFFFFF",
-                  // Force light-mode CSS variables inside the drawer
-                  // so vh-input, vh-label etc. render correctly regardless of theme
-                  ["--text-primary" as string]: "#0F172A",
-                  ["--text-secondary" as string]: "#475569",
-                  ["--text-muted" as string]: "#94A3B8",
-                  ["--input-bg" as string]: "#F8FAFC",
-                  ["--input-border" as string]: "#E2E8F0",
-                  ["--input-focus" as string]: "#2563EB",
-                  ["--border-color" as string]: "#E2E8F0",
-                  ["--ocean" as string]: "#2563EB",
-                  ["--ocean-muted" as string]: "rgba(37, 99, 235, 0.12)",
-                  ["--primary" as string]: "#F97316",
-                  ["--primary-hover" as string]: "#EA580C",
-                  ["--accent" as string]: "#2563EB",
-                  ["--accent-hover" as string]: "#1D4ED8",
-                  ["--accent-muted" as string]: "rgba(37, 99, 235, 0.12)",
-                  ["--accent-glow" as string]: "rgba(37, 99, 235, 0.3)",
-                  ["--bg-secondary" as string]: "#F1F5F9",
-                  ["--radius-md" as string]: "0.75rem",
+                  background: "#FFFDF8",
+                  // Cream / purple editorial palette to match the landing vibe.
+                  ["--text-primary" as string]: "#18131D",
+                  ["--text-secondary" as string]: "#6B5E78",
+                  ["--text-muted" as string]: "#9B8FA8",
+                  ["--input-bg" as string]: "#FBF6EF",
+                  ["--input-border" as string]: "#E7DAF2",
+                  ["--input-focus" as string]: "#7C3AED",
+                  ["--border-color" as string]: "#E7DAF2",
+                  ["--primary" as string]: "#18131D",
+                  ["--primary-hover" as string]: "#7C3AED",
+                  ["--accent" as string]: "#7C3AED",
+                  ["--accent-hover" as string]: "#6D28D9",
+                  ["--accent-muted" as string]: "rgba(124, 58, 237, 0.12)",
+                  ["--accent-glow" as string]: "rgba(124, 58, 237, 0.28)",
+                  ["--bg-secondary" as string]: "#F7F1E8",
+                  ["--radius-md" as string]: "0.875rem",
                   ["--fs-sm" as string]: "0.875rem",
                   ["--fs-xs" as string]: "0.75rem",
                   ["--ls-wide" as string]: "0.025em",
                 }}
               >
-                {/* Drawer header */}
-                <div className="sticky top-0 z-10 flex items-center justify-center relative px-5 sm:px-8 py-5 bg-white border-b border-gray-100">
-                  <h2 className="font-semibold text-lg text-gray-900">
-                    {forgotMode !== "idle"
-                      ? "Восстановление пароля"
-                      : activePanel === "login" ? "Вход" : "Регистрация"}
-                  </h2>
+                {/* Modal header */}
+                <div className="sticky top-0 z-10 flex items-start justify-between gap-4 px-7 sm:px-9 pt-8 pb-5 bg-[#FFFDF8]">
+                  <div>
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#9B7DB4]">
+                      LegalHunter
+                    </p>
+                    <h2 className="mt-2 text-[1.9rem] font-semibold leading-[1.05] tracking-[-0.03em] text-[#18131D]">
+                      {forgotMode !== "idle"
+                        ? "Сброс пароля"
+                        : activePanel === "login" ? "С возвращением" : "Создать аккаунт"}
+                    </h2>
+                    {forgotMode === "idle" && (
+                      <p className="mt-2 text-sm leading-relaxed text-[#6B5E78]">
+                        {activePanel === "login"
+                          ? "Войдите, чтобы продолжить обучение."
+                          : "Несколько шагов — и вы в деле."}
+                      </p>
+                    )}
+                  </div>
                   <button
                     onClick={closePanel}
-                    className="absolute right-5 sm:right-8 w-8 h-8 rounded-lg flex items-center justify-center bg-gray-50 border border-gray-200 hover:bg-gray-100 transition-colors"
+                    className="mt-1 flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full border border-[#E7DAF2] bg-[#F7F1E8] text-[#6B5E78] transition-colors hover:border-[#C6A7DD] hover:text-[#7C3AED]"
                     aria-label="Закрыть"
                   >
-                    <XIcon size={15} className="text-gray-400" />
+                    <XIcon size={16} />
                   </button>
                 </div>
 
-                {/* Orange accent line */}
-                <div className="h-[2px] w-full bg-gradient-to-r from-[#F97316] via-[#0891B2] to-transparent opacity-60" />
+                {/* Purple accent line */}
+                <div className="mx-7 sm:mx-9 h-px bg-gradient-to-r from-[#C6A7DD] via-[#7C3AED]/40 to-transparent" />
 
                 {/* Form body */}
-                <div className="px-5 sm:px-8 py-7">
+                <div className="px-7 sm:px-9 pt-6 pb-8">
                   <AnimatePresence mode="wait">
                     {forgotMode !== "idle" ? (
                       <motion.div key="forgot" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.25 }}>
@@ -293,7 +304,7 @@ export function LandingLayout({ children }: { children: React.ReactNode }) {
                             <p className="text-sm text-gray-500 mb-6">
                               Проверьте <strong className="text-gray-700">{forgotEmail}</strong><br />и следуйте инструкциям.
                             </p>
-                            <button onClick={() => { setForgotMode("idle"); setForgotEmail(""); }} className="flex items-center gap-1.5 text-sm font-medium text-[#F97316] hover:opacity-80 transition-opacity">
+                            <button onClick={() => { setForgotMode("idle"); setForgotEmail(""); }} className="flex items-center gap-1.5 text-sm font-medium text-[#7C3AED] hover:opacity-80 transition-opacity">
                               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
                               Вернуться ко входу
                             </button>
@@ -370,7 +381,7 @@ export function LandingLayout({ children }: { children: React.ReactNode }) {
                             <div className="flex items-center justify-between mb-1">
                               <label className="vh-label mb-0">Пароль</label>
                               {activePanel === "login" && (
-                                <button type="button" onClick={() => setForgotMode("form")} className="text-sm text-[#F97316] hover:opacity-80 transition-colors">Забыли пароль?</button>
+                                <button type="button" onClick={() => setForgotMode("form")} className="text-sm text-[#7C3AED] hover:opacity-80 transition-colors">Забыли пароль?</button>
                               )}
                             </div>
                             <PasswordInput id="panel-password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder={activePanel === "register" ? "Минимум 8 символов" : "Введите пароль"} autoComplete={activePanel === "login" ? "current-password" : "new-password"} ariaLabel="Пароль" />
@@ -389,7 +400,7 @@ export function LandingLayout({ children }: { children: React.ReactNode }) {
                             <label className="flex items-center gap-2.5 cursor-pointer select-none">
                               <div
                                 className="relative w-9 h-5 rounded-full cursor-pointer flex-shrink-0 transition-colors duration-200"
-                                style={{ background: rememberMe ? "#F97316" : "#E5E7EB", border: `1px solid ${rememberMe ? "#F97316" : "#D1D5DB"}` }}
+                                style={{ background: rememberMe ? "#7C3AED" : "#E5E7EB", border: `1px solid ${rememberMe ? "#7C3AED" : "#D1D5DB"}` }}
                                 onClick={() => setRememberMe(!rememberMe)}
                               >
                                 <motion.div className="absolute top-0.5 w-3.5 h-3.5 rounded-full bg-white shadow-sm" animate={{ left: rememberMe ? 18 : 2 }} transition={{ type: "spring", stiffness: 500, damping: 30 }} />
@@ -405,7 +416,7 @@ export function LandingLayout({ children }: { children: React.ReactNode }) {
 
                         <p className="mt-5 text-center text-sm text-gray-500">
                           {activePanel === "login" ? "Нет аккаунта?" : "Уже есть аккаунт?"}{" "}
-                          <button onClick={() => openPanel(activePanel === "login" ? "register" : "login")} className="font-medium text-[#F97316]">
+                          <button onClick={() => openPanel(activePanel === "login" ? "register" : "login")} className="font-medium text-[#7C3AED]">
                             {activePanel === "login" ? "Зарегистрироваться" : "Войти"}
                           </button>
                         </p>
@@ -413,6 +424,7 @@ export function LandingLayout({ children }: { children: React.ReactNode }) {
                     )}
                   </AnimatePresence>
                 </div>
+              </motion.div>
               </motion.div>
             </>
           )}

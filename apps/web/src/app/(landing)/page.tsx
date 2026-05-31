@@ -60,7 +60,7 @@ const proof = [
 ];
 
 export default function LandingPage() {
-  const { openLogin, openRegister } = useLandingAuth();
+  const { openRegister } = useLandingAuth();
 
   return (
     <main className="min-h-screen bg-[#F7F1E8] text-[#18131D]">
@@ -70,20 +70,6 @@ export default function LandingPage() {
             <Link href="/" className="inline-flex" aria-label="LegalHunter">
               <BrandLogo size="lg" />
             </Link>
-            <div className="flex items-center gap-2 lg:hidden">
-              <button
-                onClick={openLogin}
-                className="rounded-full border border-[#C6A7DD] px-4 py-2 text-sm font-semibold text-[#7C3AED]"
-              >
-                Войти
-              </button>
-              <button
-                onClick={openRegister}
-                className="rounded-full bg-[#8B5CF6] px-4 py-2 text-sm font-semibold text-white"
-              >
-                Регистрация
-              </button>
-            </div>
           </div>
 
           <nav className="mt-8 hidden space-y-2 text-[15px] font-medium text-[#7B7084] lg:block" aria-label="Разделы лендинга">
@@ -97,21 +83,6 @@ export default function LandingPage() {
               Наши продукты
             </a>
           </nav>
-
-          <div className="mt-6 hidden gap-2 lg:flex">
-            <button
-              onClick={openLogin}
-              className="flex-1 rounded-full border border-[#C6A7DD] px-4 py-3 text-sm font-semibold text-[#7C3AED] transition hover:bg-white"
-            >
-              Войти
-            </button>
-            <button
-              onClick={openRegister}
-              className="flex-1 rounded-full bg-[#8B5CF6] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#7C3AED]"
-            >
-              Регистрация
-            </button>
-          </div>
 
           <div className="mt-auto hidden space-y-3 pt-8 lg:block">
             <a

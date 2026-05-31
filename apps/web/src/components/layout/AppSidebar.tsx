@@ -83,10 +83,11 @@ export default function AppSidebar({ collapsed, onToggle }: AppSidebarProps) {
   const sidebarWidth = collapsed ? SIDEBAR_COLLAPSED : SIDEBAR_EXPANDED;
 
   useEffect(() => {
+    const key = user?.id ? `${ENERGY_STORAGE_KEY}:${user.id}` : ENERGY_STORAGE_KEY;
     const readEnergy = () => {
       try {
         const today = new Date().toISOString().slice(0, 10);
-        const raw = localStorage.getItem(ENERGY_STORAGE_KEY);
+        const raw = localStorage.getItem(key);
         if (!raw) {
           setEnergy(DAILY_ENERGY);
           return;
@@ -105,7 +106,7 @@ export default function AppSidebar({ collapsed, onToggle }: AppSidebarProps) {
       window.removeEventListener("storage", readEnergy);
       window.removeEventListener("hunterlite:energy", readEnergy);
     };
-  }, []);
+  }, [user?.id]);
 
   return (
     <aside

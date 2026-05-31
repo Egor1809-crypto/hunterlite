@@ -16,6 +16,8 @@ import {
   X,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { useAuthStore } from "@/stores/useAuthStore";
+import { AttemptsBooster } from "@/components/training/AttemptsBooster";
 
 /* ═══════════════════════════════════════════════════════════════════════════
    ISLAND DEFINITIONS — 10 islands × 10 levels = 100 levels
@@ -166,6 +168,9 @@ interface LevelState {
   bestScore: number | null;
   attempts: number;
   attemptsDate?: string | null;
+  // Докупленные на сегодня попытки сверх MAX_ATTEMPTS (Task #6). Сбрасывается
+  // вместе с attempts при смене календарного дня (UTC).
+  bonusAttempts?: number;
   questionsCount: number;
 }
 
@@ -176,12 +181,24 @@ function getInitialLevelStates(): LevelState[] {
     bestScore: null,
     attempts: 0,
     attemptsDate: null,
+    bonusAttempts: 0,
     questionsCount: QUESTIONS_PER_LEVEL_MIN + Math.floor(Math.random() * (QUESTIONS_PER_LEVEL_MAX - QUESTIONS_PER_LEVEL_MIN + 1)),
   }));
 }
 
-const STORAGE_KEY = "hunterlite_test_map_progress";
-const ENERGY_STORAGE_KEY = "hunterlite_daily_energy";
+// localStorage keys are namespaced PER USER. The non-scoped keys used to leak
+// attempts/energy across accounts on the same browser. The server
+// (training_map_progress, per user_id) is the source of truth; localStorage is
+// only a same-user cache to avoid a flash before the GET resolves.
+const STORAGE_PREFIX = "hunterlite_test_map_progress";
+const ENERGY_STORAGE_PREFIX = "hunterlite_daily_energy";
+
+function progressKey(userId: string | null): string {
+  return userId ? `${STORAGE_PREFIX}:${userId}` : STORAGE_PREFIX;
+}
+function energyKey(userId: string | null): string {
+  return userId ? `${ENERGY_STORAGE_PREFIX}:${userId}` : ENERGY_STORAGE_PREFIX;
+}
 
 interface EnergyState {
   date: string;
@@ -192,27 +209,32 @@ function getEnergyDateKey(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
-function loadEnergy(): EnergyState {
-  if (typeof window === "undefined") return { date: getEnergyDateKey(), remaining: DAILY_ENERGY };
+// Apply daily reset + clamp to a raw energy object from any source (server or cache).
+function normalizeEnergy(parsed: Partial<EnergyState> | null | undefined): EnergyState {
   const today = getEnergyDateKey();
+  if (!parsed || parsed.date !== today) return { date: today, remaining: DAILY_ENERGY };
+  return {
+    date: today,
+    remaining: Math.max(0, Math.min(DAILY_ENERGY, Number(parsed.remaining ?? DAILY_ENERGY))),
+  };
+}
+
+function loadEnergy(userId: string | null): EnergyState {
+  if (typeof window === "undefined") return { date: getEnergyDateKey(), remaining: DAILY_ENERGY };
   try {
-    const raw = localStorage.getItem(ENERGY_STORAGE_KEY);
-    if (!raw) return { date: today, remaining: DAILY_ENERGY };
-    const parsed = JSON.parse(raw) as Partial<EnergyState>;
-    if (parsed.date !== today) return { date: today, remaining: DAILY_ENERGY };
-    return {
-      date: today,
-      remaining: Math.max(0, Math.min(DAILY_ENERGY, Number(parsed.remaining ?? DAILY_ENERGY))),
-    };
+    const raw = localStorage.getItem(energyKey(userId));
+    if (!raw) return { date: getEnergyDateKey(), remaining: DAILY_ENERGY };
+    return normalizeEnergy(JSON.parse(raw) as Partial<EnergyState>);
   } catch {
-    return { date: today, remaining: DAILY_ENERGY };
+    return { date: getEnergyDateKey(), remaining: DAILY_ENERGY };
   }
 }
 
-function saveEnergy(energy: EnergyState) {
+function saveEnergy(energy: EnergyState, userId: string | null) {
   if (typeof window === "undefined") return;
-  localStorage.setItem(ENERGY_STORAGE_KEY, JSON.stringify(energy));
+  localStorage.setItem(energyKey(userId), JSON.stringify(energy));
   window.dispatchEvent(new CustomEvent("hunterlite:energy", { detail: energy }));
+  scheduleServerSync({ energy });
 }
 
 function normalizeProgress(value: unknown): LevelState[] {
@@ -229,8 +251,12 @@ function normalizeProgress(value: unknown): LevelState[] {
       ? candidate.status as LevelStatus
       : fallback.status;
     const attemptsDate = typeof candidate.attemptsDate === "string" ? candidate.attemptsDate : null;
+    // Докупленные попытки живут один день (как и attempts).
+    const bonusAttempts = attemptsDate === today && Number.isFinite(candidate.bonusAttempts)
+      ? Math.max(0, Math.min(50, Number(candidate.bonusAttempts)))
+      : 0;
     const attempts = attemptsDate === today && Number.isFinite(candidate.attempts)
-      ? Math.max(0, Math.min(MAX_ATTEMPTS, Number(candidate.attempts)))
+      ? Math.max(0, Math.min(MAX_ATTEMPTS + bonusAttempts, Number(candidate.attempts)))
       : fallback.attempts;
     const questionsCount = Number.isFinite(candidate.questionsCount)
       ? Math.max(QUESTIONS_PER_LEVEL_MIN, Math.min(QUESTIONS_PER_LEVEL_MAX, Number(candidate.questionsCount)))
@@ -243,6 +269,7 @@ function normalizeProgress(value: unknown): LevelState[] {
       status,
       attempts,
       attemptsDate,
+      bonusAttempts,
       questionsCount,
       bestScore: typeof candidate.bestScore === "number" ? candidate.bestScore : fallback.bestScore,
     };
@@ -275,26 +302,54 @@ function normalizeProgress(value: unknown): LevelState[] {
   return normalized;
 }
 
-function loadProgress(): LevelState[] {
+function loadProgress(userId: string | null): LevelState[] {
   if (typeof window === "undefined") return getInitialLevelStates();
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = localStorage.getItem(progressKey(userId));
     if (raw) return normalizeProgress(JSON.parse(raw));
   } catch { /* ignore */ }
   return getInitialLevelStates();
 }
 
-let _saveTimer: ReturnType<typeof setTimeout> | null = null;
-
-function saveProgress(states: LevelState[]) {
-  if (typeof window === "undefined") return;
+// Pull authoritative per-user state from the server. Returns null on failure so
+// the caller can fall back to the local cache.
+async function hydrateFromServer(): Promise<{ states: LevelState[]; energy: EnergyState } | null> {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(states));
-  } catch { /* ignore */ }
+    const res = await api.get("/training-map/progress") as {
+      test_map?: unknown;
+      energy?: Partial<EnergyState> | null;
+    };
+    const hasTestMap = Array.isArray(res?.test_map) && (res.test_map as unknown[]).length > 0;
+    return {
+      states: hasTestMap ? normalizeProgress(res.test_map) : getInitialLevelStates(),
+      energy: normalizeEnergy(res?.energy),
+    };
+  } catch {
+    return null;
+  }
+}
+
+let _saveTimer: ReturnType<typeof setTimeout> | null = null;
+let _pendingSync: { test_map?: LevelState[]; energy?: EnergyState } = {};
+
+// Debounced PUT that coalesces test_map and energy writes into one request.
+function scheduleServerSync(patch: { test_map?: LevelState[]; energy?: EnergyState }) {
+  if (typeof window === "undefined") return;
+  _pendingSync = { ..._pendingSync, ...patch };
   if (_saveTimer) clearTimeout(_saveTimer);
   _saveTimer = setTimeout(() => {
-    api.put("/training-map/progress", { test_map: states }).catch(() => {});
+    const body = _pendingSync;
+    _pendingSync = {};
+    api.put("/training-map/progress", body).catch(() => {});
   }, 2000);
+}
+
+function saveProgress(states: LevelState[], userId: string | null) {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(progressKey(userId), JSON.stringify(states));
+  } catch { /* ignore */ }
+  scheduleServerSync({ test_map: states });
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -620,6 +675,7 @@ function LevelDetailModal({
   energy,
   onClose,
   onStart,
+  onPurchase,
   starting,
 }: {
   state: LevelState;
@@ -627,12 +683,15 @@ function LevelDetailModal({
   energy: EnergyState;
   onClose: () => void;
   onStart: () => void;
+  onPurchase: (packSize?: number) => Promise<void> | void;
   starting: boolean;
 }) {
   const diff = getLevelDifficulty(state.level);
   const diffCfg = getDifficultyConfig(diff);
   const isCompleted = state.status === "completed";
-  const attemptsRemaining = Math.max(0, MAX_ATTEMPTS - state.attempts);
+  const bonusAttempts = state.bonusAttempts ?? 0;
+  const effectiveMax = MAX_ATTEMPTS + bonusAttempts;
+  const attemptsRemaining = Math.max(0, effectiveMax - state.attempts);
   const blockedByAttempts = !isCompleted && attemptsRemaining <= 0;
   const blockedByEnergy = !isCompleted && energy.remaining <= 0;
   const actionLabel = blockedByAttempts
@@ -723,7 +782,7 @@ function LevelDetailModal({
               style={{ background: "rgba(255,255,255,0.03)", border: "1px solid var(--border-color)" }}
             >
               <div className="text-lg font-bold" style={{ color: attemptsRemaining === 0 ? "var(--warning)" : "var(--text-primary)" }}>
-                {attemptsRemaining}/{MAX_ATTEMPTS}
+                {attemptsRemaining}/{effectiveMax}
               </div>
               <div className="text-[10px] mt-0.5" style={{ color: "var(--text-muted)" }}>Попыток</div>
             </div>
@@ -749,17 +808,26 @@ function LevelDetailModal({
                 {energy.remaining}/{DAILY_ENERGY}
               </div>
             </div>
-            {blockedByAttempts && (
-              <div className="mt-3 text-xs leading-relaxed" style={{ color: "var(--warning)" }}>
-                Пять попыток на уровень закончились. Можно подождать обновления или купить дополнительные попытки.
-              </div>
-            )}
             {blockedByEnergy && !blockedByAttempts && (
               <div className="mt-3 text-xs leading-relaxed" style={{ color: "var(--warning)" }}>
                 Дневная энергия закончилась. Новые 20 единиц появятся завтра.
               </div>
             )}
           </div>
+
+          {/* Счётчик до обновления + докупка попыток (Task #6) */}
+          {!isCompleted && blockedByAttempts && (
+            <div className="mb-5">
+              <AttemptsBooster
+                used={state.attempts}
+                baseMax={MAX_ATTEMPTS}
+                bonus={bonusAttempts}
+                colorRgb={island.colorRgb}
+                onPurchase={() => onPurchase(5)}
+                packSize={5}
+              />
+            </div>
+          )}
 
           {/* Best score */}
           {state.bestScore !== null && (
@@ -854,6 +922,7 @@ function LevelDetailModal({
 
 export default function TestWorldMap() {
   const router = useRouter();
+  const userId = useAuthStore((s) => s.user?.id ?? null);
   const [levelStates, setLevelStates] = useState<LevelState[]>(getInitialLevelStates);
   const [energy, setEnergy] = useState<EnergyState>(() => ({ date: getEnergyDateKey(), remaining: DAILY_ENERGY }));
   const [expandedIsland, setExpandedIsland] = useState<string | null>(null);
@@ -861,12 +930,26 @@ export default function TestWorldMap() {
   const [starting, setStarting] = useState(false);
   const [startError, setStartError] = useState<string | null>(null);
 
+  // Hydrate from the per-user cache immediately to avoid a flash, then replace
+  // with the authoritative server state once the GET resolves. Re-runs when the
+  // logged-in user changes so account B never inherits account A's progress.
   useEffect(() => {
-    setLevelStates(loadProgress());
-    const restoredEnergy = loadEnergy();
-    setEnergy(restoredEnergy);
-    saveEnergy(restoredEnergy);
-  }, []);
+    const cachedStates = loadProgress(userId);
+    const cachedEnergy = loadEnergy(userId);
+    setLevelStates(cachedStates);
+    setEnergy(cachedEnergy);
+
+    let cancelled = false;
+    hydrateFromServer().then((server) => {
+      if (cancelled || !server) return;
+      setLevelStates(server.states);
+      setEnergy(server.energy);
+      // Refresh the local cache for this user so the next load matches.
+      try { localStorage.setItem(progressKey(userId), JSON.stringify(server.states)); } catch { /* ignore */ }
+      saveEnergy(server.energy, userId);
+    });
+    return () => { cancelled = true; };
+  }, [userId]);
 
   useEffect(() => {
     if (startError) {
@@ -909,12 +992,13 @@ export default function TestWorldMap() {
 	    const state = levelStates.find(s => s.level === selectedLevel);
 	    if (!state) return;
 
-      if (state.status !== "completed" && state.attempts >= MAX_ATTEMPTS) {
-        setStartError("Пять попыток на этот уровень закончились");
+      const effectiveMax = MAX_ATTEMPTS + (state.bonusAttempts ?? 0);
+      if (state.status !== "completed" && state.attempts >= effectiveMax) {
+        setStartError("Попытки на этот уровень закончились");
         return;
       }
 
-      const currentEnergy = loadEnergy();
+      const currentEnergy = loadEnergy(userId);
       setEnergy(currentEnergy);
       if (state.status !== "completed" && currentEnergy.remaining <= 0) {
         setStartError("Энергия на сегодня закончилась");
@@ -943,16 +1027,16 @@ export default function TestWorldMap() {
 	        const idx = newStates.findIndex(s => s.level === selectedLevel);
 	        newStates[idx] = {
             ...newStates[idx],
-            attempts: Math.min(MAX_ATTEMPTS, newStates[idx].attempts + 1),
+            attempts: Math.min(effectiveMax, newStates[idx].attempts + 1),
             attemptsDate: getEnergyDateKey(),
           };
 	        setLevelStates(newStates);
-	        saveProgress(newStates);
+	        saveProgress(newStates, userId);
 
           if (state.status !== "completed") {
             const nextEnergy = { ...currentEnergy, remaining: Math.max(0, currentEnergy.remaining - 1) };
             setEnergy(nextEnergy);
-            saveEnergy(nextEnergy);
+            saveEnergy(nextEnergy, userId);
           }
 
         const params = new URLSearchParams({
@@ -972,7 +1056,34 @@ export default function TestWorldMap() {
     } finally {
       setStarting(false);
     }
-  }, [selectedLevel, levelStates, starting, findIslandForLevel, router]);
+  }, [selectedLevel, levelStates, starting, findIslandForLevel, router, userId]);
+
+  // Докупка ещё 5 попыток на выбранный уровень (Task #6). Оплата ещё не
+  // подключена — пилотный режим выдаёт буст мгновенно. Заодно поднимаем
+  // дневную энергию минимум до размера пакета, чтобы купленные попытки точно
+  // можно было сыграть, а не упереться в нулевую энергию.
+  const purchaseAttempts = useCallback(async (packSize = 5) => {
+    if (!selectedLevel) return;
+    setLevelStates((prev) => {
+      const next = prev.map((s) =>
+        s.level === selectedLevel
+          ? {
+              ...s,
+              bonusAttempts: (s.bonusAttempts ?? 0) + packSize,
+              attemptsDate: getEnergyDateKey(),
+            }
+          : s,
+      );
+      saveProgress(next, userId);
+      return next;
+    });
+    setEnergy((prev) => {
+      if (prev.remaining >= packSize) return prev;
+      const topped = { ...prev, date: getEnergyDateKey(), remaining: packSize };
+      saveEnergy(topped, userId);
+      return topped;
+    });
+  }, [selectedLevel, userId]);
 
   const selectedState = selectedLevel ? levelStates.find(s => s.level === selectedLevel) : null;
   const selectedIsland = selectedLevel ? findIslandForLevel(selectedLevel) : null;
@@ -1096,6 +1207,7 @@ export default function TestWorldMap() {
 	            energy={energy}
 	            onClose={() => setSelectedLevel(null)}
             onStart={startLevel}
+            onPurchase={purchaseAttempts}
             starting={starting}
           />
         )}

@@ -27,6 +27,7 @@ class TrainingMapProgress(Base):
     test_map: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
     exams: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
     cases: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    energy: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now(),

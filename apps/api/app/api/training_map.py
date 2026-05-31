@@ -19,12 +19,14 @@ class TrainingMapResponse(BaseModel):
     test_map: Any
     exams: Any
     cases: Any
+    energy: Any
 
 
 class TrainingMapUpdate(BaseModel):
     test_map: Any | None = None
     exams: Any | None = None
     cases: Any | None = None
+    energy: Any | None = None
 
 
 @router.get("/progress", response_model=TrainingMapResponse)
@@ -37,8 +39,10 @@ async def get_progress(
     )
     row = result.scalar_one_or_none()
     if row is None:
-        return TrainingMapResponse(test_map={}, exams={}, cases={})
-    return TrainingMapResponse(test_map=row.test_map, exams=row.exams, cases=row.cases)
+        return TrainingMapResponse(test_map={}, exams={}, cases={}, energy={})
+    return TrainingMapResponse(
+        test_map=row.test_map, exams=row.exams, cases=row.cases, energy=row.energy or {},
+    )
 
 
 @router.put("/progress", response_model=TrainingMapResponse)
@@ -58,6 +62,7 @@ async def save_progress(
             test_map=body.test_map or {},
             exams=body.exams or {},
             cases=body.cases or {},
+            energy=body.energy or {},
         )
         db.add(row)
     else:
@@ -67,7 +72,11 @@ async def save_progress(
             row.exams = body.exams
         if body.cases is not None:
             row.cases = body.cases
+        if body.energy is not None:
+            row.energy = body.energy
 
     await db.commit()
     await db.refresh(row)
-    return TrainingMapResponse(test_map=row.test_map, exams=row.exams, cases=row.cases)
+    return TrainingMapResponse(
+        test_map=row.test_map, exams=row.exams, cases=row.cases, energy=row.energy or {},
+    )

@@ -19,11 +19,13 @@ import { useSound } from "@/hooks/useSound";
 import { QuizThinkingIndicator } from "@/components/pvp/QuizThinkingIndicator";
 import { QuizCaseIntro } from "@/components/pvp/QuizCaseIntro";
 import { useKnowledgeStore, type QuizMessage } from "@/stores/useKnowledgeStore";
+import { useAuthStore } from "@/stores/useAuthStore";
 import { ReportAnswerButton } from "@/components/pvp/ReportAnswerButton";
 import { QuestionReportButton } from "@/components/pvp/QuestionReportButton";
 import { QuizHUD } from "@/components/pvp/QuizHUD";
 import { QuizAnswerCard } from "@/components/pvp/QuizAnswerCard";
 import { QuizVerdictOverlay } from "@/components/pvp/QuizVerdictOverlay";
+import { QuizManyasha } from "@/components/pvp/QuizManyasha";
 import { QuizHistoryStrip } from "@/components/pvp/QuizHistoryStrip";
 import { QuizResultsScreen } from "@/components/pvp/QuizResultsScreen";
 import { PixelMascot } from "@/components/pvp/PixelMascot";
@@ -122,24 +124,33 @@ function KnowledgeSessionPage() {
     const questions = store.messages.filter((m) => m.type === "question");
     return questions[questions.length - 1] ?? null;
   }, [store.messages]);
+  // Task #7: последний ответ студента — контекст для объяснения Маняши.
+  const latestUserAnswer = useMemo(() => {
+    const answers = store.messages.filter((m) => m.type === "answer");
+    return answers[answers.length - 1]?.content ?? null;
+  }, [store.messages]);
   const quietSupportMessages = useMemo(
     () => store.messages.filter((m) => m.type === "hint" || m.type === "follow_up").slice(-2),
     [store.messages],
   );
-  // Auto-dismiss верить когда currentQuestion инкрементировался
-  // (новый вопрос пришёл от backend).
-  const lastQuestionIdxRef = useRef(store.currentQuestion);
+  // Auto-dismiss вердикта когда пришёл НОВЫЙ вопрос. Раньше триггером был
+  // `store.currentQuestion` (числовой счётчик), но backend инкрементирует
+  // его уже в событии feedback (`progress.current`) — из-за чего вердикт
+  // закрывался в тот же момент, как появлялся. В MC-режиме это было
+  // незаметно (overlay жил на autoAdvance-таймере), но как только вердикт
+  // стал вести маскот «Маняша» в themed-режиме, карточка схлопывалась
+  // мгновенно. Теперь ключ — идентичность последнего вопроса-сообщения:
+  // вердикт держится, пока реально не приедет следующий вопрос.
+  const lastQuestionIdRef = useRef<string | null>(latestQuestion?.id ?? null);
   useEffect(() => {
-    if (store.currentQuestion !== lastQuestionIdxRef.current) {
-      lastQuestionIdxRef.current = store.currentQuestion;
-      // не вызываем setDismissedVerdicts — overlay сам исчезнет когда
-      // приедет новый feedback. Если новый feedback не пришёл а вопрос
-      // уже сменился — закрываем principle через id.
+    const qid = latestQuestion?.id ?? null;
+    if (qid !== lastQuestionIdRef.current) {
+      lastQuestionIdRef.current = qid;
       if (latestVerdict) {
         setDismissedVerdicts((prev) => new Set(prev).add(latestVerdict.id));
       }
     }
-  }, [store.currentQuestion, latestVerdict]);
+  }, [latestQuestion?.id, latestVerdict]);
   const dismissVerdict = useCallback(() => {
     if (latestVerdict) {
       setDismissedVerdicts((prev) => new Set(prev).add(latestVerdict.id));
@@ -168,6 +179,12 @@ function KnowledgeSessionPage() {
     return Number.isFinite(parsed) && parsed >= 1 && parsed <= 100 ? parsed : null;
   }, [searchParams]);
 
+  // Task #7: режим, где вердикт ведёт маскот «Маняша» (голос + текст +
+  // развёрнутое объяснение DeepSeek) вместо статичной плашки. Включается
+  // в тематическом тесте и на уровнях карты (.../quiz/...?mode=themed&map_level=1).
+  // Маняша в этом режиме ПРИСУТСТВУЕТ ВСЕГДА, а не как плавающий чат.
+  const manyashaMode = mapLevel !== null || urlMode === "themed";
+
   const syncMapLevelProgress = useCallback((results: Record<string, unknown>) => {
     if (mapLevel === null || typeof window === "undefined") return;
 
@@ -179,7 +196,8 @@ function KnowledgeSessionPage() {
       ? results.score
       : total > 0 ? Math.round((correct / total) * 100) : 0;
 
-    const key = "hunterlite_test_map_progress";
+    const userId = useAuthStore.getState().user?.id ?? null;
+    const key = userId ? `hunterlite_test_map_progress:${userId}` : "hunterlite_test_map_progress";
     try {
       const current = JSON.parse(localStorage.getItem(key) || "[]");
       if (!Array.isArray(current)) return;
@@ -803,6 +821,14 @@ function KnowledgeSessionPage() {
     sendMessage({ type: "quiz.next" });
   }, [store, sendMessage]);
 
+  // Task #7: «Далее» из карточки Маняши. Скрывает текущий вердикт и, если
+  // backend уже ждёт следующего вопроса, сразу его запрашивает — чтобы у
+  // пользователя была одна кнопка перехода, а не две конкурирующие.
+  const handleManyashaNext = useCallback(() => {
+    dismissVerdict();
+    if (awaitingNext) handleNextQuestion();
+  }, [dismissVerdict, awaitingNext, handleNextQuestion]);
+
   // PR-20 (2026-05-08): Arcade-Stage редизайн — extract exit handler
   // и добавляем keyboard shortcuts A-E для выбора ответа.
   const handleExit = useCallback(() => {
@@ -934,6 +960,26 @@ function KnowledgeSessionPage() {
         onExit={handleExit}
       />
 
+      {/* Task #7: маскот «Маняша» как постоянная ведущая теста. В режиме
+          themed / карты она ВСЕГДА на экране (фикс. панель справа), а при
+          ответе озвучивает вердикт + правильный ответ и подтягивает
+          развёрнутое объяснение DeepSeek v4 pro — заменяя статичную
+          плашку «верно/неверно». */}
+      {manyashaMode && (
+        <div className="pointer-events-none fixed inset-x-0 bottom-4 z-50 px-4 sm:inset-x-auto sm:bottom-auto sm:right-6 sm:top-1/2 sm:max-w-[380px] sm:-translate-y-1/2 sm:px-0 lg:right-8">
+          <div className="pointer-events-auto mx-auto w-full max-w-[420px] sm:mx-0 sm:w-[380px]">
+            <QuizManyasha
+              verdict={latestVerdict}
+              questionText={latestQuestion?.content}
+              userAnswer={latestUserAnswer}
+              autoAdvance={store.mode === "blitz" || urlMode === "rapid_blitz"}
+              autoAdvanceMs={2600}
+              onDismiss={handleManyashaNext}
+            />
+          </div>
+        </div>
+      )}
+
       {/* ═══ Main Content: 2-column MC layout OR single-column free-text ═══
            PR-12 (2026-05-07): когда URL пометил MC-режим (?choices_format=1
            или mode=blitz), сразу рендерим 2-колоночный layout — даже до
@@ -943,7 +989,7 @@ function KnowledgeSessionPage() {
         <div className="flex-1 overflow-y-auto px-4 py-8 sm:py-10">
           <div className="mx-auto max-w-3xl space-y-6">
             <div className="relative">
-              {latestVerdict && (
+              {latestVerdict && !manyashaMode && (
                 <div className="fixed right-4 top-1/2 z-50 w-[min(420px,calc(100vw-32px))] -translate-y-1/2 sm:right-6 lg:right-8">
                   <QuizVerdictOverlay
                     verdict={latestVerdict}
@@ -1198,9 +1244,11 @@ function KnowledgeSessionPage() {
                 </motion.div>
               )}
 
-              {store.messages.map((msg) => (
-                <MessageBubble key={msg.id} message={msg} />
-              ))}
+              {store.messages
+                .filter((msg) => !(manyashaMode && msg.type === "feedback"))
+                .map((msg) => (
+                  <MessageBubble key={msg.id} message={msg} />
+                ))}
 
               <AnimatePresence>
                 {store.isTyping && <QuizThinkingIndicator />}
