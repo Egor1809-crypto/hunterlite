@@ -4,7 +4,7 @@
 
 /* ═══════════════════════════════════════════════════════════════════════════
    LegalHunter — Clean SaaS Design System v2.0
-   Palette: Blue #2563EB primary + Orange #F97316 accent
+   Palette: Lilac #7C3AED primary + warm milk surfaces
    Fonts: Geist Sans + Geist Mono (loaded via next/font)
    ═══════════════════════════════════════════════════════════════════════════ */
 
@@ -17,29 +17,32 @@
   --app-section-padding-y: clamp(20px, 2.4vw, 40px);
 
   /* ── Colors — Light (default) ──────────────────────── */
-  --bg-primary: #FAFBFC;
-  --bg-secondary: #F1F5F9;
-  --bg-tertiary: #E2E8F0;
-  --bg-panel: rgba(255, 255, 255, 0.92);
-  --text-primary: #0F172A;
-  --text-secondary: #475569;
-  --text-muted: #94A3B8;
-  --border-color: #E2E8F0;
-  --border-hover: #CBD5E1;
+  --bg-primary: #F7F1E8;
+  --bg-secondary: #FFFDF8;
+  --bg-tertiary: #EFE6F6;
+  --bg-panel: rgba(255, 253, 248, 0.92);
+  --text-primary: #18131D;
+  --text-secondary: #5F5367;
+  --text-muted: #8E8098;
+  --border-color: #D9C9E8;
+  --border-hover: #B98CDA;
 
   /* ── Brand ──────────────────────────────────────────── */
-  --primary: #F97316;
-  --primary-hover: #EA580C;
-  --primary-muted: rgba(249, 115, 22, 0.08);
-  --ocean: #0891B2;
-  --ocean-hover: #0E7490;
-  --ocean-muted: rgba(8, 145, 178, 0.08);
+  --primary: #7C3AED;
+  --primary-hover: #6D28D9;
+  --primary-muted: rgba(124, 58, 237, 0.09);
+  --brand-logo-legal: #A855F7;
+  --brand-logo-hunter: #7C3AED;
+  --brand-logo-shadow: rgba(124, 58, 237, 0.18);
+  --ocean: #8B5CF6;
+  --ocean-hover: #7C3AED;
+  --ocean-muted: rgba(139, 92, 246, 0.09);
 
   /* ── Accent ─────────────────────────────────────────── */
-  --accent: #F97316;
-  --accent-hover: #EA580C;
-  --accent-muted: rgba(249, 115, 22, 0.10);
-  --accent-glow: rgba(249, 115, 22, 0.25);
+  --accent: #8B5CF6;
+  --accent-hover: #7C3AED;
+  --accent-muted: rgba(139, 92, 246, 0.10);
+  --accent-glow: rgba(139, 92, 246, 0.18);
   --magenta: #8B5CF6;
   --magenta-muted: rgba(139, 92, 246, 0.10);
 
@@ -55,15 +58,15 @@
   --overlay-bg: rgba(0, 0, 0, 0.5);
 
   /* ── Surfaces ───────────────────────────────────────── */
-  --surface-card: #FFFFFF;
-  --surface-card-hover: #F8FAFC;
+  --surface-card: #FFFDF8;
+  --surface-card-hover: #FFFFFF;
   --surface-elevated: #FFFFFF;
-  --surface-sunken: #F1F5F9;
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
-  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.07), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
-  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -4px rgba(0, 0, 0, 0.04);
-  --glass-bg: rgba(255, 255, 255, 0.88);
-  --glass-border: rgba(0, 0, 0, 0.06);
+  --surface-sunken: #EFE6F6;
+  --shadow-sm: 0 1px 2px rgba(63, 42, 76, 0.06);
+  --shadow-md: 0 14px 34px -22px rgba(63, 42, 76, 0.32), 0 4px 10px -8px rgba(63, 42, 76, 0.18);
+  --shadow-lg: 0 28px 60px -34px rgba(63, 42, 76, 0.38), 0 10px 22px -16px rgba(63, 42, 76, 0.22);
+  --glass-bg: rgba(255, 253, 248, 0.88);
+  --glass-border: rgba(124, 58, 237, 0.14);
 
   /* ── Radius ─────────────────────────────────────────── */
   --radius-sm: 6px;
@@ -73,9 +76,9 @@
   --radius-full: 9999px;
 
   /* ── Input ──────────────────────────────────────────── */
-  --input-bg: #F8FAFC;
-  --input-border: #E2E8F0;
-  --input-focus: #0891B2;
+  --input-bg: #FFFDF8;
+  --input-border: #D9C9E8;
+  --input-focus: #7C3AED;
 
   /* ── Fluid type scale ───────────────────────────────── */
   --fs-xs:   clamp(0.875rem,  0.95vw, 0.9375rem);
@@ -95,26 +98,26 @@
   --ls-wider:  0.12em;
 
   /* ── Scrollbar ──────────────────────────────────────── */
-  --scrollbar-track: #F1F5F9;
-  --scrollbar-thumb: #CBD5E1;
-  --selection-bg: rgba(8, 145, 178, 0.15);
+  --scrollbar-track: #F7F1E8;
+  --scrollbar-thumb: #D9C9E8;
+  --selection-bg: rgba(124, 58, 237, 0.16);
 
   /* ── Chart tokens ───────────────────────────────────── */
   --chart-grid: rgba(0, 0, 0, 0.06);
   --chart-text: #475569;
-  --chart-line: #0891B2;
-  --chart-fill: rgba(8, 145, 178, 0.12);
-  --chart-bar-1: #F97316;
-  --chart-bar-2: #0891B2;
+  --chart-line: #7C3AED;
+  --chart-fill: rgba(124, 58, 237, 0.12);
+  --chart-bar-1: #7C3AED;
+  --chart-bar-2: #B98CDA;
   --chart-bar-3: #16A34A;
   --chart-bar-4: #8B5CF6;
   --chart-tooltip-bg: #FFFFFF;
   --chart-tooltip-border: rgba(0, 0, 0, 0.10);
 
   /* ── Interactive ────────────────────────────────────── */
-  --interactive-default: #0891B2;
-  --interactive-hover: #0E7490;
-  --interactive-active: #155E75;
+  --interactive-default: #7C3AED;
+  --interactive-hover: #6D28D9;
+  --interactive-active: #5B21B6;
 
   /* ── Event type tokens ──────────────────────────────── */
   --event-call: #2563EB;
@@ -140,6 +143,9 @@
   --primary: #2563EB;
   --primary-hover: #1D4ED8;
   --primary-muted: rgba(37, 99, 235, 0.12);
+  --brand-logo-legal: #D8B4FE;
+  --brand-logo-hunter: #C084FC;
+  --brand-logo-shadow: rgba(192, 132, 252, 0.28);
   --ocean: #3B82F6;
   --ocean-hover: #2563EB;
   --ocean-muted: rgba(59, 130, 246, 0.12);
@@ -228,6 +234,38 @@ body.compact-mode .space-y-2 > * + * { margin-top: 0.25rem; }
     transition: background-color 0.3s ease, color 0.3s ease;
   }
 
+  .brand-logo-wordmark {
+    color: var(--brand-logo-hunter);
+    text-shadow: 0 8px 22px var(--brand-logo-shadow);
+  }
+
+  .brand-logo-legal {
+    color: var(--brand-logo-legal);
+    font-weight: 500;
+  }
+
+  .brand-logo-hunter {
+    color: var(--brand-logo-hunter);
+    font-weight: 700;
+  }
+
+  .brand-logo-mark {
+    color: var(--brand-logo-hunter);
+    background:
+      linear-gradient(var(--surface-card), var(--surface-card)) padding-box,
+      linear-gradient(135deg, var(--brand-logo-legal), var(--brand-logo-hunter)) border-box;
+    border: 1px solid transparent;
+    box-shadow: 0 10px 24px -16px var(--brand-logo-shadow);
+  }
+
+  main h1 + p,
+  main h2 + p,
+  main header h1 + p,
+  main header h2 + p,
+  main [data-module-subtitle="true"] {
+    color: var(--brand-logo-hunter) !important;
+  }
+
   .dark body::before {
     content: "";
     position: fixed;
@@ -257,6 +295,260 @@ body.compact-mode .space-y-2 > * + * { margin-top: 0.25rem; }
   ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
 
   html { scroll-behavior: smooth; }
+}
+
+/* ── Light mode cleanup ───────────────────────────────────────────────────
+   Several legacy training pages use inline dark cinematic backgrounds. In the
+   light theme the platform should read as a clean editorial product surface,
+   so light mode neutralizes dark cinematic backgrounds and keeps milk surfaces. */
+html.light,
+html.light body {
+  background: var(--bg-primary) !important;
+  color: var(--text-primary);
+}
+
+html.light body::before {
+  display: none !important;
+}
+
+html.light main,
+html.light [class*="min-h-screen"],
+html.light [class*="h-screen"] {
+  background-color: var(--bg-primary) !important;
+}
+
+html.light [style*="radial-gradient"],
+html.light [style*="repeating-linear-gradient"] {
+  background-image: none !important;
+}
+
+html.light [style*="linear-gradient"] {
+  background-image: none !important;
+}
+
+html.light [style*="rgba(5,"],
+html.light [style*="rgba(7,"],
+html.light [style*="rgba(8,"],
+html.light [style*="rgba(10,"],
+html.light [style*="rgba(13,"],
+html.light [style*="rgba(14,"],
+html.light [style*="rgba(15,"],
+html.light [style*="rgba(16,12,28"],
+html.light [style*="rgba(17,"],
+html.light [style*="rgba(20,"],
+html.light [style*="rgba(22,"],
+html.light [style*="rgba(24,"],
+html.light [style*="rgba(42,"],
+html.light [style*="#050506"],
+html.light [style*="#06030c"],
+html.light [style*="#080512"],
+html.light [style*="#09090B"],
+html.light [style*="#0a0a0f"],
+html.light [style*="#0d0d14"],
+html.light [style*="#111113"],
+html.light [style*="#14091e"],
+html.light [style*="#18181B"] {
+  background: var(--surface-card) !important;
+  background-image: none !important;
+  border-color: var(--border-color) !important;
+  box-shadow: var(--shadow-sm) !important;
+}
+
+html.light .glass-panel,
+html.light .lh-card,
+html.light .glass-overlay {
+  background: var(--surface-card) !important;
+  border-color: var(--border-color) !important;
+  box-shadow: var(--shadow-sm) !important;
+}
+
+html.light [style*="background: rgba(255"],
+html.light [style*="background-color: rgba(255"],
+html.light [style*="background:rgba(255"],
+html.light [style*="background-color:rgba(255"] {
+  background: var(--surface-card) !important;
+  background-image: none !important;
+  border-color: var(--border-color) !important;
+}
+
+html.light [style*="background: rgba(0"],
+html.light [style*="background-color: rgba(0"],
+html.light [style*="background:rgba(0"],
+html.light [style*="background-color:rgba(0"] {
+  background: var(--surface-card) !important;
+  background-image: none !important;
+  border-color: var(--border-color) !important;
+  box-shadow: var(--shadow-sm) !important;
+}
+
+html.light [style*="border"][style*="rgba(255"],
+html.light [style*="border-color: rgba(255"],
+html.light [style*="border-color:rgba(255"],
+html.light [style*="border-top"][style*="rgba(255"],
+html.light [style*="border-right"][style*="rgba(255"],
+html.light [style*="border-bottom"][style*="rgba(255"],
+html.light [style*="border-left"][style*="rgba(255"] {
+  border-color: var(--border-color) !important;
+}
+
+html.light [style*="color: rgb(255"],
+html.light [style*="color: rgba(255"],
+html.light [style*="color:rgb(255"],
+html.light [style*="color:rgba(255"],
+html.light [style*="color: #fff"],
+html.light [style*="color:#fff"],
+html.light [style*="color: white"],
+html.light [style*="color:white"],
+html.light [style*="color: #FAFAFA"],
+html.light [style*="color: #F5F5F5"],
+html.light [style*="color:#FAFAFA"],
+html.light [style*="color:#F5F5F5"],
+html.light [style*="color: transparent"],
+html.light [style*="-webkit-text-fill-color: transparent"] {
+  color: var(--text-primary) !important;
+  -webkit-text-fill-color: currentColor !important;
+}
+
+html.light [style*="color: rgb(16, 185, 129)"],
+html.light [style*="color:rgb(16, 185, 129)"] {
+  color: #047857 !important;
+}
+
+html.light [style*="color: rgb(96, 165, 250)"],
+html.light [style*="color:rgb(96, 165, 250)"],
+html.light [style*="color: rgb(59, 130, 246)"],
+html.light [style*="color:rgb(59, 130, 246)"] {
+  color: #1D4ED8 !important;
+}
+
+html.light [style*="color: rgb(139, 92, 246)"],
+html.light [style*="color:rgb(139, 92, 246)"],
+html.light [style*="color: rgb(167, 139, 250)"],
+html.light [style*="color:rgb(167, 139, 250)"] {
+  color: #6D28D9 !important;
+}
+
+html.light [style*="color: rgb(236, 72, 153)"],
+html.light [style*="color:rgb(236, 72, 153)"] {
+  color: #BE185D !important;
+}
+
+html.light [style*="color: rgb(245, 158, 11)"],
+html.light [style*="color:rgb(245, 158, 11)"],
+html.light [style*="color: rgb(250, 204, 21)"],
+html.light [style*="color:rgb(250, 204, 21)"],
+html.light [style*="color: rgb(217, 119, 6)"],
+html.light [style*="color:rgb(217, 119, 6)"] {
+  color: #92400E !important;
+}
+
+html.light [style*="background: var(--primary)"],
+html.light [style*="background:var(--primary)"],
+html.light [style*="background: var(--accent)"],
+html.light [style*="background:var(--accent)"],
+html.light [style*="background: var(--success)"],
+html.light [style*="background:var(--success)"],
+html.light [style*="background: var(--warning)"],
+html.light [style*="background:var(--warning)"],
+html.light [style*="background: var(--danger)"],
+html.light [style*="background:var(--danger)"],
+html.light [style*="background: var(--magenta)"],
+html.light [style*="background:var(--magenta)"],
+html.light [style*="background: #2563EB"],
+html.light [style*="background:#2563EB"],
+html.light [style*="background: rgb(37, 99, 235)"],
+html.light [style*="background:rgb(37, 99, 235)"],
+html.light [style*="background: rgb(59, 130, 246)"],
+html.light [style*="background:rgb(59, 130, 246)"],
+html.light [style*="background: rgb(34, 197, 94)"],
+html.light [style*="background:rgb(34, 197, 94)"],
+html.light [style*="background: rgb(22, 163, 74)"],
+html.light [style*="background:rgb(22, 163, 74)"],
+html.light [style*="background: rgb(245, 158, 11)"],
+html.light [style*="background:rgb(245, 158, 11)"],
+html.light [style*="background: rgb(239, 68, 68)"],
+html.light [style*="background:rgb(239, 68, 68)"],
+html.light [style*="background: rgb(139, 92, 246)"],
+html.light [style*="background:rgb(139, 92, 246)"],
+html.light [style*="background: rgb(167, 139, 250)"],
+html.light [style*="background:rgb(167, 139, 250)"],
+html.light [style*="background: rgb(236, 72, 153)"],
+html.light [style*="background:rgb(236, 72, 153)"] {
+  color: #fff !important;
+  -webkit-text-fill-color: currentColor !important;
+  border-color: currentColor !important;
+}
+
+html.light [style*="background: var(--primary)"] *,
+html.light [style*="background:var(--primary)"] *,
+html.light [style*="background: var(--accent)"] *,
+html.light [style*="background:var(--accent)"] *,
+html.light [style*="background: var(--success)"] *,
+html.light [style*="background:var(--success)"] *,
+html.light [style*="background: var(--warning)"] *,
+html.light [style*="background:var(--warning)"] *,
+html.light [style*="background: var(--danger)"] *,
+html.light [style*="background:var(--danger)"] *,
+html.light [style*="background: var(--magenta)"] *,
+html.light [style*="background:var(--magenta)"] *,
+html.light [style*="background: #2563EB"] *,
+html.light [style*="background:#2563EB"] *,
+html.light [style*="background: rgb(37, 99, 235)"] *,
+html.light [style*="background:rgb(37, 99, 235)"] *,
+html.light [style*="background: rgb(59, 130, 246)"] *,
+html.light [style*="background:rgb(59, 130, 246)"] *,
+html.light [style*="background: rgb(34, 197, 94)"] *,
+html.light [style*="background:rgb(34, 197, 94)"] *,
+html.light [style*="background: rgb(22, 163, 74)"] *,
+html.light [style*="background:rgb(22, 163, 74)"] *,
+html.light [style*="background: rgb(245, 158, 11)"] *,
+html.light [style*="background:rgb(245, 158, 11)"] *,
+html.light [style*="background: rgb(239, 68, 68)"] *,
+html.light [style*="background:rgb(239, 68, 68)"] *,
+html.light [style*="background: rgb(139, 92, 246)"] *,
+html.light [style*="background:rgb(139, 92, 246)"] *,
+html.light [style*="background: rgb(167, 139, 250)"] *,
+html.light [style*="background:rgb(167, 139, 250)"] *,
+html.light [style*="background: rgb(236, 72, 153)"] *,
+html.light [style*="background:rgb(236, 72, 153)"] * {
+  color: #fff !important;
+  -webkit-text-fill-color: currentColor !important;
+}
+
+html.light table {
+  background: var(--surface-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+}
+
+html.light th,
+html.light td {
+  color: var(--text-primary);
+  border-color: var(--border-color) !important;
+}
+
+html.light thead,
+html.light th {
+  background: var(--bg-secondary);
+}
+
+html.light input,
+html.light textarea,
+html.light select {
+  background: var(--input-bg) !important;
+  color: var(--text-primary) !important;
+  border: 1px solid var(--input-border) !important;
+}
+
+html.light button,
+html.light [role="button"] {
+  border-color: var(--border-color);
+}
+
+html.light main button,
+html.light main [role="button"] {
+  border: 1px solid var(--border-color);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════

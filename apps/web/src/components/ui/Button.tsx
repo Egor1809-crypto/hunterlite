@@ -36,38 +36,35 @@ function variantStyles(variant: Variant) {
   switch (variant) {
     case "primary":
       return {
-        background: "var(--accent)",
+        background: "var(--primary)",
         color: "#fff",
-        border: "1px solid var(--accent)",
-        "--btn-hover-bg": "var(--accent)",
-        "--btn-hover-shadow": "0 0 20px var(--accent-glow)",
+        border: "1px solid var(--primary)",
+        "--btn-hover-bg": "var(--primary-hover)",
+        "--btn-hover-shadow": "var(--shadow-sm)",
       } as React.CSSProperties;
     case "secondary":
       return {
-        background: "var(--glass-bg)",
+        background: "var(--surface-card)",
         color: "var(--text-primary)",
-        border: "1px solid var(--accent)",
-        backdropFilter: "blur(12px)",
-        "--btn-hover-bg": "var(--accent-muted)",
-        "--btn-hover-shadow": "0 0 20px var(--accent-glow)",
+        border: "1px solid var(--border-color)",
+        "--btn-hover-bg": "var(--surface-card-hover)",
+        "--btn-hover-shadow": "var(--shadow-sm)",
       } as React.CSSProperties;
     case "danger":
       return {
-        background: "var(--glass-bg)",
+        background: "var(--surface-card)",
         color: "var(--danger)",
-        border: "1px solid var(--danger)",
-        backdropFilter: "blur(12px)",
+        border: "1px solid color-mix(in srgb, var(--danger) 32%, var(--border-color))",
         "--btn-hover-bg": "var(--danger-muted)",
-        "--btn-hover-shadow": "0 0 20px var(--danger-muted)",
+        "--btn-hover-shadow": "var(--shadow-sm)",
       } as React.CSSProperties;
     case "success":
       return {
-        background: "var(--glass-bg)",
+        background: "var(--surface-card)",
         color: "var(--success)",
-        border: "1px solid var(--success)",
-        backdropFilter: "blur(12px)",
+        border: "1px solid color-mix(in srgb, var(--success) 32%, var(--border-color))",
         "--btn-hover-bg": "var(--success-muted)",
-        "--btn-hover-shadow": "0 0 20px var(--success-muted)",
+        "--btn-hover-shadow": "var(--shadow-sm)",
       } as React.CSSProperties;
     case "ghost":
       return {
@@ -115,7 +112,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
   ref
 ) {
   const baseClass = [
-    "inline-flex items-center justify-center font-bold tracking-wide uppercase rounded-xl",
+    "inline-flex items-center justify-center font-semibold rounded-lg",
     "transition-all duration-200 cursor-pointer select-none",
     "disabled:opacity-40 disabled:cursor-not-allowed disabled:pointer-events-none",
     SIZE_CLASSES[size],
@@ -150,8 +147,8 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
       className={baseClass}
       style={mergedStyle}
       disabled={disabled || loading}
-      whileHover={!disabled && !loading ? { scale: 1.02, boxShadow: (mergedStyle as Record<string, string>)["--btn-hover-shadow"] } : undefined}
-      whileTap={!disabled && !loading ? { scale: 0.97 } : undefined}
+      whileHover={!disabled && !loading ? { y: -1, boxShadow: (mergedStyle as Record<string, string>)["--btn-hover-shadow"] } : undefined}
+      whileTap={!disabled && !loading ? { y: 0 } : undefined}
       {...(rest as HTMLMotionProps<"button">)}
     >
       {content}

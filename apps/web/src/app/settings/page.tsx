@@ -8,7 +8,7 @@
  *     «⚙ НАСТРОЙКИ ⚙» (тот же эффект что на /leaderboard и /profile,
  *     но с серебряно-голубым градиентом для UI-«пульта»).
  *   - autosave-индикатор теперь пиксельный плашка справа
- *   - рабочие секции: Игрок · Внешний вид · AI-помощник
+ *   - рабочие секции: Игрок · Внешний вид
  *     + опциональная Воронка для CRM-ролей
  *   - каждая секция в `<SettingsSection accent={...}>` с цветной рамкой
  *     и заголовком-плашкой слева сверху (симметрично /profile)
@@ -19,7 +19,7 @@
  *
  * Убрано:
  *   - неработающие блоки звука, уведомлений, связок и тренировочных режимов
- *   - переключатель Маняши: AI-помощник всегда включён
+ *   - блок старого маскота удалён до подготовки нового помощника
  */
 
 import { useState, useEffect, useCallback, useRef, type ReactNode } from "react";
@@ -28,7 +28,7 @@ import {
   Save, Loader2, Check, type LucideIcon,
 } from "lucide-react";
 import {
-  Kanban, User as UserIcon, Palette, Robot,
+  Kanban, User as UserIcon, Palette,
 } from "@phosphor-icons/react";
 import { useTheme } from "next-themes";
 import { api } from "@/lib/api";
@@ -206,8 +206,8 @@ function SettingsCard({ children, className = "" }: { children: ReactNode; class
     <div
       className={`rounded-xl p-4 ${className}`}
       style={{
-        background: "rgba(0,0,0,0.35)",
-        border: "1px solid rgba(255,255,255,0.08)",
+        background: "var(--bg-secondary)",
+        border: "1px solid var(--border-color)",
       }}
     >
       {children}
@@ -256,11 +256,6 @@ export default function SettingsPage() {
   useEffect(() => {
     mountedRef.current = true;
     setHydrated(true);
-    localStorage.setItem("hunterlite_manyasha_enabled", "true");
-    window.dispatchEvent(new StorageEvent("storage", {
-      key: "hunterlite_manyasha_enabled",
-      newValue: "true",
-    }));
   }, []);
 
   useEffect(() => {
@@ -364,8 +359,8 @@ export default function SettingsPage() {
           <div
             className="flex items-center gap-4 mt-3 p-4 rounded-xl"
             style={{
-              background: "rgba(8,5,18,0.55)",
-              border: "2px solid rgba(167,139,250,0.28)",
+              background: "var(--surface-card)",
+              border: "1px solid var(--border-color)",
             }}
           >
             <AvatarUpload
@@ -556,38 +551,7 @@ export default function SettingsPage() {
             </div>
           </SettingsSection>
 
-          {/* ═══ SECTION 3: AI-ПОМОЩНИК МАНЯША ═══ */}
-          <SettingsSection
-            accent="#c084fc"
-            title="🪆 AI-ПОМОЩНИК"
-            icon={Robot}
-            description="Маняша всегда включена и доступна на страницах платформы."
-          >
-            <SettingsCard>
-              <div className="flex items-center justify-between gap-4">
-                <div>
-                  <span className="text-sm font-medium" style={{ color: "var(--text-primary)", fontSize: 14 }}>
-                    Маняша AI
-                  </span>
-                  <p className="text-sm mt-1" style={{ color: "var(--text-muted)", fontSize: 13 }}>
-                    Плавающий чат-бот с подсказками по платформе и банкротному праву.
-                  </p>
-                </div>
-                <span
-                  className="rounded-xl px-3 py-1.5 text-sm font-semibold"
-                  style={{
-                    background: "rgba(192,132,252,0.14)",
-                    border: "1px solid rgba(192,132,252,0.35)",
-                    color: "#c084fc",
-                  }}
-                >
-                  Всегда включена
-                </span>
-              </div>
-            </SettingsCard>
-          </SettingsSection>
-
-          {/* ═══ SECTION 4: ВОРОНКА (CRM only) ═══ */}
+          {/* ═══ SECTION 3: ВОРОНКА (CRM only) ═══ */}
           {showCRM && (
             <SettingsSection
               accent="#ff3ec8"

@@ -8,7 +8,8 @@ import AppSidebar, {
   SIDEBAR_COLLAPSED,
   STORAGE_KEY,
 } from "./AppSidebar";
-import { Scale } from "lucide-react";
+import { ThemeToggle } from "@/components/ui/ThemeToggle";
+import { BrandLogo } from "@/components/ui/BrandLogo";
 
 /**
  * AppShell — sidebar + main content layout.
@@ -132,20 +133,10 @@ export default function AppShell({ children }: { children: ReactNode }) {
             <Menu size={20} />
           </button>
           <div className="flex items-center gap-2">
-            <div
-              className="flex h-7 w-7 items-center justify-center rounded-md"
-              style={{
-                background: "linear-gradient(135deg, #F97316 0%, #EA580C 100%)",
-              }}
-            >
-              <Scale size={14} className="text-white" />
-            </div>
-            <span
-              className="text-sm font-bold tracking-tight"
-              style={{ color: "var(--text-primary)" }}
-            >
-              LegalHunter
-            </span>
+            <BrandLogo size="sm" />
+          </div>
+          <div className="ml-auto">
+            <ThemeToggle />
           </div>
         </div>
       )}

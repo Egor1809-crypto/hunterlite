@@ -215,11 +215,6 @@ function saveEnergy(energy: EnergyState) {
   window.dispatchEvent(new CustomEvent("hunterlite:energy", { detail: energy }));
 }
 
-function tellManyasha(text: string) {
-  if (typeof window === "undefined") return;
-  window.dispatchEvent(new CustomEvent("manyasha:say", { detail: { text, open: true } }));
-}
-
 function normalizeProgress(value: unknown): LevelState[] {
   const initial = getInitialLevelStates();
   if (!Array.isArray(value)) return initial;
@@ -756,7 +751,7 @@ function LevelDetailModal({
             </div>
             {blockedByAttempts && (
               <div className="mt-3 text-xs leading-relaxed" style={{ color: "var(--warning)" }}>
-                Пять попыток на уровень закончились. Маняша предложит подождать обновления или купить дополнительные попытки.
+                Пять попыток на уровень закончились. Можно подождать обновления или купить дополнительные попытки.
               </div>
             )}
             {blockedByEnergy && !blockedByAttempts && (
@@ -915,7 +910,6 @@ export default function TestWorldMap() {
 	    if (!state) return;
 
       if (state.status !== "completed" && state.attempts >= MAX_ATTEMPTS) {
-        tellManyasha(`По уровню ${selectedLevel} уже использованы все ${MAX_ATTEMPTS} попыток. Можно подождать обновления завтра или купить дополнительные попытки. Я помогу разобрать ошибки перед повтором.`);
         setStartError("Пять попыток на этот уровень закончились");
         return;
       }
@@ -923,7 +917,6 @@ export default function TestWorldMap() {
       const currentEnergy = loadEnergy();
       setEnergy(currentEnergy);
       if (state.status !== "completed" && currentEnergy.remaining <= 0) {
-        tellManyasha("Энергия на сегодня закончилась. Завтра снова будет 20 попыток. Если нужно продолжить сейчас, можно купить дополнительный пакет энергии.");
         setStartError("Энергия на сегодня закончилась");
         return;
       }

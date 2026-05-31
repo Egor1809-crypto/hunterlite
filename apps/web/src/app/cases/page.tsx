@@ -153,18 +153,7 @@ export default function CasesPage() {
             50% { opacity: 0.4; transform: scale(0.75); }
           }
         `}</style>
-        {/* Ambient background */}
-        <div className="absolute inset-0 pointer-events-none overflow-hidden" aria-hidden>
-          <div
-            className="absolute -top-40 left-[20%] w-[900px] h-[900px] rounded-full opacity-[0.035]"
-            style={{ background: "radial-gradient(circle, #8B5CF6 0%, transparent 70%)" }}
-          />
-          <div
-            className="absolute top-[60%] -right-32 w-[700px] h-[700px] rounded-full opacity-[0.025]"
-            style={{ background: "radial-gradient(circle, #2563EB 0%, transparent 70%)" }}
-          />
-        </div>
-        <div className="absolute inset-0 pointer-events-none opacity-30 mix-blend-overlay" style={{ backgroundImage: NOISE_SVG }} aria-hidden />
+        <div className="absolute inset-0 pointer-events-none opacity-[0.06]" style={{ backgroundImage: NOISE_SVG }} aria-hidden />
 
         <div className="relative z-10 max-w-[1100px] mx-auto px-5 sm:px-8 py-8 sm:py-12">
           {/* Header */}
@@ -178,21 +167,22 @@ export default function CasesPage() {
                 <div
                   className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0"
                   style={{
-                    background: "rgba(139, 92, 246, 0.12)",
-                    boxShadow: "0 0 0 1px rgba(139, 92, 246, 0.2)",
+                    background: "var(--primary-muted)",
+                    border: "1px solid var(--border-color)",
+                    boxShadow: "var(--shadow-sm)",
                   }}
                 >
-                  <Briefcase size={22} style={{ color: "#8B5CF6" }} />
+                  <Briefcase size={22} style={{ color: "var(--brand-logo-hunter)" }} />
                 </div>
                 <div>
                   <h1
-                    className="text-2xl sm:text-3xl font-bold tracking-tight"
+                    className="text-4xl sm:text-6xl font-semibold tracking-[-0.07em]"
                     style={{ color: "var(--text-primary)" }}
                   >
                     Кейсы
                   </h1>
-                  <p className="mt-0.5 text-sm" style={{ color: "var(--text-muted)" }}>
-                    Интерактивные сценарии с ветвлением решений
+                  <p className="mt-2 text-lg" style={{ color: "var(--brand-logo-hunter)" }}>
+                    Библиотека практических дел и экспертных разборов
                   </p>
                 </div>
               </div>

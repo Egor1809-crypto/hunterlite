@@ -23,7 +23,7 @@ import { useGamificationStore } from "@/stores/useGamificationStore";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { NotificationBell } from "@/components/layout/NotificationBell";
 import { UserAvatar } from "@/components/ui/UserAvatar";
-import { Scale } from "lucide-react";
+import { BrandLogo } from "@/components/ui/BrandLogo";
 import type { UserRole } from "@/types";
 
 type OpenPanel = "none" | "user" | "notifications" | "mobile";
@@ -254,10 +254,7 @@ export default function Header() {
               className="group rounded-[20px] px-3 py-1.5 transition-opacity duration-200 hover:opacity-85"
               aria-label="X HUNTER — Главная"
             >
-              <span className="font-display font-bold text-lg tracking-wide flex items-center gap-2" style={{ color: "var(--accent)" }}>
-                <Scale size={20} />
-                LegalHunter
-              </span>
+              <BrandLogo size="md" />
             </Link>
           </div>
 

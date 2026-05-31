@@ -12,7 +12,6 @@ import {
   Settings,
   LogOut,
   ChevronDown,
-  Scale,
   PanelLeftClose,
   PanelLeft,
   Briefcase,
@@ -22,6 +21,8 @@ import {
 import { useState, useEffect } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { UserAvatar } from "@/components/ui/UserAvatar";
+import { ThemeToggle } from "@/components/ui/ThemeToggle";
+import { BrandLogo } from "@/components/ui/BrandLogo";
 import { sanitizeText } from "@/lib/sanitize";
 
 /* ── Sidebar width tokens ─────────────────────────────────── */
@@ -110,54 +111,40 @@ export default function AppSidebar({ collapsed, onToggle }: AppSidebarProps) {
     <aside
       className="fixed top-0 left-0 z-40 flex h-screen flex-col border-r select-none overflow-hidden"
 	      style={{
-	        background: `
-            radial-gradient(circle at 18% 8%, rgba(59,130,246,0.16), transparent 30%),
-            radial-gradient(circle at 80% 40%, rgba(168,85,247,0.12), transparent 34%),
-            linear-gradient(180deg, rgba(22,24,33,0.98) 0%, rgba(14,16,22,0.98) 52%, rgba(7,9,14,0.99) 100%)
-          `,
-	        borderColor: "rgba(255,255,255,0.08)",
+	        background: "var(--surface-card)",
+	        borderColor: "var(--border-color)",
 	        width: sidebarWidth,
 	        transition: "width 0.2s cubic-bezier(0.25, 0.1, 0.25, 1)",
-          boxShadow: "18px 0 60px rgba(0,0,0,0.28)",
+          boxShadow: "var(--shadow-sm)",
 	      }}
     >
       {/* ── Logo ──────────────────────────────────────── */}
       <div
-	        className="flex h-20 items-center gap-2.5 px-4 relative"
-	        style={{ borderBottom: "1px solid rgba(255,255,255,0.08)" }}
+	        className={`flex h-20 items-center relative ${collapsed ? "justify-center px-0" : "gap-2.5 px-4"}`}
+	        style={{ borderBottom: "1px solid var(--border-color)" }}
 	      >
         <Link
           href="/home"
-          className="flex items-center gap-2.5 overflow-hidden"
+          className={`flex items-center ${collapsed ? "justify-center" : "gap-2.5 overflow-hidden"}`}
           prefetch
         >
-          <div
-	            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl"
-	            style={{
-	              background: "linear-gradient(135deg, #3B82F6 0%, #1D4ED8 55%, #7C3AED 100%)",
-	              boxShadow: "0 10px 28px rgba(37, 99, 235, 0.35)",
-	            }}
-	          >
-	            <Scale size={22} className="text-white" />
-	          </div>
+          {collapsed && <BrandLogo compact size="md" />}
           <AnimatePresence mode="wait">
             {!collapsed && (
-              <motion.span
+              <motion.div
                 key="logo-text"
                 initial={{ opacity: 0, x: -8 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: -8 }}
                 transition={{ duration: 0.15 }}
-	                className="whitespace-nowrap text-xl font-bold tracking-tight"
-                style={{ color: "var(--text-primary)" }}
               >
-                LegalHunter
-              </motion.span>
+                <BrandLogo size="lg" />
+              </motion.div>
             )}
           </AnimatePresence>
         </Link>
 
-        {/* Collapse toggle — only when expanded */}
+        {/* Collapse control — only when expanded */}
         <AnimatePresence>
           {!collapsed && (
             <motion.button
@@ -165,14 +152,18 @@ export default function AppSidebar({ collapsed, onToggle }: AppSidebarProps) {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={onToggle}
-              className="ml-auto flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-colors"
-              style={{ color: "var(--text-muted)" }}
+              className="ml-auto flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-colors"
+              style={{
+                color: "var(--text-muted)",
+                border: "1px solid var(--border-color)",
+                background: "var(--surface-card)",
+              }}
               onMouseEnter={(e) => {
                 e.currentTarget.style.background = "var(--bg-secondary)";
                 e.currentTarget.style.color = "var(--text-primary)";
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.background = "transparent";
+                e.currentTarget.style.background = "var(--surface-card)";
                 e.currentTarget.style.color = "var(--text-muted)";
               }}
               aria-label="Свернуть панель"
@@ -188,14 +179,18 @@ export default function AppSidebar({ collapsed, onToggle }: AppSidebarProps) {
         <div className="flex justify-center py-2">
           <button
             onClick={onToggle}
-            className="flex h-8 w-8 items-center justify-center rounded-md transition-colors"
-            style={{ color: "var(--text-muted)" }}
+            className="flex h-9 w-9 items-center justify-center rounded-lg transition-colors"
+            style={{
+              color: "var(--text-muted)",
+              border: "1px solid var(--border-color)",
+              background: "var(--surface-card)",
+            }}
             onMouseEnter={(e) => {
               e.currentTarget.style.background = "var(--bg-secondary)";
               e.currentTarget.style.color = "var(--text-primary)";
             }}
             onMouseLeave={(e) => {
-              e.currentTarget.style.background = "transparent";
+              e.currentTarget.style.background = "var(--surface-card)";
               e.currentTarget.style.color = "var(--text-muted)";
             }}
             aria-label="Развернуть панель"
@@ -210,20 +205,20 @@ export default function AppSidebar({ collapsed, onToggle }: AppSidebarProps) {
             <div
               className="rounded-2xl border px-3 py-3"
               style={{
-                background: "linear-gradient(135deg, rgba(59,130,246,0.12), rgba(168,85,247,0.08))",
-                borderColor: "rgba(96,165,250,0.22)",
+                background: "var(--bg-secondary)",
+                borderColor: "var(--border-color)",
               }}
             >
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <span
                     className="flex h-8 w-8 items-center justify-center rounded-xl"
-                    style={{ background: "rgba(59,130,246,0.18)", color: "#60A5FA" }}
+                    style={{ background: "var(--primary-muted)", color: "var(--primary)" }}
                   >
                     <Zap size={16} />
                   </span>
                   <div>
-                    <div className="text-xs font-bold uppercase tracking-widest" style={{ color: "rgba(255,255,255,0.62)" }}>
+                    <div className="text-xs font-semibold" style={{ color: "var(--text-muted)" }}>
                       Энергия
                     </div>
                     <div className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
@@ -231,12 +226,12 @@ export default function AppSidebar({ collapsed, onToggle }: AppSidebarProps) {
                     </div>
                   </div>
                 </div>
-                <div className="h-2 w-16 overflow-hidden rounded-full" style={{ background: "rgba(255,255,255,0.08)" }}>
+                <div className="h-2 w-16 overflow-hidden rounded-full" style={{ background: "var(--bg-tertiary)" }}>
                   <div
                     className="h-full rounded-full"
                     style={{
                       width: `${Math.max(0, Math.min(100, (energy / DAILY_ENERGY) * 100))}%`,
-                      background: "linear-gradient(90deg, #22D3EE, #60A5FA, #A78BFA)",
+                      background: "var(--primary)",
                     }}
                   />
                 </div>
@@ -257,14 +252,14 @@ export default function AppSidebar({ collapsed, onToggle }: AppSidebarProps) {
                 href={item.href}
                 prefetch
                 aria-current={active ? "page" : undefined}
-	                className="group relative flex items-center gap-3 rounded-2xl px-3 py-3 text-sm font-semibold transition-all duration-150 overflow-hidden"
+	                className="group relative flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium transition-all duration-150 overflow-hidden"
 	                style={{
-	                  color: active ? "#78A7FF" : "var(--text-secondary)",
+	                  color: active ? "var(--primary)" : "var(--text-secondary)",
 	                  background: active
-                      ? "linear-gradient(135deg, rgba(59,130,246,0.18), rgba(124,58,237,0.10))"
+                      ? "var(--primary-muted)"
                       : "transparent",
-                    border: active ? "1px solid rgba(96,165,250,0.22)" : "1px solid transparent",
-                    boxShadow: active ? "0 10px 28px rgba(37,99,235,0.12)" : "none",
+                    border: active ? "1px solid color-mix(in srgb, var(--primary) 18%, var(--border-color))" : "1px solid transparent",
+                    boxShadow: "none",
 	                  justifyContent: collapsed ? "center" : "flex-start",
 	                }}
                 onMouseEnter={(e) => {
@@ -314,6 +309,36 @@ export default function AppSidebar({ collapsed, onToggle }: AppSidebarProps) {
           })}
         </div>
       </nav>
+
+      {/* ── Theme control ─────────────────────────────── */}
+      <div
+        className="border-t px-3 py-3"
+        style={{ borderColor: "var(--border-color)" }}
+      >
+        {collapsed ? (
+          <div className="flex justify-center">
+            <ThemeToggle />
+          </div>
+        ) : (
+          <div
+            className="flex items-center justify-between gap-3 rounded-lg px-2 py-2"
+            style={{
+              background: "var(--bg-secondary)",
+              border: "1px solid var(--border-color)",
+            }}
+          >
+            <div className="min-w-0">
+              <div className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
+                Тема
+              </div>
+              <div className="text-xs" style={{ color: "var(--text-muted)" }}>
+                Светлая / тёмная
+              </div>
+            </div>
+            <ThemeToggle />
+          </div>
+        )}
+      </div>
 
       {/* ── User section (bottom) ─────────────────────── */}
       <div

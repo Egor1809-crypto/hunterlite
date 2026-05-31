@@ -603,20 +603,7 @@ export default function HistoryPage() {
   return (
     <AuthLayout>
       <style dangerouslySetInnerHTML={{ __html: PREMIUM_STYLES }} />
-      <div className="relative panel-grid-bg min-h-screen" style={{ background: HISTORY_BACKGROUND }}>
-        <div
-          aria-hidden
-          style={{
-            position: "absolute",
-            inset: 0,
-            backgroundImage: `${HISTORY_SCHEME_SVG}, linear-gradient(rgba(133,247,232,0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(167,139,250,0.035) 1px, transparent 1px)`,
-            backgroundSize: "640px 420px, 80px 80px, 80px 80px",
-            backgroundPosition: "center 40px, center center, center center",
-            opacity: 0.65,
-            pointerEvents: "none",
-            maskImage: "linear-gradient(to bottom, rgba(0,0,0,0.9), rgba(0,0,0,0.35) 72%, rgba(0,0,0,0.12))",
-          }}
-        />
+      <div className="relative min-h-screen" style={{ background: "var(--bg-primary)" }}>
         {/* Noise overlay */}
         <div
           aria-hidden
@@ -641,18 +628,19 @@ export default function HistoryPage() {
             <div
               className="w-14 h-14 rounded-2xl flex items-center justify-center shrink-0"
               style={{
-                background: "linear-gradient(135deg, rgba(168,85,247,0.15), rgba(236,72,153,0.1))",
-                boxShadow: "0 0 0 1px rgba(168,85,247,0.2), 0 0 24px rgba(168,85,247,0.15), 0 0 48px rgba(236,72,153,0.08)",
+                background: "var(--primary-muted)",
+                border: "1px solid var(--border-color)",
+                boxShadow: "var(--shadow-sm)",
               }}
             >
-              <History size={24} style={{ color: "#A855F7" }} />
+              <History size={24} style={{ color: "var(--brand-logo-hunter)" }} />
             </div>
             <div>
-              <h1 className="text-3xl sm:text-4xl font-black tracking-tight" style={{ background: "linear-gradient(135deg, #F5F5F5 0%, #A855F7 60%, #EC4899 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text" }}>
+              <h1 className="text-4xl sm:text-6xl font-semibold tracking-[-0.07em]" style={{ color: "var(--text-primary)" }}>
                 История
               </h1>
-              <p className="mt-1 text-sm font-medium" style={{ color: "var(--text-muted)" }}>
-                Аналитика прогресса и все прошлые сессии
+              <p className="mt-2 text-lg font-medium" style={{ color: "var(--brand-logo-hunter)" }}>
+                Хронология обучения, практики и профессионального роста
               </p>
             </div>
           </motion.div>

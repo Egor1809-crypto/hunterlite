@@ -16,7 +16,7 @@ import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
-from sqlalchemy import Integer, select, func
+from sqlalchemy import Integer, select, func, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.knowledge import (
@@ -209,6 +209,142 @@ PVP_JUDGE_PROMPT = """Ты — строгий и справедливый AI-с�
 # Question generation
 # ---------------------------------------------------------------------------
 
+_TEST_DB_DIFFICULTY_TO_INT = {
+    "beginner": 1,
+    "intermediate": 3,
+    "advanced": 4,
+    "expert": 5,
+}
+
+
+def _difficulty_to_test_db_label(difficulty: int) -> str:
+    if difficulty <= 2:
+        return "beginner"
+    if difficulty == 3:
+        return "intermediate"
+    if difficulty == 4:
+        return "advanced"
+    return "expert"
+
+
+async def _generate_question_from_test_db(
+    db: AsyncSession,
+    *,
+    category: str | None,
+    difficulty: int,
+    question_number: int,
+    total_questions: int,
+    previous_questions: list[str] | None,
+) -> QuizQuestion | None:
+    """Load a multiple-choice question from imported bankrupt-test-db tables.
+
+    The imported dataset is authoritative for test mode: question text,
+    answer options, and correct index must come from the same row set.
+    This prevents the old RAG MC path from showing distractors from one
+    source while revealing a correct answer from another source.
+    """
+    exists = await db.scalar(text("SELECT to_regclass('public.test_questions')"))
+    if not exists:
+        return None
+
+    diff_label = _difficulty_to_test_db_label(difficulty)
+    previous = set(previous_questions or [])
+
+    base_sql = """
+        SELECT
+            q.id,
+            q.category,
+            q.difficulty,
+            q.question_text,
+            q.explanation,
+            q.legal_reference,
+            b.title AS block_title
+        FROM test_questions q
+        JOIN test_blocks b ON b.id = q.block_id
+        WHERE q.difficulty = :difficulty
+    """
+    params: dict[str, object] = {"difficulty": diff_label}
+    if category:
+        base_sql += " AND (q.category ILIKE :category OR b.title ILIKE :category)"
+        params["category"] = f"%{category}%"
+    base_sql += " ORDER BY random() LIMIT 80"
+
+    rows = (await db.execute(text(base_sql), params)).mappings().all()
+    candidates = [row for row in rows if row["question_text"] not in previous]
+
+    # If the selected category/difficulty is exhausted or mismatched, fall
+    # back to any not-yet-seen question from the imported dataset.
+    if not candidates:
+        rows = (
+            await db.execute(
+                text("""
+                    SELECT
+                        q.id,
+                        q.category,
+                        q.difficulty,
+                        q.question_text,
+                        q.explanation,
+                        q.legal_reference,
+                        b.title AS block_title
+                    FROM test_questions q
+                    JOIN test_blocks b ON b.id = q.block_id
+                    ORDER BY random()
+                    LIMIT 120
+                """)
+            )
+        ).mappings().all()
+        candidates = [row for row in rows if row["question_text"] not in previous]
+
+    if not candidates:
+        return None
+
+    q = candidates[0]
+    answer_rows = (
+        await db.execute(
+            text("""
+                SELECT answer_text, is_correct, order_index
+                FROM test_answers
+                WHERE question_id = :question_id
+                ORDER BY order_index
+            """),
+            {"question_id": q["id"]},
+        )
+    ).mappings().all()
+
+    if len(answer_rows) < 2:
+        return None
+
+    answer_items = [
+        {
+            "text": str(row["answer_text"]),
+            "is_correct": bool(row["is_correct"]),
+        }
+        for row in answer_rows
+    ]
+    correct_count = sum(1 for item in answer_items if item["is_correct"])
+    if correct_count != 1:
+        logger.warning("test_db question %s has %d correct answers", q["id"], correct_count)
+        return None
+
+    random.shuffle(answer_items)
+    choices = [item["text"] for item in answer_items]
+    correct_idx = next(i for i, item in enumerate(answer_items) if item["is_correct"])
+    correct_text = choices[correct_idx]
+
+    return QuizQuestion(
+        question_text=str(q["question_text"]),
+        category=str(q["category"] or q["block_title"] or "БФЛ"),
+        difficulty=_TEST_DB_DIFFICULTY_TO_INT.get(str(q["difficulty"]), difficulty),
+        expected_article=q["legal_reference"],
+        question_number=question_number,
+        total_questions=total_questions,
+        blitz_answer=correct_text,
+        generation_strategy="test_db",
+        choices=choices,
+        correct_choice_index=correct_idx,
+    )
+
+
 async def generate_question(
     db: AsyncSession,
     *,
@@ -229,6 +365,17 @@ async def generate_question(
     Strategy 4: RAG fact → template fallback
     Strategy 5: Hardcoded last resort
     """
+    test_db_question = await _generate_question_from_test_db(
+        db,
+        category=category,
+        difficulty=difficulty,
+        question_number=question_number,
+        total_questions=total_questions,
+        previous_questions=previous_questions,
+    )
+    if test_db_question is not None:
+        return test_db_question
+
     exclude_ids = list(used_chunk_ids) if used_chunk_ids else None
 
     # ── Strategy 1: BlitzQuestionPool (blitz mode only) ───────────────────────

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowRight,
@@ -50,6 +50,7 @@ const SSO_BUTTONS = [
 
 export function LandingLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
+  const pathname = usePathname();
   const [checkingAuth, setCheckingAuth] = useState(true);
   const [activePanel, setActivePanel] = useState<Panel>(null);
   const [networkError, setNetworkError] = useState(false);
@@ -73,10 +74,14 @@ export function LandingLayout({ children }: { children: React.ReactNode }) {
   const [forgotLoading, setForgotLoading] = useState(false);
 
   useEffect(() => {
+    if (pathname === "/") {
+      setCheckingAuth(false);
+      return;
+    }
     const token = getToken();
     if (!token) { setCheckingAuth(false); return; }
     router.replace("/home");
-  }, [router]);
+  }, [pathname, router]);
 
   const openPanel = (panel: Panel) => {
     setActivePanel(panel);
@@ -189,18 +194,21 @@ export function LandingLayout({ children }: { children: React.ReactNode }) {
   }
 
   const passwordsMatch = confirmPassword.length === 0 || password === confirmPassword;
+  const isCustomLanding = pathname === "/";
 
   return (
     <LandingAuthContext.Provider value={contextValue}>
       <div className="bg-white min-h-screen">
-        <LandingNavbar
-          onLogin={() => openPanel("login")}
-          onRegister={() => openPanel("register")}
-        />
+        {!isCustomLanding && (
+          <LandingNavbar
+            onLogin={() => openPanel("login")}
+            onRegister={() => openPanel("register")}
+          />
+        )}
 
         {children}
 
-        <LandingFooter />
+        {!isCustomLanding && <LandingFooter />}
 
         {/* Auth Drawer */}
         <AnimatePresence>

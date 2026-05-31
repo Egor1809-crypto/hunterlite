@@ -263,6 +263,7 @@ class _SoloQuizState:
         self.question_start_time: float = 0.0
         self.timer_task: asyncio.Task | None = None
         self.finished: bool = False
+        self.awaiting_next: bool = False
 
         # V2: Adaptive difficulty & personality
         self.consecutive_correct: int = 0
@@ -549,6 +550,7 @@ async def _start_solo_quiz(
 
 async def _next_question(ws: WebSocket, state: _SoloQuizState) -> None:
     """Generate the next question and send it to the client."""
+    state.awaiting_next = False
 
     # V2: Soft/hard limits for free_dialog
     if state.mode == QuizMode.free_dialog:
@@ -892,6 +894,9 @@ async def _handle_mc_answer(ws: WebSocket, state: _SoloQuizState, choice_index: 
     if state.finished or state.current_q is None:
         await _send_error(ws, "No active question", "no_question")
         return
+    if state.awaiting_next:
+        await _send_error(ws, "Нажмите «Далее», чтобы перейти к следующему вопросу.", "awaiting_next")
+        return
 
     # Cancel blitz timer if running
     if state.timer_task and not state.timer_task.done():
@@ -1003,14 +1008,20 @@ async def _handle_mc_answer(ws: WebSocket, state: _SoloQuizState, choice_index: 
         "score": state.score,
     })
 
-    # Next question (or finish)
-    await _next_question(ws, state)
+    state.awaiting_next = True
+    await _send(ws, "quiz.awaiting_next", {
+        "question_number": state.current_question,
+        "has_next": state.current_question < state.total_questions,
+    })
 
 
 async def _handle_answer(ws: WebSocket, state: _SoloQuizState, text: str) -> None:
     """Evaluate user's answer and send feedback."""
     if state.finished or state.current_q is None:
         await _send_error(ws, "No active question", "no_question")
+        return
+    if state.awaiting_next:
+        await _send_error(ws, "Нажмите «Далее», чтобы перейти к следующему вопросу.", "awaiting_next")
         return
 
     # Security: filter user input (jailbreak + profanity)
@@ -1324,8 +1335,11 @@ async def _handle_answer(ws: WebSocket, state: _SoloQuizState, text: str) -> Non
             })
             return  # Wait for follow-up answer or skip
 
-    # Next question
-    await _next_question(ws, state)
+    state.awaiting_next = True
+    await _send(ws, "quiz.awaiting_next", {
+        "question_number": state.current_question,
+        "has_next": state.current_question < state.total_questions,
+    })
 
 
 async def _handle_skip(ws: WebSocket, state: _SoloQuizState) -> None:
@@ -3526,6 +3540,17 @@ async def knowledge_websocket(websocket: WebSocket) -> None:
                 else:
                     await _send_error(websocket, "No active quiz session", "no_session")
 
+            # ── Continue after answer review ──
+            elif msg_type in ("quiz.next", "next_question"):
+                if quiz_state and not quiz_state.finished:
+                    if quiz_state.awaiting_next:
+                        quiz_state.awaiting_next = False
+                        await _next_question(websocket, quiz_state)
+                    else:
+                        await _send_error(websocket, "Сначала ответьте на текущий вопрос.", "answer_required")
+                else:
+                    await _send_error(websocket, "No active quiz session", "no_session")
+
             # ── V2: Follow-up answer/skip ──
             elif msg_type == "quiz.follow_up_response":
                 if quiz_state and not quiz_state.finished and quiz_state.pending_follow_up:
@@ -3540,7 +3565,8 @@ async def knowledge_websocket(websocket: WebSocket) -> None:
                             })
                     # Proceed to next question regardless
                     await _next_question(websocket, quiz_state)
-                elif quiz_state and not quiz_state.finished:
+                elif quiz_state and not quiz_state.finished and quiz_state.awaiting_next:
+                    quiz_state.awaiting_next = False
                     await _next_question(websocket, quiz_state)
 
             # ── SRS: Get user SRS stats ──

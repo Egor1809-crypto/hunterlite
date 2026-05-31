@@ -51,7 +51,7 @@ const CARDS: Card[] = [
     mode: "blitz",
     icon: "bolt",
     title: "Блиц 20×60",
-    accent: "var(--gf-xp, #facc15)",
+    accent: "var(--warning)",
   },
   {
     mode: "themed",

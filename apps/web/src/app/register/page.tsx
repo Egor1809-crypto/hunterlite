@@ -4,8 +4,9 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { Mail, User, ArrowRight, AlertCircle, Scale } from "lucide-react";
+import { Mail, User, ArrowRight, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/Button";
+import { BrandLogo } from "@/components/ui/BrandLogo";
 import { api, resetAuthCircuitBreaker } from "@/lib/api";
 import { setTokens } from "@/lib/auth";
 import { PasswordInput } from "@/components/ui/PasswordInput";
@@ -104,13 +105,7 @@ export default function RegisterPage() {
             transition={{ delay: 0.1 }}
             className="mb-3 flex items-center justify-center gap-2.5"
           >
-            <Scale size={28} style={{ color: "var(--primary)" }} />
-            <span
-              className="text-2xl font-bold tracking-tight"
-              style={{ color: "var(--text-primary)" }}
-            >
-              Legal<span style={{ color: "var(--primary)" }}>Hunter</span>
-            </span>
+            <BrandLogo size="lg" />
           </motion.div>
           <p className="text-sm" style={{ color: "var(--text-muted)" }}>
             Создание аккаунта

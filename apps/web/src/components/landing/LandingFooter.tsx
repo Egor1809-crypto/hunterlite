@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { Scale, Mail, Shield } from "lucide-react";
+import { Mail, Shield } from "lucide-react";
+import { BrandLogo } from "@/components/ui/BrandLogo";
 
 export function LandingFooter() {
   return (
@@ -11,12 +12,7 @@ export function LandingFooter() {
           {/* Brand column */}
           <div className="sm:col-span-2 md:col-span-1">
             <Link href="/" className="flex items-center gap-2.5 mb-4 transition-opacity hover:opacity-80">
-              <div className="w-7 h-7 rounded-md bg-[#F97316] flex items-center justify-center">
-                <Scale size={15} className="text-white" />
-              </div>
-              <span className="text-base font-bold tracking-tight text-gray-900">
-                LegalHunter
-              </span>
+              <BrandLogo size="sm" />
             </Link>
             <p className="text-sm leading-relaxed text-gray-500 max-w-[260px] mb-4">
               AI-тренажер переговоров для арбитражных управляющих.

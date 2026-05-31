@@ -17,14 +17,6 @@
 import { motion } from "framer-motion";
 import { Check } from "lucide-react";
 
-const BADGE_COLORS = [
-  "var(--accent)",                    // A — фиолетовый
-  "var(--success, #22c55e)",          // B — зелёный
-  "var(--gf-xp, #facc15)",            // C — золотой
-  "var(--magenta, #d946ef)",          // D — мажента
-  "var(--warning, #f97316)",          // E — оранжевый
-];
-
 interface QuizAnswerCardProps {
   index: number;          // 0..4
   text: string;
@@ -42,7 +34,6 @@ export function QuizAnswerCard({
   disabled,
   onPick,
 }: QuizAnswerCardProps) {
-  const badgeColor = BADGE_COLORS[index % BADGE_COLORS.length];
   const letter = String.fromCharCode(65 + index);
   const dim = locked && !picked;
   const interactive = !locked && !disabled;
@@ -55,20 +46,18 @@ export function QuizAnswerCard({
       initial={{ opacity: 0, x: -16 }}
       animate={{ opacity: dim ? 0.35 : 1, x: 0 }}
       transition={{ delay: index * 0.04, duration: 0.22 }}
-      whileHover={interactive ? { y: -2 } : undefined}
-      whileTap={interactive ? { scale: 0.98 } : undefined}
-      className="group relative w-full flex items-center gap-3 text-left rounded-xl overflow-hidden"
+      whileHover={interactive ? { y: -1 } : undefined}
+      whileTap={interactive ? { y: 0 } : undefined}
+      className="group relative w-full flex items-center gap-4 text-left rounded-2xl overflow-hidden"
       style={{
-        padding: "18px 20px",
+        padding: "20px 22px",
         background: picked
-          ? `linear-gradient(135deg, color-mix(in srgb, ${badgeColor} 18%, var(--glass-bg, rgba(255,255,255,0.04))) 0%, color-mix(in srgb, ${badgeColor} 8%, var(--glass-bg, rgba(255,255,255,0.04))) 100%)`
-          : "linear-gradient(135deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.02) 100%)",
-        border: `1px solid ${picked ? badgeColor : `color-mix(in srgb, ${badgeColor} 28%, transparent)`}`,
-        boxShadow: picked
-          ? `0 0 0 3px color-mix(in srgb, ${badgeColor} 18%, transparent), 0 12px 32px color-mix(in srgb, ${badgeColor} 26%, transparent), inset 0 1px 0 rgba(255,255,255,0.06)`
-          : `0 4px 14px rgba(0,0,0,0.22), inset 0 1px 0 rgba(255,255,255,0.05)`,
-        backdropFilter: "blur(20px) saturate(1.2)",
-        WebkitBackdropFilter: "blur(20px) saturate(1.2)",
+          ? "var(--primary-muted)"
+          : "var(--surface-card)",
+        border: picked
+          ? "2px solid var(--primary)"
+          : "2px solid var(--border-color)",
+        boxShadow: picked ? "var(--shadow-md)" : "var(--shadow-sm)",
         cursor: interactive ? "pointer" : "default",
         transition: "background 200ms, border-color 200ms, box-shadow 240ms, transform 160ms",
       }}
@@ -80,29 +69,24 @@ export function QuizAnswerCard({
         aria-hidden
         className="absolute left-0 top-0 bottom-0 transition-all"
         style={{
-          width: picked ? 4 : 3,
-          background: badgeColor,
-          opacity: picked ? 1 : 0.55,
-          boxShadow: picked ? `0 0 12px ${badgeColor}` : "none",
+          width: picked ? 4 : 0,
+          background: "var(--primary)",
+          opacity: picked ? 1 : 0,
         }}
       />
 
-      {/* letter badge — circular с inset highlight для объёма */}
+      {/* letter badge */}
       <span
-        className="font-display font-bold shrink-0 flex items-center justify-center select-none relative"
+        className="font-semibold shrink-0 flex items-center justify-center select-none relative"
         style={{
-          width: 48,
-          height: 48,
+          width: 38,
+          height: 38,
           borderRadius: "50%",
-          background: `radial-gradient(circle at 30% 25%, color-mix(in srgb, ${badgeColor} 100%, white 22%) 0%, ${badgeColor} 70%)`,
-          color: "#0a0810",
-          fontSize: 24,
-          letterSpacing: "0.02em",
-          boxShadow: picked
-            ? `0 0 20px ${badgeColor}, inset 0 1px 0 rgba(255,255,255,0.4), inset 0 -2px 4px rgba(0,0,0,0.18)`
-            : `0 4px 10px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.32), inset 0 -1px 4px rgba(0,0,0,0.2)`,
-          transition: "box-shadow 220ms, transform 220ms",
-          textShadow: "0 1px 0 rgba(255,255,255,0.18)",
+          background: picked ? "var(--primary)" : "var(--bg-secondary)",
+          color: picked ? "#fff" : "var(--text-secondary)",
+          fontSize: 16,
+          border: picked ? "1px solid var(--primary)" : "1px solid var(--border-color)",
+          transition: "background 220ms, color 220ms, border-color 220ms",
         }}
       >
         {letter}
@@ -113,9 +97,9 @@ export function QuizAnswerCard({
         className="flex-1 leading-snug"
         style={{
           color: "var(--text-primary)",
-          fontSize: 17,
+          fontSize: 16,
           fontWeight: 500,
-          lineHeight: 1.45,
+          lineHeight: 1.5,
         }}
       >
         {text}
@@ -150,12 +134,11 @@ export function QuizAnswerCard({
           transition={{ type: "spring", stiffness: 360, damping: 18 }}
           className="shrink-0 flex items-center justify-center"
           style={{
-            width: 32,
-            height: 32,
+            width: 30,
+            height: 30,
             borderRadius: "50%",
-            background: badgeColor,
-            color: "#0a0810",
-            boxShadow: `0 0 14px ${badgeColor}`,
+            background: "var(--primary)",
+            color: "#fff",
           }}
           aria-hidden
         >

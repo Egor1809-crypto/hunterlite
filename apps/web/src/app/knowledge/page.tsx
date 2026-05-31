@@ -308,15 +308,7 @@ export default function KnowledgePage() {
           }
         `}</style>
 
-        {/* Ambient glow orbs */}
-        <div className="absolute inset-0 pointer-events-none overflow-hidden" aria-hidden>
-          <div className="absolute -top-32 right-[10%] rounded-full opacity-[0.04]" style={{ width: 900, height: 900, background: "radial-gradient(circle, #10B981 0%, transparent 70%)" }} />
-          <div className="absolute top-[60%] -left-20 rounded-full opacity-[0.03]" style={{ width: 700, height: 700, background: "radial-gradient(circle, #3B82F6 0%, transparent 70%)" }} />
-          <div className="absolute top-[30%] right-[-5%] rounded-full opacity-[0.025]" style={{ width: 600, height: 600, background: "radial-gradient(circle, #8B5CF6 0%, transparent 70%)" }} />
-        </div>
-
-        {/* Noise texture */}
-        <div className="absolute inset-0 pointer-events-none z-[1]" aria-hidden style={{ backgroundImage: NOISE_SVG, backgroundRepeat: "repeat", opacity: 1 }} />
+        <div className="absolute inset-0 pointer-events-none z-[1] opacity-[0.06]" aria-hidden style={{ backgroundImage: NOISE_SVG, backgroundRepeat: "repeat" }} />
 
         <div className="relative z-10 max-w-[1100px] mx-auto px-5 sm:px-8 py-8 sm:py-12">
 
@@ -331,27 +323,22 @@ export default function KnowledgePage() {
               <div
                 className="w-14 h-14 rounded-2xl flex items-center justify-center shrink-0"
                 style={{
-                  background: "linear-gradient(135deg, rgba(16,185,129,0.15), rgba(59,130,246,0.1))",
-                  boxShadow: "0 0 0 1px rgba(16,185,129,0.25), 0 0 30px rgba(16,185,129,0.12), 0 8px 32px rgba(0,0,0,0.3)",
+                  background: "var(--primary-muted)",
+                  border: "1px solid var(--border-color)",
+                  boxShadow: "var(--shadow-sm)",
                 }}
               >
-                <BookOpen size={26} style={{ color: "#10B981" }} />
+                <BookOpen size={26} style={{ color: "var(--brand-logo-hunter)" }} />
               </div>
               <div>
                 <h1
-                  className="text-3xl sm:text-4xl font-black tracking-tight"
-                  style={{
-                    background: "linear-gradient(135deg, #ffffff 0%, #10B981 50%, #3B82F6 100%)",
-                    backgroundSize: "200% 200%",
-                    WebkitBackgroundClip: "text",
-                    WebkitTextFillColor: "transparent",
-                    animation: "gradient-shift 6s ease infinite",
-                  }}
+                  className="text-4xl sm:text-6xl font-semibold tracking-[-0.07em]"
+                  style={{ color: "var(--text-primary)" }}
                 >
                   База знаний
                 </h1>
-                <p className="text-sm mt-1 font-medium" style={{ color: "var(--text-muted)" }}>
-                  ФЗ-127, судебная практика, AI-помощник
+                <p className="text-lg mt-2 font-medium" style={{ color: "var(--brand-logo-hunter)" }}>
+                  ФЗ-127, судебная практика, радар и AI-помощник
                 </p>
               </div>
             </div>

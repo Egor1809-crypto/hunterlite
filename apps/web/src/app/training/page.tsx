@@ -23,14 +23,14 @@ const TRAINING_SURFACE_CSS = `
 .training-solid-page .glass-panel,
 .training-solid-page .premium-card,
 .training-solid-page .surface-card {
-  background: rgba(10, 16, 34, 0.92) !important;
-  border-color: rgba(148, 163, 184, 0.14) !important;
-  box-shadow: 0 18px 55px rgba(0, 0, 0, 0.26), inset 0 1px 0 rgba(255,255,255,0.04) !important;
+  background: var(--surface-card) !important;
+  border-color: var(--border-color) !important;
+  box-shadow: var(--shadow-sm) !important;
 }
 .training-solid-page input,
 .training-solid-page textarea,
 .training-solid-page select {
-  background: rgba(6, 10, 24, 0.88) !important;
+  background: var(--input-bg) !important;
 }
 `;
 
@@ -43,8 +43,8 @@ const TABS: {
   emoji: string;
   hue: string;
 }[] = [
-  { id: "tests",     label: "Карта тестов",  icon: Target,         emoji: "🗺️", hue: "var(--info)" },
-  { id: "builder",   label: "Конструктор",   icon: Puzzle,         emoji: "🧩", hue: "var(--success)" },
+  { id: "tests",     label: "Тесты",  icon: Target,         emoji: "🗺️", hue: "var(--brand-logo-hunter)" },
+  { id: "builder",   label: "Мои клиенты",   icon: Puzzle,         emoji: "🧩", hue: "var(--brand-logo-hunter)" },
 ];
 
 interface RecommendedPreset {
@@ -162,18 +162,10 @@ function TrainingPageContent() {
       <div
         className="training-solid-page relative min-h-screen overflow-hidden"
         style={{
-          background: "linear-gradient(135deg, rgba(5,12,34,0.98) 0%, rgba(13,18,43,0.98) 40%, rgba(5,36,43,0.96) 100%)",
+          background: "var(--bg-primary)",
         }}
       >
-        <div
-          className="pointer-events-none absolute inset-0 z-0"
-          style={{
-            backgroundImage: "linear-gradient(rgba(96,165,250,0.055) 1px, transparent 1px), linear-gradient(90deg, rgba(94,234,212,0.045) 1px, transparent 1px)",
-            backgroundSize: "68px 68px",
-            opacity: 0.5,
-          }}
-        />
-        <div className="pointer-events-none absolute inset-0 z-0" style={{ backgroundImage: NOISE_SVG, backgroundRepeat: "repeat", opacity: 0.36 }} />
+        <div className="pointer-events-none absolute inset-0 z-0" style={{ backgroundImage: NOISE_SVG, backgroundRepeat: "repeat", opacity: 0.08 }} />
 
         <div className="app-page">
           {/* Header */}
@@ -183,18 +175,19 @@ function TrainingPageContent() {
                 <div
                   className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0"
                   style={{
-                    background: "var(--accent-muted)",
-                    boxShadow: "0 0 0 1px color-mix(in srgb, var(--accent) 20%, transparent), 0 0 20px rgba(59,130,246,0.15), 0 0 40px rgba(59,130,246,0.05)",
+                    background: "var(--primary-muted)",
+                    border: "1px solid var(--border-color)",
+                    boxShadow: "var(--shadow-sm)",
                   }}
                 >
-                  <Crosshair size={22} style={{ color: "var(--accent)" }} />
+                  <Crosshair size={22} style={{ color: "var(--brand-logo-hunter)" }} />
                 </div>
                 <div>
-                  <h1 className="text-2xl sm:text-3xl font-bold tracking-tight" style={{ color: "var(--text-primary)" }}>
+                  <h1 className="text-4xl sm:text-6xl font-semibold tracking-[-0.07em]" style={{ color: "var(--text-primary)" }}>
                     Обучение
                   </h1>
-                  <p className="mt-0.5 text-sm" style={{ color: "var(--text-muted)" }}>
-                    AI-тренировки с реалистичными клиентами
+                  <p className="mt-2 text-lg" style={{ color: "var(--brand-logo-hunter)" }}>
+                    Тесты, AI-клиенты и практические сценарии в одной программе
                   </p>
                 </div>
               </div>
@@ -205,7 +198,7 @@ function TrainingPageContent() {
           <LearningPathWidget />
 
           {/* Tabs */}
-          <div className="mt-6 flex gap-1 rounded-xl p-1 overflow-x-auto" style={{ background: "rgba(8, 13, 28, 0.9)", border: "1px solid rgba(148,163,184,0.12)", boxShadow: "0 18px 55px rgba(0,0,0,0.22)" }}>
+          <div className="mt-6 flex gap-1 rounded-[24px] border p-1 overflow-x-auto" style={{ background: "var(--surface-card)", borderColor: "var(--border-color)", boxShadow: "var(--shadow-sm)" }}>
             {TABS.map((t) => {
               const active = tab === t.id;
               return (

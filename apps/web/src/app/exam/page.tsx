@@ -272,36 +272,24 @@ export default function ExamPage() {
     <AuthLayout showBreadcrumbs={false}>
       <style dangerouslySetInnerHTML={{ __html: EXAM_KEYFRAMES }} />
 
-      <div className="min-h-screen relative" style={{ background: EXAM_BACKGROUND }}>
-        <div className="absolute inset-0 pointer-events-none z-[1]" aria-hidden style={{ backgroundImage: NOISE_SVG, backgroundRepeat: "repeat", opacity: 1 }} />
-        <div
-          className="absolute inset-0 pointer-events-none overflow-hidden"
-          aria-hidden
-          style={{
-            backgroundImage: `${EXAM_SCHEME_SVG}, linear-gradient(rgba(133,247,232,0.055) 1px, transparent 1px), linear-gradient(90deg, rgba(133,247,232,0.045) 1px, transparent 1px)`,
-            backgroundSize: "520px 520px, 72px 72px, 72px 72px",
-            backgroundPosition: "center 0, center 0, center 0",
-            animation: "examSchemeDrift 34s linear infinite, examSchemePulse 7s ease-in-out infinite",
-            maskImage: "linear-gradient(to bottom, rgba(0,0,0,0.95), rgba(0,0,0,0.45) 70%, rgba(0,0,0,0.2))",
-          }}
-        />
-        <div className="absolute inset-0 pointer-events-none" aria-hidden style={{ background: "linear-gradient(180deg, rgba(3,7,18,0.12) 0%, rgba(3,7,18,0.5) 100%)" }} />
+      <div className="min-h-screen relative" style={{ background: "var(--bg-primary)" }}>
+        <div className="absolute inset-0 pointer-events-none z-[1] opacity-[0.06]" aria-hidden style={{ backgroundImage: NOISE_SVG, backgroundRepeat: "repeat" }} />
 
         <div className="relative z-10 max-w-[900px] mx-auto px-5 sm:px-8 py-8 sm:py-12">
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
             <div className="flex items-center gap-4">
               <div
                 className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0"
-                style={{ background: "rgba(245,158,11,0.12)", boxShadow: "0 0 0 1px rgba(245,158,11,0.2)" }}
+                style={{ background: "var(--primary-muted)", border: "1px solid var(--border-color)", boxShadow: "var(--shadow-sm)" }}
               >
-                <GraduationCap size={22} style={{ color: "#F59E0B" }} />
+                <GraduationCap size={22} style={{ color: "var(--brand-logo-hunter)" }} />
               </div>
               <div>
-                <h1 className="text-2xl sm:text-3xl font-bold tracking-tight" style={{ color: "var(--text-primary)" }}>
+                <h1 className="text-4xl sm:text-6xl font-semibold tracking-[-0.07em]" style={{ color: "var(--text-primary)" }}>
                   Экзамен
                 </h1>
-                <p className="mt-0.5 text-sm" style={{ color: "var(--text-muted)" }}>
-                  4 модуля + финальная аттестация
+                <p className="mt-2 text-lg" style={{ color: "var(--brand-logo-hunter)" }}>
+                  Формальная аттестация и подтверждение квалификации
                 </p>
               </div>
             </div>

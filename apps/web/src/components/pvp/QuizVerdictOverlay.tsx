@@ -171,39 +171,39 @@ export function QuizVerdictOverlay({
     <AnimatePresence mode="wait">
       <motion.div
         key={verdictId}
-        initial={{ opacity: 0, y: 16, scale: 0.96 }}
-        animate={{ opacity: 1, y: 0, scale: 1 }}
-        exit={{ opacity: 0, y: -8, scale: 0.98 }}
+        initial={{ opacity: 0, x: 44, scale: 0.96 }}
+        animate={{ opacity: 1, x: 0, scale: 1 }}
+        exit={{ opacity: 0, x: 32, scale: 0.98 }}
         transition={{ type: "spring", stiffness: 280, damping: 22 }}
-        className="relative rounded-2xl overflow-hidden"
+        className="relative overflow-hidden rounded-[28px]"
         style={{
-          background: `linear-gradient(135deg, ${bgGlow} 0%, rgba(255,255,255,0.02) 60%, rgba(255,255,255,0.04) 100%)`,
+          background: `linear-gradient(135deg, ${bgGlow} 0%, var(--surface-card) 44%, var(--bg-secondary) 100%)`,
           border: `1px solid ${color}`,
-          boxShadow: `0 12px 48px ${bgGlow}, 0 0 0 1px ${color}40, inset 0 1px 0 rgba(255,255,255,0.08)`,
-          backdropFilter: "blur(24px) saturate(1.4)",
-          WebkitBackdropFilter: "blur(24px) saturate(1.4)",
+          boxShadow: `0 24px 70px -34px ${color}, 0 12px 42px rgba(63,42,76,0.16), inset 0 1px 0 rgba(255,255,255,0.62)`,
+          backdropFilter: "blur(18px) saturate(1.2)",
+          WebkitBackdropFilter: "blur(18px) saturate(1.2)",
         }}
       >
         {/* Particle burst — играет 1 раз при mount */}
         <ParticleBurst color={color} />
 
-        <div className="relative px-5 py-4">
+        <div className="relative px-5 py-5">
           {/* Большой icon + label */}
-          <div className="flex items-center gap-3 mb-3">
+          <div className="mb-4 flex items-center gap-3">
             <motion.div
               initial={{ scale: 0, rotate: -180 }}
               animate={{ scale: 1, rotate: 0 }}
               transition={{ type: "spring", stiffness: 320, damping: 18, delay: 0.05 }}
-              className="flex items-center justify-center rounded-2xl shrink-0"
+              className="flex shrink-0 items-center justify-center rounded-[22px]"
               style={{
-                width: 72,
-                height: 72,
-                background: `linear-gradient(135deg, ${bgGlow} 0%, rgba(0,0,0,0.2) 100%)`,
-                border: `2px solid ${color}`,
-                boxShadow: `0 0 32px ${color}, inset 0 1px 0 rgba(255,255,255,0.14)`,
+                width: 62,
+                height: 62,
+                background: `linear-gradient(135deg, ${bgGlow} 0%, var(--surface-card) 100%)`,
+                border: `1px solid ${color}`,
+                boxShadow: `0 14px 34px -20px ${color}, inset 0 1px 0 rgba(255,255,255,0.72)`,
               }}
             >
-              <Icon size={42} style={{ color, filter: `drop-shadow(0 0 8px ${color})` }} />
+              <Icon size={34} style={{ color }} />
             </motion.div>
             <div className="flex-1 min-w-0">
               <motion.div
@@ -213,9 +213,8 @@ export function QuizVerdictOverlay({
                 className="font-display font-bold uppercase tracking-widest"
                 style={{
                   color,
-                  fontSize: 30,
+                  fontSize: 24,
                   letterSpacing: "0.12em",
-                  textShadow: `0 0 24px ${color}88`,
                   lineHeight: 1.05,
                 }}
               >
@@ -224,7 +223,7 @@ export function QuizVerdictOverlay({
               {typeof verdict.llmScore === "number" && (
                 <div
                   className="font-mono mt-1 tabular-nums"
-                  style={{ color: "var(--text-secondary)", fontSize: 14 }}
+                  style={{ color: "var(--text-secondary)", fontSize: 13 }}
                 >
                   Оценка: {Math.round(verdict.llmScore)}/10
                 </div>
@@ -235,12 +234,11 @@ export function QuizVerdictOverlay({
                 initial={{ scale: 0.4, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
                 transition={{ type: "spring", stiffness: 360, damping: 18, delay: 0.15 }}
-                className="flex items-center gap-1 px-3 py-1.5 rounded-xl font-display font-bold uppercase tracking-wider"
+                className="flex items-center gap-1 rounded-xl px-2.5 py-1.5 font-display text-[10px] font-bold uppercase tracking-wider"
                 style={{
                   background: "linear-gradient(135deg, rgba(245,158,11,0.95) 0%, rgba(245,158,11,0.78) 100%)",
                   color: "#1a0f00",
                   boxShadow: "0 4px 14px rgba(245,158,11,0.45), inset 0 1px 0 rgba(255,255,255,0.3)",
-                  fontSize: 11,
                   letterSpacing: "0.1em",
                 }}
               >
@@ -255,12 +253,13 @@ export function QuizVerdictOverlay({
               initial={{ opacity: 0, y: 4 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.12 }}
-              className="px-4 py-3 mb-3 rounded-xl italic"
+              className="mb-3 rounded-2xl px-4 py-3 italic"
               style={{
-                background: "rgba(255,255,255,0.04)",
-                borderLeft: "4px solid var(--accent)",
+                background: "var(--surface-card)",
+                border: "1px solid var(--border-color)",
+                borderLeft: `4px solid ${color}`,
                 color: "var(--text-primary)",
-                fontSize: 16,
+                fontSize: 15,
                 lineHeight: 1.55,
               }}
             >
@@ -275,7 +274,7 @@ export function QuizVerdictOverlay({
               initial={{ opacity: 0, y: 6 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.16 }}
-              className="px-4 py-3 mb-3 rounded-xl"
+              className="mb-3 rounded-2xl px-4 py-3"
               style={{
                 background: "linear-gradient(135deg, rgba(34,197,94,0.16) 0%, rgba(34,197,94,0.05) 100%)",
                 border: "1px solid rgba(34,197,94,0.5)",
@@ -308,15 +307,15 @@ export function QuizVerdictOverlay({
           )}
 
           {/* Footer: source chip + dismiss button */}
-          <div className="flex items-center gap-3 mt-1">
+          <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-center">
             {articleRef && (
               <div
-                className="inline-flex items-center gap-1.5 font-mono uppercase px-3 py-1.5 rounded-lg shrink-0"
+                className="inline-flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 font-mono uppercase"
                 style={{
                   color: "var(--text-secondary)",
-                  background: "rgba(255,255,255,0.05)",
-                  border: "1px solid rgba(255,255,255,0.1)",
-                  fontSize: 13,
+                  background: "var(--surface-card)",
+                  border: "1px solid var(--border-color)",
+                  fontSize: 12,
                   letterSpacing: "0.06em",
                   fontWeight: 600,
                 }}
@@ -330,20 +329,20 @@ export function QuizVerdictOverlay({
               onClick={onDismiss}
               whileHover={{ x: 2 }}
               whileTap={{ scale: 0.96 }}
-              className="ml-auto inline-flex items-center gap-2.5 rounded-xl font-display font-bold uppercase tracking-widest"
+              className="inline-flex w-full items-center justify-center gap-2.5 rounded-full font-display font-bold uppercase tracking-widest sm:ml-auto sm:w-auto"
               style={{
-                padding: "14px 24px",
-                background: `linear-gradient(135deg, ${color} 0%, color-mix(in srgb, ${color} 78%, black) 100%)`,
-                color: "#0a0810",
+                padding: "13px 20px",
+                background: "var(--text-primary)",
+                color: "var(--surface-card)",
                 border: `1px solid color-mix(in srgb, ${color} 60%, white)`,
-                boxShadow: `0 8px 24px ${color}66, inset 0 1px 0 rgba(255,255,255,0.22)`,
-                fontSize: 16,
+                boxShadow: `0 16px 34px -24px ${color}`,
+                fontSize: 14,
                 letterSpacing: "0.14em",
                 cursor: "pointer",
               }}
             >
               {autoAdvance && progress > 0 && progress < 1 && (
-                <CountdownRing progress={progress} color="#0a0810" />
+                <CountdownRing progress={progress} color="var(--surface-card)" />
               )}
               Далее
               <ArrowRight size={20} />

@@ -11,6 +11,7 @@ import {
   Lightbulb,
   Loader2,
   Zap,
+  ArrowRight,
 } from "lucide-react";
 import { useWebSocket } from "@/hooks/useWebSocket";
 import { AppIcon } from "@/components/ui/AppIcon";
@@ -83,7 +84,6 @@ function KnowledgeSessionPage() {
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const completionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const userExitedRef = useRef(false);
-  const manyashaFailAnnouncedRef = useRef(false);
 
   // PR-12 (2026-05-07): pull the most-recent answerId from the store so
   // the panel-level «Сообщить о проблеме» button knows which row to flag.
@@ -118,6 +118,14 @@ function KnowledgeSessionPage() {
     if (dismissedVerdicts.has(last.id)) return null;
     return last;
   }, [store.messages, dismissedVerdicts]);
+  const latestQuestion = useMemo(() => {
+    const questions = store.messages.filter((m) => m.type === "question");
+    return questions[questions.length - 1] ?? null;
+  }, [store.messages]);
+  const quietSupportMessages = useMemo(
+    () => store.messages.filter((m) => m.type === "hint" || m.type === "follow_up").slice(-2),
+    [store.messages],
+  );
   // Auto-dismiss верить когда currentQuestion инкрементировался
   // (новый вопрос пришёл от backend).
   const lastQuestionIdxRef = useRef(store.currentQuestion);
@@ -152,6 +160,8 @@ function KnowledgeSessionPage() {
   // tier=null means "no hint used yet"; tiersRemaining=0 disables the button.
   const [hintTier, setHintTier] = useState<number | null>(null);
   const [hintTiersRemaining, setHintTiersRemaining] = useState<number | null>(null);
+  const [awaitingNext, setAwaitingNext] = useState(false);
+  const [hasNextQuestion, setHasNextQuestion] = useState(true);
   const mapLevel = useMemo(() => {
     const raw = searchParams?.get("map_level");
     const parsed = raw ? Number(raw) : NaN;
@@ -347,6 +357,8 @@ function KnowledgeSessionPage() {
             avatarEmoji: currentPersonality?.avatarEmoji,
           });
           store.setIsTyping(false);
+          setAwaitingNext(false);
+          setHasNextQuestion(true);
           // V2: Update difficulty from server
           if (typeof data.current_difficulty === "number") {
             store.setCurrentDifficulty(data.current_difficulty as number);
@@ -498,6 +510,13 @@ function KnowledgeSessionPage() {
           break;
         }
 
+        case "quiz.awaiting_next": {
+          store.setIsTyping(false);
+          setAwaitingNext(true);
+          setHasNextQuestion(data.has_next !== false);
+          break;
+        }
+
         // V2: Follow-up question from AI
         case "quiz.follow_up": {
           store.setPendingFollowUp(data.text as string);
@@ -605,15 +624,6 @@ function KnowledgeSessionPage() {
           // SFX: victory or defeat based on score
           const resultScore = (results.score as number) ?? 0;
           playSound(resultScore >= 50 ? "victory" : "defeat", 0.5);
-          if (mapLevel !== null && resultScore < TRAINING_MAP_PASS_SCORE && !manyashaFailAnnouncedRef.current) {
-            manyashaFailAnnouncedRef.current = true;
-            window.dispatchEvent(new CustomEvent("manyasha:say", {
-              detail: {
-                text: `Тест пока не сдан. Нужно набрать минимум ${TRAINING_MAP_PASS_SCORE} процентов. Пройди уровень заново, я помогу разобрать ошибки.`,
-                open: true,
-              },
-            }));
-          }
           break;
         }
 
@@ -750,6 +760,7 @@ function KnowledgeSessionPage() {
   const handleSend = useCallback(() => {
     const text = sanitizeInput(store.input.trim());
     if (!text || store.status !== "active") return;
+    if (awaitingNext) return;
 
     const reason = validateAnswer(text);
     if (reason) {
@@ -767,7 +778,7 @@ function KnowledgeSessionPage() {
 
     // Focus back on input
     setTimeout(() => inputRef.current?.focus(), 50);
-  }, [store.input, store.status, sendMessage]); // eslint-disable-line react-hooks/exhaustive-deps -- store setters are stable Zustand actions
+  }, [store.input, store.status, sendMessage, awaitingNext]); // eslint-disable-line react-hooks/exhaustive-deps -- store setters are stable Zustand actions
 
   // PR-MC (2026-05-05): one-shot click handler for the 3-button MC layout.
   // Sends `{type:"answer", choice_index}` instead of free text and stashes
@@ -775,6 +786,7 @@ function KnowledgeSessionPage() {
   // when the verdict comes back.
   const handleChoicePick = useCallback((idx: number) => {
     if (store.status !== "active") return;
+    if (awaitingNext) return;
     if (store.pickedChoiceIndex !== null) return; // already locked-in
     const choices = store.currentChoices;
     if (!choices || idx < 0 || idx >= choices.length) return;
@@ -782,6 +794,13 @@ function KnowledgeSessionPage() {
     store.addMessage({ type: "answer", content: choices[idx] });
     sendMessage({ type: "answer", choice_index: idx });
     store.setIsTyping(true);
+  }, [store, sendMessage, awaitingNext]);
+
+  const handleNextQuestion = useCallback(() => {
+    if (store.status !== "active") return;
+    setAwaitingNext(false);
+    store.setIsTyping(true);
+    sendMessage({ type: "quiz.next" });
   }, [store, sendMessage]);
 
   // PR-20 (2026-05-08): Arcade-Stage редизайн — extract exit handler
@@ -797,6 +816,7 @@ function KnowledgeSessionPage() {
 
   useEffect(() => {
     if (store.status !== "active") return;
+    if (awaitingNext) return;
     if (store.pickedChoiceIndex !== null) return;
     const choices = store.currentChoices;
     if (!choices || choices.length < 2) return;
@@ -814,7 +834,7 @@ function KnowledgeSessionPage() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [store.status, store.pickedChoiceIndex, store.currentChoices, handleChoicePick]);
+  }, [store.status, store.pickedChoiceIndex, store.currentChoices, handleChoicePick, awaitingNext]);
 
   // Request hint
   const handleHint = useCallback(() => {
@@ -830,37 +850,6 @@ function KnowledgeSessionPage() {
       handleSend();
     }
   };
-
-  useEffect(() => {
-    if (mapLevel === null || store.status !== "completed" || manyashaFailAnnouncedRef.current) return;
-
-    const results = store.results || {};
-    const total = typeof results.total_questions === "number"
-      ? results.total_questions
-      : store.totalQuestions || (store.correct + store.incorrect);
-    const correct = typeof results.correct === "number" ? results.correct : store.correct;
-    const scorePercent = typeof results.score === "number"
-      ? results.score
-      : total > 0 ? Math.round((correct / total) * 100) : store.score;
-
-    if (scorePercent >= TRAINING_MAP_PASS_SCORE) return;
-
-    manyashaFailAnnouncedRef.current = true;
-    window.dispatchEvent(new CustomEvent("manyasha:say", {
-      detail: {
-        text: `Тест пока не сдан. Нужно набрать минимум ${TRAINING_MAP_PASS_SCORE} процентов. Пройди уровень заново, я рядом и помогу разобрать ошибки.`,
-        open: false,
-      },
-    }));
-  }, [
-    mapLevel,
-    store.status,
-    store.results,
-    store.totalQuestions,
-    store.correct,
-    store.incorrect,
-    store.score,
-  ]);
 
   // PR-20: formatTime + progressPct переехали в QuizHUD; сюда не нужны.
 
@@ -908,15 +897,9 @@ function KnowledgeSessionPage() {
       className="flex h-screen flex-col relative"
       style={{
         backgroundColor: "var(--bg-primary)",
-        // PR-20 polish: smoother ambient gradient + subtle grid (вместо
-        // жёсткой 23px-сетки). Sub-pixel смотрится тоньше на ретине.
         backgroundImage: `
-          radial-gradient(ellipse 80% 60% at 50% 0%, var(--accent-muted) 0%, transparent 55%),
-          radial-gradient(ellipse 60% 50% at 80% 100%, rgba(217,70,239,0.06) 0%, transparent 60%),
-          repeating-linear-gradient(0deg, transparent 0, transparent 31px, rgba(107,77,199,0.025) 31px, rgba(107,77,199,0.025) 32px),
-          repeating-linear-gradient(90deg, transparent 0, transparent 31px, rgba(107,77,199,0.025) 31px, rgba(107,77,199,0.025) 32px)
+          radial-gradient(ellipse 70% 45% at 50% -10%, var(--accent-muted) 0%, transparent 58%)
         `,
-        // Анти-алиасинг шрифтов на всю страницу — глаз ловит разницу.
         WebkitFontSmoothing: "antialiased",
         MozOsxFontSmoothing: "grayscale",
         textRendering: "optimizeLegibility",
@@ -957,190 +940,11 @@ function KnowledgeSessionPage() {
            прихода первого quiz.question, со скелетоном вариантов. Иначе
            юзер видел вспышку textarea на первом paint'е. */}
       {(store.currentChoices && store.currentChoices.length >= 2) || isMcByUrl ? (
-        <div className="flex-1 flex flex-col lg:flex-row overflow-hidden pb-8 lg:pb-10">
-          {/* ── LEFT: MC Choices Panel (1/3) ── PR-20: glass-arena style. */}
-          <aside
-            className="order-2 lg:order-1 shrink-0 lg:w-[36%] overflow-y-auto"
-            style={{
-	              backgroundColor: "var(--bg-primary)",
-              borderRight: "1px solid var(--glass-border, rgba(255,255,255,0.08))",
-            }}
-          >
-            <div className="flex flex-col h-full p-4 lg:p-5">
-              <div
-                className="font-display font-bold uppercase tracking-widest mb-4 px-3 py-2 text-center rounded-xl"
-                style={{
-                  color: "var(--accent)",
-                  fontSize: 13,
-                  letterSpacing: "0.18em",
-                  background: "var(--glass-bg, rgba(255,255,255,0.04))",
-                  border: "1px solid color-mix(in srgb, var(--accent) 28%, transparent)",
-                  backdropFilter: "blur(20px)",
-                  WebkitBackdropFilter: "blur(20px)",
-                  textShadow: "0 0 12px var(--accent-glow)",
-                }}
-              >
-                ▸ ВЫБЕРИТЕ ОТВЕТ
-              </div>
-
-              <div className="flex flex-col gap-3 flex-1">
-                {/* Pre-question skeleton (glass) — иначе layout схлопывается. */}
-                {(!store.currentChoices || store.currentChoices.length < 2) && (
-                  <>
-                    {[0, 1, 2, 3, 4].map((i) => (
-                      <div
-                        key={`skeleton-${i}`}
-                        className="animate-pulse rounded-xl"
-                        style={{
-                          height: 64,
-                          background: "var(--glass-bg, rgba(255,255,255,0.04))",
-                          border: "1px solid var(--glass-border, rgba(255,255,255,0.08))",
-                          backdropFilter: "blur(20px)",
-                          opacity: 0.5,
-                        }}
-                      />
-                    ))}
-                    <div
-                      className="font-mono text-center text-[12px] mt-2 tracking-wider"
-                      style={{ color: "var(--text-muted)", letterSpacing: "0.12em" }}
-                    >
-                      Загружаем варианты…
-                    </div>
-                  </>
-                )}
-                {(store.currentChoices ?? []).map((choiceText, idx) => (
-                  <QuizAnswerCard
-                    key={idx}
-                    index={idx}
-                    text={choiceText}
-                    picked={store.pickedChoiceIndex === idx}
-                    locked={store.pickedChoiceIndex !== null}
-                    disabled={store.status !== "active"}
-                    onPick={handleChoicePick}
-                  />
-                ))}
-              </div>
-
-              {/* Hint button at bottom of choices panel */}
-              {hintAvailable && (
-                <motion.button
-                  onClick={handleHint}
-                  disabled={
-                    hintLoading ||
-                    store.status !== "active" ||
-                    (hintTiersRemaining !== null && hintTiersRemaining <= 0)
-                  }
-                  whileHover={{ y: -2 }}
-                  whileTap={{ scale: 0.97 }}
-                  className="mt-4 flex w-full items-center justify-center gap-2 py-3 px-3 rounded-xl disabled:opacity-40"
-                  style={{
-                    background: "rgba(245,158,11,0.1)",
-                    border: "1px solid rgba(245,158,11,0.4)",
-                    color: "var(--warning)",
-                    backdropFilter: "blur(20px)",
-                    boxShadow: "0 4px 16px rgba(245,158,11,0.16)",
-                    transition: "border-color 160ms, box-shadow 200ms",
-                  }}
-                  title={
-                    hintTier !== null
-                      ? `Подсказка ${hintTier}/3 · ещё ${hintTiersRemaining ?? 0}`
-                      : "Подсказка (3 уровня, штраф растёт)"
-                  }
-                  aria-label="Подсказка"
-                >
-                  {hintLoading ? (
-                    <Loader2 size={16} className="animate-spin" />
-                  ) : (
-                    <>
-                      <Lightbulb size={16} />
-                      <span className="font-display font-bold text-[12px] uppercase tracking-widest">
-                        {hintTier !== null ? `Подсказка ${hintTier}/3` : "Подсказка"}
-                      </span>
-                    </>
-                  )}
-                </motion.button>
-              )}
-
-              {/* PR-12 (2026-05-07): «Сообщить о проблеме» — продублированный
-                  вход для жалобы на ответ AI прямо в панели вариантов.
-                  Раньше кнопка жила только в verdict-bubble в чате (PR-6),
-                  но если AI принял ответ неправильно (или сам вопрос
-                  кривой), пользователю удобнее жаловаться прямо отсюда.
-                  Привязывается к last answer'у с answerId. Если ответа
-                  ещё не было — disabled с tooltip'ом. */}
-              <QuestionReportButton lastAnswerId={lastAnswerId} />
-
-              {/* PR-22 (Phase 2): HistoryStrip — компактные ✓/✗ за все
-                  отвеченные вопросы с tooltip-preview на hover. */}
-              {(store.totalQuestions > 0 || store.messages.some((m) => m.type === "feedback")) && (
-                <div className="mt-4">
-                  <QuizHistoryStrip
-                    messages={store.messages}
-                    totalQuestions={store.totalQuestions}
-                    variant="compact"
-                  />
-                </div>
-              )}
-
-              {/* PR-22 (Phase 2): reactive scale — на cheer лев растёт до
-                  1.15 spring, на sad сжимается 0.92 + shake. Лёгкий, но
-                  заметный feedback для каждого вердикта. */}
-              <div className="mt-4 flex justify-center">
-                <motion.div
-                  key={quizMascotState}
-                  animate={
-                    quizMascotState === "cheer" ? { scale: [1, 1.08] }
-                    : quizMascotState === "sad" ? { scale: [1, 0.94], rotate: [-2, 2] }
-                    : { scale: 1 }
-                  }
-                  transition={
-                    quizMascotState === "cheer"
-                      ? { duration: 0.35, type: "tween", ease: [0.22, 1, 0.36, 1] }
-                      : { duration: 0.35, type: "tween" }
-                  }
-                  className="rounded-2xl flex items-center justify-center"
-                  style={{
-                    padding: 8,
-                    background: "linear-gradient(135deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.02) 100%)",
-                    border: "1px solid var(--glass-border, rgba(255,255,255,0.08))",
-                    boxShadow:
-                      quizMascotState === "cheer"
-                        ? "0 0 24px color-mix(in srgb, var(--success) 40%, transparent), inset 0 1px 0 rgba(255,255,255,0.06)"
-                        : quizMascotState === "sad"
-                          ? "0 0 24px color-mix(in srgb, var(--danger) 40%, transparent), inset 0 1px 0 rgba(255,255,255,0.06)"
-                          : "0 4px 16px rgba(0,0,0,0.2), inset 0 1px 0 rgba(255,255,255,0.06)",
-                    backdropFilter: "blur(20px)",
-                    transition: "box-shadow 320ms",
-                  }}
-                >
-                  <PixelMascot
-                    state={quizMascotState}
-                    size={72}
-                    background="transparent"
-                    ariaLabel="Квиз-маскот"
-                  />
-                </motion.div>
-              </div>
-
-            </div>
-          </aside>
-
-          {/* ── RIGHT: Chat Area (2/3) ── */}
-          <div
-            className="order-1 lg:order-2 flex-1 overflow-y-auto relative"
-            style={{
-              backgroundImage: `
-                radial-gradient(ellipse at 50% 20%, rgba(107,77,199,0.12) 0%, transparent 55%),
-                repeating-linear-gradient(0deg, transparent 0, transparent 31px, rgba(107,77,199,0.06) 31px, rgba(107,77,199,0.06) 32px),
-                repeating-linear-gradient(90deg, transparent 0, transparent 31px, rgba(107,77,199,0.06) 31px, rgba(107,77,199,0.06) 32px)
-              `,
-            }}
-          >
-            <div className="px-4 pt-6 pb-16 lg:pb-20 space-y-4 relative">
-              {/* PR-22 (Phase 2): VerdictOverlay sticky-top — большая
-                  карточка вердикта с particle-burst, авто-адванс в блице. */}
+        <div className="flex-1 overflow-y-auto px-4 py-8 sm:py-10">
+          <div className="mx-auto max-w-3xl space-y-6">
+            <div className="relative">
               {latestVerdict && (
-                <div className="sticky top-2 z-30">
+                <div className="fixed right-4 top-1/2 z-50 w-[min(420px,calc(100vw-32px))] -translate-y-1/2 sm:right-6 lg:right-8">
                   <QuizVerdictOverlay
                     verdict={latestVerdict}
                     autoAdvance={store.mode === "blitz" || urlMode === "rapid_blitz"}
@@ -1149,6 +953,7 @@ function KnowledgeSessionPage() {
                   />
                 </div>
               )}
+            </div>
 
               {connectionState !== "connected" && (
                 <motion.div
@@ -1201,7 +1006,125 @@ function KnowledgeSessionPage() {
                 </motion.div>
               )}
 
-              {store.messages.map((msg) => (
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={latestQuestion?.id ?? "loading-question"}
+                initial={{ opacity: 0, y: 16 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -16 }}
+                transition={{ duration: 0.32 }}
+                className="overflow-hidden rounded-3xl"
+                style={{
+                  background: "var(--surface-card)",
+                  border: "1px solid var(--border-color)",
+                  boxShadow: "var(--shadow-sm)",
+                }}
+              >
+                <div className="h-[3px]" style={{ background: "var(--primary)" }} />
+                <div className="p-6 sm:p-8">
+                  {latestQuestion?.category && (
+                    <div className="mb-3 text-xs font-semibold" style={{ color: "var(--text-muted)" }}>
+                      {categoryLabel(latestQuestion.category)}
+                    </div>
+                  )}
+                  <h1
+                    className="text-xl font-bold leading-relaxed sm:text-2xl"
+                    style={{ color: "var(--text-primary)", letterSpacing: "0" }}
+                  >
+                    {latestQuestion?.content ?? "Загружаем вопрос..."}
+                  </h1>
+                </div>
+              </motion.div>
+            </AnimatePresence>
+
+            <div className="space-y-3">
+              {(!store.currentChoices || store.currentChoices.length < 2) && (
+                <>
+                  {[0, 1, 2, 3].map((i) => (
+                    <div
+                      key={`skeleton-${i}`}
+                      className="h-20 animate-pulse rounded-2xl"
+                      style={{ background: "var(--surface-card)", border: "1px solid var(--border-color)" }}
+                    />
+                  ))}
+                  <div className="text-center text-sm" style={{ color: "var(--text-muted)" }}>
+                    Загружаем варианты...
+                  </div>
+                </>
+              )}
+              {(store.currentChoices ?? []).map((choiceText, idx) => (
+                <QuizAnswerCard
+                  key={idx}
+                  index={idx}
+                  text={choiceText}
+                  picked={store.pickedChoiceIndex === idx}
+                  locked={store.pickedChoiceIndex !== null}
+                  disabled={store.status !== "active" || awaitingNext}
+                  onPick={handleChoicePick}
+                />
+              ))}
+              {awaitingNext && (
+                <motion.button
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  onClick={handleNextQuestion}
+                  className="flex w-full items-center justify-center gap-2 rounded-2xl px-5 py-4 text-sm font-bold uppercase"
+                  style={{
+                    background: "linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%)",
+                    color: "#fff",
+                    border: "1px solid color-mix(in srgb, var(--primary) 55%, transparent)",
+                    boxShadow: "0 14px 32px color-mix(in srgb, var(--primary) 28%, transparent)",
+                    letterSpacing: "0.08em",
+                  }}
+                >
+                  {hasNextQuestion ? "Далее" : "Показать результаты"}
+                  <ArrowRight size={16} />
+                </motion.button>
+              )}
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+              {hintAvailable && (
+                <button
+                  onClick={handleHint}
+                  disabled={
+                    hintLoading ||
+                    awaitingNext ||
+                    store.status !== "active" ||
+                    (hintTiersRemaining !== null && hintTiersRemaining <= 0)
+                  }
+                  className="flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold disabled:opacity-40"
+                  style={{
+                    background: "var(--surface-card)",
+                    border: "1px solid var(--border-color)",
+                    color: "var(--warning)",
+                    boxShadow: "var(--shadow-sm)",
+                  }}
+                  title={
+                    hintTier !== null
+                      ? `Подсказка ${hintTier}/3 · ещё ${hintTiersRemaining ?? 0}`
+                      : "Подсказка"
+                  }
+                  aria-label="Подсказка"
+                >
+                  {hintLoading ? <Loader2 size={16} className="animate-spin" /> : <Lightbulb size={16} />}
+                  {hintTier !== null ? `Подсказка ${hintTier}/3` : "Подсказка"}
+                </button>
+              )}
+              <div className="[&>button]:h-full [&>button]:w-full [&>button]:justify-center [&>button]:rounded-xl">
+                <QuestionReportButton lastAnswerId={lastAnswerId} />
+              </div>
+            </div>
+
+            {(store.totalQuestions > 0 || store.messages.some((m) => m.type === "feedback")) && (
+              <QuizHistoryStrip
+                messages={store.messages}
+                totalQuestions={store.totalQuestions}
+                variant="compact"
+              />
+            )}
+
+            {quietSupportMessages.map((msg) => (
                 <MessageBubble key={msg.id} message={msg} />
               ))}
 
@@ -1212,7 +1135,6 @@ function KnowledgeSessionPage() {
               <div ref={messagesEndRef} />
             </div>
           </div>
-        </div>
       ) : (
         /* ═══ Single-column free-text layout ═══ */
         <>
@@ -1220,9 +1142,7 @@ function KnowledgeSessionPage() {
             className="flex-1 overflow-y-auto relative"
             style={{
               backgroundImage: `
-                radial-gradient(ellipse at 50% 20%, rgba(107,77,199,0.12) 0%, transparent 55%),
-                repeating-linear-gradient(0deg, transparent 0, transparent 31px, rgba(107,77,199,0.06) 31px, rgba(107,77,199,0.06) 32px),
-                repeating-linear-gradient(90deg, transparent 0, transparent 31px, rgba(107,77,199,0.06) 31px, rgba(107,77,199,0.06) 32px)
+                radial-gradient(ellipse at 50% 0%, var(--accent-muted) 0%, transparent 58%)
               `,
             }}
           >
@@ -1290,8 +1210,36 @@ function KnowledgeSessionPage() {
             </div>
           </div>
 
+          {awaitingNext && (
+            <div
+              className="shrink-0 px-4 py-3"
+              style={{
+                background: "color-mix(in srgb, var(--primary) 5%, var(--bg-primary))",
+                borderTop: "1px solid var(--border-color)",
+              }}
+            >
+              <div className="mx-auto max-w-3xl">
+                <motion.button
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  onClick={handleNextQuestion}
+                  className="flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold"
+                  style={{
+                    background: "var(--primary)",
+                    color: "#fff",
+                    border: "1px solid color-mix(in srgb, var(--primary) 55%, transparent)",
+                    boxShadow: "var(--shadow-md)",
+                  }}
+                >
+                  {hasNextQuestion ? "Далее" : "Показать результаты"}
+                  <ArrowRight size={16} />
+                </motion.button>
+              </div>
+            </div>
+          )}
+
           {/* Follow-up bar */}
-          {store.pendingFollowUp && (
+          {store.pendingFollowUp && !awaitingNext && (
             <div
               className="shrink-0 border-t px-4 py-3"
               style={{ borderColor: "var(--accent-muted)", background: "var(--accent-muted)" }}
@@ -1365,6 +1313,7 @@ function KnowledgeSessionPage() {
                   onClick={handleHint}
                   disabled={
                     hintLoading ||
+                    awaitingNext ||
                     store.status !== "active" ||
                     (hintTiersRemaining !== null && hintTiersRemaining <= 0)
                   }
@@ -1420,13 +1369,13 @@ function KnowledgeSessionPage() {
                     overflowY: "auto",
                     fontFamily: "var(--font-mono, monospace)",
                   }}
-                  disabled={store.status !== "active"}
+                  disabled={store.status !== "active" || awaitingNext}
                 />
               </div>
 
               <motion.button
                 onClick={handleSend}
-                disabled={!store.input.trim() || store.status !== "active"}
+                disabled={!store.input.trim() || store.status !== "active" || awaitingNext}
                 whileTap={{ scale: 0.97 }}
                 className="flex h-11 shrink-0 items-center justify-center gap-1.5 px-3 sm:px-4 rounded-xl disabled:opacity-40 text-sm font-semibold"
                 style={{

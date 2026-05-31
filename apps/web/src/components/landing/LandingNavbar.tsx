@@ -3,7 +3,8 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowRight, Menu, X as XIcon, Scale } from "lucide-react";
+import { ArrowRight, Menu, X as XIcon } from "lucide-react";
+import { BrandLogo } from "@/components/ui/BrandLogo";
 
 interface LandingNavbarProps {
   onLogin: () => void;
@@ -48,12 +49,7 @@ export function LandingNavbar({ onLogin, onRegister }: LandingNavbarProps) {
 
         {/* Center: Logo */}
         <Link href="/" className="flex items-center gap-3 transition-opacity hover:opacity-80">
-          <div className="w-11 h-11 rounded-xl bg-[#F97316] flex items-center justify-center">
-            <Scale size={22} className="text-white" />
-          </div>
-          <span className="text-2xl font-black tracking-tight text-gray-900">
-            LegalHunter
-          </span>
+          <BrandLogo size="lg" />
         </Link>
 
         {/* Right: Actions */}
