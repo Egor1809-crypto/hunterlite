@@ -110,7 +110,7 @@ export default function AppSidebar({ collapsed, onToggle }: AppSidebarProps) {
 
   return (
     <aside
-      className="fixed top-0 left-0 z-40 flex h-screen flex-col border-r select-none overflow-hidden"
+      className={`fixed top-0 left-0 z-40 flex h-screen flex-col border-r select-none ${collapsed && userMenuOpen ? "" : "overflow-hidden"}`}
 	      style={{
 	        background: "var(--surface-card)",
 	        borderColor: "var(--border-color)",
@@ -415,11 +415,15 @@ export default function AppSidebar({ collapsed, onToggle }: AppSidebarProps) {
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 8, scale: 0.97 }}
               transition={{ duration: 0.15 }}
-              className="absolute bottom-full left-3 right-3 mb-2 overflow-hidden rounded-xl border"
+              className={`absolute bottom-full mb-2 overflow-hidden rounded-xl border ${collapsed ? "left-2" : "left-3 right-3"}`}
               style={{
                 background: "var(--surface-card)",
                 borderColor: "var(--border-color)",
                 boxShadow: "var(--shadow-lg)",
+                // Collapsed sidebar is only 68px wide — a left/right-anchored menu
+                // would squeeze the labels into a single vertical column. Give it a
+                // fixed width so it flies out beyond the rail and reads horizontally.
+                width: collapsed ? 208 : undefined,
               }}
             >
               <div className="p-1.5">
@@ -428,7 +432,7 @@ export default function AppSidebar({ collapsed, onToggle }: AppSidebarProps) {
                     setUserMenuOpen(false);
                     router.push("/profile");
                   }}
-                  className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition-colors"
+                  className="flex w-full items-center gap-2.5 whitespace-nowrap rounded-lg px-3 py-2 text-sm transition-colors"
                   style={{ color: "var(--text-secondary)" }}
                   onMouseEnter={(e) => {
                     e.currentTarget.style.background = "var(--bg-secondary)";
@@ -447,7 +451,7 @@ export default function AppSidebar({ collapsed, onToggle }: AppSidebarProps) {
                     setUserMenuOpen(false);
                     router.push("/settings");
                   }}
-                  className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition-colors"
+                  className="flex w-full items-center gap-2.5 whitespace-nowrap rounded-lg px-3 py-2 text-sm transition-colors"
                   style={{ color: "var(--text-secondary)" }}
                   onMouseEnter={(e) => {
                     e.currentTarget.style.background = "var(--bg-secondary)";
@@ -470,7 +474,7 @@ export default function AppSidebar({ collapsed, onToggle }: AppSidebarProps) {
                     setUserMenuOpen(false);
                     logout();
                   }}
-                  className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition-colors"
+                  className="flex w-full items-center gap-2.5 whitespace-nowrap rounded-lg px-3 py-2 text-sm transition-colors"
                   style={{ color: "var(--danger)" }}
                   onMouseEnter={(e) => {
                     e.currentTarget.style.background = "var(--danger-muted)";

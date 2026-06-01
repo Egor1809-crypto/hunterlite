@@ -449,6 +449,7 @@ async def _wait_for_reissued_pair(
 async def me(user: User = Depends(get_current_user)):
     payload = {c.name: getattr(user, c.name) for c in user.__table__.columns}
     payload["team_id"] = str(user.team_id) if user.team_id else None
+    payload["telegram_linked"] = getattr(user, "telegram_id", None) is not None
     return UserResponse.model_validate(payload)
 
 

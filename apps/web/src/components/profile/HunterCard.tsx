@@ -1,20 +1,18 @@
 "use client";
 
 /**
- * 2026-05-08 (графическая полировка): glass-panel + rounded-2xl
- * заменены на пиксельный плоский стиль:
- *   - 3px solid border акцентом (rounded-sm — почти square corners)
- *   - аватар: square frame с 3px бордером (вместо rounded-2xl) + пиксельные инициалы
- *   - угловые «glow blobs» убраны — лишний шум на пиксельной странице
- *   - имя: font-medium вместо font-display, размер 28-36px
- *   - метки роли/команды: пиксельные плашки 2px solid
- *   - level-ring остался, но обведён square фрагментом + текст font-medium
- *   - XP-bar: square corners, пиксельный outline, неоновый glow
+ * HunterCard — profile hero, unified "vibe" rebuild (2026).
+ *
+ * Was an arcade card: dark hardcoded gradient + 3px neon border + glow +
+ * pixel grid + neon XP bar. That was dark-first (broke on light theme) and
+ * long names/emails overflowed. Now frameless + token-based + hairline-only,
+ * mono-lilac: ONE accent (var(--primary)) appears exactly 3× — the top line,
+ * the avatar initials, the XP fill. Hierarchy by scale, not chrome.
+ * Grounding: malvah (frameless, scale-not-weight, mono codes) + abstract
+ * (one accent, hairline rules, restraint).
  */
 
 import { motion } from "framer-motion";
-import { Zap, Flame } from "lucide-react";
-import { EASE_SNAP } from "@/lib/constants";
 
 interface HunterCardProps {
   user: { full_name: string; email: string; role: string };
@@ -33,14 +31,27 @@ const ROLE_LABELS: Record<string, string> = {
   manager: "Менеджер",
   rop: "РОП",
   admin: "Администратор",
-  methodologist: "РОП",  // legacy enum — retired 2026-04-26, displays as ROP for stale tokens
+  methodologist: "РОП", // legacy enum — retired 2026-04-26, displays as ROP for stale tokens
 };
 
-export function HunterCard({ user, stats, gamification, teamName }: HunterCardProps) {
+function Stat({ label, value }: { label: string; value: string | number }) {
+  return (
+    <div className="shrink-0">
+      <div className="font-mono text-[10px] uppercase tracking-[0.12em]" style={{ color: "var(--text-secondary)" }}>
+        {label}
+      </div>
+      <div className="mt-1 font-mono text-[30px] leading-none tabular-nums" style={{ color: "var(--text-primary)" }}>
+        {value}
+      </div>
+    </div>
+  );
+}
+
+export function HunterCard({ user, gamification, teamName }: HunterCardProps) {
   const level = gamification?.level ?? 1;
   const xpCurrent = gamification?.xp_current_level ?? 0;
   const xpNext = gamification?.xp_next_level ?? 100;
-  const xpPct = xpNext > 0 ? Math.round((xpCurrent / xpNext) * 100) : 0;
+  const xpPct = xpNext > 0 ? Math.max(0, Math.min(100, Math.round((xpCurrent / xpNext) * 100))) : 0;
   const streakDays = gamification?.streak_days ?? 0;
 
   const initials = user.full_name
@@ -50,197 +61,78 @@ export function HunterCard({ user, stats, gamification, teamName }: HunterCardPr
     .join("")
     .toUpperCase();
 
+  const role = ROLE_LABELS[user.role] ?? user.role;
+  const subtitle = teamName ? `${role} · ${teamName}` : role;
+
   return (
     <motion.div
-      initial={{ opacity: 0, y: 16 }}
+      initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      className="relative overflow-hidden rounded-sm p-5 md:p-7"
-      style={{
-        background: "linear-gradient(135deg, rgba(8,5,18,0.9), rgba(16,12,28,0.95))",
-        border: "3px solid var(--accent)",
-        boxShadow: "0 0 18px var(--accent-glow), inset 0 0 12px rgba(167,139,250,0.18)",
-      }}
+      transition={{ duration: 0.24, ease: "easeOut" }}
+      className="relative pt-5"
     >
-      {/* Пиксельный grid-фон — еле заметная сетка для аркадного ритма */}
-      <div
-        aria-hidden
-        className="absolute inset-0 pointer-events-none"
-        style={{
-          backgroundImage: `
-            repeating-linear-gradient(0deg, rgba(167,139,250,0.07) 0 1px, transparent 1px 28px),
-            repeating-linear-gradient(90deg, rgba(167,139,250,0.07) 0 1px, transparent 1px 28px)
-          `,
-        }}
-      />
+      {/* the ONE accent: a single thin top line */}
+      <div aria-hidden className="absolute left-0 top-0 h-0.5 w-10" style={{ background: "var(--primary)" }} />
 
-      <div className="relative z-10 flex flex-col sm:flex-row sm:items-center gap-5 md:gap-6">
-        {/* Левый блок: Аватар + Инфо */}
-        <div className="flex items-center gap-4 md:gap-5 flex-1 min-w-0">
-          {/* Square pixel avatar (вместо rounded-2xl) */}
-          <div
-            className="w-[88px] h-[88px] rounded-sm flex items-center justify-center font-medium shrink-0"
-            style={{
-              background: "linear-gradient(135deg, var(--accent), rgba(167,139,250,0.6))",
-              border: "3px solid #0b0b14",
-              outline: "2px solid var(--accent)",
-              outlineOffset: 0,
-              boxShadow: "0 0 14px var(--accent-glow)",
-              color: "#0b0b14",
-              fontSize: 32,
-              letterSpacing: "0.04em",
-            }}
-          >
-            {initials}
-          </div>
-
-          <div className="min-w-0 flex-1">
-            <h2
-              className="font-medium truncate"
-              style={{
-                color: "var(--text-primary)",
-                fontSize: "clamp(24px, 3.5vw, 36px)",
-                lineHeight: 1.05,
-                textShadow: "0 0 8px var(--accent-glow)",
-              }}
-              title={user.full_name}
-            >
-              {user.full_name}
-            </h2>
-            <div className="flex items-center gap-2 mt-2 flex-wrap">
-              <span
-                className="rounded-sm px-2.5 py-1 font-medium uppercase tracking-wide"
-                style={{
-                  background: "rgba(167,139,250,0.18)",
-                  color: "var(--accent)",
-                  border: "2px solid var(--accent)",
-                  fontSize: 14,
-                }}
-              >
-                {ROLE_LABELS[user.role] ?? user.role}
-              </span>
-              {teamName && (
-                <span
-                  className="rounded-sm px-2.5 py-1 font-medium uppercase tracking-wide"
-                  style={{
-                    background: "rgba(255,255,255,0.04)",
-                    color: "var(--text-muted)",
-                    border: "1px dashed rgba(255,255,255,0.18)",
-                    fontSize: 14,
-                  }}
-                >
-                  {teamName}
-                </span>
-              )}
-            </div>
-            {streakDays > 0 && (
-              <div
-                className="inline-flex items-center gap-1.5 mt-3 px-2.5 py-1 rounded-sm"
-                style={{
-                  background: "rgba(251,146,60,0.12)",
-                  border: "2px solid rgba(251,146,60,0.55)",
-                }}
-              >
-                <Flame size={14} style={{ color: "#fb923c" }} />
-                <span
-                  className="font-bold tabular-nums uppercase tracking-wide"
-                  style={{ color: "#fb923c", fontSize: 14 }}
-                >
-                  {streakDays} ДН. СТРИК
-                </span>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Правый блок: Square level «знак» (вместо круга) */}
+      {/* identity row */}
+      <div className="flex items-center gap-5">
+        {/* avatar — no neon, just a hairline ring */}
         <div
-          className="relative shrink-0 self-center flex flex-col items-center justify-center rounded-sm"
+          className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full font-semibold tabular-nums"
           style={{
-            width: 96,
-            height: 96,
-            background: "rgba(167,139,250,0.08)",
-            border: "3px solid var(--accent)",
-            boxShadow: "0 0 14px var(--accent-glow)",
+            background: "var(--bg-tertiary)",
+            border: "1px solid var(--border-color)",
+            color: "var(--primary)",
+            fontSize: 22,
+            letterSpacing: "0.02em",
           }}
         >
-          {/* progress border — обводка вокруг square, как «энергия XP» */}
-          <svg
-            viewBox="0 0 96 96"
-            className="absolute inset-0"
-            style={{ pointerEvents: "none" }}
+          {initials}
+        </div>
+
+        {/* name + role/team — full overflow chain (min-w-0 + truncate + title) */}
+        <div className="min-w-0 flex-1">
+          <h2
+            className="truncate font-semibold tracking-tight"
+            style={{ color: "var(--text-primary)", fontSize: "clamp(20px, 3.2vw, 26px)", lineHeight: 1.12 }}
+            title={user.full_name}
           >
-            <rect
-              x="3" y="3" width="90" height="90"
-              fill="none"
-              stroke="var(--accent)"
-              strokeWidth="3"
-              strokeDasharray={360}
-              strokeDashoffset={360 * (1 - xpPct / 100)}
-              style={{
-                filter: "drop-shadow(0 0 6px var(--accent-glow))",
-                transition: "stroke-dashoffset 1s ease",
-              }}
+            {user.full_name}
+          </h2>
+          <div
+            className="mt-1 truncate font-mono text-[13px] uppercase tracking-[0.08em]"
+            style={{ color: "var(--text-secondary)" }}
+            title={subtitle}
+          >
+            {subtitle}
+          </div>
+        </div>
+      </div>
+
+      {/* stats — scale carries hierarchy; XP gets the one hairline bar */}
+      <div className="mt-6 flex flex-wrap items-end gap-x-8 gap-y-5">
+        <Stat label="Уровень" value={level} />
+
+        <div className="min-w-[180px] flex-1">
+          <div className="flex items-baseline justify-between font-mono text-[12px] tabular-nums" style={{ color: "var(--text-secondary)" }}>
+            <span>
+              {xpCurrent.toLocaleString("ru-RU")} / {xpNext.toLocaleString("ru-RU")} XP
+            </span>
+            <span style={{ color: "var(--text-primary)" }}>{xpPct}%</span>
+          </div>
+          <div className="mt-2 h-0.5 w-full overflow-hidden" style={{ background: "var(--border-color)" }}>
+            <motion.div
+              className="h-full"
+              style={{ background: "var(--primary)" }}
+              initial={{ width: 0 }}
+              animate={{ width: `${xpPct}%` }}
+              transition={{ duration: 0.6, ease: "easeOut" }}
             />
-          </svg>
-          <div
-            className="font-medium uppercase tracking-wide"
-            style={{ color: "var(--text-muted)", fontSize: 12, lineHeight: 1 }}
-          >
-            УР.
-          </div>
-          <div
-            className="font-black tabular-nums"
-            style={{
-              color: "var(--accent)",
-              fontSize: 36,
-              lineHeight: 1.0,
-              marginTop: 2,
-              textShadow: "0 0 8px var(--accent-glow)",
-            }}
-          >
-            {level}
           </div>
         </div>
-      </div>
 
-      {/* XP Progress Bar — square corners, пиксельный outline */}
-      <div className="relative z-10 mt-5">
-        <div className="flex items-center justify-between mb-2">
-          <span
-            className="font-medium uppercase tracking-wide tabular-nums"
-            style={{ color: "var(--text-secondary)", fontSize: 14 }}
-          >
-            <Zap size={14} className="inline mr-1.5" style={{ color: "var(--accent)" }} />
-            {xpCurrent.toLocaleString("ru-RU")} / {xpNext.toLocaleString("ru-RU")} XP
-          </span>
-          <span
-            className="font-medium uppercase tracking-wide"
-            style={{ color: "var(--accent)", fontSize: 14 }}
-          >
-            УР. {level}
-          </span>
-        </div>
-        <div
-          className="h-4 rounded-sm overflow-hidden"
-          style={{
-            background: "rgba(0,0,0,0.45)",
-            border: "2px solid rgba(167,139,250,0.4)",
-          }}
-        >
-          <motion.div
-            className="h-full rounded-sm"
-            initial={{ width: 0 }}
-            animate={{ width: `${xpPct}%` }}
-            transition={{ duration: 1.2, ease: EASE_SNAP }}
-            style={{
-              background: "linear-gradient(90deg, var(--accent) 0%, rgba(255,210,80,0.9) 100%)",
-              boxShadow: "0 0 10px var(--accent-glow)",
-            }}
-          />
-        </div>
+        {streakDays > 0 && <Stat label="Дней подряд" value={streakDays} />}
       </div>
-
-      {/* Stats moved to ProgressGraph — no duplicate cards here */}
     </motion.div>
   );
 }

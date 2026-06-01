@@ -12,35 +12,39 @@ const config: Config = {
         md: "10px",
         lg: "14px",
         xl: "20px",
+        "2xl": "24px",
       },
       colors: {
-        /* ── Primary (Orange) ── */
+        /* ── Primary (brand lilac → blue in dark; DEFAULT tracks --primary) ──
+           Was a stale ORANGE ramp that contradicted the lilac/blue brand and
+           rendered `bg-primary`/`text-primary-*` orange. Now the ramp is the
+           lilac brand and DEFAULT references the theme-aware CSS var. */
         primary: {
-          50: "#FFF7ED",
-          100: "#FFEDD5",
-          200: "#FED7AA",
-          300: "#FDBA74",
-          400: "#FB923C",
-          500: "#F97316",
-          DEFAULT: "#F97316",
-          600: "#EA580C",
-          700: "#C2410C",
-          800: "#9A3412",
-          900: "#7C2D12",
+          50: "#F5F3FF",
+          100: "#EDE9FE",
+          200: "#DDD6FE",
+          300: "#C4B5FD",
+          400: "#A78BFA",
+          500: "#8B5CF6",
+          DEFAULT: "var(--primary)",
+          600: "#7C3AED",
+          700: "#6D28D9",
+          800: "#5B21B6",
+          900: "#4C1D95",
         },
-        /* ── Ocean (Blue) ── */
+        /* ── Ocean (violet, matches CSS --ocean; was a conflicting cyan ramp) ── */
         ocean: {
-          50: "#ECFEFF",
-          100: "#CFFAFE",
-          200: "#A5F3FC",
-          300: "#67E8F9",
-          400: "#22D3EE",
-          500: "#0891B2",
-          DEFAULT: "#0891B2",
-          600: "#0E7490",
-          700: "#155E75",
-          800: "#164E63",
-          900: "#083344",
+          50: "#F5F3FF",
+          100: "#EDE9FE",
+          200: "#DDD6FE",
+          300: "#C4B5FD",
+          400: "#A78BFA",
+          500: "#8B5CF6",
+          DEFAULT: "var(--ocean)",
+          600: "#7C3AED",
+          700: "#6D28D9",
+          800: "#5B21B6",
+          900: "#4C1D95",
         },
         /* ── Surface (Neutral slate) ── */
         surface: {
@@ -56,9 +60,10 @@ const config: Config = {
           900: "#0F172A",
           950: "#020617",
         },
-        success: "#16A34A",
-        warning: "#D97706",
-        danger: "#DC2626",
+        /* semantic — track theme-aware CSS vars (single source of truth) */
+        success: "var(--success)",
+        warning: "var(--warning)",
+        danger: "var(--danger)",
       },
       fontSize: {
         xs: ["0.875rem", { lineHeight: "1.25rem" }],

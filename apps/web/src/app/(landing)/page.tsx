@@ -5,6 +5,7 @@ import Image from "next/image";
 import { ArrowRight, Check, FileCheck, GraduationCap, ShieldCheck } from "lucide-react";
 import { useLandingAuth } from "@/components/landing/LandingAuthContext";
 import { BrandLogo } from "@/components/ui/BrandLogo";
+import { CertificatePreview, CERT_LIGHT_PALETTE } from "@/components/certificate/CertificatePreview";
 
 const stats = [
   { value: "18 000+", label: "квалифицированных юристов вышли из наших программ" },
@@ -207,14 +208,40 @@ export default function LandingPage() {
             </div>
           </section>
 
-          <section id="certificate" className="grid gap-8 border-b border-[#D9C9E8] py-14 lg:grid-cols-[1fr_1fr] lg:py-20">
-            <div className="rounded-[28px] border border-[#D9C9E8] bg-[#FFFDF8] p-8">
+          {/* 5.1 — the certificate as the destination: a blurred, locked diploma
+                    the visitor is invited to earn. Editorial band, hero object breathes. */}
+          <section id="certificate" className="grid items-center gap-10 border-b border-[#D9C9E8] py-14 lg:grid-cols-[1fr_440px] lg:gap-16 lg:py-20">
+            <div className="order-2 lg:order-1">
               <ShieldCheck size={30} className="text-[#7C3AED]" />
               <h2 className="mt-8 text-[clamp(2.6rem,5vw,5.8rem)] font-semibold leading-[0.9] tracking-[-0.07em] text-[#18131D]">
                 Сертификат, который подтверждает рост.
               </h2>
+              <p className="mt-6 max-w-xl text-lg leading-snug text-[#5F5367]">
+                Документ эксперта по банкротству физических лиц, заверенный практикующими юристами РФ.
+                Его получают те, кто прошёл курс и сдал экзамен.
+              </p>
+              <button
+                onClick={openRegister}
+                className="mt-9 inline-flex items-center gap-3 rounded-full bg-[#18131D] px-6 py-4 text-sm font-semibold text-white transition hover:bg-[#7C3AED]"
+              >
+                Начать обучение
+                <ArrowRight size={18} />
+              </button>
             </div>
-            <div id="tariffs" className="rounded-[28px] border border-[#D9C9E8] bg-[#18131D] p-8 text-white">
+
+            <div className="order-1 lg:order-2">
+              <CertificatePreview
+                variant="locked"
+                palette={CERT_LIGHT_PALETTE}
+                lockTitle="Пройдите курс экспертов по банкротству физических лиц — и получите сертификат."
+                ctaLabel="Начать обучение"
+                onCta={openRegister}
+              />
+            </div>
+          </section>
+
+          <section id="tariffs" className="border-b border-[#D9C9E8] py-14 lg:py-20">
+            <div className="rounded-[28px] border border-[#D9C9E8] bg-[#18131D] p-8 text-white lg:p-12">
               <p className="text-sm uppercase tracking-[0.16em] text-[#D8B4FE]">Тарифы</p>
               <h3 className="mt-6 text-4xl font-semibold tracking-[-0.05em]">Для юристов, команд и партнёров</h3>
               <ul className="mt-8 space-y-4 text-lg text-[#EFE7F6]">

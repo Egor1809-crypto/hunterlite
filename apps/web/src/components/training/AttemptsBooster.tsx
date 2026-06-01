@@ -7,17 +7,30 @@
  *   • Показывает потраченные / оставшиеся попытки на уровень в виде «пунктов».
  *   • Когда попытки закончились — живой счётчик до обновления (следующая
  *     полночь по UTC: именно тогда normalizeProgress сбрасывает attempts).
- *   • Виджет докупки ещё 5 попыток. Оплата ещё не подключена — пилотный
- *     доступ выдаёт буст мгновенно (как `pilot mode` в subscription).
+ *   • Виджет докупки попыток через @BFLHUNTER_bot — единая экосистема
+ *     (привязка + начисление + уведомления). Кнопка открывает бота по
+ *     одноразовому deeplink; начисление происходит на стороне бота. На
+ *     пилоте — бесплатно, оплата подключится позже.
  *
  * Визуальный язык — сдержанный «vibe» платформы (молочные поверхности,
  * сиреневый акцент, много воздуха, моноширинный счётчик). Вдохновение:
  * malvah.co / abstract.com — премиум через минимализм и точную типографику.
+ * Палитра захардкожена под молочно-светлую карточку модалки уровня (она
+ * светлая в любой теме), поэтому var(--*) токены здесь не используются.
  */
 
 import { useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Clock, Sparkles, Check, Loader2, Zap } from "lucide-react";
+import { Clock, Sparkles, Loader2, Send } from "lucide-react";
+
+// Молочно-светлая палитра модалки уровня (совпадает с LevelDetailModal).
+const C = {
+  textPrimary: "#18131D",
+  textSecondary: "#6B5B7E",
+  textMuted: "#9A8AAE",
+  border: "#E7DAF2",
+  warning: "#D97706",
+} as const;
 
 interface AttemptsBoosterProps {
   /** Сколько попыток уже потрачено сегодня на этот уровень. */
@@ -32,8 +45,6 @@ interface AttemptsBoosterProps {
   onPurchase: () => Promise<void> | void;
   /** Размер пакета докупки. */
   packSize?: number;
-  /** Цена пакета (для отображения). */
-  priceLabel?: string;
 }
 
 /** Миллисекунды до следующей полуночи по UTC — момент сброса attempts. */
@@ -76,7 +87,6 @@ export function AttemptsBooster({
   colorRgb,
   onPurchase,
   packSize = 5,
-  priceLabel = "149 ₽",
 }: AttemptsBoosterProps) {
   const effectiveMax = baseMax + bonus;
   const remaining = Math.max(0, effectiveMax - used);
@@ -121,21 +131,21 @@ export function AttemptsBooster({
       {/* Индикатор попыток — пункты */}
       <div
         className="rounded-xl p-3"
-        style={{ background: "rgba(255,255,255,0.03)", border: "1px solid var(--border-color)" }}
+        style={{ background: "rgba(24,19,29,0.025)", border: `1px solid ${C.border}` }}
       >
         <div className="flex items-center justify-between">
-          <span className="text-[10px] uppercase tracking-[0.18em]" style={{ color: "var(--text-muted)" }}>
+          <span className="text-[10px] uppercase tracking-[0.18em]" style={{ color: C.textMuted }}>
             Попытки сегодня
           </span>
           <span
             className="font-mono text-sm font-bold tabular-nums"
-            style={{ color: exhausted ? "var(--warning)" : "var(--text-primary)" }}
+            style={{ color: exhausted ? C.warning : C.textPrimary }}
           >
             {remaining}/{effectiveMax}
           </span>
         </div>
         {lastOne && (
-          <div className="mt-1 text-[10px]" style={{ color: "var(--warning)" }}>
+          <div className="mt-1 text-[10px]" style={{ color: C.warning }}>
             Последняя попытка — действуй наверняка
           </div>
         )}
@@ -150,7 +160,7 @@ export function AttemptsBooster({
               style={{
                 background: filled
                   ? `rgb(${colorRgb})`
-                  : "var(--border-color)",
+                  : C.border,
                 // докупленные пункты слегка выделяем
                 boxShadow: filled && i >= baseMax ? `0 0 8px rgba(${colorRgb},0.6)` : "none",
               }}
@@ -173,18 +183,18 @@ export function AttemptsBooster({
             }}
           >
             <div className="flex items-center gap-2.5">
-              <Clock size={15} style={{ color: "var(--warning)" }} />
+              <Clock size={15} style={{ color: C.warning }} />
               <div className="min-w-0 flex-1">
-                <div className="text-[11px]" style={{ color: "var(--text-secondary)" }}>
+                <div className="text-[11px]" style={{ color: C.textSecondary }}>
                   Новые попытки откроются через
                 </div>
-                <div className="text-[10px]" style={{ color: "var(--text-muted)" }}>
+                <div className="text-[10px]" style={{ color: C.textMuted }}>
                   Это произойдёт в {formatResetLocalTime()}
                 </div>
               </div>
               <div
                 className="font-mono text-lg font-bold tabular-nums"
-                style={{ color: "var(--warning)" }}
+                style={{ color: C.warning }}
               >
                 {formatCountdown(countdown)}
               </div>
@@ -197,17 +207,17 @@ export function AttemptsBooster({
       <AnimatePresence mode="wait">
         {exhausted && justBought ? (
           <motion.div
-            key="bought"
+            key="opened"
             initial={{ opacity: 0, scale: 0.96 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="flex items-center justify-center gap-2 rounded-xl py-3 text-sm font-bold"
+            className="flex items-center justify-center gap-2 rounded-xl px-3 py-3 text-center text-[13px] font-bold"
             style={{
               background: `rgba(${colorRgb},0.1)`,
               border: `1px solid rgba(${colorRgb},0.3)`,
               color: `rgb(${colorRgb})`,
             }}
           >
-            <Check size={16} /> Готово — +{packSize} попыток
+            <Send size={15} /> Открыли Telegram — заберите попытки там
           </motion.div>
         ) : exhausted ? (
           <motion.div
@@ -229,10 +239,10 @@ export function AttemptsBooster({
                 <Sparkles size={18} style={{ color: `rgb(${colorRgb})` }} />
               </div>
               <div className="min-w-0 flex-1">
-                <div className="text-sm font-bold" style={{ color: "var(--text-primary)" }}>
-                  +{packSize} попыток сейчас
+                <div className="text-sm font-bold" style={{ color: C.textPrimary }}>
+                  +{packSize} попыток через бота
                 </div>
-                <div className="text-[11px]" style={{ color: "var(--text-muted)" }}>
+                <div className="text-[11px]" style={{ color: C.textMuted }}>
                   Не теряй темп — продолжай без паузы
                 </div>
               </div>
@@ -250,16 +260,16 @@ export function AttemptsBooster({
                 <Loader2 size={15} className="animate-spin" />
               ) : (
                 <>
-                  <Zap size={15} />
-                  Разблокировать · {priceLabel}
+                  <Send size={15} />
+                  Получить в Telegram
                 </>
               )}
             </button>
             <div
               className="px-3.5 py-1.5 text-center text-[10px]"
-              style={{ color: "var(--text-muted)", borderTop: "1px solid var(--border-color)" }}
+              style={{ color: C.textMuted, borderTop: `1px solid ${C.border}` }}
             >
-              Пилотный доступ — оплата скоро, сейчас бесплатно
+              @BFLHUNTER_bot · на пилоте бесплатно
             </div>
           </motion.div>
         ) : null}

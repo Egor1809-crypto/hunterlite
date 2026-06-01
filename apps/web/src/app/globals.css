@@ -67,13 +67,23 @@
   --shadow-lg: 0 28px 60px -34px rgba(63, 42, 76, 0.38), 0 10px 22px -16px rgba(63, 42, 76, 0.22);
   --glass-bg: rgba(255, 253, 248, 0.88);
   --glass-border: rgba(124, 58, 237, 0.14);
+  --topo-opacity: 0.06;
+  /* Page vignette (abstract.com-style): soft top-centre glow + quiet bottom */
+  --bg-glow-top: rgba(255, 253, 248, 0.7);
+  --bg-glow-bottom: rgba(63, 42, 76, 0.05);
 
   /* ── Radius ─────────────────────────────────────────── */
   --radius-sm: 6px;
   --radius-md: 10px;
   --radius-lg: 14px;
   --radius-xl: 20px;
+  --radius-2xl: 24px;
   --radius-full: 9999px;
+
+  /* ── Spacing rhythm (semantic; backs the 4/8/16/24/32/48/64 grid) ── */
+  --space-section: 56px;   /* gap between page sections */
+  --space-card: 22px;      /* internal card padding */
+  --space-row: 56px;       /* settings / list row min-height */
 
   /* ── Input ──────────────────────────────────────────── */
   --input-bg: #FFFDF8;
@@ -176,6 +186,9 @@
   --shadow-lg: 0 8px 36px rgba(0, 0, 0, 0.8);
   --glass-bg: rgba(17, 17, 19, 0.85);
   --glass-border: rgba(255, 255, 255, 0.06);
+  --topo-opacity: 0.10;
+  --bg-glow-top: rgba(255, 255, 255, 0.035);
+  --bg-glow-bottom: rgba(0, 0, 0, 0.25);
 
   --input-bg: rgba(255, 255, 255, 0.06);
   --input-border: rgba(255, 255, 255, 0.10);
@@ -704,6 +717,15 @@ html.light main [role="button"] {
     background-size: 24px 24px;
   }
 
+  /* Page vignette — soft top-centre glow + quiet bottom (abstract.com-style). */
+  .bg-page-glow {
+    background-color: var(--bg-primary);
+    background-image:
+      radial-gradient(120% 80% at 50% 0%, var(--bg-glow-top) 0%, transparent 55%),
+      linear-gradient(180deg, transparent 60%, var(--bg-glow-bottom) 100%);
+    background-repeat: no-repeat;
+  }
+
   /* Glass overlay for modals, dropdowns */
   .glass-overlay {
     background: var(--glass-bg);
@@ -747,6 +769,24 @@ html.light main [role="button"] {
   .glass-panel-interactive:active {
     transform: translateY(0) scale(0.98);
     transition-duration: 0.1s;
+  }
+
+  /* ── Card primitive: interactive hover (calm, no glow) ── */
+  .lh-card-interactive {
+    cursor: pointer;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+  }
+  .lh-card-interactive:hover {
+    border-color: var(--border-hover);
+    box-shadow: var(--shadow-md);
+    transform: translateY(-1px);
+  }
+  .lh-card-interactive:active {
+    transform: translateY(0);
+  }
+  .lh-card-interactive:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
   }
 
   /* ── LegalHunter Card ──────────────────────────────────── */
@@ -943,21 +983,20 @@ html.light main [role="button"] {
     @apply relative overflow-hidden font-semibold text-white;
     padding: 12px 24px;
     border-radius: var(--radius-md);
-    background: #2563EB;
-    box-shadow: 0 2px 8px rgba(37, 99, 235, 0.25);
-    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    background: var(--primary);
+    box-shadow: var(--shadow-sm);
+    transition: background 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
     font-size: var(--fs-sm);
   }
 
   .vh-btn-primary:hover:not(:disabled) {
-    background: #1D4ED8;
-    box-shadow: 0 4px 16px rgba(37, 99, 235, 0.35);
+    background: var(--primary-hover);
+    box-shadow: var(--shadow-md);
     transform: translateY(-1px);
   }
 
   .vh-btn-primary:active:not(:disabled) {
     transform: translateY(0) scale(0.98);
-    box-shadow: 0 1px 4px rgba(37, 99, 235, 0.2);
     transition-duration: 0.1s;
   }
 

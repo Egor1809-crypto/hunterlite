@@ -21,6 +21,19 @@ async def setup_webhook(base_url: str) -> None:
         logger.info("Telegram bot token not set — skipping webhook setup")
         return
 
+    # Telegram only accepts HTTPS webhook URLs. In local dev the base url
+    # resolves to http://localhost:8000, which Telegram rejects — and any
+    # set_webhook call here would also fight the polling runner
+    # (scripts/run_bot_polling.py). Skip webhook mode unless we have a real
+    # public HTTPS endpoint; dev relies on polling instead.
+    if not base_url.startswith("https://"):
+        logger.info(
+            "Telegram webhook base url is not HTTPS (%s) — skipping webhook "
+            "setup; use polling in dev",
+            base_url,
+        )
+        return
+
     _bot = create_bot()
     _dp = create_dispatcher()
 

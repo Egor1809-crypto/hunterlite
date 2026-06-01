@@ -11,11 +11,12 @@
  *      понимая контекст конкретного вопроса и ответа студента, и тоже
  *      проговаривает его голосом.
  *
- * Голос — через useTTS().speak (браузерный speechSynthesis, ru-RU). Работает
- * без backend-аудио и не зависит от ElevenLabs.
+ * Голос — серверный нейро-TTS через /api/tts (Navy /audio/speech, голос
+ * shimmer). Браузерный speechSynthesis из useTTS остаётся резервом, если
+ * сетевой синтез недоступен.
  */
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ArrowRight, BookOpen, Volume2, VolumeX, Loader2 } from "lucide-react";
 import type { QuizMessage } from "@/stores/useKnowledgeStore";
@@ -119,7 +120,75 @@ export function QuizManyasha({
   autoAdvanceMs = 2600,
   onDismiss,
 }: QuizManyashaProps) {
-  const { speak, stop, speaking, enabled, setEnabled } = useTTS();
+  const { speak, stop: stopBrowser, enabled, setEnabled } = useTTS();
+
+  // Серверный нейро-TTS: проигрываем MP3 из /api/tts через собственный
+  // <audio>. Браузерный speak() из useTTS — только резерв на случай сбоя сети.
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const audioUrlRef = useRef<string | null>(null);
+  const ttsAbortRef = useRef<AbortController | null>(null);
+  const [speaking, setSpeaking] = useState(false);
+
+  const stopVoice = useCallback(() => {
+    ttsAbortRef.current?.abort();
+    ttsAbortRef.current = null;
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.src = "";
+      audioRef.current = null;
+    }
+    if (audioUrlRef.current) {
+      URL.revokeObjectURL(audioUrlRef.current);
+      audioUrlRef.current = null;
+    }
+    stopBrowser();
+    setSpeaking(false);
+  }, [stopBrowser]);
+
+  const speakVoice = useCallback(
+    (text: string) => {
+      const clean = text.trim();
+      if (!clean || !enabled) return;
+      stopVoice();
+      const controller = new AbortController();
+      ttsAbortRef.current = controller;
+      setSpeaking(true);
+      fetch("/api/tts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: clean, voice: "shimmer" }),
+        signal: controller.signal,
+      })
+        .then(async (res) => {
+          if (!res.ok) throw new Error(`tts ${res.status}`);
+          const blob = await res.blob();
+          if (controller.signal.aborted) return;
+          const url = URL.createObjectURL(blob);
+          audioUrlRef.current = url;
+          const audio = new Audio(url);
+          audioRef.current = audio;
+          audio.onended = () => {
+            setSpeaking(false);
+            if (audioUrlRef.current) {
+              URL.revokeObjectURL(audioUrlRef.current);
+              audioUrlRef.current = null;
+            }
+          };
+          audio.onerror = () => setSpeaking(false);
+          await audio.play();
+        })
+        .catch((err) => {
+          if (controller.signal.aborted) return;
+          // Сеть/синтез упали — резервный браузерный голос.
+          setSpeaking(false);
+          speak(clean);
+        });
+    },
+    [enabled, stopVoice, speak],
+  );
+
+  // Очистка при размонтировании.
+  useEffect(() => () => stopVoice(), [stopVoice]);
 
   const verdictId = verdict?.id ?? null;
   const level: Level = verdict
@@ -152,7 +221,7 @@ export function QuizManyasha({
     ]
       .filter(Boolean)
       .join(" ");
-    if (immediate) speak(immediate);
+    if (immediate) speakVoice(immediate);
 
     // Развёрнутое объяснение от DeepSeek.
     const controller = new AbortController();
@@ -170,7 +239,7 @@ export function QuizManyasha({
         if (text) {
           setAiExplanation(text);
           // Догоняющий голос: проговариваем детальное объяснение.
-          speak(text);
+          speakVoice(text);
         }
       })
       .finally(() => {
@@ -202,20 +271,15 @@ export function QuizManyasha({
   const displayedExplanation = aiExplanation ?? (level === "correct" ? backendExplanation : "");
   const articleRef = verdict?.articleRef;
 
+  // Единый глобальный тумблер звука: вкл/выкл, состояние сохраняется между
+  // вопросами и перезагрузками (useTTS персистит `enabled`). При выключении —
+  // глушим текущий голос немедленно.
   const toggleVoice = () => {
-    if (speaking) {
-      stop();
-    } else if (!enabled) {
-      setEnabled(true);
+    if (enabled) {
+      stopVoice();
+      setEnabled(false);
     } else {
-      const replay = [
-        `${meta.label}.`,
-        showCorrect ? `Правильный ответ: ${correctAnswer}.` : "",
-        displayedExplanation,
-      ]
-        .filter(Boolean)
-        .join(" ");
-      if (replay) speak(replay);
+      setEnabled(true);
     }
   };
 
@@ -279,10 +343,16 @@ export function QuizManyasha({
         <button
           type="button"
           onClick={toggleVoice}
-          aria-label={speaking ? "Остановить голос" : "Повторить голосом"}
-          className="mt-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[#E7DAF2] text-[#7C3AED] transition hover:bg-[#F3ECFA]"
+          aria-label={enabled ? "Выключить голос" : "Включить голос"}
+          title={enabled ? "Звук включён" : "Звук выключен"}
+          className="mt-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-full border transition"
+          style={{
+            borderColor: enabled ? "#E7DAF2" : "#E3DCE9",
+            color: enabled ? "#7C3AED" : "#A99CB5",
+            background: speaking && enabled ? "#F3ECFA" : "transparent",
+          }}
         >
-          {speaking ? <VolumeX size={17} /> : <Volume2 size={17} />}
+          {enabled ? <Volume2 size={17} /> : <VolumeX size={17} />}
         </button>
       </div>
 
@@ -326,7 +396,7 @@ export function QuizManyasha({
             <button
               type="button"
               onClick={() => {
-                stop();
+                stopVoice();
                 onDismiss();
               }}
               className="relative inline-flex w-full items-center justify-center gap-2 overflow-hidden rounded-full bg-[#18131D] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#7C3AED] sm:ml-auto sm:w-auto"

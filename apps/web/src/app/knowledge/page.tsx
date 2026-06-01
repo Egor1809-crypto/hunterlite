@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   BookOpen,
@@ -22,38 +21,23 @@ import {
   RefreshCw,
   Loader2,
   Tag,
-  Send,
 } from "lucide-react";
 import AuthLayout from "@/components/layout/AuthLayout";
 import { KnowledgeBaseBrowser } from "@/components/pvp/KnowledgeBaseBrowser";
 import { api } from "@/lib/api";
-
-const NOISE_SVG = `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E")`;
-const PREMIUM_EASE: [number, number, number, number] = [0.22, 1, 0.36, 1];
+import { Card } from "@/components/ui/Card";
+import { Button } from "@/components/ui/Button";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { AbstractBackdrop } from "@/components/ui/AbstractBackdrop";
 
 const QUICK_TOPICS = [
-  { title: "Процедуры банкротства", icon: "📋", color: "#8B5CF6", description: "Наблюдение, реструктуризация, конкурсное производство", category: "procedure" },
-  { title: "Оспаривание сделок", icon: "⚖️", color: "#EF4444", description: "Ст.61.2, ст.61.3, подозрительные и преференциальные", category: "property" },
-  { title: "Субсидиарная ответственность", icon: "🎯", color: "#F59E0B", description: "КДЛ, доказывание, размер ответственности", category: "consequences" },
-  { title: "Торги и реализация", icon: "🔨", color: "#10B981", description: "Порядок проведения, оспаривание результатов", category: "costs" },
-  { title: "Банкротство физлиц", icon: "👤", color: "#3B82F6", description: "Процедура, ограничения, списание долгов", category: "eligibility" },
-  { title: "Работа с кредиторами", icon: "👥", color: "#EC4899", description: "Реестр, собрания, голосование, очерёдность", category: "creditors" },
+  { title: "Процедуры банкротства", icon: "📋", description: "Наблюдение, реструктуризация, конкурсное производство", category: "procedure" },
+  { title: "Оспаривание сделок", icon: "⚖️", description: "Ст. 61.2, ст. 61.3 — подозрительные и преференциальные", category: "property" },
+  { title: "Субсидиарная ответственность", icon: "🎯", description: "КДЛ, доказывание, размер ответственности", category: "consequences" },
+  { title: "Торги и реализация", icon: "🔨", description: "Порядок проведения, оспаривание результатов", category: "costs" },
+  { title: "Банкротство физлиц", icon: "👤", description: "Процедура, ограничения, списание долгов", category: "eligibility" },
+  { title: "Работа с кредиторами", icon: "👥", description: "Реестр, собрания, голосование, очерёдность", category: "creditors" },
 ];
-
-const IMPACT_CONFIG: Record<string, { label: string; color: string; bg: string; glow: string }> = {
-  high: { label: "Важно", color: "#EF4444", bg: "rgba(239,68,68,0.08)", glow: "rgba(239,68,68,0.15)" },
-  medium: { label: "Значимо", color: "#F59E0B", bg: "rgba(245,158,11,0.08)", glow: "rgba(245,158,11,0.15)" },
-  low: { label: "К сведению", color: "#3B82F6", bg: "rgba(59,130,246,0.08)", glow: "rgba(59,130,246,0.15)" },
-};
-
-const CATEGORY_COLORS: Record<string, string> = {
-  "Практика ВС": "#8B5CF6",
-  "Изменения ФЗ": "#EF4444",
-  "Постановления Пленума": "#F59E0B",
-  "Обзоры практики": "#10B981",
-  "Разъяснения ФНС": "#3B82F6",
-  "Арбитражная практика": "#EC4899",
-};
 
 const POPULAR_QUESTIONS = [
   { q: "Какие сроки для подачи заявления о банкротстве?", category: "Процедуры" },
@@ -119,11 +103,17 @@ function getImpactLevel(score: number): "high" | "medium" | "low" {
   return "low";
 }
 
+// Semantic, token-based — restrained labels, no glow / no fill / no rainbow.
+function impactMeta(level: "high" | "medium" | "low"): { label: string; color: string } {
+  if (level === "high") return { label: "Важно", color: "var(--danger)" };
+  if (level === "medium") return { label: "Значимо", color: "var(--warning)" };
+  return { label: "К сведению", color: "var(--text-muted)" };
+}
+
 function formatRelativeTime(isoDate: string): string {
   const date = new Date(isoDate);
   const now = new Date();
-  const diffMs = now.getTime() - date.getTime();
-  const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+  const diffHours = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60));
   if (diffHours < 1) return "менее часа назад";
   if (diffHours < 24) return `${diffHours} ч. назад`;
   const diffDays = Math.floor(diffHours / 24);
@@ -133,55 +123,30 @@ function formatRelativeTime(isoDate: string): string {
 }
 
 function formatDate(isoDate: string): string {
-  return new Date(isoDate).toLocaleDateString("ru-RU", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  });
+  return new Date(isoDate).toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric" });
 }
 
-function TypewriterText({ text }: { text: string }) {
-  const [displayed, setDisplayed] = useState("");
-  const idx = useRef(0);
-
-  useEffect(() => {
-    idx.current = 0;
-    setDisplayed("");
-    const interval = setInterval(() => {
-      idx.current += 2;
-      if (idx.current >= text.length) {
-        setDisplayed(text);
-        clearInterval(interval);
-      } else {
-        setDisplayed(text.slice(0, idx.current));
-      }
-    }, 8);
-    return () => clearInterval(interval);
-  }, [text]);
-
-  return <>{displayed}</>;
-}
-
-/* ── Section Header ───────────────────────────────────────────── */
-function SectionHeader({ icon: Icon, label }: { icon: React.ComponentType<{ size?: number; style?: React.CSSProperties }>; label: string }) {
+/* ── Eyebrow — quiet in-content label + hairline ── */
+function Eyebrow({ icon: Icon, label }: { icon: React.ComponentType<{ size?: number; style?: React.CSSProperties }>; label: string }) {
   return (
-    <div className="flex items-center gap-2.5 mb-4">
+    <div className="mb-4 flex items-center gap-2.5">
       <Icon size={13} style={{ color: "var(--text-muted)" }} />
-      <span className="text-[10px] font-black uppercase tracking-[0.2em]" style={{ color: "var(--text-muted)" }}>{label}</span>
-      <div className="flex-1 h-px" style={{ background: "linear-gradient(90deg, rgba(255,255,255,0.06), transparent)" }} />
+      <span className="font-mono text-[11px] uppercase tracking-[0.16em]" style={{ color: "var(--text-secondary)" }}>{label}</span>
+      <div className="h-px flex-1" style={{ background: "var(--border-color)" }} />
     </div>
   );
 }
 
 export default function KnowledgePage() {
-  const router = useRouter();
   const [aiQuery, setAiQuery] = useState("");
   const [activeSection, setActiveSection] = useState<"browse" | "radar" | "ai">("browse");
-  const [browserKey, setBrowserKey] = useState(0);
+  const [selectedCategory, setSelectedCategory] = useState<string>("");
+  const browserRef = useRef<HTMLDivElement>(null);
 
   const [stats, setStats] = useState<KnowledgeStats | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
   const [aiResult, setAiResult] = useState<AiResponse | null>(null);
+  const [aiError, setAiError] = useState<string | null>(null);
   const [aiHistory, setAiHistory] = useState<HistoryEntry[]>([]);
 
   const [radarItems, setRadarItems] = useState<RadarItem[]>([]);
@@ -190,8 +155,6 @@ export default function KnowledgePage() {
   const [radarLoading, setRadarLoading] = useState(false);
   const [radarCategory, setRadarCategory] = useState<string | null>(null);
   const [radarCategories, setRadarCategories] = useState<{ category: string; count: number }[]>([]);
-
-  const [inputFocused, setInputFocused] = useState(false);
 
   useEffect(() => {
     api.get<KnowledgeStats>("/knowledge-ai/stats").then(setStats).catch(() => {});
@@ -217,30 +180,27 @@ export default function KnowledgePage() {
 
     setAiLoading(true);
     setAiResult(null);
+    setAiError(null);
 
     try {
       const result = await api.post<AiResponse>("/knowledge-ai/ask", { question: q });
       setAiResult(result);
-      const entry: HistoryEntry = {
-        question: q,
-        answer: result.answer,
-        sources: result.sources,
-        timestamp: Date.now(),
-      };
+      const entry: HistoryEntry = { question: q, answer: result.answer, sources: result.sources, timestamp: Date.now() };
       saveHistory([entry, ...aiHistory]);
     } catch {
-      setAiResult({
-        answer: "Произошла ошибка при обработке запроса. Пожалуйста, попробуйте позже.",
-        sources: [],
-        model: "",
-        retrieval_ms: 0,
-        generation_ms: 0,
-        total_ms: 0,
-      });
+      // Отдельное error-состояние, а не «зелёная карточка ответа» с текстом ошибки.
+      setAiError("Не удалось обработать запрос. Проверьте соединение и попробуйте ещё раз.");
     } finally {
       setAiLoading(false);
     }
   }, [aiQuery, aiLoading, aiHistory, saveHistory]);
+
+  // История: восстанавливаем закэшированный ответ, без повторного сетевого запроса.
+  const restoreFromHistory = useCallback((entry: HistoryEntry) => {
+    setAiQuery(entry.question);
+    setAiError(null);
+    setAiResult({ answer: entry.answer, sources: entry.sources, model: "", retrieval_ms: 0, generation_ms: 0, total_ms: 0 });
+  }, []);
 
   const loadRadar = useCallback(async (cat?: string | null) => {
     setRadarLoading(true);
@@ -269,779 +229,330 @@ export default function KnowledgePage() {
     }
   }, [activeSection, radarCategory, loadRadar, loadRadarCategories]);
 
-  const statsDisplay = stats
-    ? [
-        { label: "Статей в базе", value: String(stats.total_chunks), icon: FileText, color: "#10B981" },
-        { label: "Категорий", value: String(stats.categories.length), icon: Layers, color: "#8B5CF6" },
-        { label: "Обновлено", value: stats.last_updated ? formatRelativeTime(stats.last_updated) : "—", icon: Zap, color: "#F59E0B" },
-      ]
-    : [
-        { label: "Статей в базе", value: "—", icon: FileText, color: "#10B981" },
-        { label: "Категорий", value: "—", icon: Layers, color: "#8B5CF6" },
-        { label: "Обновлено", value: "—", icon: Zap, color: "#F59E0B" },
-      ];
+  const openTopic = (category: string) => {
+    // Фильтруем справочник напрямую (надёжно, без URL+remount-гонки) и
+    // переводим взгляд к нему — клик действительно работает.
+    setSelectedCategory((prev) => (prev === category ? "" : category));
+    requestAnimationFrame(() => browserRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
+  };
+
+  const statsDisplay = [
+    { label: "Статей в базе", value: stats ? String(stats.total_chunks) : "—", icon: FileText },
+    { label: "Категорий", value: stats ? String(stats.categories.length) : "—", icon: Layers },
+    { label: "Обновлено", value: stats?.last_updated ? formatRelativeTime(stats.last_updated) : "—", icon: Zap },
+  ];
+
+  const tabs = [
+    { id: "browse" as const, label: "Справочник", icon: BookOpen },
+    { id: "radar" as const, label: "Радар", icon: Bell },
+    { id: "ai" as const, label: "AI-помощник", icon: Sparkles },
+  ];
 
   return (
     <AuthLayout>
-      <div className="min-h-screen relative" style={{ background: "var(--bg-primary)" }}>
-        <style>{`
-          @keyframes pulse-glow {
-            0%, 100% { opacity: 1; transform: scale(1); }
-            50% { opacity: 0.4; transform: scale(0.75); }
-          }
-          @keyframes shimmer {
-            0% { background-position: -200% 0; }
-            100% { background-position: 200% 0; }
-          }
-          @keyframes live-pulse {
-            0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(239,68,68,0.4); }
-            50% { opacity: 0.6; box-shadow: 0 0 0 4px rgba(239,68,68,0); }
-          }
-          @keyframes gradient-shift {
-            0% { background-position: 0% 50%; }
-            50% { background-position: 100% 50%; }
-            100% { background-position: 0% 50%; }
-          }
-          @keyframes input-glow {
-            0%, 100% { box-shadow: 0 0 0 3px rgba(16,185,129,0.06), 0 0 20px rgba(16,185,129,0.05); }
-            50% { box-shadow: 0 0 0 4px rgba(16,185,129,0.1), 0 0 30px rgba(16,185,129,0.08); }
-          }
-        `}</style>
+      <div className="relative min-h-screen overflow-hidden bg-page-glow">
+        <AbstractBackdrop />
+        <div className="relative z-10 mx-auto max-w-[1100px] px-5 py-8 sm:px-8 sm:py-12">
 
-        <div className="absolute inset-0 pointer-events-none z-[1] opacity-[0.06]" aria-hidden style={{ backgroundImage: NOISE_SVG, backgroundRepeat: "repeat" }} />
-
-        <div className="relative z-10 max-w-[1100px] mx-auto px-5 sm:px-8 py-8 sm:py-12">
-
-          {/* ═══════════════════ PAGE HEADER ═══════════════════ */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, ease: PREMIUM_EASE }}
-            className="mb-8"
-          >
+          {/* ── Header ── */}
+          <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.24, ease: "easeOut" }} className="mb-10">
             <div className="flex items-center gap-5">
               <div
-                className="w-14 h-14 rounded-2xl flex items-center justify-center shrink-0"
-                style={{
-                  background: "var(--primary-muted)",
-                  border: "1px solid var(--border-color)",
-                  boxShadow: "var(--shadow-sm)",
-                }}
+                className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl"
+                style={{ background: "var(--primary-muted)", border: "1px solid var(--border-color)" }}
               >
-                <BookOpen size={26} style={{ color: "var(--brand-logo-hunter)" }} />
+                <BookOpen size={24} style={{ color: "var(--primary)" }} />
               </div>
               <div>
-                <h1
-                  className="text-4xl sm:text-6xl font-semibold tracking-[-0.07em]"
-                  style={{ color: "var(--text-primary)" }}
-                >
-                  База знаний
-                </h1>
-                <p className="text-lg mt-2 font-medium" style={{ color: "var(--brand-logo-hunter)" }}>
-                  ФЗ-127, судебная практика, радар и AI-помощник
-                </p>
+                <div className="font-mono text-[11px] uppercase tracking-[0.16em]" style={{ color: "var(--text-secondary)" }}>База · ФЗ-127</div>
+                <h1 className="mt-1 text-4xl font-semibold tracking-tight sm:text-5xl" style={{ color: "var(--text-primary)" }}>База знаний</h1>
+                <p className="mt-2 text-[15px]" style={{ color: "var(--text-muted)" }}>Закон, судебная практика, радар изменений и AI-помощник.</p>
               </div>
             </div>
           </motion.div>
 
-          {/* ═══════════════════ STATS ROW ═══════════════════ */}
-          <motion.div
-            initial={{ opacity: 0, y: 14 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.05 }}
-            className="grid grid-cols-3 gap-3 sm:gap-4 mb-8"
-          >
-            {statsDisplay.map((stat, i) => {
+          {/* ── Stats ── */}
+          <div className="mb-10 grid grid-cols-3 gap-3 sm:gap-4">
+            {statsDisplay.map((stat) => {
               const Icon = stat.icon;
               return (
-                <motion.div
-                  key={stat.label}
-                  initial={{ opacity: 0, y: 16 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.4, delay: 0.08 + i * 0.05, ease: PREMIUM_EASE }}
-                  className="group rounded-2xl p-4 sm:p-5 relative overflow-hidden"
-                  style={{
-                    background: "rgba(15, 15, 30, 0.95)",
-                    border: "1px solid rgba(255,255,255,0.06)",
-                    boxShadow: "0 4px 24px rgba(0, 0, 0, 0.3)",
-                    transition: "all 0.3s ease",
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.borderColor = `color-mix(in srgb, ${stat.color} 40%, transparent)`;
-                    e.currentTarget.style.boxShadow = `0 0 20px color-mix(in srgb, ${stat.color} 10%, transparent), 0 8px 32px rgba(0, 0, 0, 0.3)`;
-                    e.currentTarget.style.transform = "translateY(-4px) scale(1.02)";
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.borderColor = "rgba(255, 255, 255, 0.06)";
-                    e.currentTarget.style.boxShadow = "0 4px 24px rgba(0, 0, 0, 0.3)";
-                    e.currentTarget.style.transform = "translateY(0) scale(1)";
-                  }}
-                >
-                  {/* Hover radial glow */}
-                  <div
-                    className="absolute -top-8 -right-8 w-24 h-24 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-500"
-                    style={{ background: `radial-gradient(circle, color-mix(in srgb, ${stat.color} 15%, transparent) 0%, transparent 70%)` }}
-                  />
-                  <div className="relative z-10">
-                    <div className="relative inline-block">
-                      <div
-                        className="w-8 h-8 rounded-lg flex items-center justify-center mb-3"
-                        style={{ background: `color-mix(in srgb, ${stat.color} 12%, transparent)`, color: stat.color }}
-                      >
-                        <Icon size={16} />
-                      </div>
-                      {/* Animated pulse dot */}
-                      <motion.div
-                        animate={{
-                          opacity: [0.4, 1, 0.4],
-                          boxShadow: [`0 0 4px ${stat.color}`, `0 0 12px ${stat.color}`, `0 0 4px ${stat.color}`],
-                        }}
-                        transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-                        style={{
-                          position: "absolute",
-                          top: "0px",
-                          right: "-2px",
-                          width: "6px",
-                          height: "6px",
-                          borderRadius: "50%",
-                          background: stat.color,
-                        }}
-                      />
-                    </div>
-                    <div className="text-2xl sm:text-3xl font-black tabular-nums tracking-tight" style={{ color: "var(--text-primary)" }}>
-                      {stat.value}
-                    </div>
-                    <div className="text-[10px] font-bold mt-1 uppercase tracking-[0.15em]" style={{ color: "var(--text-muted)" }}>
-                      {stat.label}
-                    </div>
-                  </div>
-                  {/* Bottom accent line */}
-                  <div
-                    className="absolute bottom-0 left-0 right-0 h-[2px]"
-                    style={{ background: `linear-gradient(90deg, ${stat.color}, transparent 80%)` }}
-                  />
-                </motion.div>
+                <Card key={stat.label}>
+                  <span className="flex h-9 w-9 items-center justify-center rounded-lg" style={{ background: "var(--bg-secondary)", color: "var(--text-muted)" }}>
+                    <Icon size={16} />
+                  </span>
+                  <div className="mt-5 font-mono text-2xl font-semibold tabular-nums tracking-tight sm:text-3xl" style={{ color: "var(--text-primary)" }}>{stat.value}</div>
+                  <div className="mt-1 font-mono text-[11px] uppercase tracking-[0.12em]" style={{ color: "var(--text-muted)" }}>{stat.label}</div>
+                </Card>
               );
             })}
-          </motion.div>
+          </div>
 
-          {/* ═══════════════════ SECTION TABS ═══════════════════ */}
-          <motion.div
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.08 }}
-            className="mb-8 flex gap-2"
-          >
-            {([
-              { id: "browse" as const, label: "Справочник", icon: BookOpen },
-              { id: "radar" as const, label: "Радар", icon: Bell },
-              { id: "ai" as const, label: "AI-помощник", icon: Sparkles },
-            ]).map((tab) => {
+          {/* ── Tabs (hairline underline) ── */}
+          <div className="mb-8 flex gap-1 border-b" style={{ borderColor: "var(--border-color)" }}>
+            {tabs.map((tab) => {
               const TabIcon = tab.icon;
               const isActive = activeSection === tab.id;
               return (
                 <button
                   key={tab.id}
                   onClick={() => setActiveSection(tab.id)}
-                  className="flex items-center gap-2 px-5 py-3 rounded-xl text-xs font-bold transition-all duration-300 relative overflow-hidden"
-                  style={{
-                    background: isActive ? "rgba(15, 15, 30, 0.95)" : "rgba(15, 15, 30, 0.6)",
-                    border: `1.5px solid ${isActive ? "rgba(16,185,129,0.4)" : "rgba(255,255,255,0.06)"}`,
-                    color: isActive ? "#10B981" : "var(--text-muted)",
-                    boxShadow: isActive ? "0 0 20px rgba(16,185,129,0.12), 0 4px 24px rgba(0,0,0,0.3)" : "0 4px 24px rgba(0,0,0,0.15)",
-                  }}
+                  className="relative -mb-px flex items-center gap-2 px-4 py-3 text-sm font-medium transition-colors"
+                  style={{ color: isActive ? "var(--text-primary)" : "var(--text-muted)" }}
                 >
-                  <TabIcon size={14} />
+                  <TabIcon size={15} />
                   {tab.label}
-                  {isActive && (
-                    <div
-                      className="absolute bottom-0 left-0 right-0 h-[2px]"
-                      style={{ background: "linear-gradient(90deg, #10B981, transparent 80%)" }}
-                    />
-                  )}
+                  {isActive && <span className="absolute inset-x-0 bottom-0 h-0.5" style={{ background: "var(--primary)" }} />}
                 </button>
               );
             })}
-          </motion.div>
+          </div>
 
-          {/* ═══════════════════ CONTENT SECTIONS ═══════════════════ */}
+          {/* ── Content ── */}
           <AnimatePresence mode="wait">
-            {/* ─── Browse section ──────────────────────────── */}
+            {/* ─── Browse ─── */}
             {activeSection === "browse" && (
-              <motion.div
-                key="browse"
-                initial={{ opacity: 0, y: 16 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -8 }}
-                transition={{ duration: 0.4, ease: PREMIUM_EASE }}
-              >
-                <SectionHeader icon={BookOpen} label="Быстрые темы" />
-
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4 mb-8">
-                  {QUICK_TOPICS.map((topic, i) => (
-                    <motion.div
-                      key={topic.title}
-                      initial={{ opacity: 0, y: 14 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: i * 0.06, duration: 0.45, ease: PREMIUM_EASE }}
-                      className="group relative rounded-2xl overflow-hidden cursor-pointer"
-                      style={{
-                        background: "rgba(15, 15, 30, 0.95)",
-                        border: "1px solid rgba(255,255,255,0.06)",
-                        boxShadow: "0 4px 24px rgba(0, 0, 0, 0.3)",
-                        transition: "all 0.3s ease",
-                      }}
-                      onClick={() => {
-                        router.push(`/knowledge?category=${topic.category}`);
-                        setBrowserKey((k) => k + 1);
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.borderColor = `color-mix(in srgb, ${topic.color} 40%, transparent)`;
-                        e.currentTarget.style.transform = "translateY(-4px)";
-                        e.currentTarget.style.boxShadow = `0 0 20px color-mix(in srgb, ${topic.color} 15%, transparent), 0 12px 40px rgba(0, 0, 0, 0.35)`;
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.borderColor = "rgba(255,255,255,0.06)";
-                        e.currentTarget.style.transform = "translateY(0)";
-                        e.currentTarget.style.boxShadow = "0 4px 24px rgba(0, 0, 0, 0.3)";
-                      }}
+              <motion.div key="browse" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }}>
+                <Eyebrow icon={BookOpen} label="Быстрые темы" />
+                <div className="mb-10 grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4">
+                  {QUICK_TOPICS.map((topic) => {
+                    const active = selectedCategory === topic.category;
+                    return (
+                    <Card key={topic.title} variant="interactive" accentTop={active} role="button" tabIndex={0}
+                      aria-pressed={active}
+                      onClick={() => openTopic(topic.category)}
+                      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openTopic(topic.category); } }}
+                      className="group"
+                      style={{ height: "100%", borderColor: active ? "var(--primary)" : "var(--border-color)", background: active ? "var(--primary-muted)" : "var(--surface-card)" }}
                     >
-                      {/* Top gradient line */}
-                      <div className="h-[2px]" style={{ background: `linear-gradient(90deg, ${topic.color}, transparent 80%)` }} />
-
-                      {/* Hover gradient overlay */}
-                      <div
-                        className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"
-                        style={{ background: `radial-gradient(ellipse at top left, color-mix(in srgb, ${topic.color} 6%, transparent) 0%, transparent 60%)` }}
-                      />
-
-                      <div className="p-4 sm:p-5 relative z-10">
-                        <div className="flex items-start justify-between mb-3">
-                          <span className="text-2xl block">{topic.icon}</span>
-                          <ArrowRight
-                            size={14}
-                            className="opacity-0 group-hover:opacity-100 transition-all duration-300 group-hover:translate-x-0.5 mt-1"
-                            style={{ color: topic.color }}
-                          />
-                        </div>
-                        <h4 className="text-sm font-black mb-1.5 leading-snug tracking-tight" style={{ color: "var(--text-primary)" }}>
-                          {topic.title}
-                        </h4>
-                        <p className="text-[11px] leading-relaxed mb-3 line-clamp-2" style={{ color: "var(--text-muted)" }}>
-                          {topic.description}
-                        </p>
-                        <div className="flex items-center">
-                          <span
-                            className="flex items-center gap-1 text-[10px] font-bold px-2.5 py-1 rounded-lg"
-                            style={{ background: `color-mix(in srgb, ${topic.color} 10%, transparent)`, color: topic.color }}
-                          >
-                            <Hash size={9} />
-                            {stats?.categories.find((c) => c.category === topic.category)?.count ?? "—"} статей
-                          </span>
-                        </div>
+                      <div className="mb-3 flex items-start justify-between">
+                        <span className="text-2xl leading-none">{topic.icon}</span>
+                        <ArrowRight size={14} className={`transition-opacity ${active ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`} style={{ color: "var(--primary)" }} />
                       </div>
-
-                      {/* Bottom accent line */}
-                      <div
-                        className="absolute bottom-0 left-0 right-0 h-[2px]"
-                        style={{ background: `linear-gradient(90deg, ${topic.color}, transparent 80%)` }}
-                      />
-                    </motion.div>
-                  ))}
+                      <h4 className="text-[15px] font-semibold leading-snug tracking-tight" style={{ color: "var(--text-primary)" }}>{topic.title}</h4>
+                      <p className="mt-1.5 line-clamp-2 text-[13px] leading-relaxed" style={{ color: "var(--text-muted)" }}>{topic.description}</p>
+                      <div className="mt-3 inline-flex items-center gap-1 font-mono text-[11px] tabular-nums" style={{ color: "var(--text-secondary)" }}>
+                        <Hash size={10} />
+                        {stats?.categories.find((c) => c.category === topic.category)?.count ?? "—"} статей
+                      </div>
+                    </Card>
+                    );
+                  })}
                 </div>
 
-                <KnowledgeBaseBrowser key={browserKey} />
+                <div ref={browserRef}>
+                  <KnowledgeBaseBrowser initialCategory={selectedCategory} />
+                </div>
               </motion.div>
             )}
 
-            {/* ─── Legislative Radar section ───────────────── */}
+            {/* ─── Radar ─── */}
             {activeSection === "radar" && (
-              <motion.div
-                key="radar"
-                initial={{ opacity: 0, y: 16 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -8 }}
-                transition={{ duration: 0.4, ease: PREMIUM_EASE }}
-                className="space-y-5"
-              >
-                {/* Radar hero card */}
-                <div
-                  className="rounded-2xl p-6 relative overflow-hidden"
-                  style={{
-                    background: "rgba(15, 15, 30, 0.95)",
-                    border: "1px solid rgba(239,68,68,0.15)",
-                    boxShadow: "0 4px 24px rgba(0, 0, 0, 0.3), 0 0 40px rgba(239,68,68,0.05)",
-                  }}
-                >
-                  {/* Top gradient line */}
-                  <div className="absolute top-0 left-0 right-0 h-[2px]" style={{ background: "linear-gradient(90deg, transparent, #EF4444, #F59E0B, transparent)" }} />
-
-                  {/* Corner marks */}
-                  <div className="absolute top-3 left-3 w-4 h-4" style={{ borderTop: "2px solid rgba(239,68,68,0.4)", borderLeft: "2px solid rgba(239,68,68,0.4)", borderRadius: "2px 0 0 0" }} />
-                  <div className="absolute bottom-3 right-3 w-4 h-4" style={{ borderBottom: "2px solid rgba(239,68,68,0.4)", borderRight: "2px solid rgba(239,68,68,0.4)", borderRadius: "0 0 2px 0" }} />
-
-                  {/* Ambient glow */}
-                  <div className="absolute -top-20 right-[-10%] w-[300px] h-[300px] rounded-full opacity-[0.04] pointer-events-none" style={{ background: "radial-gradient(circle, #EF4444 0%, transparent 70%)" }} />
-
-                  <div className="flex items-start gap-4 relative z-10">
-                    <div
-                      className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0"
-                      style={{ background: "rgba(239,68,68,0.12)", boxShadow: "0 0 20px rgba(239,68,68,0.08)" }}
-                    >
-                      <Bell size={18} style={{ color: "#EF4444" }} />
-                    </div>
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-1.5">
-                        <h3 className="text-lg font-black tracking-tight" style={{ color: "var(--text-primary)" }}>
-                          Законодательный радар
-                        </h3>
-                        {/* LIVE indicator */}
-                        <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-md" style={{ background: "rgba(239,68,68,0.1)" }}>
-                          <div
-                            className="w-[6px] h-[6px] rounded-full"
-                            style={{ background: "#EF4444", animation: "live-pulse 2s ease-in-out infinite" }}
-                          />
-                          <span className="text-[9px] font-black uppercase tracking-wider" style={{ color: "#EF4444" }}>Live</span>
-                        </div>
+              <motion.div key="radar" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }} className="space-y-4">
+                {/* Radar header */}
+                <Card accentTop>
+                  <div className="flex items-start gap-4">
+                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl" style={{ background: "var(--primary-muted)", color: "var(--primary)" }}>
+                      <Bell size={18} />
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2.5">
+                        <h3 className="text-lg font-semibold tracking-tight" style={{ color: "var(--text-primary)" }}>Законодательный радар</h3>
+                        <span className="inline-flex items-center gap-1.5 rounded-md px-2 py-0.5" style={{ background: "var(--primary-muted)" }}>
+                          <span className="h-1.5 w-1.5 rounded-full" style={{ background: "var(--primary)" }} />
+                          <span className="font-mono text-[10px] uppercase tracking-wider" style={{ color: "var(--primary)" }}>live</span>
+                        </span>
                       </div>
-                      <p className="text-xs leading-relaxed" style={{ color: "var(--text-secondary)" }}>
-                        Отслеживаем изменения в ФЗ-127, разъяснения ВС РФ и практику арбитражных судов.
+                      <p className="mt-1 text-[13px] leading-relaxed" style={{ color: "var(--text-secondary)" }}>
+                        Изменения в ФЗ-127, разъяснения ВС РФ и практика арбитражных судов.
                       </p>
+                      {radarLastUpdated && (
+                        <div className="mt-2 flex items-center gap-1.5 font-mono text-[11px]" style={{ color: "var(--text-muted)" }}>
+                          <Clock size={11} /> Обновлено {formatRelativeTime(radarLastUpdated)}
+                        </div>
+                      )}
                     </div>
-                    <button
-                      onClick={() => loadRadar(radarCategory)}
-                      disabled={radarLoading}
-                      className="shrink-0 w-10 h-10 rounded-xl flex items-center justify-center transition-all"
-                      style={{ background: "rgba(239,68,68,0.12)", border: "1px solid rgba(239,68,68,0.15)" }}
-                      onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(239,68,68,0.2)"; e.currentTarget.style.boxShadow = "0 0 15px rgba(239,68,68,0.15)"; }}
-                      onMouseLeave={(e) => { e.currentTarget.style.background = "rgba(239,68,68,0.12)"; e.currentTarget.style.boxShadow = "none"; }}
-                    >
-                      {radarLoading ? <Loader2 size={16} className="animate-spin" style={{ color: "#EF4444" }} /> : <RefreshCw size={16} style={{ color: "#EF4444" }} />}
-                    </button>
+                    <Button variant="ghost" size="sm" loading={radarLoading} icon={<RefreshCw size={15} />} onClick={() => loadRadar(radarCategory)} aria-label="Обновить" />
                   </div>
-                  {radarLastUpdated && (
-                    <div className="mt-3 flex items-center gap-1.5 text-[10px] relative z-10" style={{ color: "var(--text-muted)" }}>
-                      <Clock size={10} />
-                      Последнее обновление: {formatRelativeTime(radarLastUpdated)}
-                    </div>
-                  )}
-
-                  {/* Bottom accent */}
-                  <div className="absolute bottom-0 left-0 right-0 h-[2px]" style={{ background: "linear-gradient(90deg, #EF4444, transparent 80%)" }} />
-                </div>
+                </Card>
 
                 {/* Category filters */}
                 {radarCategories.length > 0 && (
                   <div className="flex flex-wrap gap-2">
-                    <button
-                      onClick={() => setRadarCategory(null)}
-                      className="text-[10px] font-black px-3 py-1.5 rounded-lg transition-all duration-300"
-                      style={{
-                        background: !radarCategory ? "rgba(15, 15, 30, 0.95)" : "rgba(15, 15, 30, 0.6)",
-                        border: `1.5px solid ${!radarCategory ? "rgba(16,185,129,0.4)" : "rgba(255,255,255,0.06)"}`,
-                        color: !radarCategory ? "#10B981" : "var(--text-muted)",
-                        boxShadow: !radarCategory ? "0 0 15px rgba(16,185,129,0.1)" : "none",
-                      }}
-                    >
-                      Все ({radarTotal})
-                    </button>
-                    {radarCategories.map((cat) => {
-                      const color = CATEGORY_COLORS[cat.category] || "#6B7280";
-                      const isActive = radarCategory === cat.category;
-                      return (
-                        <button
-                          key={cat.category}
-                          onClick={() => setRadarCategory(cat.category)}
-                          className="text-[10px] font-bold px-3 py-1.5 rounded-lg transition-all duration-300"
-                          style={{
-                            background: isActive ? "rgba(15, 15, 30, 0.95)" : "rgba(15, 15, 30, 0.6)",
-                            border: `1.5px solid ${isActive ? `color-mix(in srgb, ${color} 50%, transparent)` : "rgba(255,255,255,0.06)"}`,
-                            color: isActive ? color : "var(--text-muted)",
-                            boxShadow: isActive ? `0 0 15px color-mix(in srgb, ${color} 12%, transparent)` : "none",
-                          }}
-                        >
-                          {cat.category} ({cat.count})
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-
-                {/* Radar loading skeleton */}
-                {radarLoading && radarItems.length === 0 && (
-                  <div className="space-y-3">
-                    {[1, 2, 3].map((i) => (
-                      <div
-                        key={i}
-                        className="rounded-2xl p-5 animate-pulse"
-                        style={{ background: "rgba(15, 15, 30, 0.95)", border: "1px solid rgba(255,255,255,0.06)" }}
-                      >
-                        <div className="h-3 w-3/4 rounded" style={{ background: "rgba(255,255,255,0.06)" }} />
-                        <div className="h-2 w-1/2 rounded mt-3" style={{ background: "rgba(255,255,255,0.04)" }} />
-                      </div>
+                    <FilterChip active={!radarCategory} onClick={() => setRadarCategory(null)}>Все · {radarTotal}</FilterChip>
+                    {radarCategories.map((cat) => (
+                      <FilterChip key={cat.category} active={radarCategory === cat.category} onClick={() => setRadarCategory(cat.category)}>
+                        {cat.category} · {cat.count}
+                      </FilterChip>
                     ))}
                   </div>
                 )}
 
-                {/* Radar items */}
-                {radarItems.map((item, i) => {
-                  const impact = IMPACT_CONFIG[getImpactLevel(item.relevance_score)];
-                  const catColor = CATEGORY_COLORS[item.category] || "#6B7280";
-                  return (
-                    <motion.div
-                      key={item.id}
-                      initial={{ opacity: 0, x: -16 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: i * 0.04, duration: 0.45, ease: PREMIUM_EASE }}
-                      className="group rounded-2xl overflow-hidden relative"
-                      style={{
-                        background: "rgba(15, 15, 30, 0.95)",
-                        border: "1px solid rgba(255,255,255,0.06)",
-                        boxShadow: "0 4px 24px rgba(0, 0, 0, 0.3)",
-                        transition: "all 0.3s ease",
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.borderColor = `color-mix(in srgb, ${impact.color} 35%, transparent)`;
-                        e.currentTarget.style.transform = "translateX(4px)";
-                        e.currentTarget.style.boxShadow = `0 0 20px ${impact.glow}, 0 8px 32px rgba(0, 0, 0, 0.3)`;
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.borderColor = "rgba(255,255,255,0.06)";
-                        e.currentTarget.style.transform = "translateX(0)";
-                        e.currentTarget.style.boxShadow = "0 4px 24px rgba(0, 0, 0, 0.3)";
-                      }}
-                    >
-                      {/* Top accent line */}
-                      <div className="h-[2px]" style={{ background: `linear-gradient(90deg, ${impact.color}, transparent 60%)` }} />
+                {/* Loading */}
+                {radarLoading && radarItems.length === 0 && (
+                  <div className="space-y-3">
+                    {[1, 2, 3].map((i) => (
+                      <Card key={i}>
+                        <div className="h-3 w-3/4 animate-pulse rounded" style={{ background: "var(--bg-tertiary)" }} />
+                        <div className="mt-3 h-2 w-1/2 animate-pulse rounded" style={{ background: "var(--bg-tertiary)" }} />
+                      </Card>
+                    ))}
+                  </div>
+                )}
 
-                      <div className="p-5">
-                        <div className="flex items-start gap-3">
-                          <div className="shrink-0 mt-1.5">
-                            <div
-                              className="w-3 h-3 rounded-full"
-                              style={{ background: impact.color, boxShadow: `0 0 10px ${impact.color}` }}
-                            />
+                {/* Items */}
+                {radarItems.map((item) => {
+                  const impact = impactMeta(getImpactLevel(item.relevance_score));
+                  const openSource = item.source_url
+                    ? () => window.open(item.source_url!, "_blank", "noopener,noreferrer")
+                    : undefined;
+                  return (
+                    <Card
+                      key={item.id}
+                      variant={openSource ? "interactive" : "hairline"}
+                      role={openSource ? "link" : undefined}
+                      tabIndex={openSource ? 0 : undefined}
+                      onClick={openSource}
+                      onKeyDown={openSource ? (e) => { if (e.key === "Enter") openSource(); } : undefined}
+                      className="group"
+                    >
+                      <div className="flex items-start gap-3">
+                        <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full" style={{ background: impact.color }} />
+                        <div className="min-w-0 flex-1">
+                          <div className="mb-2 flex flex-wrap items-center gap-x-2.5 gap-y-1">
+                            <span className="font-mono text-[11px] font-semibold uppercase tracking-wide" style={{ color: impact.color }}>{impact.label}</span>
+                            <span className="font-mono text-[11px]" style={{ color: "var(--text-secondary)" }}>{item.category}</span>
+                            <span className="font-mono text-[11px]" style={{ color: "var(--text-muted)" }}>{item.source}</span>
+                            <span className="ml-auto font-mono text-[11px] tabular-nums" style={{ color: "var(--text-muted)" }}>{formatDate(item.published_at)}</span>
                           </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 mb-2 flex-wrap">
-                              {/* Impact badge with glow */}
-                              <span
-                                className="text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-lg"
-                                style={{
-                                  background: impact.bg,
-                                  color: impact.color,
-                                  boxShadow: `0 0 12px ${impact.glow}`,
-                                }}
-                              >
-                                {impact.label}
-                              </span>
-                              <span
-                                className="text-[10px] font-bold px-2.5 py-1 rounded-lg"
-                                style={{ background: `color-mix(in srgb, ${catColor} 10%, transparent)`, color: catColor }}
-                              >
-                                {item.category}
-                              </span>
-                              <span
-                                className="text-[10px] font-medium px-2.5 py-1 rounded-lg"
-                                style={{ background: "rgba(255,255,255,0.04)", color: "var(--text-muted)" }}
-                              >
-                                {item.source}
-                              </span>
-                              <span className="text-[10px] ml-auto font-medium" style={{ color: "var(--text-muted)" }}>
-                                {formatDate(item.published_at)}
-                              </span>
+                          <h4 className="text-[15px] font-semibold leading-snug tracking-tight" style={{ color: "var(--text-primary)" }}>{item.title}</h4>
+                          <p className="mt-1.5 text-[13px] leading-relaxed" style={{ color: "var(--text-secondary)" }}>{item.summary}</p>
+                          {item.tags.length > 0 && (
+                            <div className="mt-3 flex flex-wrap gap-1.5">
+                              {item.tags.map((tag) => (
+                                <span key={tag} className="inline-flex items-center gap-1 rounded-md px-2 py-0.5 font-mono text-[11px]" style={{ background: "var(--bg-secondary)", color: "var(--text-muted)", border: "1px solid var(--border-color)" }}>
+                                  <Tag size={9} /> {tag}
+                                </span>
+                              ))}
                             </div>
-                            <h4 className="text-sm font-black leading-snug mb-1.5 tracking-tight" style={{ color: "var(--text-primary)" }}>
-                              {item.title}
-                            </h4>
-                            <p className="text-xs leading-relaxed mb-2.5" style={{ color: "var(--text-muted)" }}>
-                              {item.summary}
-                            </p>
-                            {item.tags.length > 0 && (
-                              <div className="flex flex-wrap gap-1.5">
-                                {item.tags.map((tag) => (
-                                  <span
-                                    key={tag}
-                                    className="flex items-center gap-1 text-[9px] font-semibold px-2 py-0.5 rounded-md"
-                                    style={{ background: "rgba(255,255,255,0.04)", color: "var(--text-muted)", border: "1px solid rgba(255,255,255,0.04)" }}
-                                  >
-                                    <Tag size={8} />
-                                    {tag}
-                                  </span>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                          {item.source_url && (
-                            <a href={item.source_url} target="_blank" rel="noopener noreferrer" className="shrink-0">
-                              <ExternalLink
-                                size={14}
-                                className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 mt-1"
-                                style={{ color: "var(--text-muted)" }}
-                              />
-                            </a>
                           )}
                         </div>
+                        {openSource && (
+                          <ExternalLink size={15} className="shrink-0 opacity-0 transition-opacity group-hover:opacity-100" style={{ color: "var(--text-muted)" }} aria-hidden />
+                        )}
                       </div>
-
-                      {/* Bottom accent line */}
-                      <div
-                        className="absolute bottom-0 left-0 right-0 h-[2px]"
-                        style={{ background: `linear-gradient(90deg, ${impact.color}, transparent 80%)` }}
-                      />
-                    </motion.div>
+                    </Card>
                   );
                 })}
 
-                {/* Empty state */}
+                {/* Empty */}
                 {!radarLoading && radarItems.length === 0 && (
-                  <div
-                    className="text-center py-10 rounded-2xl relative overflow-hidden"
-                    style={{ background: "rgba(15, 15, 30, 0.95)", border: "1px solid rgba(255,255,255,0.06)", boxShadow: "0 4px 24px rgba(0,0,0,0.3)" }}
-                  >
-                    <Bell size={36} className="mx-auto mb-3 opacity-20" style={{ color: "var(--text-muted)" }} />
-                    <p className="text-sm font-bold mb-1" style={{ color: "var(--text-secondary)" }}>Радар обновляется каждые 12 часов</p>
-                    <p className="text-xs" style={{ color: "var(--text-muted)" }}>Новые изменения в законодательстве появятся здесь автоматически</p>
-                  </div>
+                  <Card padded={false}>
+                    <EmptyState
+                      icon={Bell}
+                      title="Пока тихо"
+                      description="Новые изменения в законодательстве появятся здесь автоматически."
+                      hint="Радар обновляется каждые 12 часов"
+                    />
+                  </Card>
                 )}
               </motion.div>
             )}
 
-            {/* ─── AI Assistant section ──────────────────── */}
+            {/* ─── AI ─── */}
             {activeSection === "ai" && (
-              <motion.div
-                key="ai"
-                initial={{ opacity: 0, y: 16 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -8 }}
-                transition={{ duration: 0.4, ease: PREMIUM_EASE }}
-                className="space-y-5"
-              >
-                {/* AI hero card — premium chat input */}
-                <div
-                  className="rounded-2xl p-6 sm:p-8 relative overflow-hidden"
-                  style={{
-                    background: "rgba(15, 15, 30, 0.95)",
-                    border: "1px solid rgba(16,185,129,0.2)",
-                    boxShadow: "0 4px 24px rgba(0, 0, 0, 0.3), 0 0 60px rgba(16,185,129,0.06)",
-                  }}
-                >
-                  {/* Top gradient line */}
-                  <div className="absolute top-0 left-0 right-0 h-[2px]" style={{ background: "linear-gradient(90deg, transparent, #10B981, #3B82F6, transparent)" }} />
-
-                  {/* Ambient glow */}
-                  <div className="absolute -top-20 right-[-10%] w-[350px] h-[350px] rounded-full opacity-[0.05] pointer-events-none" style={{ background: "radial-gradient(circle, #10B981 0%, transparent 70%)" }} />
-                  <div className="absolute -bottom-20 left-[-10%] w-[250px] h-[250px] rounded-full opacity-[0.03] pointer-events-none" style={{ background: "radial-gradient(circle, #3B82F6 0%, transparent 70%)" }} />
-
-                  <div className="relative z-10">
-                    <div className="flex items-center gap-3 mb-4">
-                      <div
-                        className="w-10 h-10 rounded-xl flex items-center justify-center"
-                        style={{ background: "rgba(16,185,129,0.15)", boxShadow: "0 0 20px rgba(16,185,129,0.1)" }}
-                      >
-                        <Sparkles size={18} style={{ color: "#10B981" }} />
-                      </div>
-                      <div>
-                        <span className="text-xs font-black uppercase tracking-[0.2em] block" style={{ color: "#10B981" }}>
-                          AI-помощник
-                        </span>
-                        <span className="text-[10px] font-medium block mt-0.5" style={{ color: "var(--text-muted)" }}>
-                          ФЗ-127 и судебная практика
-                        </span>
-                      </div>
+              <motion.div key="ai" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }} className="space-y-4">
+                {/* Ask */}
+                <Card accentTop>
+                  <div className="flex items-center gap-3">
+                    <span className="flex h-10 w-10 items-center justify-center rounded-xl" style={{ background: "var(--primary-muted)", color: "var(--primary)" }}>
+                      <Sparkles size={18} />
+                    </span>
+                    <div>
+                      <div className="font-mono text-[11px] uppercase tracking-[0.16em]" style={{ color: "var(--text-secondary)" }}>AI-помощник</div>
+                      <div className="text-[13px]" style={{ color: "var(--text-muted)" }}>Отвечает по закону и судебной практике — со ссылками на источники.</div>
                     </div>
-
-                    <p className="text-sm leading-relaxed mb-6" style={{ color: "var(--text-secondary)" }}>
-                      Задайте вопрос — AI найдёт ответ в базе законодательства, судебной практике и материалах платформы. Все ответы со ссылками на первоисточники.
-                    </p>
-
-                    {/* Premium input */}
-                    <form onSubmit={(e) => { e.preventDefault(); handleAsk(); }}>
-                      <div
-                        className="rounded-xl p-1 transition-all duration-500"
-                        style={{
-                          background: inputFocused
-                            ? "linear-gradient(135deg, rgba(16,185,129,0.2), rgba(59,130,246,0.15))"
-                            : "rgba(255,255,255,0.04)",
-                          boxShadow: inputFocused
-                            ? "0 0 0 1px rgba(16,185,129,0.3), 0 0 30px rgba(16,185,129,0.08)"
-                            : "0 0 0 1px rgba(255,255,255,0.06)",
-                          animation: inputFocused ? "input-glow 3s ease-in-out infinite" : "none",
-                        }}
-                      >
-                        <div className="flex gap-2">
-                          <div className="flex-1 relative">
-                            <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 transition-colors duration-300" style={{ color: inputFocused ? "#10B981" : "var(--text-muted)" }} />
-                            <input
-                              type="text"
-                              value={aiQuery}
-                              onChange={(e) => setAiQuery(e.target.value)}
-                              placeholder="Например: Какие основания для оспаривания сделки по ст.61.2?"
-                              disabled={aiLoading}
-                              className="w-full pl-11 pr-4 py-4 rounded-lg text-sm font-medium"
-                              style={{
-                                background: "rgba(15, 15, 30, 0.8)",
-                                border: "none",
-                                color: "var(--text-primary)",
-                                outline: "none",
-                              }}
-                              onFocus={() => setInputFocused(true)}
-                              onBlur={() => setInputFocused(false)}
-                            />
-                          </div>
-                          <button
-                            type="submit"
-                            disabled={aiLoading || !aiQuery.trim()}
-                            className="px-6 py-4 rounded-lg text-sm font-black transition-all duration-300 flex items-center gap-2 disabled:opacity-40 shrink-0"
-                            style={{
-                              background: "linear-gradient(135deg, #10B981, #059669)",
-                              color: "#fff",
-                              boxShadow: "0 4px 20px rgba(16,185,129,0.3)",
-                            }}
-                            onMouseEnter={(e) => {
-                              if (!aiLoading) {
-                                e.currentTarget.style.boxShadow = "0 4px 30px rgba(16,185,129,0.5)";
-                                e.currentTarget.style.transform = "translateY(-2px)";
-                              }
-                            }}
-                            onMouseLeave={(e) => {
-                              e.currentTarget.style.boxShadow = "0 4px 20px rgba(16,185,129,0.3)";
-                              e.currentTarget.style.transform = "translateY(0)";
-                            }}
-                          >
-                            {aiLoading ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
-                            Спросить
-                          </button>
-                        </div>
-                      </div>
-                    </form>
                   </div>
 
-                  {/* Bottom accent */}
-                  <div className="absolute bottom-0 left-0 right-0 h-[2px]" style={{ background: "linear-gradient(90deg, #10B981, #3B82F6, transparent 80%)" }} />
-                </div>
+                  <form className="mt-5" onSubmit={(e) => { e.preventDefault(); handleAsk(); }}>
+                    <div className="flex flex-col gap-2 sm:flex-row">
+                      <div className="relative flex-1">
+                        <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2" style={{ color: "var(--text-muted)" }} />
+                        <input
+                          type="text"
+                          value={aiQuery}
+                          onChange={(e) => setAiQuery(e.target.value)}
+                          placeholder="Например: основания оспаривания сделки по ст. 61.2?"
+                          disabled={aiLoading}
+                          className="vh-input pl-10"
+                        />
+                      </div>
+                      <Button type="submit" variant="primary" loading={aiLoading} disabled={!aiQuery.trim()} icon={<ArrowRight size={16} />} className="shrink-0">
+                        Спросить
+                      </Button>
+                    </div>
+                  </form>
+                </Card>
 
-                {/* AI Loading */}
+                {/* Loading */}
                 {aiLoading && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="rounded-2xl p-6 space-y-3 relative overflow-hidden"
-                    style={{
-                      background: "rgba(15, 15, 30, 0.95)",
-                      border: "1px solid rgba(16,185,129,0.12)",
-                      boxShadow: "0 4px 24px rgba(0,0,0,0.3)",
-                    }}
-                  >
-                    <div className="flex items-center gap-2.5 mb-3">
-                      <Loader2 size={16} className="animate-spin" style={{ color: "#10B981" }} />
-                      <span className="text-xs font-black uppercase tracking-wider" style={{ color: "#10B981" }}>Ищу в базе знаний...</span>
+                  <Card>
+                    <div className="mb-3 flex items-center gap-2.5">
+                      <Loader2 size={15} className="animate-spin" style={{ color: "var(--primary)" }} />
+                      <span className="font-mono text-[11px] uppercase tracking-wider" style={{ color: "var(--text-secondary)" }}>Ищу в базе знаний…</span>
                     </div>
-                    <div className="space-y-2.5 animate-pulse">
-                      <div className="h-3 w-full rounded-md" style={{ background: "rgba(255,255,255,0.06)" }} />
-                      <div className="h-3 w-5/6 rounded-md" style={{ background: "rgba(255,255,255,0.05)" }} />
-                      <div className="h-3 w-4/6 rounded-md" style={{ background: "rgba(255,255,255,0.04)" }} />
+                    <div className="space-y-2.5">
+                      <div className="h-3 w-full animate-pulse rounded" style={{ background: "var(--bg-tertiary)" }} />
+                      <div className="h-3 w-5/6 animate-pulse rounded" style={{ background: "var(--bg-tertiary)" }} />
+                      <div className="h-3 w-4/6 animate-pulse rounded" style={{ background: "var(--bg-tertiary)" }} />
                     </div>
-                    <div className="absolute bottom-0 left-0 right-0 h-[2px]" style={{ background: "linear-gradient(90deg, #10B981, transparent 80%)" }} />
-                  </motion.div>
+                  </Card>
                 )}
 
-                {/* AI Result */}
-                {aiResult && !aiLoading && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 14 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.5, ease: PREMIUM_EASE }}
-                    className="space-y-4"
-                  >
-                    {/* Answer card */}
-                    <div
-                      className="rounded-2xl p-6 relative overflow-hidden"
-                      style={{
-                        background: "rgba(15, 15, 30, 0.95)",
-                        border: "1px solid rgba(16,185,129,0.2)",
-                        boxShadow: "0 4px 24px rgba(0, 0, 0, 0.3), 0 0 30px rgba(16,185,129,0.05)",
-                      }}
-                    >
-                      <div className="absolute top-0 left-0 right-0 h-[2px]" style={{ background: "linear-gradient(90deg, #10B981, transparent 60%)" }} />
+                {/* Error — distinct from an answer */}
+                {aiError && !aiLoading && (
+                  <Card style={{ borderColor: "var(--danger)" }}>
+                    <div className="flex items-start gap-3">
+                      <AlertTriangle size={16} className="mt-0.5 shrink-0" style={{ color: "var(--danger)" }} />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>{aiError}</p>
+                        <Button variant="ghost" size="sm" icon={<RefreshCw size={14} />} onClick={() => handleAsk(aiQuery)} className="mt-3">Повторить</Button>
+                      </div>
+                    </div>
+                  </Card>
+                )}
 
-                      <div className="flex items-center gap-2.5 mb-4">
-                        <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: "rgba(16,185,129,0.12)" }}>
-                          <Sparkles size={13} style={{ color: "#10B981" }} />
-                        </div>
-                        <span className="text-xs font-black uppercase tracking-wider" style={{ color: "#10B981" }}>Ответ AI</span>
+                {/* Result */}
+                {aiResult && !aiLoading && (
+                  <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.24 }} className="space-y-4">
+                    <Card accentTop>
+                      <div className="mb-4 flex items-center gap-2.5">
+                        <Sparkles size={14} style={{ color: "var(--primary)" }} />
+                        <span className="font-mono text-[11px] uppercase tracking-wider" style={{ color: "var(--text-secondary)" }}>Ответ</span>
                         {aiResult.total_ms > 0 && (
-                          <span className="text-[10px] ml-auto font-semibold px-2 py-0.5 rounded-md" style={{ background: "rgba(255,255,255,0.04)", color: "var(--text-muted)" }}>
-                            {(aiResult.total_ms / 1000).toFixed(1)}с
-                          </span>
+                          <span className="ml-auto font-mono text-[11px] tabular-nums" style={{ color: "var(--text-muted)" }}>{(aiResult.total_ms / 1000).toFixed(1)} с</span>
                         )}
                       </div>
-                      <div className="text-sm leading-relaxed whitespace-pre-wrap" style={{ color: "var(--text-secondary)" }}>
-                        <TypewriterText text={aiResult.answer} />
-                      </div>
+                      <div className="whitespace-pre-wrap text-[15px] leading-relaxed" style={{ color: "var(--text-secondary)" }}>{aiResult.answer}</div>
+                    </Card>
 
-                      <div className="absolute bottom-0 left-0 right-0 h-[2px]" style={{ background: "linear-gradient(90deg, #10B981, transparent 80%)" }} />
-                    </div>
-
-                    {/* Sources */}
                     {aiResult.sources.length > 0 && (
                       <div>
-                        <SectionHeader icon={FileText} label={`Источники (${aiResult.sources.length})`} />
+                        <Eyebrow icon={FileText} label={`Источники · ${aiResult.sources.length}`} />
                         <div className="grid gap-3 sm:grid-cols-2">
                           {aiResult.sources.map((src, idx) => (
-                            <div
-                              key={idx}
-                              className="group rounded-2xl p-4 text-xs relative overflow-hidden"
-                              style={{
-                                background: "rgba(15, 15, 30, 0.95)",
-                                border: "1px solid rgba(255,255,255,0.06)",
-                                boxShadow: "0 4px 24px rgba(0, 0, 0, 0.3)",
-                                transition: "all 0.3s ease",
-                              }}
-                              onMouseEnter={(e) => {
-                                e.currentTarget.style.borderColor = "rgba(16,185,129,0.25)";
-                                e.currentTarget.style.boxShadow = "0 0 15px rgba(16,185,129,0.08), 0 8px 32px rgba(0,0,0,0.3)";
-                              }}
-                              onMouseLeave={(e) => {
-                                e.currentTarget.style.borderColor = "rgba(255,255,255,0.06)";
-                                e.currentTarget.style.boxShadow = "0 4px 24px rgba(0, 0, 0, 0.3)";
-                              }}
-                            >
-                              <div className="flex items-center gap-2 mb-2">
-                                {/* Citation badge with glow */}
-                                <span
-                                  className="font-black px-2 py-0.5 rounded-md text-[10px]"
-                                  style={{
-                                    background: "rgba(16,185,129,0.1)",
-                                    color: "#10B981",
-                                    boxShadow: "0 0 10px rgba(16,185,129,0.08)",
-                                  }}
-                                >
-                                  {src.category}
-                                </span>
+                            <Card key={idx}>
+                              <div className="mb-2 flex items-center gap-2">
+                                <span className="font-mono text-[11px] font-semibold" style={{ color: "var(--primary)" }}>{src.category}</span>
                                 {src.is_court_practice && (
-                                  <span
-                                    className="flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[9px] font-bold"
-                                    style={{ background: "rgba(139,92,246,0.1)", color: "#8B5CF6", boxShadow: "0 0 8px rgba(139,92,246,0.06)" }}
-                                  >
-                                    <Scale size={9} />
-                                    Суд
+                                  <span className="inline-flex items-center gap-1 font-mono text-[11px]" style={{ color: "var(--text-secondary)" }}>
+                                    <Scale size={10} /> Суд
                                   </span>
                                 )}
-                                <span className="ml-auto text-[10px] font-bold tabular-nums" style={{ color: "var(--text-muted)" }}>
-                                  {Math.round(src.relevance * 100)}%
-                                </span>
+                                <span className="ml-auto font-mono text-[11px] tabular-nums" style={{ color: "var(--text-muted)" }}>{Math.round(src.relevance * 100)}%</span>
                               </div>
-                              {src.law_article && (
-                                <div className="text-[11px] font-bold mb-0.5" style={{ color: "var(--text-secondary)" }}>{src.law_article}</div>
-                              )}
-                              {src.court_case && (
-                                <div className="text-[10px] mt-0.5" style={{ color: "var(--text-muted)" }}>{src.court_case}</div>
-                              )}
-
-                              {/* Bottom accent */}
-                              <div className="absolute bottom-0 left-0 right-0 h-[2px]" style={{ background: "linear-gradient(90deg, #10B981, transparent 80%)" }} />
-                            </div>
+                              {src.law_article && <div className="text-[13px] font-semibold" style={{ color: "var(--text-primary)" }}>{src.law_article}</div>}
+                              {src.court_case && <div className="mt-0.5 text-[12px]" style={{ color: "var(--text-muted)" }}>{src.court_case}</div>}
+                            </Card>
                           ))}
                         </div>
                       </div>
@@ -1049,59 +560,28 @@ export default function KnowledgePage() {
                   </motion.div>
                 )}
 
-                {/* Popular questions — shown when no result */}
-                {!aiResult && !aiLoading && (
+                {/* Popular questions */}
+                {!aiResult && !aiLoading && !aiError && (
                   <div>
-                    <SectionHeader icon={MessageSquare} label="Популярные вопросы" />
+                    <Eyebrow icon={MessageSquare} label="Популярные вопросы" />
                     <div className="grid gap-3 sm:grid-cols-2">
                       {POPULAR_QUESTIONS.map(({ q, category }) => (
-                        <button
-                          key={q}
+                        <Card key={q} variant="interactive" role="button" tabIndex={0}
                           onClick={() => { setAiQuery(q); handleAsk(q); }}
-                          className="flex items-start gap-3 text-left rounded-2xl p-4 transition-all duration-300 text-xs group relative overflow-hidden"
-                          style={{
-                            background: "rgba(15, 15, 30, 0.95)",
-                            border: "1px solid rgba(255,255,255,0.06)",
-                            boxShadow: "0 4px 24px rgba(0, 0, 0, 0.3)",
-                            color: "var(--text-secondary)",
-                          }}
-                          onMouseEnter={(e) => {
-                            e.currentTarget.style.borderColor = "rgba(16,185,129,0.3)";
-                            e.currentTarget.style.color = "var(--text-primary)";
-                            e.currentTarget.style.boxShadow = "0 0 20px rgba(16,185,129,0.08), 0 8px 32px rgba(0,0,0,0.3)";
-                            e.currentTarget.style.transform = "translateX(4px)";
-                          }}
-                          onMouseLeave={(e) => {
-                            e.currentTarget.style.borderColor = "rgba(255,255,255,0.06)";
-                            e.currentTarget.style.color = "var(--text-secondary)";
-                            e.currentTarget.style.boxShadow = "0 4px 24px rgba(0, 0, 0, 0.3)";
-                            e.currentTarget.style.transform = "translateX(0)";
-                          }}
+                          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setAiQuery(q); handleAsk(q); } }}
+                          className="group"
                         >
-                          <div
-                            className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
-                            style={{ background: "rgba(16,185,129,0.1)" }}
-                          >
-                            <MessageSquare size={14} style={{ color: "#10B981" }} />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <span className="block leading-relaxed font-medium">{q}</span>
-                            <span
-                              className="inline-block mt-1.5 text-[10px] font-black px-2 py-0.5 rounded-md uppercase tracking-wider"
-                              style={{ background: "rgba(16,185,129,0.08)", color: "#10B981" }}
-                            >
-                              {category}
+                          <div className="flex items-start gap-3">
+                            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg" style={{ background: "var(--primary-muted)", color: "var(--primary)" }}>
+                              <MessageSquare size={14} />
                             </span>
+                            <div className="min-w-0 flex-1">
+                              <span className="block text-[13px] font-medium leading-relaxed" style={{ color: "var(--text-primary)" }}>{q}</span>
+                              <span className="mt-1.5 inline-block font-mono text-[11px] uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>{category}</span>
+                            </div>
+                            <ChevronRight size={14} className="mt-1 shrink-0 opacity-0 transition-opacity group-hover:opacity-100" style={{ color: "var(--primary)" }} />
                           </div>
-                          <ChevronRight
-                            size={14}
-                            className="shrink-0 mt-2 opacity-0 group-hover:opacity-100 transition-all duration-300 group-hover:translate-x-0.5"
-                            style={{ color: "#10B981" }}
-                          />
-
-                          {/* Bottom accent */}
-                          <div className="absolute bottom-0 left-0 right-0 h-[2px]" style={{ background: "linear-gradient(90deg, #10B981, transparent 80%)" }} />
-                        </button>
+                        </Card>
                       ))}
                     </div>
                   </div>
@@ -1110,20 +590,16 @@ export default function KnowledgePage() {
                 {/* History */}
                 {aiHistory.length > 0 && !aiLoading && (
                   <div>
-                    <div className="flex items-center justify-between mb-4">
-                      <div className="flex items-center gap-2.5">
+                    <div className="mb-4 flex items-center justify-between">
+                      <div className="flex flex-1 items-center gap-2.5">
                         <Clock size={13} style={{ color: "var(--text-muted)" }} />
-                        <span className="text-[10px] font-black uppercase tracking-[0.2em]" style={{ color: "var(--text-muted)" }}>
-                          История вопросов
-                        </span>
-                        <div className="flex-1 h-px" style={{ background: "linear-gradient(90deg, rgba(255,255,255,0.06), transparent)" }} />
+                        <span className="font-mono text-[11px] uppercase tracking-[0.16em]" style={{ color: "var(--text-secondary)" }}>История вопросов</span>
+                        <div className="h-px flex-1" style={{ background: "var(--border-color)" }} />
                       </div>
                       <button
                         onClick={() => { setAiHistory([]); try { sessionStorage.removeItem("knowledge_ai_history"); } catch {} }}
-                        className="text-[10px] font-bold px-2.5 py-1 rounded-lg transition-all duration-300"
-                        style={{ background: "rgba(239,68,68,0.08)", color: "#EF4444", border: "1px solid rgba(239,68,68,0.15)" }}
-                        onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(239,68,68,0.15)"; e.currentTarget.style.boxShadow = "0 0 10px rgba(239,68,68,0.1)"; }}
-                        onMouseLeave={(e) => { e.currentTarget.style.background = "rgba(239,68,68,0.08)"; e.currentTarget.style.boxShadow = "none"; }}
+                        className="ml-3 font-mono text-[11px] transition-colors"
+                        style={{ color: "var(--text-muted)" }}
                       >
                         Очистить
                       </button>
@@ -1132,25 +608,13 @@ export default function KnowledgePage() {
                       {aiHistory.slice(0, 5).map((entry, idx) => (
                         <button
                           key={idx}
-                          onClick={() => { setAiQuery(entry.question); handleAsk(entry.question); }}
-                          className="w-full text-left rounded-xl p-3.5 transition-all duration-300 text-xs group flex items-center gap-3 relative overflow-hidden"
-                          style={{
-                            background: "rgba(15, 15, 30, 0.8)",
-                            border: "1px solid rgba(255,255,255,0.04)",
-                            boxShadow: "0 2px 12px rgba(0,0,0,0.2)",
-                          }}
-                          onMouseEnter={(e) => {
-                            e.currentTarget.style.borderColor = "rgba(16,185,129,0.2)";
-                            e.currentTarget.style.boxShadow = "0 0 15px rgba(16,185,129,0.06), 0 4px 20px rgba(0,0,0,0.25)";
-                          }}
-                          onMouseLeave={(e) => {
-                            e.currentTarget.style.borderColor = "rgba(255,255,255,0.04)";
-                            e.currentTarget.style.boxShadow = "0 2px 12px rgba(0,0,0,0.2)";
-                          }}
+                          onClick={() => restoreFromHistory(entry)}
+                          className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left transition-colors"
+                          style={{ background: "var(--surface-card)", border: "1px solid var(--border-color)" }}
                         >
-                          <MessageSquare size={12} className="shrink-0" style={{ color: "var(--text-muted)" }} />
-                          <span className="flex-1 truncate font-medium" style={{ color: "var(--text-secondary)" }}>{entry.question}</span>
-                          <span className="text-[9px] shrink-0 font-semibold tabular-nums" style={{ color: "var(--text-muted)" }}>
+                          <MessageSquare size={13} className="shrink-0" style={{ color: "var(--text-muted)" }} />
+                          <span className="flex-1 truncate text-[13px]" style={{ color: "var(--text-secondary)" }}>{entry.question}</span>
+                          <span className="shrink-0 font-mono text-[11px] tabular-nums" style={{ color: "var(--text-muted)" }}>
                             {new Date(entry.timestamp).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })}
                           </span>
                         </button>
@@ -1160,20 +624,11 @@ export default function KnowledgePage() {
                 )}
 
                 {/* Disclaimer */}
-                <div
-                  className="flex items-start gap-3 rounded-2xl p-4 relative overflow-hidden"
-                  style={{
-                    background: "rgba(15, 15, 30, 0.95)",
-                    border: "1px solid rgba(255,255,255,0.06)",
-                    boxShadow: "0 4px 24px rgba(0, 0, 0, 0.3)",
-                  }}
-                >
-                  <AlertTriangle size={14} className="shrink-0 mt-0.5" style={{ color: "var(--text-muted)" }} />
-                  <span className="text-[11px] leading-relaxed" style={{ color: "var(--text-muted)" }}>
-                    AI-помощник использует актуальную редакцию ФЗ-127 и базу судебных решений.
-                    Ответы носят информационный характер и не являются юридической консультацией.
+                <div className="flex items-start gap-3 pt-2">
+                  <AlertTriangle size={14} className="mt-0.5 shrink-0" style={{ color: "var(--text-muted)" }} />
+                  <span className="text-[12px] leading-relaxed" style={{ color: "var(--text-muted)" }}>
+                    Ответы основаны на актуальной редакции ФЗ-127 и базе судебных решений. Носят информационный характер и не являются юридической консультацией.
                   </span>
-                  <div className="absolute bottom-0 left-0 right-0 h-[2px]" style={{ background: "linear-gradient(90deg, rgba(255,255,255,0.06), transparent 80%)" }} />
                 </div>
               </motion.div>
             )}
@@ -1181,5 +636,21 @@ export default function KnowledgePage() {
         </div>
       </div>
     </AuthLayout>
+  );
+}
+
+function FilterChip({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button
+      onClick={onClick}
+      className="rounded-lg px-3 py-1.5 font-mono text-[11px] transition-colors"
+      style={{
+        background: active ? "var(--primary-muted)" : "transparent",
+        border: `1px solid ${active ? "var(--primary)" : "var(--border-color)"}`,
+        color: active ? "var(--primary)" : "var(--text-secondary)",
+      }}
+    >
+      {children}
+    </button>
   );
 }

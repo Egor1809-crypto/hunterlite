@@ -6,7 +6,6 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import { Mail, User, ArrowRight, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/Button";
-import { BrandLogo } from "@/components/ui/BrandLogo";
 import { api, resetAuthCircuitBreaker } from "@/lib/api";
 import { setTokens } from "@/lib/auth";
 import { PasswordInput } from "@/components/ui/PasswordInput";
@@ -75,41 +74,24 @@ export default function RegisterPage() {
 
   return (
     <div
-      className="relative flex min-h-screen items-center justify-center px-4 py-8 overflow-hidden"
+      className="relative flex min-h-screen items-center justify-center px-5 py-10"
       style={{ backgroundColor: "var(--bg-primary)" }}
     >
-      {/* Subtle gradient accent line at top */}
-      <div
-        className="fixed top-0 left-0 right-0 h-1 z-20"
-        style={{
-          background: "linear-gradient(90deg, var(--ocean), var(--primary))",
-        }}
-      />
-
       <motion.div
-        initial={{ opacity: 0, y: 20, scale: 0.98 }}
-        animate={{ opacity: 1, y: 0, scale: 1 }}
-        transition={{ duration: 0.4, ease: "easeOut" }}
-        className="w-full max-w-md rounded-2xl p-8 relative z-10"
-        style={{
-          backgroundColor: "var(--surface-card)",
-          border: "1px solid var(--border-color)",
-          boxShadow: "var(--shadow-lg)",
-        }}
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.24, ease: "easeOut" }}
+        className="relative z-10 w-full max-w-[400px]"
       >
-        {/* Brand header */}
-        <div className="mb-8 text-center">
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
-            className="mb-3 flex items-center justify-center gap-2.5"
-          >
-            <BrandLogo size="lg" />
-          </motion.div>
-          <p className="text-sm" style={{ color: "var(--text-muted)" }}>
-            Создание аккаунта
+        {/* Editorial header */}
+        <div className="mb-9">
+          <div aria-hidden className="mb-5 h-0.5 w-8" style={{ background: "var(--primary)" }} />
+          <p className="font-mono text-[11px] uppercase tracking-[0.16em]" style={{ color: "var(--text-secondary)" }}>
+            LegalHunter
           </p>
+          <h1 className="mt-3 text-[32px] font-semibold leading-none tracking-tight" style={{ color: "var(--text-primary)" }}>
+            Создать аккаунт
+          </h1>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">

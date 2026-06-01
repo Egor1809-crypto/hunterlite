@@ -458,6 +458,11 @@ class Settings(BaseSettings):
     # Telegram Bot
     telegram_bot_token: str = ""
     telegram_webhook_base_url: str = ""
+    # Bot username (without @) — used to build t.me deeplinks for account
+    # linking and buying training attempts. @BFLHUNTER_bot is the pilot bot.
+    telegram_bot_username: str = "BFLHUNTER_bot"
+    # Group/channel the bot posts platform notifications to (negative id).
+    telegram_notify_chat_id: str = ""
 
     # Email / SMTP (for password reset etc.)
     smtp_host: str = ""  # e.g. smtp.gmail.com, smtp.yandex.ru

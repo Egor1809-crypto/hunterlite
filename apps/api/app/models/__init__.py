@@ -218,6 +218,7 @@ from app.models.analytics_event import AnalyticsEvent
 # grader. Migration 20260503_001. See docs/QUIZ_V2_ARENA_DESIGN.md.
 from app.models.quiz_v2 import QuizV2AnswerKey
 from app.models.training_map import TrainingMapProgress
+from app.models.telegram_link import TelegramLinkToken
 from app.models.training_preset import TrainingPreset
 from app.models.legal_update import LegalUpdate
 from app.models.case_scenario import CaseScenario, CaseAttempt, CaseProgress
@@ -435,6 +436,7 @@ __all__ = [
     # Quiz Arena v2 — Path A grader storage (alembic 20260503_001)
     "QuizV2AnswerKey",
     "TrainingMapProgress",
+    "TelegramLinkToken",
     "TrainingPreset",
     "LegalUpdate",
     # TZ-Agent-2: Case scenarios

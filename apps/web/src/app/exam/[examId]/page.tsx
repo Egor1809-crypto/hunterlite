@@ -222,7 +222,7 @@ export default function ExamPlayerPage() {
           <div className="relative z-10 max-w-[650px] mx-auto px-5 sm:px-8 py-8 sm:py-12">
             <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.6 }}>
               <div className="text-center mb-8">
-                <div className="w-20 h-20 rounded-2xl flex items-center justify-center mx-auto mb-4" style={{ background: `${grade.clr}15`, boxShadow: `0 0 40px ${grade.clr}20` }}>
+                <div className="w-20 h-20 rounded-2xl flex items-center justify-center mx-auto mb-4" style={{ background: `${grade.clr}15` }}>
                   <grade.Icon size={36} style={{ color: grade.clr }} />
                 </div>
                 <h1 className="text-2xl font-bold mb-1" style={{ color: "var(--text-primary)" }}>

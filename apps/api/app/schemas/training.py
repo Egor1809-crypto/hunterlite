@@ -323,12 +323,31 @@ class HistoryCrmClientSummary(BaseModel):
     last_session_at: datetime
 
 
+class HistoryQuizSummary(BaseModel):
+    """Knowledge-quiz / test-map completion surfaced in the unified history.
+
+    Quizzes are ``KnowledgeQuizSession``s, a different model from the
+    call-training ``TrainingSession`` — they have no call-scoring bars
+    (objection handling, script adherence, …), only a correct/total ratio.
+    This summary carries just what a quiz row needs to render.
+    """
+    quiz_session_id: uuid.UUID
+    category: str | None = None
+    map_level: int | None = None
+    total_questions: int = 0
+    correct_answers: int = 0
+    incorrect_answers: int = 0
+    score: float = 0.0
+    completed_at: datetime
+
+
 class HistoryEntryResponse(BaseModel):
-    kind: str  # "story" | "session" | "crm_client"
+    kind: str  # "story" | "session" | "crm_client" | "quiz"
     sort_at: datetime
-    latest_session: SessionResponse
+    latest_session: SessionResponse | None = None
     story: StorySummaryResponse | None = None
     crm_client: HistoryCrmClientSummary | None = None
+    quiz: HistoryQuizSummary | None = None
     sessions: list[StoryCallSummary] = []
     calls_completed: int = 1
     avg_score: float | None = None

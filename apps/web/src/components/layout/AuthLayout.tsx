@@ -8,6 +8,42 @@ import { Loader2, RefreshCw, AlertTriangle } from "lucide-react";
 import { getToken, getRefreshToken, setTokens } from "@/lib/auth";
 import { api } from "@/lib/api";
 import { getApiBaseUrl } from "@/lib/public-origin";
+import { Button } from "@/components/ui/Button";
+
+/** Token-based boot error card — used by the error boundary and the
+ *  connection-error state so both respect light + dark themes. */
+function BootErrorCard({
+  title,
+  message,
+  actionLabel,
+  onAction,
+}: {
+  title: string;
+  message: string;
+  actionLabel: string;
+  onAction: () => void;
+}) {
+  return (
+    <div className="flex min-h-screen items-center justify-center px-4" style={{ background: "var(--bg-primary)" }}>
+      <div
+        className="w-full max-w-md rounded-2xl px-8 py-7 text-center"
+        style={{ background: "var(--surface-card)", border: "1px solid var(--border-color)", boxShadow: "var(--shadow-lg)" }}
+      >
+        <div
+          className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full"
+          style={{ background: "var(--danger-muted)" }}
+        >
+          <AlertTriangle size={24} style={{ color: "var(--danger)" }} />
+        </div>
+        <h2 className="t-card-title mb-2">{title}</h2>
+        <p className="t-caption mb-5">{message}</p>
+        <Button variant="primary" icon={<RefreshCw size={14} />} onClick={onAction}>
+          {actionLabel}
+        </Button>
+      </div>
+    </div>
+  );
+}
 import AppShell from "./AppShell";
 import { AutoBreadcrumbs } from "./AutoBreadcrumbs";
 import { KeyboardShortcutsOverlay } from "@/components/ui/KeyboardShortcutsOverlay";
@@ -47,29 +83,12 @@ class AuthErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState
   render() {
     if (this.state.hasError) {
       return (
-        <div className="flex min-h-screen items-center justify-center bg-[var(--bg-primary)]">
-          <div className="w-full max-w-md rounded-2xl bg-white px-8 py-6 text-center shadow-lg border border-gray-100">
-            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-red-50 mb-4">
-              <AlertTriangle size={24} className="text-red-500" />
-            </div>
-            <h2 className="text-lg font-semibold text-gray-900 mb-2">
-              Что-то пошло не так
-            </h2>
-            <p className="text-sm text-gray-500 mb-4">
-              {this.state.error?.message || "Произошла непредвиденная ошибка"}
-            </p>
-            <button
-              type="button"
-              onClick={() => {
-                this.setState({ hasError: false, error: null });
-              }}
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#2563EB] px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#1D4ED8]"
-            >
-              <RefreshCw size={14} />
-              Попробовать снова
-            </button>
-          </div>
-        </div>
+        <BootErrorCard
+          title="Что-то пошло не так"
+          message={this.state.error?.message || "Произошла непредвиденная ошибка"}
+          actionLabel="Попробовать снова"
+          onAction={() => this.setState({ hasError: false, error: null })}
+        />
       );
     }
 
@@ -188,94 +207,79 @@ export default function AuthLayout({
   }, []); // eslint-disable-line react-hooks/exhaustive-deps -- mount-only initialization
 
   if (state === "error") {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-[var(--bg-primary)]">
-        <div className="w-full max-w-md rounded-2xl bg-white px-8 py-6 text-center shadow-lg border border-gray-100">
-          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-red-50 mb-4">
-            <AlertTriangle size={24} className="text-red-500" />
-          </div>
-          <h2 className="text-lg font-semibold text-gray-900 mb-2">
-            Ошибка подключения
-          </h2>
-          <p className="text-sm text-gray-500 mb-4">
-            {errorMessage || "Не удалось подключиться к серверу"}
-          </p>
-          <button
-            onClick={() => {
-              const MAX_RETRIES = 5;
-              if (retryCount.current >= MAX_RETRIES) {
-                setErrorMessage("Слишком много попыток. Перезагрузите страницу.");
-                return;
+    const handleRetry = () => {
+      const MAX_RETRIES = 5;
+      if (retryCount.current >= MAX_RETRIES) {
+        setErrorMessage("Слишком много попыток. Перезагрузите страницу.");
+        return;
+      }
+      retryCount.current += 1;
+      didRun.current = false;
+      _consentChecked = false;
+      _consentOk = false;
+      setState("loading");
+      setErrorMessage("");
+      const delay = Math.min(200 * Math.pow(2, retryCount.current - 1), 5000);
+      setTimeout(() => {
+        didRun.current = false;
+        const fullRetry = async () => {
+          let token = getToken();
+          if (!token && hasAuthMarkerCookie()) {
+            try {
+              const storedRefreshToken = getRefreshToken();
+              const res = await fetch(`${getApiBaseUrl()}/api/auth/refresh`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(storedRefreshToken ? { refresh_token: storedRefreshToken } : {}),
+                credentials: "include",
+              });
+              if (res.ok) {
+                const data = await res.json();
+                if (data.access_token) {
+                  setTokens(data.access_token, data.refresh_token, data.csrf_token);
+                  token = data.access_token;
+                }
               }
-              retryCount.current += 1;
-              didRun.current = false;
-              _consentChecked = false;
-              _consentOk = false;
-              setState("loading");
-              setErrorMessage("");
-              const delay = Math.min(200 * Math.pow(2, retryCount.current - 1), 5000);
-              setTimeout(() => {
-                didRun.current = false;
-                const fullRetry = async () => {
-                  let token = getToken();
-                  if (!token && hasAuthMarkerCookie()) {
-                    try {
-                      const storedRefreshToken = getRefreshToken();
-                      const res = await fetch(`${getApiBaseUrl()}/api/auth/refresh`, {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify(storedRefreshToken ? { refresh_token: storedRefreshToken } : {}),
-                        credentials: "include",
-                      });
-                      if (res.ok) {
-                        const data = await res.json();
-                        if (data.access_token) {
-                          setTokens(data.access_token, data.refresh_token, data.csrf_token);
-                          token = data.access_token;
-                        }
-                      }
-                    } catch { /* continue without token */ }
-                  }
-                  if (!token) { setState("redirecting"); router.replace("/login"); return; }
-                  if (!requireConsent) { setState("ready"); retryCount.current = 0; return; }
-                  try {
-                    const data = await api.get("/consent/status");
-                    _consentChecked = true;
-                    _consentOk = data.all_accepted;
-                    setState(data.all_accepted ? "ready" : "redirecting");
-                    if (data.all_accepted) retryCount.current = 0;
-                    if (!data.all_accepted) router.replace("/home");
-                  } catch {
-                    setState("error");
-                    setErrorMessage("Сервер по-прежнему недоступен");
-                  }
-                };
-                fullRetry();
-              }, delay);
-            }}
-            className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#2563EB] px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#1D4ED8]"
-          >
-            <RefreshCw size={14} />
-            Повторить
-          </button>
-        </div>
-      </div>
+            } catch { /* continue without token */ }
+          }
+          if (!token) { setState("redirecting"); router.replace("/login"); return; }
+          if (!requireConsent) { setState("ready"); retryCount.current = 0; return; }
+          try {
+            const data = await api.get("/consent/status");
+            _consentChecked = true;
+            _consentOk = data.all_accepted;
+            setState(data.all_accepted ? "ready" : "redirecting");
+            if (data.all_accepted) retryCount.current = 0;
+            if (!data.all_accepted) router.replace("/home");
+          } catch {
+            setState("error");
+            setErrorMessage("Сервер по-прежнему недоступен");
+          }
+        };
+        fullRetry();
+      }, delay);
+    };
+
+    return (
+      <BootErrorCard
+        title="Ошибка подключения"
+        message={errorMessage || "Не удалось подключиться к серверу"}
+        actionLabel="Повторить"
+        onAction={handleRetry}
+      />
     );
   }
 
   if (state === "loading" || state === "redirecting") {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[var(--bg-primary)]">
+      <div className="flex min-h-screen items-center justify-center" style={{ background: "var(--bg-primary)" }}>
         <motion.div
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
           className="flex flex-col items-center gap-3"
         >
-          <Loader2
-            size={28}
-            className="animate-spin text-[#2563EB] opacity-60"
-          />
-          <span className="text-sm text-gray-400">
+          <Loader2 size={28} className="animate-spin" style={{ color: "var(--primary)", opacity: 0.6 }} />
+          <span className="text-sm" style={{ color: "var(--text-muted)" }}>
             {state === "loading" ? "Загрузка..." : "Перенаправление..."}
           </span>
         </motion.div>

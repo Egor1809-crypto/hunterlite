@@ -40,6 +40,16 @@ import type { WSMessage } from "@/types";
 /* ─── Quiz Session Page ──────────────────────────────────────────────────── */
 
 const TRAINING_MAP_PASS_SCORE = 88;
+// Должно совпадать с TestWorldMap: базовый лимит попыток на уровень в день
+// и дневной запас энергии. Списание происходит здесь — по факту завершения
+// теста, а не на старте сессии (иначе брошенный заход сжигал бы попытку).
+const TRAINING_MAP_MAX_ATTEMPTS = 5;
+const TRAINING_MAP_DAILY_ENERGY = 20;
+
+/** UTC-дата (YYYY-MM-DD) — тот же ключ, что использует TestWorldMap. */
+function trainingDateKey(): string {
+  return new Date().toISOString().slice(0, 10);
+}
 
 export default function KnowledgeSessionPageWrapper() {
   return (
@@ -198,18 +208,55 @@ function KnowledgeSessionPage() {
 
     const userId = useAuthStore.getState().user?.id ?? null;
     const key = userId ? `hunterlite_test_map_progress:${userId}` : "hunterlite_test_map_progress";
+    const energyKey = userId ? `hunterlite_daily_energy:${userId}` : "hunterlite_daily_energy";
+    const today = trainingDateKey();
     try {
       const current = JSON.parse(localStorage.getItem(key) || "[]");
       if (!Array.isArray(current)) return;
 
       const idx = mapLevel - 1;
-      const bestScore = Math.max(Number(current[idx]?.bestScore || 0), scorePercent);
+      const prev = current[idx] || { level: mapLevel };
+      // Уровень уже был пройден до этого захода — пересдача не списывает
+      // ни попытку, ни энергию (как и на стороне карты).
+      const wasCompleted = prev.status === "completed";
+      const bestScore = Math.max(Number(prev.bestScore || 0), scorePercent);
+
+      // Списываем попытку по факту завершения (а не на старте). Дневной
+      // ключ attemptsDate: при смене UTC-дня карта обнулит счётчик.
+      const sameDay = prev.attemptsDate === today;
+      const bonusAttempts = sameDay && Number.isFinite(prev.bonusAttempts)
+        ? Math.max(0, Number(prev.bonusAttempts))
+        : 0;
+      const prevAttempts = sameDay && Number.isFinite(prev.attempts)
+        ? Math.max(0, Number(prev.attempts))
+        : 0;
+      const nextAttempts = wasCompleted
+        ? prevAttempts
+        : Math.min(TRAINING_MAP_MAX_ATTEMPTS + bonusAttempts, prevAttempts + 1);
+
       current[idx] = {
-        ...(current[idx] || { level: mapLevel }),
+        ...prev,
         level: mapLevel,
         status: bestScore >= TRAINING_MAP_PASS_SCORE ? "completed" : "failed",
         bestScore,
+        attempts: nextAttempts,
+        attemptsDate: today,
+        bonusAttempts,
       };
+
+      // Энергия: 1 завершённый тест = 1 энергия (пересдача пройденного — нет).
+      let nextEnergy: { date: string; remaining: number } | null = null;
+      if (!wasCompleted) {
+        try {
+          const rawEnergy = JSON.parse(localStorage.getItem(energyKey) || "null");
+          const base = rawEnergy && rawEnergy.date === today
+            ? Math.max(0, Math.min(TRAINING_MAP_DAILY_ENERGY, Number(rawEnergy.remaining ?? TRAINING_MAP_DAILY_ENERGY)))
+            : TRAINING_MAP_DAILY_ENERGY;
+          nextEnergy = { date: today, remaining: Math.max(0, base - 1) };
+          localStorage.setItem(energyKey, JSON.stringify(nextEnergy));
+          window.dispatchEvent(new CustomEvent("hunterlite:energy", { detail: nextEnergy }));
+        } catch { /* energy is best-effort */ }
+      }
 
       if (bestScore >= TRAINING_MAP_PASS_SCORE && mapLevel < 100) {
         const nextIdx = mapLevel;
@@ -226,7 +273,9 @@ function KnowledgeSessionPage() {
       }
 
       localStorage.setItem(key, JSON.stringify(current));
-      api.put("/training-map/progress", { test_map: current }).catch(() => {});
+      const body: { test_map: unknown[]; energy?: { date: string; remaining: number } } = { test_map: current };
+      if (nextEnergy) body.energy = nextEnergy;
+      api.put("/training-map/progress", body).catch(() => {});
     } catch { /* local training-map progress is best-effort */ }
   }, [mapLevel, store.correct, store.incorrect, store.totalQuestions]);
 
@@ -1052,13 +1101,13 @@ function KnowledgeSessionPage() {
                 </motion.div>
               )}
 
-            <AnimatePresence mode="wait">
+            <AnimatePresence mode="popLayout">
               <motion.div
                 key={latestQuestion?.id ?? "loading-question"}
-                initial={{ opacity: 0, y: 16 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -16 }}
-                transition={{ duration: 0.32 }}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.25 }}
                 className="overflow-hidden rounded-3xl"
                 style={{
                   background: "var(--surface-card)",
@@ -1098,17 +1147,27 @@ function KnowledgeSessionPage() {
                   </div>
                 </>
               )}
-              {(store.currentChoices ?? []).map((choiceText, idx) => (
-                <QuizAnswerCard
-                  key={idx}
-                  index={idx}
-                  text={choiceText}
-                  picked={store.pickedChoiceIndex === idx}
-                  locked={store.pickedChoiceIndex !== null}
-                  disabled={store.status !== "active" || awaitingNext}
-                  onPick={handleChoicePick}
-                />
-              ))}
+              {store.currentChoices && store.currentChoices.length >= 2 && (
+                <motion.div
+                  key={`choices-${latestQuestion?.id ?? "x"}`}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ duration: 0.25 }}
+                  className="space-y-3"
+                >
+                  {store.currentChoices.map((choiceText, idx) => (
+                    <QuizAnswerCard
+                      key={idx}
+                      index={idx}
+                      text={choiceText}
+                      picked={store.pickedChoiceIndex === idx}
+                      locked={store.pickedChoiceIndex !== null}
+                      disabled={store.status !== "active" || awaitingNext}
+                      onPick={handleChoicePick}
+                    />
+                  ))}
+                </motion.div>
+              )}
               {awaitingNext && (
                 <motion.button
                   initial={{ opacity: 0, y: 8 }}
@@ -1129,38 +1188,43 @@ function KnowledgeSessionPage() {
               )}
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-              {hintAvailable && (
-                <button
-                  onClick={handleHint}
-                  disabled={
-                    hintLoading ||
-                    awaitingNext ||
-                    store.status !== "active" ||
-                    (hintTiersRemaining !== null && hintTiersRemaining <= 0)
-                  }
-                  className="flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold disabled:opacity-40"
-                  style={{
-                    background: "var(--surface-card)",
-                    border: "1px solid var(--border-color)",
-                    color: "var(--warning)",
-                    boxShadow: "var(--shadow-sm)",
-                  }}
-                  title={
-                    hintTier !== null
-                      ? `Подсказка ${hintTier}/3 · ещё ${hintTiersRemaining ?? 0}`
-                      : "Подсказка"
-                  }
-                  aria-label="Подсказка"
-                >
-                  {hintLoading ? <Loader2 size={16} className="animate-spin" /> : <Lightbulb size={16} />}
-                  {hintTier !== null ? `Подсказка ${hintTier}/3` : "Подсказка"}
-                </button>
-              )}
-              <div className="[&>button]:h-full [&>button]:w-full [&>button]:justify-center [&>button]:rounded-xl">
-                <QuestionReportButton lastAnswerId={lastAnswerId} />
+            {/* Подсказка + «Пожаловаться» скрыты в режиме Маняши (карта/тематика):
+                вердикт и объяснение полностью ведёт маскот, лишние действия здесь
+                ломают спокойный ритм. Остаются в PvP / блице. */}
+            {!manyashaMode && (
+              <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+                {hintAvailable && (
+                  <button
+                    onClick={handleHint}
+                    disabled={
+                      hintLoading ||
+                      awaitingNext ||
+                      store.status !== "active" ||
+                      (hintTiersRemaining !== null && hintTiersRemaining <= 0)
+                    }
+                    className="flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold disabled:opacity-40"
+                    style={{
+                      background: "var(--surface-card)",
+                      border: "1px solid var(--border-color)",
+                      color: "var(--warning)",
+                      boxShadow: "var(--shadow-sm)",
+                    }}
+                    title={
+                      hintTier !== null
+                        ? `Подсказка ${hintTier}/3 · ещё ${hintTiersRemaining ?? 0}`
+                        : "Подсказка"
+                    }
+                    aria-label="Подсказка"
+                  >
+                    {hintLoading ? <Loader2 size={16} className="animate-spin" /> : <Lightbulb size={16} />}
+                    {hintTier !== null ? `Подсказка ${hintTier}/3` : "Подсказка"}
+                  </button>
+                )}
+                <div className="[&>button]:h-full [&>button]:w-full [&>button]:justify-center [&>button]:rounded-xl">
+                  <QuestionReportButton lastAnswerId={lastAnswerId} />
+                </div>
               </div>
-            </div>
+            )}
 
             {(store.totalQuestions > 0 || store.messages.some((m) => m.type === "feedback")) && (
               <QuizHistoryStrip

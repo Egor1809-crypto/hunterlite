@@ -48,6 +48,39 @@ import {
 
 export type TTSMode = "elevenlabs" | "browser";
 
+// ---------------------------------------------------------------------------
+// Persisted global mute state.
+//
+// useTTS is instantiated per-component, so each consumer used to get its own
+// `enabled` flag — toggling mute in one place (e.g. QuizManyasha) didn't
+// stick across question re-renders or reloads, and felt like it "reset every
+// question". We persist the flag in localStorage and broadcast changes via a
+// custom window event so every live useTTS instance stays in sync and the
+// choice survives reloads.
+// ---------------------------------------------------------------------------
+const TTS_ENABLED_KEY = "vh-tts-enabled";
+const TTS_ENABLED_EVENT = "vh-tts-enabled-change";
+
+function readEnabledPref(): boolean {
+  if (typeof window === "undefined") return true;
+  try {
+    const v = window.localStorage.getItem(TTS_ENABLED_KEY);
+    return v === null ? true : v === "1";
+  } catch {
+    return true;
+  }
+}
+
+function writeEnabledPref(v: boolean): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(TTS_ENABLED_KEY, v ? "1" : "0");
+  } catch {
+    /* ignore quota / privacy-mode errors */
+  }
+  window.dispatchEvent(new CustomEvent(TTS_ENABLED_EVENT, { detail: v }));
+}
+
 // Reasons we can fail to play TTS audio. Distinct from
 // `needsAudioUnlock` (autoplay block — recoverable via user gesture).
 // Each terminal failure should produce a user-visible surface so the
@@ -310,6 +343,24 @@ export function useTTS(options: UseTTSOptions = {}): UseTTSReturn {
   // --- Core state ---
   const [speaking, setSpeaking] = useState(false);
   const [enabled, setEnabled] = useState(true);
+
+  // Hydrate from the persisted pref after mount (SSR-safe: server renders the
+  // `true` default, client reconciles) and keep every useTTS instance in sync
+  // when any of them flips the toggle.
+  useEffect(() => {
+    setEnabled(readEnabledPref());
+    const sync = () => setEnabled(readEnabledPref());
+    const onCustom = (e: Event) => {
+      const detail = (e as CustomEvent<boolean>).detail;
+      setEnabled(typeof detail === "boolean" ? detail : readEnabledPref());
+    };
+    window.addEventListener(TTS_ENABLED_EVENT, onCustom);
+    window.addEventListener("storage", sync);
+    return () => {
+      window.removeEventListener(TTS_ENABLED_EVENT, onCustom);
+      window.removeEventListener("storage", sync);
+    };
+  }, []);
   const [mode, setMode] = useState<TTSMode>("elevenlabs");
   const [audioLevel, setAudioLevel] = useState(0);
 
@@ -1073,6 +1124,9 @@ export function useTTS(options: UseTTSOptions = {}): UseTTSReturn {
   const handleSetEnabled = useCallback(
     (v: boolean) => {
       setEnabled(v);
+      // Persist + broadcast so the toggle is a single global choice that
+      // survives reloads and syncs across every useTTS instance.
+      writeEnabledPref(v);
       if (!v) {
         // BUG-FIX 2026-05-05: ``stop()`` only kills the currently-playing
         // sentence; the streaming queue (``pendingChunksRef``) and any

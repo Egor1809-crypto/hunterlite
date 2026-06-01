@@ -1,6 +1,6 @@
 import logging
 from aiogram import Bot, Dispatcher, Router, F
-from aiogram.filters import CommandStart, Command
+from aiogram.filters import CommandStart, Command, CommandObject
 from aiogram.types import (
     Message,
     InlineKeyboardMarkup,
@@ -9,6 +9,8 @@ from aiogram.types import (
 )
 from aiogram.enums import ParseMode
 from app.config import settings
+from app.database import async_session
+from app.services import telegram_attempts
 
 logger = logging.getLogger(__name__)
 
@@ -43,8 +45,67 @@ def _main_keyboard() -> InlineKeyboardMarkup:
     ])
 
 
+async def _handle_deeplink(message: Message, arg: str) -> bool:
+    """Process a ``/start buy_<token>`` / ``link_<token>`` deeplink.
+
+    Returns True if the arg was a recognised deeplink (handled here), False
+    otherwise so the caller can show the normal welcome.
+    """
+    if not (arg.startswith("buy_") or arg.startswith("link_")):
+        return False
+
+    token = arg.split("_", 1)[1]
+    tg_id = str(message.from_user.id) if message.from_user else ""
+
+    async with async_session() as db:
+        result = await telegram_attempts.redeem_token(db, token=token, telegram_id=tg_id)
+
+    if not result.get("ok"):
+        err = result.get("error")
+        text = {
+            "not_found": "Ссылка не найдена. Сгенерируйте новую на платформе.",
+            "used": "Эта ссылка уже использована. Сгенерируйте новую на платформе.",
+            "expired": "Срок действия ссылки истёк. Сгенерируйте новую на платформе.",
+            "tg_taken": "Этот Telegram уже привязан к другому аккаунту платформы.",
+            "user_gone": "Аккаунт не найден. Попробуйте ещё раз с платформы.",
+        }.get(err, "Не удалось обработать ссылку. Попробуйте ещё раз.")
+        await message.answer(f"⚠️ {text}", parse_mode=ParseMode.HTML, reply_markup=_main_keyboard())
+        return True
+
+    linked_line = "🔗 Telegram привязан к вашему аккаунту.\n\n" if result.get("linked") else ""
+
+    if result.get("purpose") == "buy":
+        pack = result.get("pack", 5)
+        level = result.get("level", 1)
+        bonus = result.get("bonus", pack)
+        await message.answer(
+            f"{linked_line}"
+            f"✅ <b>Готово — +{pack} попыток</b>\n\n"
+            f"Уровень {level}: добавлено {pack} попыток "
+            f"(бонус на сегодня: {bonus}).\n"
+            "Вернитесь на платформу и продолжайте — попытки уже доступны.",
+            parse_mode=ParseMode.HTML,
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                [_web_button("▶️ Продолжить тренировку", "/training?tab=tests")],
+            ]),
+        )
+    else:
+        await message.answer(
+            f"{linked_line}"
+            "✅ <b>Аккаунт привязан</b>\n\n"
+            "Теперь я смогу начислять попытки и присылать уведомления.",
+            parse_mode=ParseMode.HTML,
+            reply_markup=_main_keyboard(),
+        )
+    return True
+
+
 @router.message(CommandStart())
-async def cmd_start(message: Message) -> None:
+async def cmd_start(message: Message, command: CommandObject) -> None:
+    arg = (command.args or "").strip()
+    if arg and await _handle_deeplink(message, arg):
+        return
+
     user_name = message.from_user.first_name if message.from_user else "Коллега"
     await message.answer(
         f"<b>Добро пожаловать, {user_name}!</b>\n\n"
@@ -69,6 +130,7 @@ async def cmd_help(message: Message) -> None:
         "/cases — Интерактивные кейсы\n"
         "/exam — Экзамен и сертификация\n"
         "/knowledge — База знаний ФЗ-127\n"
+        "/status — Мой прогресс и энергия\n"
         "/help — Список команд",
         parse_mode=ParseMode.HTML,
     )
@@ -157,6 +219,64 @@ async def cmd_profile(message: Message) -> None:
         parse_mode=ParseMode.HTML,
         reply_markup=kb,
     )
+
+
+@router.message(Command("status"))
+async def cmd_status(message: Message) -> None:
+    tg_id = str(message.from_user.id) if message.from_user else ""
+    async with async_session() as db:
+        summary = await telegram_attempts.get_progress_summary(db, telegram_id=tg_id)
+
+    if summary is None:
+        await message.answer(
+            "<b>📊 Статус</b>\n\n"
+            "Ваш Telegram ещё не привязан к аккаунту платформы.\n"
+            "Откройте платформу и нажмите «Привязать Telegram», "
+            "чтобы я мог показывать прогресс и начислять попытки.",
+            parse_mode=ParseMode.HTML,
+            reply_markup=_main_keyboard(),
+        )
+        return
+
+    name = summary.get("user_name") or "Коллега"
+    completed = summary.get("completed", 0)
+    total = summary.get("total", 100)
+    energy = summary.get("energy_remaining")
+    energy_line = (
+        f"⚡️ Энергия сегодня: <b>{energy}</b>\n"
+        if energy is not None
+        else "⚡️ Энергия сегодня: ещё не тратилась\n"
+    )
+    await message.answer(
+        f"<b>📊 Статус — {name}</b>\n\n"
+        f"✅ Пройдено уровней: <b>{completed}</b> из {total}\n"
+        f"{energy_line}\n"
+        "Продолжайте тренировку, чтобы открыть новые уровни.",
+        parse_mode=ParseMode.HTML,
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+            [_web_button("▶️ Продолжить тренировку", "/training?tab=tests")],
+            [_web_button("📊 Полная история", "/history")],
+        ]),
+    )
+
+
+async def notify_user(bot: Bot, telegram_id: str, text: str) -> bool:
+    """Send a notification to a linked Telegram account.
+
+    Returns True if delivered, False if Telegram rejected it (e.g. the user
+    blocked the bot or never started a chat). Callers should treat False as
+    "not reachable", not as a hard error.
+    """
+    try:
+        await bot.send_message(
+            chat_id=str(telegram_id),
+            text=text,
+            parse_mode=ParseMode.HTML,
+        )
+        return True
+    except Exception:
+        logger.warning("Failed to deliver Telegram notification to %s", telegram_id)
+        return False
 
 
 @router.message(F.text)
