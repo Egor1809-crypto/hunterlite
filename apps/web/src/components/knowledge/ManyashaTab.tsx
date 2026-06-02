@@ -19,6 +19,7 @@ import {
   FileText,
   Scale,
   AlertTriangle,
+  Info,
   Loader2,
 } from "lucide-react";
 import { api } from "@/lib/api";
@@ -49,6 +50,7 @@ interface ChatMsg {
   content: string;
   status: string;
   used_chunks: Source[];
+  grounded?: boolean;
 }
 
 interface ConversationSummary {
@@ -71,6 +73,7 @@ interface SendResponse {
   content: string;
   status: string;
   used_chunks: Source[];
+  grounded: boolean;
   model: string;
 }
 
@@ -207,6 +210,7 @@ export function ManyashaTab({ onOpenSource }: { onOpenSource?: (category: string
             content: res.content,
             status: res.status,
             used_chunks: res.used_chunks ?? [],
+            grounded: res.grounded,
           },
         ]);
 
@@ -341,6 +345,13 @@ export function ManyashaTab({ onOpenSource }: { onOpenSource?: (category: string
                           {s.law_article || s.category}
                         </button>
                       ))}
+                    </div>
+                  )}
+
+                  {/* Ungrounded answer hint (ТЗ §7а): ok reply with no sources */}
+                  {m.role === "assistant" && m.status === "ok" && m.used_chunks.length === 0 && m.grounded === false && (
+                    <div className="mt-1.5 inline-flex items-center gap-1 font-mono text-[10px]" style={{ color: "var(--text-muted)" }}>
+                      <Info size={10} /> ответ без ссылок на базу знаний — сверьтесь с первоисточником
                     </div>
                   )}
                 </div>

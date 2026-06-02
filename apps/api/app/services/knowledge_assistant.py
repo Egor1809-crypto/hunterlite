@@ -56,6 +56,7 @@ SYSTEM_PROMPT = """
 5. Тон дружелюбный, спокойный, профессиональный. Сначала краткий вывод, затем шаги/документы/сроки. Не пиши длинных полотен без структуры.
 6. Если данных от пользователя мало — задай 1–3 коротких уточняющих вопроса.
 7. Не давай гарантий результата и не выдавай ответ за индивидуальное юридическое заключение; при высоком риске рекомендуй проверить позицию с юристом по документам и сверить актуальную редакцию нормы.
+8. Если у найденного фрагмента есть поле `scope_note` — обязательно следуй ему: помечай юрлица/КДЛ-контекст и переноси на физлицо только применимую часть, явно оговаривая различие.
 """.strip()
 
 _MODEL = os.getenv("KNOWLEDGE_AI_MODEL", "deepseek-v4-pro")
@@ -161,6 +162,11 @@ class AgentResult:
     model: str = _MODEL
     retrieval_ms: int = 0
     generation_ms: int = 0
+    # True when the answer was built on at least one retrieved chunk. False
+    # means the model answered from its own parametric knowledge — the FE
+    # surfaces a "не подтверждено базой" hint so the user doesn't mistake an
+    # ungrounded reply for a sourced one (ТЗ §7а).
+    grounded: bool = False
 
 
 # ── Tool dispatch ──────────────────────────────────────────────────────────────
@@ -184,6 +190,29 @@ def _build_sources(rag_ctx) -> list[dict]:
     same source shape as the assistant. New agent code uses ``_chunk_to_source``.
     """
     return [_chunk_to_source(r) for r in rag_ctx.results]
+
+
+# Corporate-bankruptcy markers. Manyasha is a personal-bankruptcy (физлица)
+# specialist, but the 629-chunk base is general 127-FZ and contains юрлица/КДЛ
+# material (субсидиарка, наблюдение, конкурсное производство…). When such a
+# chunk is retrieved we annotate it at the TOOL layer (data level, not just
+# the prompt) so the model is explicitly told to scope it down for a гражданин
+# (ТЗ §7в — guard against leaking corporate doctrine as if it applied to
+# individuals).
+_CORPORATE_MARKERS = (
+    "контролирующ", "кдл", "субсидиарн", "наблюдени",
+    "внешнее управление", "финансовое оздоровление", "конкурсное производство",
+)
+
+
+def _scope_note(fact_text: str, law_article: str) -> str:
+    blob = f"{fact_text} {law_article}".lower()
+    if any(m in blob for m in _CORPORATE_MARKERS):
+        return (
+            "Контекст относится к банкротству юрлиц/КДЛ — переноси на физлицо "
+            "только применимую часть и явно оговаривай различие."
+        )
+    return ""
 
 
 async def _tool_search_knowledge_base(args: dict, db: AsyncSession) -> tuple[dict, list[dict]]:
@@ -217,6 +246,7 @@ async def _tool_search_knowledge_base(args: dict, db: AsyncSession) -> tuple[dic
                 "is_court_practice": r.is_court_practice,
                 "court_case": r.court_case_reference or "",
                 "correct_response_hint": r.correct_response_hint or "",
+                "scope_note": _scope_note(r.fact_text or "", r.law_article or ""),
             }
             for r in results
         ],
@@ -286,6 +316,7 @@ async def _tool_fetch_chunk(args: dict, db: AsyncSession) -> tuple[dict, list[di
         "fact_text": row.fact_text or "",
         "correct_response_hint": row.correct_response_hint or "",
         "court_case": row.court_case_reference or "",
+        "scope_note": _scope_note(row.fact_text or "", row.law_article or ""),
     }, [source]
 
 
@@ -320,6 +351,7 @@ async def _tool_fetch_article(args: dict, db: AsyncSession) -> tuple[dict, list[
             "category": category,
             "law_article": row.law_article or "",
             "fact_text": (row.fact_text or "")[:_FACT_TRUNCATE],
+            "scope_note": _scope_note(row.fact_text or "", row.law_article or ""),
         })
     return {"found": len(chunks), "chunks": chunks}, sources
 
@@ -476,6 +508,7 @@ async def run_agent_turn(
         tokens=total_tokens,
         model=_MODEL,
         generation_ms=generation_ms,
+        grounded=bool(used_chunks),
     )
 
 

@@ -123,6 +123,65 @@ async def test_tool_call_id_synced_when_provider_returns_null_id(db_session):
 
 
 @pytest.mark.asyncio
+async def test_corporate_chunk_gets_scope_note(db_session):
+    """§7в: a retrieved юрлица/КДЛ chunk is annotated at the tool layer so the
+    model is told to scope it down for a гражданин — not left to the prompt."""
+    corporate = RAGContext(
+        query="субсидиарная ответственность",
+        results=[RAGResult(
+            chunk_id=uuid.uuid4(),
+            category="consequences",
+            fact_text="Субсидиарная ответственность контролирующих должника лиц (КДЛ).",
+            law_article="127-ФЗ ст. 61.11",
+            relevance_score=0.8,
+        )],
+        method="keyword",
+    )
+    captured = {}
+
+    async def fake_backoff(*args, **kwargs):
+        # Drive one tool call, then a final answer; capture what the tool sent.
+        conv = kwargs.get("raw_messages") or []
+        for m in conv:
+            if m.get("role") == "tool":
+                captured["tool_content"] = m["content"]
+        if not any(m.get("role") == "tool" for m in conv):
+            return _llm_response(tool_calls=[{
+                "id": "c1", "name": "search_knowledge_base",
+                "arguments": {"query": "субсидиарка"},
+            }])
+        return _llm_response(content="Это институт для юрлиц/КДЛ.")
+
+    with patch.object(llm, "_call_with_backoff", new=fake_backoff), \
+         patch.object(ka, "retrieve_legal_context", new=AsyncMock(return_value=corporate)):
+        result = await ka.run_agent_turn(
+            history=[{"role": "user", "content": "что такое субсидиарная ответственность?"}],
+            db=db_session, user_id=uuid.uuid4(),
+        )
+
+    assert result.status == "ok"
+    assert result.grounded is True
+    assert "юрлиц" in captured.get("tool_content", ""), "corporate chunk must carry a scope_note"
+
+
+@pytest.mark.asyncio
+async def test_ungrounded_answer_flagged(db_session):
+    """§7а: an ok answer with no retrieved chunks is marked grounded=False."""
+    async def fake_backoff(*args, **kwargs):
+        return _llm_response(content="Уточните, пожалуйста, сумму долга и срок просрочки.")
+
+    with patch.object(llm, "_call_with_backoff", new=fake_backoff):
+        result = await ka.run_agent_turn(
+            history=[{"role": "user", "content": "помоги"}],
+            db=db_session, user_id=uuid.uuid4(),
+        )
+
+    assert result.status == "ok"
+    assert result.grounded is False
+    assert result.used_chunks == []
+
+
+@pytest.mark.asyncio
 async def test_agent_degrades_when_llm_unavailable(db_session):
     """Navy down / circuit open → _call_with_backoff returns None. The turn
     must degrade gracefully, not raise (§5)."""

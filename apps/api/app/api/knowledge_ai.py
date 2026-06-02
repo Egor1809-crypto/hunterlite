@@ -68,6 +68,7 @@ class MessageItem(BaseModel):
     content: str
     status: str
     used_chunks: list[SourceItem] = []
+    grounded: bool = True
     tool_name: str | None = None
     created_at: str
 
@@ -91,6 +92,7 @@ class SendMessageResponse(BaseModel):
     content: str
     status: str
     used_chunks: list[SourceItem] = []
+    grounded: bool = True
     tool_trace: list[dict] = []
     model: str = ""
 
@@ -235,6 +237,7 @@ async def get_conversation(
             content=m.content,
             status=m.status,
             used_chunks=_sources_to_items(m.rag_chunk_ids),
+            grounded=(bool(m.rag_chunk_ids) if m.role == ROLE_ASSISTANT else True),
             tool_name=m.tool_name,
             created_at=m.created_at.isoformat(),
         )
@@ -332,6 +335,7 @@ async def send_message(
         content=result.content,
         status=result.status,
         used_chunks=_sources_to_items(result.used_chunks),
+        grounded=result.grounded,
         tool_trace=result.tool_trace,
         model=result.model,
     )
