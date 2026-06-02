@@ -30,7 +30,6 @@ async def get_personal_challenges(
     try:
         events.extend(await _check_trap_revenge(user_id, db))
         events.extend(await _check_skill_unlock(user_id, db))
-        events.extend(await _check_rival_update(user_id, db))
         events.extend(await _check_chapter_teaser(user_id, db))
         events.extend(await _check_weekly_boss(user_id, db))
     except Exception as e:
@@ -100,35 +99,6 @@ async def _check_skill_unlock(user_id: uuid.UUID, db: AsyncSession) -> list[dict
             "priority": 2,
             "action": "start_training",
         }]
-    return []
-
-
-async def _check_rival_update(user_id: uuid.UUID, db: AsyncSession) -> list[dict]:
-    """Rival Update: colleague overtook in weekly leaderboard."""
-    from app.services.gamification import get_leaderboard
-
-    try:
-        lb = await get_leaderboard(db, period="week", limit=20)
-        my_pos = None
-        for i, entry in enumerate(lb):
-            if entry["user_id"] == str(user_id):
-                my_pos = i
-                break
-
-        if my_pos is not None and my_pos > 0:
-            rival = lb[my_pos - 1]
-            diff = round(rival["total_score"] - lb[my_pos]["total_score"], 1)
-            if diff > 0 and diff < 500:  # Only show if gap is small (catchable)
-                rival_name = rival["full_name"].split(" ")[0]
-                return [{
-                    "type": "rival_update",
-                    "title": f"{rival_name} впереди на {diff} очков",
-                    "body": "Разрыв небольшой. Одна хорошая сессия — и ты обгонишь.",
-                    "priority": 3,
-                    "action": "start_training",
-                }]
-    except Exception:
-        pass
     return []
 
 

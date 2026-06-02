@@ -140,7 +140,6 @@ from app.models.xp_event import XPEvent
 # Alembic autogenerate doesn't mistake it for an orphan and propose a DROP.
 # The table holds ~4400 RAG documents — dropping would be catastrophic.
 from app.models.legal_document import LegalDocument  # noqa: F401
-from app.models.rating_contribution import RatingContribution, RatingSource
 from app.models.prompt_version import PromptVersion
 from app.models.cross_recommendation import CrossRecommendationCache
 from app.models.manager_wiki import (
@@ -324,8 +323,6 @@ __all__ = [
     # DOC_15-16: Progression + Prompts
     "XPLog",
     "XPEvent",
-    "RatingContribution",
-    "RatingSource",
     "PromptVersion",
     "CrossRecommendationCache",
     # Previously missing exports (GAP-2 fix)
