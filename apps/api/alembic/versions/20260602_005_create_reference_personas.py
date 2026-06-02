@@ -1,7 +1,7 @@
 """create reference_personas table (constructor rebuild — gold-standard debtor)
 
-Revision ID: 20260602_002
-Revises: 20260602_001
+Revision ID: 20260602_005
+Revises: 20260602_004
 Create Date: 2026-06-02
 
 CONSTRUCTOR_TZ §2 / DECISION-3: a dedicated table for the gold-standard
@@ -14,8 +14,8 @@ from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
-revision: str = "20260602_002"
-down_revision: Union[str, None] = "20260602_001"
+revision: str = "20260602_005"
+down_revision: Union[str, None] = "20260602_004"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
