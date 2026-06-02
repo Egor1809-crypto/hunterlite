@@ -201,7 +201,14 @@ from app.models.telegram_link import TelegramLinkToken
 from app.models.training_preset import TrainingPreset
 from app.models.legal_update import LegalUpdate
 from app.models.case_scenario import CaseScenario, CaseAttempt, CaseProgress
-from app.models.exam import ExamDefinition, ExamQuestion, ExamAttempt, ExamCertificate
+from app.models.exam import (
+    ExamDefinition,
+    ExamQuestion,
+    ExamAttempt,
+    ExamCertificate,
+    ExamItem,
+    ExamItemAttempt,
+)
 # TZ-3: Manyasha knowledge assistant — server-side conversational memory.
 from app.models.assistant_conversation import (
     AssistantConversation,
@@ -407,6 +414,9 @@ __all__ = [
     "ExamQuestion",
     "ExamAttempt",
     "ExamCertificate",
+    # TZ-4 exam-rebuild: own learning-content DB
+    "ExamItem",
+    "ExamItemAttempt",
     # TZ-3: Manyasha assistant memory
     "AssistantConversation",
     "AssistantMessage",

@@ -107,6 +107,14 @@ class Settings(BaseSettings):
         default="deepseek-v4-pro",
         validation_alias=AliasChoices("KNOWLEDGE_AI_MODEL"),
     )
+    # TZ-4 exam-rebuild: AI grader for free-text exam items (case_analysis,
+    # document_drafting, multi_step). Routed via the same navy proxy
+    # (`local_llm_url`). Default deepseek-v4-pro — strict legal reasoning, not
+    # the lenient warmup grader. See app/services/exam_grader.py.
+    exam_model: str = Field(
+        default="deepseek-v4-pro",
+        validation_alias=AliasChoices("EXAM_MODEL"),
+    )
     local_llm_persona_model: str = ""
     # Context window of the local LLM — controls when auto-router pushes to cloud.
     # 128K fits Claude/GPT-4/Gemini Pro via navy.api. Set to 6000 for local Gemma 4 (limited).

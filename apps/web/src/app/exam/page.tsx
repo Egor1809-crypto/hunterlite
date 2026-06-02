@@ -31,8 +31,6 @@ import { Button } from "@/components/ui/Button";
 import { AbstractBackdrop } from "@/components/ui/AbstractBackdrop";
 import { CertificatePreview, CERT_TOKEN_PALETTE } from "@/components/certificate/CertificatePreview";
 
-const PASS_THRESHOLD = 88;
-
 // Lucide icons — same library / tile style as /home (центр).
 const EXAM_ICONS: Record<string, LucideIcon> = {
   "exam-1": Scale,
@@ -251,7 +249,7 @@ export default function ExamPage() {
                     ? "Сертификат получен — поздравляем."
                     : passedModules === 4
                       ? "Все 4 модуля сданы. Финальный экзамен открыт."
-                      : `Сдано ${passedModules} из 4 модулей. Порог каждого — ${PASS_THRESHOLD}%.`}
+                      : `Сдано ${passedModules} из 4 модулей. У каждого экзамена свой порог.`}
                 </p>
               </div>
 
@@ -314,8 +312,8 @@ export default function ExamPage() {
                 <div className="mb-1.5 text-[13px] font-semibold" style={{ color: "var(--text-primary)" }}>Правила экзаменации</div>
                 <ul className="space-y-1 text-[13px] leading-relaxed" style={{ color: "var(--text-muted)" }}>
                   <li>Экзамен 1 открыт сразу, остальные — последовательно после сдачи предыдущего.</li>
-                  <li>Порог сдачи — {PASS_THRESHOLD}% на каждом экзамене.</li>
-                  <li>Вопросы выбираются случайно из банка 200+ вопросов.</li>
+                  <li>У каждого экзамена свой порог сдачи и своя механика.</li>
+                  <li>Задания формируются по плану экзамена; сложные ответы оценивает ИИ-эксперт.</li>
                   <li>Финальный экзамен открывается после сдачи всех 4 модулей.</li>
                   <li>При успешной сдаче выдаётся сертификат с кодом верификации.</li>
                 </ul>
@@ -352,7 +350,7 @@ export default function ExamPage() {
                 <CertificatePreview
                   variant="locked"
                   palette={CERT_TOKEN_PALETTE}
-                  lockTitle="Сдайте экзамен минимум на 88% — и получите сертификат, заверенный лучшими юристами РФ."
+                  lockTitle="Сдайте экзамен на проходной балл — и получите сертификат, заверенный лучшими юристами РФ."
                   lockSubtitle="Станьте экспертом в процедуре банкротства физических лиц."
                   ctaLabel="К экзаменам"
                   onCta={() => setShowCert(false)}
