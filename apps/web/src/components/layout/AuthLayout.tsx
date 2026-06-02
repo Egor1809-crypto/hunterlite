@@ -123,7 +123,10 @@ export default function AuthLayout({
 }: AuthLayoutProps) {
   const router = useRouter();
   const pathname = usePathname();
-  const hideAssistant = pathname?.startsWith("/cases") ?? false;
+  // Hide the floating Manyasha on /cases and on /knowledge: the knowledge page
+  // hosts the in-tab Manyasha chat (ТЗ-3 DECISION-A) — one mascot per page.
+  const hideAssistant =
+    (pathname?.startsWith("/cases") || pathname?.startsWith("/knowledge")) ?? false;
   const [state, setState] = useState<"loading" | "ready" | "redirecting" | "error">("loading");
   const [errorMessage, setErrorMessage] = useState("");
   const retryCount = useRef(0);

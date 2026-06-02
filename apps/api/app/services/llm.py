@@ -204,6 +204,7 @@ async def _call_with_backoff(
     temperature: float | None = None,
     tools: list[dict] | None = None,
     model_override: str | None = None,
+    raw_messages: list[dict] | None = None,
 ) -> "LLMResponse | None":
     """Call an LLM provider with exponential backoff + jitter and circuit breaker.
 
@@ -235,6 +236,11 @@ async def _call_with_backoff(
                 _kwargs["tools"] = tools
             if model_override and provider_name == "local":
                 _kwargs["model_override"] = model_override
+            # TZ-3: agent loop needs full OpenAI-format history (assistant
+            # tool_calls + role=tool results) forwarded verbatim. Only the
+            # local (navy/OpenAI-compat) provider's _call_navy accepts it.
+            if raw_messages is not None and provider_name == "local":
+                _kwargs["raw_messages"] = raw_messages
             if _kwargs:
                 response = await call_fn(
                     system, messages, timeout, max_tokens, temperature, **_kwargs,
@@ -1750,6 +1756,16 @@ async def _call_navy(
     latency_ms = int((time.monotonic() - start) * 1000)
     msg = response.choices[0].message if response.choices else None
     content = (msg.content or "") if msg else ""
+    # Reasoning-model fallback (TZ-3 §2.3): deepseek-v4-pro and other
+    # reasoning models can return an empty ``content`` while putting the
+    # answer in ``reasoning_content``. The Next.js chat route already did
+    # this fallback; we centralise it here so every pool consumer benefits.
+    # Only fires when content is empty AND there are no tool calls (a tool
+    # turn legitimately has empty content).
+    if not content and msg is not None:
+        rc = getattr(msg, "reasoning_content", None)
+        if rc:
+            content = rc
     tool_calls = _parse_openai_tool_calls(getattr(msg, "tool_calls", None)) if msg else None
     return LLMResponse(
         content=content,
