@@ -18,7 +18,9 @@ Usage: python -m scripts.seed_exam_content
 from __future__ import annotations
 
 import asyncio
+import json
 import uuid
+from pathlib import Path
 
 from sqlalchemy import delete, select
 
@@ -27,6 +29,18 @@ from app.models.exam import ExamDefinition, ExamItem
 
 # Stable namespace so uuid5 item ids never drift between reseeds.
 _NS = uuid.UUID("e6a1d3c2-7b4f-4e2a-9c1d-000000000003")
+
+# Deep per-exam item banks live as JSON fixtures (authored + legally verified
+# via the exam-scale /ultracode workflow). Data-driven so content can be edited
+# without touching code. exam-3 stays inline below as the reference template.
+_CONTENT_DIR = Path(__file__).resolve().parent / "exam_content"
+
+
+def _load_fixture(exam_id: str) -> list[dict]:
+    path = _CONTENT_DIR / f"{exam_id}.json"
+    if not path.exists():
+        return []
+    return json.loads(path.read_text(encoding="utf-8"))
 
 
 def _item_id(exam_id: str, order: int) -> uuid.UUID:
@@ -44,14 +58,14 @@ DEFINITION_OVERRIDES: dict[str, dict] = {
         "description": "Жёсткие MCQ + числа и сроки ФЗ-127 (гл. X): пороги, сроки, прожиточный минимум.",
         "mechanic": "hard_mcq",
         "pass_threshold": 85,
-        "blueprint": {"items": [{"type": "mcq", "count": 1}, {"type": "numeric", "count": 1}], "shuffle": False},
+        "blueprint": {"items": [{"type": "mcq", "count": 8}, {"type": "numeric", "count": 3}], "shuffle": False},
     },
     "exam-2": {
         "title": "Процедура банкротства физлица",
         "description": "Порядок процедур и сопоставление статей ↔ действий (sequencing / matching).",
         "mechanic": "sequencing",
         "pass_threshold": 80,
-        "blueprint": {"items": [{"type": "sequencing", "count": 1}, {"type": "matching", "count": 1}], "shuffle": False},
+        "blueprint": {"items": [{"type": "sequencing", "count": 3}, {"type": "matching", "count": 3}], "shuffle": False},
     },
     "exam-3": {
         "title": "Анализ дела (банкротство физлица)",
@@ -65,7 +79,7 @@ DEFINITION_OVERRIDES: dict[str, dict] = {
         "description": "Составьте реальный процессуальный документ. AI-оценка полноты и юр-корректности.",
         "mechanic": "document_drafting",
         "pass_threshold": 75,
-        "blueprint": {"items": [{"type": "document_drafting", "count": 1}], "shuffle": False},
+        "blueprint": {"items": [{"type": "document_drafting", "count": 2}], "shuffle": False},
     },
     "exam-5": {
         "title": "Капстоун: мок-дело физлица",
@@ -343,7 +357,12 @@ async def _reseed_items(session, exam_id: str, items: list[dict]) -> None:
 
 
 async def main() -> None:
-    items_by_exam: dict[str, list[dict]] = {"exam-3": EXAM3_ITEMS, **SKELETON_ITEMS}
+    # exam-3 is the inline reference template; exam-1/2/4/5 load their deep,
+    # legally-verified item banks from JSON fixtures (fall back to the inline
+    # skeletons only if a fixture is missing).
+    items_by_exam: dict[str, list[dict]] = {"exam-3": EXAM3_ITEMS}
+    for exam_id in ("exam-1", "exam-2", "exam-4", "exam-5"):
+        items_by_exam[exam_id] = _load_fixture(exam_id) or SKELETON_ITEMS.get(exam_id, [])
     async with async_session() as session:
         for exam_id, ov in DEFINITION_OVERRIDES.items():
             await _upsert_definition(session, exam_id, ov)
