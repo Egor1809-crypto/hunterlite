@@ -1469,6 +1469,53 @@ export interface PipelineStats {
   total_debt: number;
 }
 
+// ─── Unified History (new backend) ────────────────────────────────────────
+
+/** Kinds returned by GET /history/unified. */
+export type UnifiedHistoryKind = "session" | "story" | "case" | "exam" | "quiz";
+
+/**
+ * Flat unified history row from GET /history/unified.
+ * `metrics` is per-kind (see HISTORY contract); `deep_link` is a
+ * ready-to-push frontend route.
+ */
+export interface UnifiedHistoryItem {
+  kind: UnifiedHistoryKind;
+  id: string;
+  date: string; // ISO
+  title: string;
+  metrics: Record<string, unknown>;
+  deep_link: string;
+}
+
+/** One ФЗ-127-grounded source row in the Manyasha разбор. */
+export interface ManyashaExplainSource {
+  category: string;
+  law_article: string;
+  relevance: number;
+  is_court_practice: boolean;
+  court_case: string;
+}
+
+/** Response of GET /history/{kind}/{id}/explain — the Manyasha разбор. */
+export interface ManyashaExplainResponse {
+  report_text: string;
+  weak_points: string[];
+  sources: ManyashaExplainSource[];
+}
+
+/**
+ * GET /dashboard/weekly-report — loosely typed dashboard schema.
+ * Only the fields the history page consumes are spelled out.
+ */
+export interface WeeklyReportResponse {
+  report_text?: string | null;
+  weak_points?: Array<{ skill?: string; [k: string]: unknown }> | null;
+  recommendations?: string[] | null;
+  outcomes?: Record<string, unknown> | null;
+  [k: string]: unknown;
+}
+
 // ─── Activity Feed ────────────────────────────────────────────────────────
 
 export type ActivityEventType =

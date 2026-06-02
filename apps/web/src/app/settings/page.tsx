@@ -25,10 +25,10 @@
 import { useState, useEffect, useCallback, useRef, type ReactNode } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Save, Loader2, Check, type LucideIcon,
+  Save, Loader2, Check, Lock, ArrowRight, AlertCircle, CheckCircle, ChevronDown, type LucideIcon,
 } from "lucide-react";
 import {
-  Kanban, User as UserIcon, Palette,
+  User as UserIcon, Palette, PaperPlaneTilt,
 } from "@phosphor-icons/react";
 import { useTheme } from "next-themes";
 import { api } from "@/lib/api";
@@ -40,8 +40,7 @@ import { BackButton } from "@/components/ui/BackButton";
 import { Button } from "@/components/ui/Button";
 import { AvatarUpload } from "@/components/settings/AvatarUpload";
 import { toast } from "sonner";
-import { PIPELINE_STATUSES, CLIENT_STATUS_LABELS, CLIENT_STATUS_COLORS } from "@/types";
-import type { ClientStatus } from "@/types";
+import { TelegramConnectCard } from "@/components/profile/TelegramConnectCard";
 import { logger } from "@/lib/logger";
 
 function invalidateUserCache() {
@@ -60,14 +59,6 @@ const GENDERS = [
   { key: "male", label: "Мужской" },
   { key: "female", label: "Женский" },
   { key: "neutral", label: "Не указывать" },
-] as const;
-
-const ACCENT_COLORS = [
-  { key: "violet", label: "Violet", color: "#8A2BE2" },
-  { key: "blue", label: "Blue", color: "var(--info)" },
-  { key: "emerald", label: "Emerald", color: "var(--success)" },
-  { key: "amber", label: "Amber", color: "var(--warning)" },
-  { key: "rose", label: "Rose", color: "#F43F5E" },
 ] as const;
 
 const THEMES = [
@@ -224,8 +215,14 @@ export default function SettingsPage() {
   const [roleTitle, setRoleTitle] = useState<string>("");
   const [primaryContact, setPrimaryContact] = useState<string>("");
   const [specialization, setSpecialization] = useState<string>("");
-  const [pipelineColumns, setPipelineColumns] = useState<string[]>(PIPELINE_STATUSES as string[]);
-  const [accentColor, setAccentColor] = useState<string>("violet");
+
+  const [oldPassword, setOldPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [passwordError, setPasswordError] = useState("");
+  const [passwordSuccess, setPasswordSuccess] = useState("");
+  const [passwordLoading, setPasswordLoading] = useState(false);
+  const [passwordOpen, setPasswordOpen] = useState(false);
 
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -235,7 +232,6 @@ export default function SettingsPage() {
   const [fullNameError, setFullNameError] = useState<string | null>(null);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
 
-  const showCRM = user?.role && ["admin", "rop", "manager"].includes(user.role);
   // gamification store removed — level/streak display cleaned up
 
   const [hydrated, setHydrated] = useState(false);
@@ -253,18 +249,7 @@ export default function SettingsPage() {
     if (typeof p.role_title === "string") setRoleTitle(p.role_title);
     if (typeof p.primary_contact === "string") setPrimaryContact(p.primary_contact);
     if (typeof p.specialization === "string") setSpecialization(p.specialization);
-    if (Array.isArray(p.pipeline_columns)) setPipelineColumns(p.pipeline_columns as string[]);
-    if (typeof p.accent_color === "string") setAccentColor(p.accent_color);
   }, [user]);
-
-  useEffect(() => {
-    if (!mountedRef.current) return;
-    const html = document.documentElement;
-    ACCENT_COLORS.forEach((c) => html.classList.remove(`accent-${c.key}`));
-    if (accentColor && accentColor !== "violet") {
-      html.classList.add(`accent-${accentColor}`);
-    }
-  }, [accentColor]);
 
   // fetchProgress removed — gamification display cleaned up
 
@@ -274,10 +259,7 @@ export default function SettingsPage() {
     try {
       const trimmedRoleTitle = roleTitle.trim();
       const trimmedContact = primaryContact.trim();
-      const prefs: Record<string, unknown> = {
-        pipeline_columns: pipelineColumns,
-        accent_color: accentColor,
-      };
+      const prefs: Record<string, unknown> = {};
       if (gender) prefs.gender = gender;
       if (trimmedRoleTitle.length >= 2) prefs.role_title = trimmedRoleTitle;
       if (trimmedContact.length >= 3) prefs.primary_contact = trimmedContact;
@@ -292,7 +274,7 @@ export default function SettingsPage() {
       toast.error("Ошибка сохранения", { description: msg });
     }
     setSaving(false);
-  }, [gender, roleTitle, primaryContact, specialization, pipelineColumns, accentColor, user]);
+  }, [gender, roleTitle, primaryContact, specialization, user]);
 
   useEffect(() => {
     if (!mountedRef.current || !user) return;
@@ -300,7 +282,7 @@ export default function SettingsPage() {
     const timeout = setTimeout(() => { triggerAutosave(); }, 1500);
     saveTimeoutRef.current = timeout;
     return () => { if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current); };
-  }, [gender, roleTitle, primaryContact, specialization, pipelineColumns, accentColor, triggerAutosave, user]);
+  }, [gender, roleTitle, primaryContact, specialization, triggerAutosave, user]);
 
   const handleSaveName = async () => {
     const trimmed = fullName.trim();
@@ -323,6 +305,26 @@ export default function SettingsPage() {
       toast.error("Не удалось сохранить имя", { description: msg });
     }
     setFullNameSaving(false);
+  };
+
+  const handlePasswordChange = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPasswordError("");
+    setPasswordSuccess("");
+    if (newPassword !== confirmPassword) { setPasswordError("Пароли не совпадают"); return; }
+    if (newPassword.length < 8) { setPasswordError("Пароль должен быть не менее 8 символов"); return; }
+
+    setPasswordLoading(true);
+    try {
+      await api.put("/users/me/password", { old_password: oldPassword, new_password: newPassword });
+      setPasswordSuccess("Пароль успешно изменён");
+      setTimeout(() => setPasswordSuccess(""), 4000);
+      setOldPassword(""); setNewPassword(""); setConfirmPassword("");
+    } catch (err: unknown) {
+      setPasswordError(err instanceof Error ? err.message : "Ошибка");
+    } finally {
+      setPasswordLoading(false);
+    }
   };
 
   return (
@@ -513,82 +515,121 @@ export default function SettingsPage() {
                   </div>
                 )}
               </SettingsCard>
-
-              <SettingsCard>
-                <SettingsLabel>Акцент</SettingsLabel>
-                <div className="flex gap-2.5 flex-wrap">
-                  {ACCENT_COLORS.map((c) => (
-                    <motion.button
-                      key={c.key}
-                      type="button"
-                      onClick={() => setAccentColor(c.key)}
-                      className="rounded-full transition-transform"
-                      style={{
-                        width: 34,
-                        height: 34,
-                        background: c.color,
-                        border: accentColor === c.key ? "2px solid var(--text-primary)" : "1px solid var(--border-color)",
-                        outline: accentColor === c.key ? "2px solid var(--bg-primary)" : "none",
-                        outlineOffset: accentColor === c.key ? "-4px" : 0,
-                      }}
-                      whileHover={{ scale: 1.08 }}
-                      whileTap={{ scale: 0.94 }}
-                      title={c.label}
-                    />
-                  ))}
-                </div>
-              </SettingsCard>
-
             </div>
           </SettingsSection>
 
-          {/* ═══ SECTION 3: ВОРОНКА (CRM only) ═══ */}
-          {showCRM && (
-            <SettingsSection
-              accent="#ff3ec8"
-              title="📋 ВОРОНКА"
-              icon={Kanban}
-              description="Колонки CRM-канбана"
-            >
-              <SettingsCard>
-                <SettingsLabel>Активные этапы (минимум 2)</SettingsLabel>
-                <div className="flex flex-wrap gap-2">
-                  {PIPELINE_STATUSES.map((status) => {
-                    const on = pipelineColumns.includes(status);
-                    const statusColor = CLIENT_STATUS_COLORS[status as ClientStatus] || "var(--text-muted)";
-                    const disabled = on && pipelineColumns.length <= 2;
-                    return (
-                      <button
-                        key={status}
-                        type="button"
-                        disabled={disabled}
-                        onClick={() => {
-                          if (disabled) return;
-                          setPipelineColumns(on
-                            ? pipelineColumns.filter((s) => s !== status)
-                            : [...pipelineColumns, status]
-                          );
-                        }}
-                        className="inline-flex items-center gap-2 rounded-lg text-sm font-medium transition-colors"
-                        style={{
-                          padding: "8px 14px",
-                          fontSize: 14,
-                          background: on ? "var(--primary-muted)" : "transparent",
-                          border: `1px solid ${on ? "var(--primary)" : "var(--border-color)"}`,
-                          color: on ? "var(--text-primary)" : "var(--text-secondary)",
-                          opacity: on ? 1 : 0.8,
-                          cursor: disabled ? "not-allowed" : "pointer",
-                        }}
+          {/* ═══ SECTION 3: БЕЗОПАСНОСТЬ ═══ */}
+          <SettingsSection
+            title="Безопасность"
+            icon={Lock}
+            description="Смена пароля"
+          >
+            <SettingsCard>
+              <button
+                type="button"
+                onClick={() => setPasswordOpen((v) => !v)}
+                className="w-full flex items-center justify-between text-sm font-medium px-4 py-3 rounded-md transition-colors"
+                style={{
+                  background: passwordOpen ? "var(--primary-muted)" : "var(--surface-card-hover)",
+                  border: "1px solid var(--border-color)",
+                  color: passwordOpen ? "var(--primary)" : "var(--text-secondary)",
+                }}
+              >
+                <span className="inline-flex items-center gap-2">
+                  <Lock size={14} />
+                  Сменить пароль
+                </span>
+                <motion.span
+                  animate={{ rotate: passwordOpen ? 180 : 0 }}
+                  transition={{ duration: 0.2 }}
+                >
+                  <ChevronDown size={14} />
+                </motion.span>
+              </button>
+
+              {passwordOpen && (
+                <motion.form
+                  onSubmit={handlePasswordChange}
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: "auto" }}
+                  className="overflow-hidden mt-4 space-y-3"
+                >
+                  {passwordError && (
+                    <div
+                      className="flex items-center gap-2 rounded-md p-3 text-sm"
+                      style={{
+                        background: "var(--danger-muted, rgba(239,68,68,0.08))",
+                        border: "1px solid var(--danger)",
+                        color: "var(--danger)",
+                      }}
+                    >
+                      <AlertCircle size={14} />
+                      {passwordError}
+                    </div>
+                  )}
+                  {passwordSuccess && (
+                    <div
+                      className="flex items-center gap-2 rounded-md p-3 text-sm"
+                      style={{
+                        background: "var(--success-muted, rgba(34,197,94,0.08))",
+                        border: "1px solid var(--success)",
+                        color: "var(--success)",
+                      }}
+                    >
+                      <CheckCircle size={14} />
+                      {passwordSuccess}
+                    </div>
+                  )}
+                  {[
+                    { id: "oldPwd", label: "Текущий пароль", value: oldPassword, setter: setOldPassword },
+                    { id: "newPwd", label: "Новый пароль", value: newPassword, setter: setNewPassword, placeholder: "Минимум 8 символов" },
+                    { id: "confPwd", label: "Подтвердите пароль", value: confirmPassword, setter: setConfirmPassword },
+                  ].map((f) => (
+                    <div key={f.id}>
+                      <label
+                        htmlFor={f.id}
+                        className="block text-sm font-medium mb-1.5"
+                        style={{ color: "var(--text-secondary)" }}
                       >
-                        <span className="rounded-full" style={{ width: 8, height: 8, background: statusColor }} />
-                        {CLIENT_STATUS_LABELS[status as ClientStatus]}
-                      </button>
-                    );
-                  })}
-                </div>
-              </SettingsCard>
-            </SettingsSection>
-          )}
+                        {f.label}
+                      </label>
+                      <div className="relative">
+                        <Lock size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2" style={{ color: "var(--text-muted)" }} />
+                        <input
+                          id={f.id}
+                          type="password"
+                          value={f.value}
+                          onChange={(e) => f.setter(e.target.value)}
+                          required
+                          minLength={f.id === "oldPwd" ? undefined : 8}
+                          className="vh-input pl-10"
+                          placeholder={f.placeholder}
+                          style={{ fontSize: 14 }}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                  <Button
+                    type="submit"
+                    disabled={passwordLoading}
+                    loading={passwordLoading}
+                    iconRight={<ArrowRight size={16} />}
+                  >
+                    Изменить пароль
+                  </Button>
+                </motion.form>
+              )}
+            </SettingsCard>
+          </SettingsSection>
+
+          {/* ═══ SECTION 4: TELEGRAM ═══ */}
+          <SettingsSection
+            title="Telegram"
+            icon={PaperPlaneTilt}
+            description="Подключение Telegram-бота"
+          >
+            <TelegramConnectCard />
+          </SettingsSection>
 
           {/* Spacer */}
           <div className="h-12" />

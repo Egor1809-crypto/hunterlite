@@ -65,7 +65,7 @@ const COMMANDS: CommandItem[] = [
   { id: "history", label: "История тренировок", description: "Все сессии", icon: History, href: "/history", keywords: ["история", "history", "сессии", "прошлые"] },
   { id: "analytics", label: "Аналитика", description: "Статистика и прогресс", icon: BarChart3, href: "/analytics", keywords: ["аналитика", "analytics", "статистика", "прогресс", "графики"] },
   { id: "knowledge", label: "База знаний", description: "Правовые материалы и поиск", icon: BookOpen, href: "/knowledge", keywords: ["знания", "knowledge", "база", "материалы", "право"] },
-  { id: "settings", label: "Настройки", description: "Тема, звук, профиль", icon: Settings, href: "/settings", keywords: ["настройки", "settings", "тема", "профиль"] },
+  { id: "settings", label: "Настройки", description: "Тема, профиль, Telegram, безопасность", icon: Settings, href: "/settings", keywords: ["настройки", "settings", "тема", "профиль", "telegram", "телеграм", "пароль", "безопасность"] },
   { id: "dashboard", label: "Панель управления", description: "Обзор команды (РОП)", icon: Shield, href: "/dashboard", keywords: ["панель", "dashboard", "управление", "роп"], roles: ["rop", "admin"] },
 ];
 
