@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { ArrowRight, Check, FileCheck, GraduationCap, ShieldCheck } from "lucide-react";
+import { ArrowRight, Check, FileCheck, GraduationCap, ShieldCheck, Send } from "lucide-react";
 import { useLandingAuth } from "@/components/landing/LandingAuthContext";
 import { BrandLogo } from "@/components/ui/BrandLogo";
 import { CertificatePreview, CERT_LIGHT_PALETTE } from "@/components/certificate/CertificatePreview";
@@ -42,30 +42,72 @@ const experts = [
 const products = [
   {
     title: "AI-тренировки",
-    text: "Диалоги и звонки с AI-клиентами, которые ведут себя как реальные должники: спорят, сомневаются, давят и проверяют реакцию юриста.",
+    text: "Диалоги и звонки с AI-клиентами, которые ведут себя как реальные должники: спорят, сомневаются, давят и проверяют на прочность. Ошибиться можно здесь — не с живым человеком.",
   },
   {
     title: "Кейсы и практика",
-    text: "Интерактивные дела по банкротству: решения, последствия, скрытые факты и экспертный разбор после прохождения.",
+    text: "Интерактивные дела по банкротству: решения, последствия, скрытые факты и разбор от практиков. Видно, как выбор юриста отражается на судьбе человека.",
   },
   {
     title: "Экзамен и сертификат",
-    text: "Формальная проверка знаний, отчёт о результате и сертификат для подтверждения профессионального роста.",
+    text: "Объективная проверка знаний, отчёт о результате и сертификат — подтверждение, что вам можно доверить дело.",
   },
 ];
 
+// Лента продуктов экосистемы (AI + право) — бегущая строка в стиле биржевого тикера.
+const ecosystem = [
+  "AI-ассистент юриста",
+  "Анализ судебной практики",
+  "Проверка контрагентов",
+  "Генерация процессуальных документов",
+  "Правовой поиск по 127-ФЗ",
+  "Прогноз исхода дела",
+  "Радар изменений в праве",
+  "База знаний по банкротству",
+  "AI-разбор кейсов",
+  "Голосовые тренировки звонков",
+  "Автоматизация документооборота",
+  "Калькулятор процедур банкротства",
+];
+
 const proof = [
-  "Обучаем юристов и специалистов банкротства с 2019 года.",
-  "Соединяем опыт практиков, судебную логику и передовые технологии.",
-  "Помогаем специалистам не просто учиться, а применять знания в реальной работе с людьми.",
+  "Готовим юристов и специалистов по банкротству с 2019 года.",
+  "Соединяем опыт практиков, судебную логику и современные технологии.",
+  "Доводим знания до уровня, на котором они работают в реальном деле с людьми.",
 ];
 
 export default function LandingPage() {
   const { openRegister } = useLandingAuth();
 
   return (
-    <main className="min-h-screen bg-[#F7F1E8] text-[#18131D]">
-      <div className="mx-auto grid min-h-screen w-full max-w-[1680px] grid-cols-1 lg:grid-cols-[300px_1fr]">
+    <main className="relative min-h-screen overflow-hidden bg-[#F7F1E8] text-[#18131D]">
+      {/* Decorative backdrop — soft brand glows + faint grid, in the landing palette
+          (echoes the subtle backdrop on the exam screen). Static, behind content. */}
+      <div aria-hidden className="pointer-events-none absolute inset-0 z-0 overflow-hidden">
+        <div
+          className="absolute -left-[12%] -top-[8%] h-[46rem] w-[46rem] rounded-full opacity-[0.5] blur-[120px]"
+          style={{ background: "radial-gradient(circle, rgba(124,58,237,0.16), transparent 70%)" }}
+        />
+        <div
+          className="absolute right-[-10%] top-[28%] h-[40rem] w-[40rem] rounded-full opacity-[0.45] blur-[120px]"
+          style={{ background: "radial-gradient(circle, rgba(34,211,238,0.12), transparent 70%)" }}
+        />
+        <div
+          className="absolute bottom-[-6%] left-[35%] h-[38rem] w-[38rem] rounded-full opacity-[0.4] blur-[130px]"
+          style={{ background: "radial-gradient(circle, rgba(236,72,153,0.10), transparent 70%)" }}
+        />
+        <div
+          className="absolute inset-0 opacity-[0.5]"
+          style={{
+            backgroundImage:
+              "linear-gradient(#D9C9E8 1px, transparent 1px), linear-gradient(90deg, #D9C9E8 1px, transparent 1px)",
+            backgroundSize: "64px 64px",
+            maskImage: "radial-gradient(ellipse 80% 60% at 50% 0%, #000 30%, transparent 75%)",
+            WebkitMaskImage: "radial-gradient(ellipse 80% 60% at 50% 0%, #000 30%, transparent 75%)",
+          }}
+        />
+      </div>
+      <div className="relative z-10 mx-auto grid min-h-screen w-full max-w-[1680px] grid-cols-1 lg:grid-cols-[300px_minmax(0,1fr)]">
         <aside className="sticky top-0 z-20 flex h-auto flex-col border-b border-[#D9C9E8] bg-[#F7F1E8]/95 px-5 py-5 backdrop-blur lg:h-screen lg:border-b-0 lg:border-r lg:px-7 lg:py-7">
           <div className="flex items-center justify-between gap-4 lg:block">
             <Link href="/" className="inline-flex" aria-label="LegalHunter">
@@ -111,7 +153,7 @@ export default function LandingPage() {
           </div>
         </aside>
 
-        <section className="px-5 py-10 sm:px-8 lg:px-14 lg:py-12">
+        <section className="min-w-0 px-5 py-10 sm:px-8 lg:px-14 lg:py-12">
           <section id="about" className="grid min-h-[calc(100vh-6rem)] content-between border-b border-[#D9C9E8] pb-12">
             <div className="grid gap-8 lg:grid-cols-[1fr_360px]">
               <div>
@@ -126,7 +168,7 @@ export default function LandingPage() {
               <div className="rounded-[28px] border border-[#D9C9E8] bg-[#FFFDF8] p-6">
                 <p className="text-sm uppercase tracking-[0.16em] text-[#9B7DB4]">с 2019 года</p>
                 <p className="mt-6 text-2xl leading-tight text-[#18131D]">
-                  Не просто обучение. Это профессиональная среда, где технологии, практика и эксперты превращают знания в уверенные действия.
+                  Не курс, а профессиональная среда: практика, эксперты и технологии превращают знание закона в уверенные действия рядом с человеком в долговой яме.
                 </p>
                 <button
                   onClick={openRegister}
@@ -184,17 +226,28 @@ export default function LandingPage() {
             </div>
           </section>
 
-          <section id="products" className="border-b border-[#D9C9E8] py-14 lg:py-20">
-            <div className="grid gap-10 lg:grid-cols-[0.8fr_1.2fr]">
+          <section id="products" className="border-b border-[#D9C9E8] py-20 lg:py-28">
+            <div className="grid gap-12 lg:grid-cols-[0.8fr_1.2fr]">
               <div>
-                <p className="text-sm uppercase tracking-[0.16em] text-[#9B7DB4]">Наши продукты</p>
+                <p className="text-sm uppercase tracking-[0.16em] text-[#9B7DB4]">
+                  Наши продукты{" "}
+                  <span className="text-[#C9B8D8]">&amp;</span>{" "}
+                  <a
+                    href="https://pravotech.pro/"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="bg-gradient-to-r from-[#22D3EE] via-[#7C3AED] to-[#EC4899] bg-clip-text font-semibold text-transparent transition-opacity hover:opacity-80"
+                  >
+                    ТехнологИИ Права
+                  </a>
+                </p>
                 <h2 className="mt-3 text-[clamp(3rem,6vw,7rem)] font-semibold leading-[0.9] tracking-[-0.07em] text-[#18131D]">
                   Обучение, практика, аттестация.
                 </h2>
               </div>
               <div className="divide-y divide-[#D9C9E8] border-y border-[#D9C9E8]">
                 {products.map((product, index) => (
-                  <article key={product.title} className="grid gap-6 py-8 sm:grid-cols-[90px_1fr]">
+                  <article key={product.title} className="grid gap-6 py-9 sm:grid-cols-[90px_1fr]">
                     <div className="text-5xl font-semibold tracking-[-0.07em] text-[#B98CDA]">
                       {String(index + 1).padStart(2, "0")}
                     </div>
@@ -206,6 +259,33 @@ export default function LandingPage() {
                 ))}
               </div>
             </div>
+
+            {/* Экосистема AI + право — бегущая лента в стиле биржевого тикера */}
+            <div className="mt-16 lg:mt-20">
+              <div className="mb-5 flex items-center justify-between">
+                <p className="text-sm uppercase tracking-[0.16em] text-[#9B7DB4]">Экосистема AI &amp; право</p>
+                <span className="hidden text-sm text-[#9B8AA8] sm:block">12 направлений в разработке</span>
+              </div>
+              <div
+                className="group relative overflow-hidden rounded-[24px] border border-[#D9C9E8] bg-[#FFFDF8] py-5"
+                style={{
+                  maskImage: "linear-gradient(to right, transparent, #000 8%, #000 92%, transparent)",
+                  WebkitMaskImage: "linear-gradient(to right, transparent, #000 8%, #000 92%, transparent)",
+                }}
+              >
+                <div className="flex w-max animate-[ticker_42s_linear_infinite] gap-3 group-hover:[animation-play-state:paused]">
+                  {[...ecosystem, ...ecosystem].map((item, i) => (
+                    <span
+                      key={`${item}-${i}`}
+                      className="inline-flex shrink-0 items-center gap-2 rounded-full border border-[#E4D7EF] bg-[#F7F1E8] px-5 py-2.5 text-base font-medium text-[#3C3344]"
+                    >
+                      <span className="h-1.5 w-1.5 rounded-full bg-gradient-to-r from-[#22D3EE] to-[#EC4899]" />
+                      {item}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </div>
           </section>
 
           {/* 5.1 — the certificate as the destination: a blurred, locked diploma
@@ -214,19 +294,30 @@ export default function LandingPage() {
             <div className="order-2 lg:order-1">
               <ShieldCheck size={30} className="text-[#7C3AED]" />
               <h2 className="mt-8 text-[clamp(2.6rem,5vw,5.8rem)] font-semibold leading-[0.9] tracking-[-0.07em] text-[#18131D]">
-                Сертификат, который подтверждает рост.
+                Сертификат, которому доверяют.
               </h2>
               <p className="mt-6 max-w-xl text-lg leading-snug text-[#5F5367]">
                 Документ эксперта по банкротству физических лиц, заверенный практикующими юристами РФ.
-                Его получают те, кто прошёл курс и сдал экзамен.
+                Его получают только те, кто прошёл курс и сдал экзамен.
               </p>
-              <button
-                onClick={openRegister}
-                className="mt-9 inline-flex items-center gap-3 rounded-full bg-[#18131D] px-6 py-4 text-sm font-semibold text-white transition hover:bg-[#7C3AED]"
-              >
-                Начать обучение
-                <ArrowRight size={18} />
-              </button>
+              <div className="mt-9 flex flex-wrap items-center gap-3">
+                <button
+                  onClick={openRegister}
+                  className="inline-flex items-center gap-3 rounded-full bg-[#18131D] px-6 py-4 text-sm font-semibold text-white transition hover:bg-[#7C3AED]"
+                >
+                  Начать обучение
+                  <ArrowRight size={18} />
+                </button>
+                <a
+                  href="https://t.me/legalhunter"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="group inline-flex items-center gap-2.5 rounded-full border border-[#D9C9E8] bg-white/70 px-6 py-4 text-sm font-semibold text-[#18131D] backdrop-blur transition hover:border-[#22D3EE] hover:bg-white"
+                >
+                  <Send size={17} className="text-[#7C3AED] transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
+                  Задать вопрос в Telegram
+                </a>
+              </div>
             </div>
 
             <div className="order-1 lg:order-2">

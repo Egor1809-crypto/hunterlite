@@ -1288,6 +1288,17 @@ html.light main [role="button"] {
   }
   .animate-fade-in-up { animation: fade-in-up 0.5s cubic-bezier(0.16, 1, 0.3, 1) both; }
 
+  /* ── Ticker / marquee (landing ecosystem strip) ─────────────
+     The track renders the item list twice; sliding by -50% loops
+     seamlessly. Respects reduced-motion. */
+  @keyframes ticker {
+    from { transform: translateX(0); }
+    to { transform: translateX(-50%); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .animate-\[ticker_42s_linear_infinite\] { animation: none !important; }
+  }
+
   /* ── Stagger cascade ────────────────────────────────────── */
   .stagger-cascade > * { opacity: 0; animation: fade-in-up 0.45s cubic-bezier(0.16, 1, 0.3, 1) both; }
   .stagger-cascade > *:nth-child(1) { animation-delay: 0.04s; }
