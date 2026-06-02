@@ -1,7 +1,7 @@
 """TZ-4 exam-rebuild: own learning-content DB (exam_item / exam_item_attempt)
 
 Revision ID: 20260602_exam_001
-Revises: 20260531_003
+Revises: 20260602_003
 Create Date: 2026-06-02
 
 Adds the exam-rebuild schema described in docs/exam/EXAM_TZ.md §2:
@@ -23,7 +23,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 revision: str = "20260602_exam_001"
-down_revision: Union[str, None] = "20260531_003"
+down_revision: Union[str, None] = "20260602_003"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
