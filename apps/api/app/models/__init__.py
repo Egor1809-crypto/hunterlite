@@ -114,9 +114,24 @@ from app.models.pvp import (
     APPurchase,
 )
 from app.models.custom_character import CustomCharacter
-# Knowledge-quiz models (KnowledgeQuizSession, KnowledgeAnswer, QuizChallenge,
-# UserAnswerHistory, Debate/TeamQuiz/DailyChallenge, KnowledgeAnswerReport,
-# QuizV2AnswerKey) retired with the quiz subsystem.
+from app.models.knowledge import (
+    KnowledgeQuizSession,
+    QuizParticipant,
+    KnowledgeAnswer,
+    QuizChallenge,
+    QuizMode,
+    QuizSessionStatus,
+    UserAnswerHistory,
+    # DOC_11: Knowledge v2 models
+    DebateSession,
+    TeamQuizTeam,
+    DailyChallenge,
+    DailyChallengeEntry,
+)
+from app.models.knowledge_answer_report import (
+    KnowledgeAnswerReport,
+    ReportStatus,
+)
 from app.models.rag import (
     ChunkUsageLog,
     LegalKnowledgeChunk,
@@ -199,6 +214,9 @@ from app.models.methodology import MethodologyChunk, MethodologyKind
 # Anonymous FE telemetry collector (alembic 20260502_005). Read-only ORM
 # wrapper; bulk inserts use Core insert() for batch efficiency.
 from app.models.analytics_event import AnalyticsEvent
+# Quiz Arena v2 (Path A) — pre-computed answer keys for the deterministic
+# grader. Migration 20260503_001. See docs/QUIZ_V2_ARENA_DESIGN.md.
+from app.models.quiz_v2 import QuizV2AnswerKey
 from app.models.training_map import TrainingMapProgress
 from app.models.telegram_link import TelegramLinkToken
 from app.models.training_preset import TrainingPreset
@@ -311,6 +329,13 @@ __all__ = [
     "UserFingerprint",
     # Custom Characters
     "CustomCharacter",
+    # Knowledge Quiz (AI Examiner + PvP Arena)
+    "KnowledgeQuizSession",
+    "QuizParticipant",
+    "KnowledgeAnswer",
+    "QuizChallenge",
+    "QuizMode",
+    "QuizSessionStatus",
     # Web Push (Task X6)
     "PushSubscription",
     # RAG Feedback Loop
@@ -327,6 +352,11 @@ __all__ = [
     "PromotionSeries",
     "SeasonReward",
     "APPurchase",
+    # DOC_11: Knowledge v2
+    "DebateSession",
+    "TeamQuizTeam",
+    "DailyChallenge",
+    "DailyChallengeEntry",
     # DOC_12: Tournament v2
     "TournamentTheme",
     "TournamentTeam",
@@ -349,6 +379,7 @@ __all__ = [
     "PersonalityExample",
     "TraitCategory",
     "PersonalityChunkSource",
+    "UserAnswerHistory",
     "BehaviorSnapshot",
     "EmotionProfile",
     "ProgressTrend",
@@ -402,6 +433,8 @@ __all__ = [
     "MethodologyKind",
     # Anonymous FE telemetry (alembic 20260502_005)
     "AnalyticsEvent",
+    # Quiz Arena v2 — Path A grader storage (alembic 20260503_001)
+    "QuizV2AnswerKey",
     "TrainingMapProgress",
     "TelegramLinkToken",
     "TrainingPreset",

@@ -2240,8 +2240,63 @@ class AchievementValidator:
     async def _check_arena_teacher(
         self, user_id: uuid.UUID, db: AsyncSession, stats: dict, conditions: dict | None = None
     ) -> bool:
-        """Retired: depended on QuizChallenge (knowledge-quiz, removed)."""
-        return False
+        """Rare: helped 3 colleagues improve (they scored 80%+ within 7 days of your challenge).
+
+        Logic: user A challenged user B via QuizChallenge. If B completed a themed quiz
+        with score >= 80 within 7 days after the challenge → A gets +1 teaching_impact.
+        """
+        from app.models.knowledge import QuizChallenge, KnowledgeQuizSession, QuizSessionStatus
+
+        # Find all challenges created by this user
+        challenges_result = await db.execute(
+            select(QuizChallenge).where(
+                QuizChallenge.challenger_id == user_id,
+                QuizChallenge.session_id.isnot(None),  # Challenge was accepted
+            )
+        )
+        challenges = challenges_result.scalars().all()
+
+        if not challenges:
+            return False
+
+        teaching_impact = 0
+        checked_opponents: set[uuid.UUID] = set()
+
+        for challenge in challenges:
+            if not challenge.accepted_by:
+                continue
+
+            accepted_ids = challenge.accepted_by
+            if isinstance(accepted_ids, list):
+                opponent_ids = [uuid.UUID(uid) if isinstance(uid, str) else uid for uid in accepted_ids]
+            else:
+                continue
+
+            for opponent_id in opponent_ids:
+                if opponent_id == user_id or opponent_id in checked_opponents:
+                    continue
+                checked_opponents.add(opponent_id)
+
+                # Check if opponent completed a themed quiz with 80%+ within 7 days
+                challenge_date = challenge.created_at
+                week_later = challenge_date + timedelta(days=7)
+
+                good_session = await db.execute(
+                    select(KnowledgeQuizSession.id).where(
+                        KnowledgeQuizSession.user_id == opponent_id,
+                        KnowledgeQuizSession.status == QuizSessionStatus.completed,
+                        KnowledgeQuizSession.mode == "themed",
+                        KnowledgeQuizSession.score >= 80,
+                        KnowledgeQuizSession.started_at >= challenge_date,
+                        KnowledgeQuizSession.started_at <= week_later,
+                    ).limit(1)
+                )
+                if good_session.scalar_one_or_none():
+                    teaching_impact += 1
+                    if teaching_impact >= 3:
+                        return True
+
+        return teaching_impact >= 3
 
     # ── v5 Seed-aligned achievement checks ──────────────────────────────────
 
@@ -2824,8 +2879,28 @@ class AchievementValidator:
     async def _check_cross_theory_practice(
         self, user_id: uuid.UUID, db: AsyncSession, stats: dict, conditions: dict | None = None
     ) -> bool:
-        """Retired: required a knowledge-quiz 90% component (quiz removed)."""
-        return False
+        """Quiz 90%+ in a category AND training score 80+ with traps from that category."""
+        from app.models.knowledge import KnowledgeQuizSession, QuizSessionStatus
+        from app.models.progress import SessionHistory
+        # Check quiz 90%+
+        quiz_result = await db.execute(
+            select(KnowledgeQuizSession.id).where(
+                KnowledgeQuizSession.user_id == user_id,
+                KnowledgeQuizSession.status == QuizSessionStatus.completed,
+                KnowledgeQuizSession.score >= 90,
+            ).limit(1)
+        )
+        if not quiz_result.scalar_one_or_none():
+            return False
+        # Check training score 80+ with traps dodged
+        train_result = await db.execute(
+            select(SessionHistory.id).where(
+                SessionHistory.user_id == user_id,
+                SessionHistory.score_total >= 80,
+                SessionHistory.traps_dodged > 0,
+            ).limit(1)
+        )
+        return train_result.scalar_one_or_none() is not None
 
     async def _check_cross_revenge(
         self, user_id: uuid.UUID, db: AsyncSession, stats: dict, conditions: dict | None = None
@@ -3124,7 +3199,23 @@ async def get_leaderboard_extended(
     )
     progress_lookup = {row[0]: (row[1], row[2]) for row in progress_result.all()}
 
-    # Knowledge-quiz retired — leaderboard is training-only (no arena blend).
+    # Batch query: KnowledgeQuizSession aggregates grouped by user_id
+    from app.models.knowledge import KnowledgeQuizSession, QuizSessionStatus
+    arena_result = await db.execute(
+        select(
+            KnowledgeQuizSession.user_id,
+            func.count(KnowledgeQuizSession.id),
+            func.coalesce(func.avg(KnowledgeQuizSession.score), 0),
+        )
+        .where(
+            KnowledgeQuizSession.user_id.in_(user_ids),
+            KnowledgeQuizSession.status == QuizSessionStatus.completed,
+            KnowledgeQuizSession.started_at >= since,
+        )
+        .group_by(KnowledgeQuizSession.user_id)
+    )
+    arena_lookup = {row[0]: (row[1], float(row[2])) for row in arena_result.all()}
+
     entries = []
     for row in rows:
         user_id_val = row[0]
@@ -3142,6 +3233,22 @@ async def get_leaderboard_extended(
         progress_data = progress_lookup.get(user_id_val)
         entry["total_xp"] = progress_data[0] if progress_data else 0
         entry["level"] = progress_data[1] if progress_data else 1
+
+        # Get arena data from batch lookup
+        arena_data = arena_lookup.get(user_id_val)
+        arena_sessions = arena_data[0] if arena_data else 0
+        arena_avg_score = arena_data[1] if arena_data else 0.0
+
+        # Merge arena data: add sessions count and blend avg_score
+        if arena_sessions > 0:
+            total_sessions = entry["sessions_count"] + arena_sessions
+            # Weighted average of training and arena scores
+            entry["avg_score"] = round(
+                (entry["avg_score"] * entry["sessions_count"] + arena_avg_score * arena_sessions)
+                / total_sessions,
+                1,
+            )
+            entry["sessions_count"] = total_sessions
 
         # Calculate streak
         streak = await calculate_streak(user_id_val, db)
@@ -3273,3 +3380,151 @@ async def get_team_leaderboard(
     }
 
 
+# ═════════════════════════════════════════════════════════════════════════════
+# ARENA ACHIEVEMENTS — stats collection and checking
+# ═════════════════════════════════════════════════════════════════════════════
+
+async def collect_arena_stats(user_id: uuid.UUID, db: AsyncSession) -> dict:
+    """Collect all stats needed for arena achievement checking.
+
+    Called after each quiz/PvP session completion in the Arena.
+    """
+    from app.models.knowledge import KnowledgeQuizSession, KnowledgeAnswer, QuizSessionStatus
+    from app.models.progress import ManagerProgress
+    from app.services.knowledge_quiz import get_category_progress
+
+    stats: dict = {}
+
+    # PvP/arena removed — arena rating stats no longer collected (legacy).
+    stats["arena_rating"] = 0
+    stats["arena_pvp_matches"] = 0
+    stats["arena_pvp_wins"] = 0
+    stats["arena_best_win_streak"] = 0
+
+    # Quiz session stats
+    sessions_result = await db.execute(
+        select(KnowledgeQuizSession).where(
+            KnowledgeQuizSession.user_id == user_id,
+            KnowledgeQuizSession.status == QuizSessionStatus.completed,
+        )
+    )
+    completed_sessions = sessions_result.scalars().all()
+
+    # Best blitz score
+    blitz_sessions = [s for s in completed_sessions if s.mode.value == "blitz"]
+    stats["best_blitz_correct"] = max(
+        (s.correct_answers for s in blitz_sessions), default=0
+    )
+
+    # Best themed accuracy
+    themed_sessions = [s for s in completed_sessions if s.mode.value == "themed"]
+    stats["best_themed_accuracy"] = max(
+        (s.score for s in themed_sessions), default=0
+    )
+
+    # Category mastery (how many categories have 90%+ accuracy)
+    try:
+        category_progress = await get_category_progress(user_id, db)
+        stats["categories_above_90"] = sum(
+            1 for cp in category_progress
+            if cp.get("mastery_pct", 0) >= 90
+        )
+    except Exception:
+        stats["categories_above_90"] = 0
+
+    # Answer streaks from ManagerProgress
+    progress_result = await db.execute(
+        select(ManagerProgress).where(ManagerProgress.user_id == user_id)
+    )
+    progress = progress_result.scalar_one_or_none()
+    if progress:
+        stats["arena_best_answer_streak"] = progress.arena_best_answer_streak
+    else:
+        stats["arena_best_answer_streak"] = 0
+
+    # Also include training stats for combined achievement checking
+    streak = await calculate_streak(user_id, db)
+    training_result = await db.execute(
+        select(
+            func.count(TrainingSession.id),
+            func.max(TrainingSession.score_total),
+        ).where(
+            TrainingSession.user_id == user_id,
+            TrainingSession.status == SessionStatus.completed,
+        )
+    )
+    t_row = training_result.one()
+    stats["completed_sessions"] = t_row[0] or 0
+    stats["best_score"] = float(t_row[1]) if t_row[1] is not None else None
+    stats["streak"] = streak
+
+    chars_result = await db.execute(
+        select(func.count(func.distinct(TrainingSession.scenario_id))).where(
+            TrainingSession.user_id == user_id,
+            TrainingSession.status == SessionStatus.completed,
+        )
+    )
+    stats["unique_characters"] = chars_result.scalar() or 0
+
+    # ── v5: Extended quiz/training stats for seed-aligned achievements ──
+    # PvP/PvE/Tournament layer retired — the keys below are kept as inert
+    # defaults so legacy achievement lambdas (which read them via .get())
+    # stay safe; they simply never fire. No models.pvp / models.tournament
+    # queries remain on this (knowledge-quiz) hot path.
+    stats["arena_rank_tier"] = "unranked"
+    stats["arena_mode_wins"] = {}
+    stats["arena_tournaments_participated"] = 0
+    stats["arena_best_tournament_place"] = 999
+    stats["unique_opponents"] = 0
+    stats["pve_wins"] = 0
+    stats["pve_ladder_all_defeated"] = False
+    stats["pve_ladder_best_score"] = 0
+    stats["pve_bosses_defeated"] = 0
+    stats["pve_training_count"] = 0
+    stats["pve_mirror_wins"] = 0
+    stats["pve_mirror_best_streak"] = 0
+    stats["pve_modes_won"] = 0
+
+    # Categories above 80% (quiz-based, kept)
+    try:
+        category_progress_80 = await get_category_progress(user_id, db)
+        stats["categories_above_80"] = sum(
+            1 for cp in category_progress_80
+            if cp.get("mastery_pct", 0) >= 80
+        )
+    except Exception:
+        stats["categories_above_80"] = 0
+
+    # Arena blitz perfect (all correct in a blitz session — quiz-based, kept)
+    stats["arena_blitz_perfect"] = False
+    for s in blitz_sessions:
+        if s.correct_answers and s.total_questions and s.correct_answers == s.total_questions:
+            stats["arena_blitz_perfect"] = True
+            break
+
+    # User level for cross-system checks
+    if progress:
+        stats["level"] = progress.current_level
+        # Skills
+        skills = progress.skills_dict()
+        for skill_name, skill_val in skills.items():
+            stats[f"skill_{skill_name}"] = skill_val
+        stats["current_deal_streak"] = progress.current_deal_streak
+        stats["total_training_hours"] = float(progress.total_hours or 0)
+    else:
+        stats["level"] = 1
+
+    return stats
+
+
+async def check_arena_achievements(
+    user_id: uuid.UUID, db: AsyncSession
+) -> list[dict]:
+    """Check and award arena achievements after a quiz/PvP session.
+
+    Returns list of newly earned achievements (for WS notification).
+    """
+    stats = await collect_arena_stats(user_id, db)
+
+    validator = AchievementValidator()
+    return await validator.check_all(user_id, db, stats)

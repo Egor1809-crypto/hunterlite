@@ -772,7 +772,33 @@ class ReminderScheduler:
             except Exception:
                 logger.warning("Stale training nudge failed", exc_info=True)
 
-            # SRS-overdue nudge retired with the knowledge-quiz subsystem.
+            # ── 2. SRS overdue: cards need review ──
+            try:
+                from app.models.knowledge import UserAnswerHistory
+                overdue_result = await db.execute(
+                    select(
+                        UserAnswerHistory.user_id,
+                        func.count(UserAnswerHistory.id).label("cnt"),
+                    )
+                    .where(
+                        UserAnswerHistory.next_review_at < now,
+                        UserAnswerHistory.next_review_at.isnot(None),
+                    )
+                    .group_by(UserAnswerHistory.user_id)
+                    .having(func.count(UserAnswerHistory.id) >= 3)
+                    .limit(100)
+                )
+                for uid, cnt in overdue_result.all():
+                    await send_typed_notification(
+                        str(uid),
+                        NotificationType.KNOWLEDGE_SRS_OVERDUE,
+                        f"{cnt} карточек ждут повторения",
+                        "Интервальное повторение работает лучше, если не пропускать дни.",
+                        action_url="/knowledge",
+                        push=True,
+                    )
+            except Exception:
+                logger.warning("SRS overdue nudge failed", exc_info=True)
 
             # ── 3. PvP rating decay: no match in 7 days ──
             try:
