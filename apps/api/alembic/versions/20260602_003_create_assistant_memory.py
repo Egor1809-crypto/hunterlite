@@ -1,7 +1,7 @@
 """create assistant memory tables (Manyasha knowledge agent, ТЗ-3)
 
 Revision ID: 20260602_003
-Revises: 20260602_002
+Revises: 20260531_003
 Create Date: 2026-06-02
 
 Server-side conversational memory for the Manyasha knowledge assistant:
@@ -22,7 +22,10 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 revision: str = "20260602_003"
-down_revision: Union[str, None] = "20260602_002"
+# Chains directly onto the current origin/main head. The constructor agent's
+# 20260602_001/002 are a SEPARATE unmerged PR — do not depend on them here
+# (a merge migration reconciles the two heads when both land).
+down_revision: Union[str, None] = "20260531_003"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
