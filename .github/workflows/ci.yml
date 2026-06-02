@@ -8,11 +8,11 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  # ghcr.io rejects mixed-case repo names ("HunterBillion/Hunter888"
-  # → "repository name must be lowercase"). github.repository keeps the
-  # canonical case, so hardcode the lowercase form for the image tags.
-  API_IMAGE: ghcr.io/hunterbillion/hunter888/api
-  WEB_IMAGE: ghcr.io/hunterbillion/hunter888/web
+  # ghcr.io rejects mixed-case repo names → "repository name must be lowercase".
+  # Hardcode the lowercase owner/repo for THIS repository (Egor1809-crypto/hunterlite);
+  # the previous hunterbillion/hunter888 path 403'd on push ("installation does not exist").
+  API_IMAGE: ghcr.io/egor1809-crypto/hunterlite/api
+  WEB_IMAGE: ghcr.io/egor1809-crypto/hunterlite/web
 
 jobs:
   backend:
