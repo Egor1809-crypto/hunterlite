@@ -215,7 +215,11 @@ async def test_reasoning_content_fallback():
         )
     )
 
-    with patch.object(llm, "_get_local_client", return_value=fake_client):
+    # Force the OpenAI-compatible (navy) branch deterministically — CI has no
+    # navy creds, so local_llm_enabled/url are otherwise unset.
+    with patch.object(llm.settings, "local_llm_enabled", True), \
+         patch.object(llm.settings, "local_llm_url", "https://api.navy/v1"), \
+         patch.object(llm, "_get_local_client", return_value=fake_client):
         resp = await llm._call_navy(
             "system", [{"role": "user", "content": "вопрос"}], 30.0,
         )
@@ -224,12 +228,15 @@ async def test_reasoning_content_fallback():
 
 
 @pytest.mark.asyncio
-async def test_conversation_memory_multiturn(client, db_session, make_token, mock_redis_pool):
+async def test_conversation_memory_multiturn(client, db_session):
     """A follow-up message is answered with the prior turns as context — the
     "does it actually remember?" check (§6.1)."""
+    from app.core.deps import get_current_user
+    from app.main import app as fastapi_app
     from app.models.user import User
 
-    # Persist a user the JWT will resolve to.
+    # Persist a user and bypass the JWT/redis auth path deterministically
+    # (CI has no redis; the real get_current_user fail-closes without it).
     uid = uuid.uuid4()
     user = User(
         id=uid,
@@ -241,11 +248,12 @@ async def test_conversation_memory_multiturn(client, db_session, make_token, moc
     )
     db_session.add(user)
     await db_session.commit()
+    fastapi_app.dependency_overrides[get_current_user] = lambda: user
 
     # CSRF middleware (main.py): double-submit — X-CSRF-Token header must
     # match the csrf_token cookie on state-changing requests.
     csrf = "test-csrf-token"
-    headers = {"Authorization": f"Bearer {make_token(user_id=uid)}", "X-CSRF-Token": csrf}
+    headers = {"X-CSRF-Token": csrf}
     client.cookies.set("csrf_token", csrf)
     seen_histories: list[list[dict]] = []
 
