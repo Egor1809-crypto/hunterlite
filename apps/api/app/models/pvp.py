@@ -351,9 +351,10 @@ class PvPRating(Base):
     current_streak: Mapped[int] = mapped_column(Integer, default=0)  # +N win, -N loss
     best_streak: Mapped[int] = mapped_column(Integer, default=0)
 
-    # Season
+    # Season — PvPSeason model retired; keep the column (prod data) but drop the
+    # FK so Base.metadata resolves without the deleted pvp_seasons table.
     season_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("pvp_seasons.id", use_alter=True), nullable=True, index=True
+        UUID(as_uuid=True), nullable=True, index=True
     )
 
     # Timestamps
