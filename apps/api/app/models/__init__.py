@@ -40,7 +40,6 @@ from app.models.progress import (
     StreakFreeze,
 )
 from app.models.season_content import ContentSeason, SeasonChapter
-from app.models.league import WeeklyLeagueGroup, WeeklyLeagueMembership
 from app.models.checkpoint import CheckpointDefinition, UserCheckpoint
 from app.models.voice import (
     VoiceProfile,
@@ -357,8 +356,6 @@ __all__ = [
     # Season Content & Leagues (diagnostic fix)
     "ContentSeason",
     "SeasonChapter",
-    "WeeklyLeagueGroup",
-    "WeeklyLeagueMembership",
     "GoalCompletionLog",
     "StreakFreeze",
     # S3-01: Team Challenge persistence

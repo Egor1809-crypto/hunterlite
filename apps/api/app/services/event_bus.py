@@ -569,20 +569,6 @@ async def _handle_notification(event: GameEvent) -> None:
         logger.debug("Web Push failed for event %s user %s", event.kind, event.user_id, exc_info=True)
 
 
-async def _handle_league_xp(event: GameEvent) -> None:
-    """Add training XP to weekly league counter."""
-    try:
-        from app.services.weekly_league import add_weekly_xp
-        xp = event.payload.get("xp_earned", 0)
-        if xp <= 0:
-            # Estimate XP from score if not provided
-            score = event.payload.get("score", 0)
-            xp = max(10, int(score * 0.5))  # rough estimate
-        await add_weekly_xp(event.user_id, xp, event.db)
-    except Exception:
-        logger.debug("League XP update failed for user %s", event.user_id, exc_info=True)
-
-
 async def _handle_home_session_to_crm(event: GameEvent) -> None:
     """Auto-create a ClientStory for single-call sessions from /home.
 
@@ -722,8 +708,6 @@ def setup_default_handlers() -> None:
     event_bus.on(EVENT_LEVEL_UP, _handle_notification)
     event_bus.on(EVENT_STREAK_UPDATED, _handle_notification)
 
-    # Weekly league XP tracking
-    event_bus.on(EVENT_TRAINING_COMPLETED, _handle_league_xp)
 
     # Home sessions → auto-create ClientStory for CRM kanban
     event_bus.on(EVENT_TRAINING_COMPLETED, _handle_home_session_to_crm)

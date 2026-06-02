@@ -142,16 +142,6 @@ class ReminderScheduler:
             except Exception as e:
                 logger.error("Smart nudge error: %s", e, exc_info=True)
 
-            # ── Phase B (2026-04-20): weekly league form/finalize ──
-            # Duolingo-style cohort reset. Model + service already exist
-            # (services/weekly_league.py), this just wires the cron.
-            try:
-                await asyncio.wait_for(self._check_weekly_league(), timeout=_TASK_TIMEOUT)
-            except asyncio.TimeoutError:
-                logger.error("ReminderScheduler: weekly league timed out")
-            except Exception as e:
-                logger.error("Weekly league error: %s", e, exc_info=True)
-
             # ── RAG Feedback aggregation (every 6 hours) ──
             try:
                 await asyncio.wait_for(self._check_rag_feedback_aggregation(), timeout=_TASK_TIMEOUT)
@@ -501,58 +491,6 @@ class ReminderScheduler:
             except Exception:
                 logger.warning("Streak risk nudge failed", exc_info=True)
 
-
-    async def _check_weekly_league(self) -> None:
-        """Duolingo-style weekly league cadence.
-
-        Phase B (2026-04-20). Service functions are already implemented in
-        ``app.services.weekly_league``; here we just trigger them on the
-        correct UTC cadence:
-
-          • Monday 08:00 UTC  — ``form_weekly_groups()`` gathers users who
-            earned XP last week, partitions them into ~15-user cohorts per
-            (team_id, tier) bucket, resets ``weekly_xp`` counters.
-          • Sunday 23:xx UTC  — ``finalize_week()`` promotes top-3, demotes
-            bottom-3, writes ``promotion_history`` entries, marks the group
-            ``finalized=True`` so next week's `form_weekly_groups` skips it.
-
-        We gate by hour+minute window; the outer loop runs every
-        ``CHECK_INTERVAL_MIN`` so as long as the process is alive at the
-        window we'll hit it exactly once. Idempotency is the service's
-        responsibility (``finalized`` flag + SELECT FOR UPDATE).
-        """
-
-        now = datetime.now(timezone.utc)
-
-        # Monday 08:00-08:59 UTC — form groups
-        if now.weekday() == 0 and now.hour == 8:
-            try:
-                from app.services.weekly_league import form_weekly_groups
-
-                async with async_session() as db:
-                    groups_count = await form_weekly_groups(db)
-                    await db.commit()
-                    logger.info(
-                        "WeeklyLeague: formed %d cohort group(s) at %s",
-                        groups_count, now.isoformat(),
-                    )
-            except Exception:
-                logger.warning("WeeklyLeague form_weekly_groups failed", exc_info=True)
-
-        # Sunday 23:xx UTC — finalize last week's groups
-        if now.weekday() == 6 and now.hour == 23:
-            try:
-                from app.services.weekly_league import finalize_week
-
-                async with async_session() as db:
-                    summary = await finalize_week(db)
-                    await db.commit()
-                    logger.info(
-                        "WeeklyLeague: finalized groups=%s at %s",
-                        summary, now.isoformat(),
-                    )
-            except Exception:
-                logger.warning("WeeklyLeague finalize_week failed", exc_info=True)
 
     async def _check_rag_feedback_aggregation(self) -> None:
         """Aggregate RAG feedback: recalculate chunk effectiveness, discover errors.

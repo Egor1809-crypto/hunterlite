@@ -169,34 +169,6 @@ async def lifespan(application: FastAPI):
     from app.services.llm_health import start_monitor as start_llm_monitor
     start_llm_monitor()
 
-    # Start weekly league scheduler (form groups Monday, finalize Sunday)
-    import asyncio
-    async def _league_scheduler():
-        """Background task: checks hourly if league actions needed."""
-        from datetime import datetime, timezone
-        while True:
-            try:
-                now = datetime.now(timezone.utc)
-                # Monday 05:00-06:00 UTC (08:00-09:00 MSK) → form groups
-                if now.weekday() == 0 and 5 <= now.hour < 6:
-                    from app.services.weekly_league import form_weekly_groups
-                    async with async_session() as db:
-                        created = await form_weekly_groups(db)
-                        await db.commit()
-                        if created:
-                            logger.info("League scheduler: formed %d groups", created)
-                # Sunday 20:00-21:00 UTC (23:00-00:00 MSK) → finalize
-                elif now.weekday() == 6 and 20 <= now.hour < 21:
-                    from app.services.weekly_league import finalize_week
-                    async with async_session() as db:
-                        result = await finalize_week(db)
-                        await db.commit()
-                        if result.get("groups_finalized"):
-                            logger.info("League scheduler: finalized %s", result)
-            except Exception as e:
-                logger.warning("League scheduler error: %s", e)
-            await asyncio.sleep(3600)  # Check every hour
-    asyncio.create_task(_league_scheduler())
 
     # Content→Arena PR-6: start the live embedding backfill worker. Held
     # in app.state so the shutdown hook can cancel it cleanly. The worker
