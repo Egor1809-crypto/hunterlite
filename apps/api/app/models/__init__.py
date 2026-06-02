@@ -141,18 +141,7 @@ from app.models.rag import (
     TraitCategory,
     PersonalityChunkSource,
 )
-from app.models.tournament import (
-    BracketMatch,
-    BracketMatchStatus,
-    Tournament,
-    TournamentEntry,
-    TournamentFormat,
-    TournamentParticipant,
-    # DOC_12: Tournament v2 models
-    TournamentTheme,
-    TournamentTeam,
-    TeamMatch,
-)
+# Tournament models retired (tournament feature removed).
 from app.models.xp_log import XPLog
 from app.models.xp_event import XPEvent
 # FIND-002 fix (2026-04-19): register LegalDocument in Base.metadata so
@@ -259,12 +248,6 @@ __all__ = [
     "Trap",
     "ObjectionChain",
     "ClientProfile",
-    "Tournament",
-    "TournamentEntry",
-    "TournamentFormat",
-    "TournamentParticipant",
-    "BracketMatch",
-    "BracketMatchStatus",
     "VoiceProfile",
     "EmotionVoiceModifier",
     "PauseConfig",
@@ -357,10 +340,6 @@ __all__ = [
     "TeamQuizTeam",
     "DailyChallenge",
     "DailyChallengeEntry",
-    # DOC_12: Tournament v2
-    "TournamentTheme",
-    "TournamentTeam",
-    "TeamMatch",
     # DOC_15-16: Progression + Prompts
     "XPLog",
     "XPEvent",
