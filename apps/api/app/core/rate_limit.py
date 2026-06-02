@@ -67,6 +67,28 @@ def get_client_ip(request: Request) -> str:
     return request.client.host if request.client else "127.0.0.1"
 
 
+def get_user_or_ip(request: Request) -> str:
+    """Rate-limit key that prefers the authenticated user over the source IP.
+
+    For per-user endpoints (e.g. the multi-step Manyasha agent, where one HTTP
+    call fans out to several LLM generations) keying by IP lets many users
+    behind one NAT share a bucket AND lets one user circumvent it across IPs.
+    We decode the bearer token's ``sub`` (no DB hit) and key on ``user:<id>``,
+    falling back to the proxy-aware client IP when unauthenticated.
+    """
+    auth = request.headers.get("authorization", "")
+    if auth.lower().startswith("bearer "):
+        try:
+            from app.core.security import decode_token
+            payload = decode_token(auth[7:].strip())
+            sub = payload.get("sub") if payload else None
+            if sub:
+                return f"user:{sub}"
+        except Exception:  # noqa: BLE001 — never let keying break the request
+            pass
+    return get_client_ip(request)
+
+
 # Shared limiter instance — import this instead of creating per-module.
 # In development, disable rate limiting entirely (devs spam endpoints while testing,
 # and localhost 127.0.0.1 is a single key_func bucket for the whole team).

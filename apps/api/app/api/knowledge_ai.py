@@ -16,12 +16,13 @@ from sqlalchemy import desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.deps import get_current_user, require_role
-from app.core.rate_limit import limiter
+from app.core.rate_limit import get_user_or_ip, limiter
 from app.database import get_db
 from app.models.assistant_conversation import (
     ROLE_ASSISTANT,
     ROLE_TOOL,
     ROLE_USER,
+    STATUS_FAILED,
     STATUS_OK,
     AssistantConversation,
     AssistantMessage,
@@ -29,6 +30,7 @@ from app.models.assistant_conversation import (
 from app.models.legal_update import LegalUpdate
 from app.models.rag import LegalKnowledgeChunk
 from app.models.user import User
+from app.services.content_filter import filter_user_input
 
 logger = logging.getLogger(__name__)
 
@@ -176,7 +178,9 @@ async def _get_owned_conversation(
 
 
 @router.post("/conversations", response_model=ConversationSummary)
+@limiter.limit("20/minute", key_func=get_user_or_ip)
 async def create_conversation(
+    request: Request,
     body: CreateConversationRequest | None = None,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -255,7 +259,7 @@ async def get_conversation(
 
 
 @router.post("/conversations/{conversation_id}/messages", response_model=SendMessageResponse)
-@limiter.limit("30/minute")
+@limiter.limit("30/minute", key_func=get_user_or_ip)
 async def send_message(
     request: Request,
     conversation_id: str,
@@ -266,14 +270,17 @@ async def send_message(
     from app.services.knowledge_assistant import AgentResult, run_agent_turn
 
     conv = await _get_owned_conversation(conversation_id, user, db)
-    question = body.message.strip()
+    conv_id = conv.id  # capture before any rollback expires the ORM instance (§6 fix)
+    # Filter the user message before it reaches the model / history / storage:
+    # neutralises prompt-injection / jailbreak / PII (ultracode §7 security).
+    question, _violations = filter_user_input(body.message.strip())
 
     # Build model history from prior user/assistant turns (recent window).
     prior = (
         await db.execute(
             select(AssistantMessage)
             .where(
-                AssistantMessage.conversation_id == conv.id,
+                AssistantMessage.conversation_id == conv_id,
                 AssistantMessage.role.in_((ROLE_USER, ROLE_ASSISTANT)),
                 AssistantMessage.content != "",
             )
@@ -287,7 +294,7 @@ async def send_message(
     # Persist the user turn first — even if the LLM call fails we keep it (ТЗ §5).
     now = datetime.now(timezone.utc)
     user_msg = AssistantMessage(
-        id=uuid.uuid4(), conversation_id=conv.id, role=ROLE_USER,
+        id=uuid.uuid4(), conversation_id=conv_id, role=ROLE_USER,
         content=question, status=STATUS_OK,
     )
     db.add(user_msg)
@@ -303,29 +310,35 @@ async def send_message(
     try:
         result = await run_agent_turn(history=history, db=db, user_id=user.id)
     except Exception:
-        logger.exception("knowledge agent turn raised unexpectedly (conv=%s)", conv.id)
+        logger.exception("knowledge agent turn raised unexpectedly (conv=%s)", conv_id)
         await db.rollback()
         result = AgentResult(
             content="Маняша сейчас недоступна, попробуйте позже.",
-            status="failed",
+            status=STATUS_FAILED,
         )
 
-    # Persist tool-call turns (audit) + the assistant turn.
+    # Persist tool-call turns (audit) + the assistant turn. Use the captured
+    # conv_id (not conv.* — rollback above may have expired the instance, and a
+    # lazy-load under AsyncSession would raise MissingGreenlet → 500, defeating
+    # the §5 guard).
     for tr in result.tool_trace:
         db.add(AssistantMessage(
-            id=uuid.uuid4(), conversation_id=conv.id, role=ROLE_TOOL,
+            id=uuid.uuid4(), conversation_id=conv_id, role=ROLE_TOOL,
             content="", status=STATUS_OK,
             tool_name=str(tr.get("name", ""))[:80],
             tool_args=tr.get("args") if isinstance(tr.get("args"), dict) else None,
         ))
     assistant_msg = AssistantMessage(
-        id=uuid.uuid4(), conversation_id=conv.id, role=ROLE_ASSISTANT,
+        id=uuid.uuid4(), conversation_id=conv_id, role=ROLE_ASSISTANT,
         content=result.content, status=result.status,
         rag_chunk_ids=result.used_chunks or None,
         tokens=result.tokens or None,
     )
     db.add(assistant_msg)
-    conv.last_message_at = datetime.now(timezone.utc)
+    # Bump last_message_at via a re-fetched live instance (conv may be expired).
+    fresh_conv = await db.get(AssistantConversation, conv_id)
+    if fresh_conv is not None:
+        fresh_conv.last_message_at = datetime.now(timezone.utc)
     await db.commit()
     await db.refresh(assistant_msg)
 
