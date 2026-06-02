@@ -90,27 +90,19 @@ from app.models.game_crm import (
     GameEventType,
     GameClientStatus,
 )
+# models/pvp.py trimmed to the functional core: PvPRating (powers the legal
+# TEST adaptive difficulty), AntiCheatLog + UserFingerprint (login anti-cheat),
+# APPurchase (AP-currency shop ledger), PvPDuel (still read by anti_cheat
+# duel-history). All dead PvP/PvE duel/season/team/ladder/boss models removed.
 from app.models.pvp import (
     PvPDuel,
     PvPRating,
-    PvPMatchQueue,
     AntiCheatLog,
-    PvPSeason,
     DuelStatus,
-    MatchQueueStatus,
     AntiCheatCheckType,
     AntiCheatAction,
     PvPRankTier,
-    DuelDifficulty,
     UserFingerprint,
-    # DOC_09-13: New PvP/PvE/Rating models
-    PvPTeam,
-    GauntletRun,
-    RapidFireMatch,
-    PvELadderRun,
-    PvEBossRun,
-    PromotionSeries,
-    SeasonReward,
     APPurchase,
 )
 from app.models.custom_character import CustomCharacter
@@ -297,18 +289,14 @@ __all__ = [
     "GameClientEvent",
     "GameEventType",
     "GameClientStatus",
-    # Agent 8 — PvP Battle
+    # PvP-rating core (PvPRating powers TEST difficulty; anti-cheat = login)
     "PvPDuel",
     "PvPRating",
-    "PvPMatchQueue",
     "AntiCheatLog",
-    "PvPSeason",
     "DuelStatus",
-    "MatchQueueStatus",
     "AntiCheatCheckType",
     "AntiCheatAction",
     "PvPRankTier",
-    "DuelDifficulty",
     "UserFingerprint",
     # Custom Characters
     "CustomCharacter",
@@ -326,14 +314,7 @@ __all__ = [
     # DOC_04: Checkpoints
     "CheckpointDefinition",
     "UserCheckpoint",
-    # DOC_09-13: PvP/PvE/Rating expansion
-    "PvPTeam",
-    "GauntletRun",
-    "RapidFireMatch",
-    "PvELadderRun",
-    "PvEBossRun",
-    "PromotionSeries",
-    "SeasonReward",
+    # AP-currency shop ledger (kept — used by arena_points)
     "APPurchase",
     # DOC_11: Knowledge v2
     "DebateSession",
