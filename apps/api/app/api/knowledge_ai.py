@@ -260,7 +260,7 @@ async def send_message(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    from app.services.knowledge_assistant import run_agent_turn
+    from app.services.knowledge_assistant import AgentResult, run_agent_turn
 
     conv = await _get_owned_conversation(conversation_id, user, db)
     question = body.message.strip()
@@ -294,7 +294,18 @@ async def send_message(
     conv.last_message_at = now
     await db.commit()
 
-    result = await run_agent_turn(history=history, db=db, user_id=user.id)
+    # run_agent_turn is designed never to raise (navy failure → failed
+    # AgentResult), but guard the API layer so an unexpected error can't leave
+    # the user turn orphaned without a marked-failed assistant reply (§5).
+    try:
+        result = await run_agent_turn(history=history, db=db, user_id=user.id)
+    except Exception:
+        logger.exception("knowledge agent turn raised unexpectedly (conv=%s)", conv.id)
+        await db.rollback()
+        result = AgentResult(
+            content="Маняша сейчас недоступна, попробуйте позже.",
+            status="failed",
+        )
 
     # Persist tool-call turns (audit) + the assistant turn.
     for tr in result.tool_trace:

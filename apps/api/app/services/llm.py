@@ -1760,8 +1760,9 @@ async def _call_navy(
     # reasoning models can return an empty ``content`` while putting the
     # answer in ``reasoning_content``. The Next.js chat route already did
     # this fallback; we centralise it here so every pool consumer benefits.
-    # Only fires when content is empty AND there are no tool calls (a tool
-    # turn legitimately has empty content).
+    # Only fires when content is empty (a legitimate tool turn also has empty
+    # content, but reasoning_content is empty there too, and callers check
+    # tool_calls first — so this never masks a tool turn).
     if not content and msg is not None:
         rc = getattr(msg, "reasoning_content", None)
         if rc:

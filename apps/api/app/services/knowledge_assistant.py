@@ -401,6 +401,19 @@ async def run_agent_turn(
             final_content = resp.content or ""
             break
 
+        # Normalize tool-call ids ONCE so the assistant turn and its tool
+        # results use the SAME id. A provider that returns a null/empty id
+        # would otherwise desync the two (assistant turn keeps None, result
+        # gets a synthesized id) and the next round trips a 400 from the
+        # OpenAI-compatible API ("tool_call_id has no matching tool_calls").
+        normalized = []
+        for i, tc in enumerate(resp.tool_calls):
+            normalized.append({
+                "id": tc.get("id") or f"call-{step}-{i}",
+                "name": tc["name"],
+                "args": tc["arguments"] if isinstance(tc.get("arguments"), dict) else {},
+            })
+
         # Record the assistant tool-call turn verbatim so the next round's
         # tool results line up by call id.
         conversation.append({
@@ -412,20 +425,15 @@ async def run_agent_turn(
                     "type": "function",
                     "function": {
                         "name": tc["name"],
-                        "arguments": json.dumps(
-                            tc["arguments"] if isinstance(tc["arguments"], dict) else {},
-                            ensure_ascii=False,
-                        ),
+                        "arguments": json.dumps(tc["args"], ensure_ascii=False),
                     },
                 }
-                for tc in resp.tool_calls
+                for tc in normalized
             ],
         })
 
-        for tc in resp.tool_calls:
-            name = tc["name"]
-            args = tc["arguments"] if isinstance(tc["arguments"], dict) else {}
-            call_id = tc.get("id") or f"call-{step}-{name}"
+        for tc in normalized:
+            name, args, call_id = tc["name"], tc["args"], tc["id"]
             result, chunks = await _dispatch_tool(name, args, db)
             for c in chunks:
                 used_chunks[c["id"]] = c

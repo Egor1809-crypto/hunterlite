@@ -84,6 +84,45 @@ async def test_agent_tool_loop_grounds_on_chunks(db_session):
 
 
 @pytest.mark.asyncio
+async def test_tool_call_id_synced_when_provider_returns_null_id(db_session):
+    """Regression: if the provider returns a tool call with a null/empty id,
+    the assistant turn id and the role=tool result id MUST still match, or the
+    next round trips a 400 from the OpenAI-compatible API."""
+    sent_conversations: list[list[dict]] = []
+    calls = {"n": 0}
+
+    async def fake_backoff(*args, **kwargs):
+        calls["n"] += 1
+        if kwargs.get("raw_messages"):
+            sent_conversations.append(list(kwargs["raw_messages"]))
+        if calls["n"] == 1:
+            # Provider returns a tool call with a NULL id (observed on some navy proxies).
+            return _llm_response(tool_calls=[{
+                "id": None,
+                "name": "search_knowledge_base",
+                "arguments": {"query": "x"},
+            }])
+        return _llm_response(content="готово")
+
+    with patch.object(llm, "_call_with_backoff", new=fake_backoff), \
+         patch.object(ka, "retrieve_legal_context", new=AsyncMock(return_value=_fake_rag_ctx())):
+        result = await ka.run_agent_turn(
+            history=[{"role": "user", "content": "вопрос"}],
+            db=db_session,
+            user_id=uuid.uuid4(),
+        )
+
+    assert result.status == "ok"
+    # The 2nd call carries the assistant tool-call turn + the tool result.
+    second = sent_conversations[-1]
+    assistant_turn = next(m for m in second if m.get("role") == "assistant" and m.get("tool_calls"))
+    tool_turn = next(m for m in second if m.get("role") == "tool")
+    assistant_id = assistant_turn["tool_calls"][0]["id"]
+    assert assistant_id, "synthesized id must be non-empty"
+    assert assistant_id == tool_turn["tool_call_id"], "assistant + tool ids must match"
+
+
+@pytest.mark.asyncio
 async def test_agent_degrades_when_llm_unavailable(db_session):
     """Navy down / circuit open → _call_with_backoff returns None. The turn
     must degrade gracefully, not raise (§5)."""
