@@ -202,6 +202,11 @@ from app.models.training_preset import TrainingPreset
 from app.models.legal_update import LegalUpdate
 from app.models.case_scenario import CaseScenario, CaseAttempt, CaseProgress
 from app.models.exam import ExamDefinition, ExamQuestion, ExamAttempt, ExamCertificate
+# TZ-3: Manyasha knowledge assistant — server-side conversational memory.
+from app.models.assistant_conversation import (
+    AssistantConversation,
+    AssistantMessage,
+)
 
 __all__ = [
     "User",
@@ -402,4 +407,7 @@ __all__ = [
     "ExamQuestion",
     "ExamAttempt",
     "ExamCertificate",
+    # TZ-3: Manyasha assistant memory
+    "AssistantConversation",
+    "AssistantMessage",
 ]

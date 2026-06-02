@@ -4,26 +4,21 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   BookOpen,
-  Search,
-  MessageSquare,
   Bell,
   ArrowRight,
   FileText,
-  Scale,
   Sparkles,
   ExternalLink,
   Clock,
-  AlertTriangle,
   Layers,
   Hash,
-  ChevronRight,
   Zap,
   RefreshCw,
-  Loader2,
   Tag,
 } from "lucide-react";
 import AuthLayout from "@/components/layout/AuthLayout";
 import { KnowledgeBaseBrowser } from "@/components/pvp/KnowledgeBaseBrowser";
+import { ManyashaTab } from "@/components/knowledge/ManyashaTab";
 import { api } from "@/lib/api";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
@@ -39,36 +34,10 @@ const QUICK_TOPICS = [
   { title: "Работа с кредиторами", icon: "👥", description: "Реестр, собрания, голосование, очерёдность", category: "creditors" },
 ];
 
-const POPULAR_QUESTIONS = [
-  { q: "Какие сроки для подачи заявления о банкротстве?", category: "Процедуры" },
-  { q: "Кто может быть арбитражным управляющим?", category: "АУ" },
-  { q: "Как оспорить подозрительную сделку?", category: "Сделки" },
-  { q: "Какая очерёдность требований кредиторов?", category: "Реестр" },
-  { q: "Что такое субсидиарная ответственность КДЛ?", category: "КДЛ" },
-  { q: "Как проходит реструктуризация долгов гражданина?", category: "Физлица" },
-];
-
 interface KnowledgeStats {
   total_chunks: number;
   categories: { category: string; count: number }[];
   last_updated: string | null;
-}
-
-interface AiSource {
-  category: string;
-  law_article: string;
-  relevance: number;
-  is_court_practice: boolean;
-  court_case: string;
-}
-
-interface AiResponse {
-  answer: string;
-  sources: AiSource[];
-  model: string;
-  retrieval_ms: number;
-  generation_ms: number;
-  total_ms: number;
 }
 
 interface RadarItem {
@@ -88,13 +57,6 @@ interface RadarResponse {
   items: RadarItem[];
   total: number;
   last_updated: string | null;
-}
-
-interface HistoryEntry {
-  question: string;
-  answer: string;
-  sources: AiSource[];
-  timestamp: number;
 }
 
 function getImpactLevel(score: number): "high" | "medium" | "low" {
@@ -138,16 +100,11 @@ function Eyebrow({ icon: Icon, label }: { icon: React.ComponentType<{ size?: num
 }
 
 export default function KnowledgePage() {
-  const [aiQuery, setAiQuery] = useState("");
   const [activeSection, setActiveSection] = useState<"browse" | "radar" | "ai">("browse");
   const [selectedCategory, setSelectedCategory] = useState<string>("");
   const browserRef = useRef<HTMLDivElement>(null);
 
   const [stats, setStats] = useState<KnowledgeStats | null>(null);
-  const [aiLoading, setAiLoading] = useState(false);
-  const [aiResult, setAiResult] = useState<AiResponse | null>(null);
-  const [aiError, setAiError] = useState<string | null>(null);
-  const [aiHistory, setAiHistory] = useState<HistoryEntry[]>([]);
 
   const [radarItems, setRadarItems] = useState<RadarItem[]>([]);
   const [radarTotal, setRadarTotal] = useState(0);
@@ -158,48 +115,6 @@ export default function KnowledgePage() {
 
   useEffect(() => {
     api.get<KnowledgeStats>("/knowledge-ai/stats").then(setStats).catch(() => {});
-  }, []);
-
-  useEffect(() => {
-    try {
-      const saved = sessionStorage.getItem("knowledge_ai_history");
-      if (saved) setAiHistory(JSON.parse(saved));
-    } catch {}
-  }, []);
-
-  const saveHistory = useCallback((entries: HistoryEntry[]) => {
-    setAiHistory(entries);
-    try {
-      sessionStorage.setItem("knowledge_ai_history", JSON.stringify(entries.slice(0, 20)));
-    } catch {}
-  }, []);
-
-  const handleAsk = useCallback(async (question?: string) => {
-    const q = (question || aiQuery).trim();
-    if (!q || aiLoading) return;
-
-    setAiLoading(true);
-    setAiResult(null);
-    setAiError(null);
-
-    try {
-      const result = await api.post<AiResponse>("/knowledge-ai/ask", { question: q });
-      setAiResult(result);
-      const entry: HistoryEntry = { question: q, answer: result.answer, sources: result.sources, timestamp: Date.now() };
-      saveHistory([entry, ...aiHistory]);
-    } catch {
-      // Отдельное error-состояние, а не «зелёная карточка ответа» с текстом ошибки.
-      setAiError("Не удалось обработать запрос. Проверьте соединение и попробуйте ещё раз.");
-    } finally {
-      setAiLoading(false);
-    }
-  }, [aiQuery, aiLoading, aiHistory, saveHistory]);
-
-  // История: восстанавливаем закэшированный ответ, без повторного сетевого запроса.
-  const restoreFromHistory = useCallback((entry: HistoryEntry) => {
-    setAiQuery(entry.question);
-    setAiError(null);
-    setAiResult({ answer: entry.answer, sources: entry.sources, model: "", retrieval_ms: 0, generation_ms: 0, total_ms: 0 });
   }, []);
 
   const loadRadar = useCallback(async (cat?: string | null) => {
@@ -458,180 +373,19 @@ export default function KnowledgePage() {
               </motion.div>
             )}
 
-            {/* ─── AI ─── */}
+            {/* ─── AI: Маняша-агент (in-tab чат, серверная память) ─── */}
             {activeSection === "ai" && (
-              <motion.div key="ai" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }} className="space-y-4">
-                {/* Ask */}
-                <Card accentTop>
-                  <div className="flex items-center gap-3">
-                    <span className="flex h-10 w-10 items-center justify-center rounded-xl" style={{ background: "var(--primary-muted)", color: "var(--primary)" }}>
-                      <Sparkles size={18} />
-                    </span>
-                    <div>
-                      <div className="font-mono text-[11px] uppercase tracking-[0.16em]" style={{ color: "var(--text-secondary)" }}>AI-помощник</div>
-                      <div className="text-[13px]" style={{ color: "var(--text-muted)" }}>Отвечает по закону и судебной практике — со ссылками на источники.</div>
-                    </div>
-                  </div>
-
-                  <form className="mt-5" onSubmit={(e) => { e.preventDefault(); handleAsk(); }}>
-                    <div className="flex flex-col gap-2 sm:flex-row">
-                      <div className="relative flex-1">
-                        <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2" style={{ color: "var(--text-muted)" }} />
-                        <input
-                          type="text"
-                          value={aiQuery}
-                          onChange={(e) => setAiQuery(e.target.value)}
-                          placeholder="Например: основания оспаривания сделки по ст. 61.2?"
-                          disabled={aiLoading}
-                          className="vh-input pl-10"
-                        />
-                      </div>
-                      <Button type="submit" variant="primary" loading={aiLoading} disabled={!aiQuery.trim()} icon={<ArrowRight size={16} />} className="shrink-0">
-                        Спросить
-                      </Button>
-                    </div>
-                  </form>
-                </Card>
-
-                {/* Loading */}
-                {aiLoading && (
-                  <Card>
-                    <div className="mb-3 flex items-center gap-2.5">
-                      <Loader2 size={15} className="animate-spin" style={{ color: "var(--primary)" }} />
-                      <span className="font-mono text-[11px] uppercase tracking-wider" style={{ color: "var(--text-secondary)" }}>Ищу в базе знаний…</span>
-                    </div>
-                    <div className="space-y-2.5">
-                      <div className="h-3 w-full animate-pulse rounded" style={{ background: "var(--bg-tertiary)" }} />
-                      <div className="h-3 w-5/6 animate-pulse rounded" style={{ background: "var(--bg-tertiary)" }} />
-                      <div className="h-3 w-4/6 animate-pulse rounded" style={{ background: "var(--bg-tertiary)" }} />
-                    </div>
-                  </Card>
-                )}
-
-                {/* Error — distinct from an answer */}
-                {aiError && !aiLoading && (
-                  <Card style={{ borderColor: "var(--danger)" }}>
-                    <div className="flex items-start gap-3">
-                      <AlertTriangle size={16} className="mt-0.5 shrink-0" style={{ color: "var(--danger)" }} />
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>{aiError}</p>
-                        <Button variant="ghost" size="sm" icon={<RefreshCw size={14} />} onClick={() => handleAsk(aiQuery)} className="mt-3">Повторить</Button>
-                      </div>
-                    </div>
-                  </Card>
-                )}
-
-                {/* Result */}
-                {aiResult && !aiLoading && (
-                  <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.24 }} className="space-y-4">
-                    <Card accentTop>
-                      <div className="mb-4 flex items-center gap-2.5">
-                        <Sparkles size={14} style={{ color: "var(--primary)" }} />
-                        <span className="font-mono text-[11px] uppercase tracking-wider" style={{ color: "var(--text-secondary)" }}>Ответ</span>
-                        {aiResult.total_ms > 0 && (
-                          <span className="ml-auto font-mono text-[11px] tabular-nums" style={{ color: "var(--text-muted)" }}>{(aiResult.total_ms / 1000).toFixed(1)} с</span>
-                        )}
-                      </div>
-                      <div className="whitespace-pre-wrap text-[15px] leading-relaxed" style={{ color: "var(--text-secondary)" }}>{aiResult.answer}</div>
-                    </Card>
-
-                    {aiResult.sources.length > 0 && (
-                      <div>
-                        <Eyebrow icon={FileText} label={`Источники · ${aiResult.sources.length}`} />
-                        <div className="grid gap-3 sm:grid-cols-2">
-                          {aiResult.sources.map((src, idx) => (
-                            <Card key={idx}>
-                              <div className="mb-2 flex items-center gap-2">
-                                <span className="font-mono text-[11px] font-semibold" style={{ color: "var(--primary)" }}>{src.category}</span>
-                                {src.is_court_practice && (
-                                  <span className="inline-flex items-center gap-1 font-mono text-[11px]" style={{ color: "var(--text-secondary)" }}>
-                                    <Scale size={10} /> Суд
-                                  </span>
-                                )}
-                                <span className="ml-auto font-mono text-[11px] tabular-nums" style={{ color: "var(--text-muted)" }}>{Math.round(src.relevance * 100)}%</span>
-                              </div>
-                              {src.law_article && <div className="text-[13px] font-semibold" style={{ color: "var(--text-primary)" }}>{src.law_article}</div>}
-                              {src.court_case && <div className="mt-0.5 text-[12px]" style={{ color: "var(--text-muted)" }}>{src.court_case}</div>}
-                            </Card>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </motion.div>
-                )}
-
-                {/* Popular questions */}
-                {!aiResult && !aiLoading && !aiError && (
-                  <div>
-                    <Eyebrow icon={MessageSquare} label="Популярные вопросы" />
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      {POPULAR_QUESTIONS.map(({ q, category }) => (
-                        <Card key={q} variant="interactive" role="button" tabIndex={0}
-                          onClick={() => { setAiQuery(q); handleAsk(q); }}
-                          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setAiQuery(q); handleAsk(q); } }}
-                          className="group"
-                        >
-                          <div className="flex items-start gap-3">
-                            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg" style={{ background: "var(--primary-muted)", color: "var(--primary)" }}>
-                              <MessageSquare size={14} />
-                            </span>
-                            <div className="min-w-0 flex-1">
-                              <span className="block text-[13px] font-medium leading-relaxed" style={{ color: "var(--text-primary)" }}>{q}</span>
-                              <span className="mt-1.5 inline-block font-mono text-[11px] uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>{category}</span>
-                            </div>
-                            <ChevronRight size={14} className="mt-1 shrink-0 opacity-0 transition-opacity group-hover:opacity-100" style={{ color: "var(--primary)" }} />
-                          </div>
-                        </Card>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* History */}
-                {aiHistory.length > 0 && !aiLoading && (
-                  <div>
-                    <div className="mb-4 flex items-center justify-between">
-                      <div className="flex flex-1 items-center gap-2.5">
-                        <Clock size={13} style={{ color: "var(--text-muted)" }} />
-                        <span className="font-mono text-[11px] uppercase tracking-[0.16em]" style={{ color: "var(--text-secondary)" }}>История вопросов</span>
-                        <div className="h-px flex-1" style={{ background: "var(--border-color)" }} />
-                      </div>
-                      <button
-                        onClick={() => { setAiHistory([]); try { sessionStorage.removeItem("knowledge_ai_history"); } catch {} }}
-                        className="ml-3 font-mono text-[11px] transition-colors"
-                        style={{ color: "var(--text-muted)" }}
-                      >
-                        Очистить
-                      </button>
-                    </div>
-                    <div className="space-y-2">
-                      {aiHistory.slice(0, 5).map((entry, idx) => (
-                        <button
-                          key={idx}
-                          onClick={() => restoreFromHistory(entry)}
-                          className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left transition-colors"
-                          style={{ background: "var(--surface-card)", border: "1px solid var(--border-color)" }}
-                        >
-                          <MessageSquare size={13} className="shrink-0" style={{ color: "var(--text-muted)" }} />
-                          <span className="flex-1 truncate text-[13px]" style={{ color: "var(--text-secondary)" }}>{entry.question}</span>
-                          <span className="shrink-0 font-mono text-[11px] tabular-nums" style={{ color: "var(--text-muted)" }}>
-                            {new Date(entry.timestamp).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })}
-                          </span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Disclaimer */}
-                <div className="flex items-start gap-3 pt-2">
-                  <AlertTriangle size={14} className="mt-0.5 shrink-0" style={{ color: "var(--text-muted)" }} />
-                  <span className="text-[12px] leading-relaxed" style={{ color: "var(--text-muted)" }}>
-                    Ответы основаны на актуальной редакции ФЗ-127 и базе судебных решений. Носят информационный характер и не являются юридической консультацией.
-                  </span>
-                </div>
+              <motion.div key="ai" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }}>
+                <ManyashaTab
+                  onOpenSource={(category) => {
+                    setSelectedCategory(category);
+                    setActiveSection("browse");
+                    requestAnimationFrame(() => browserRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
+                  }}
+                />
               </motion.div>
             )}
+
           </AnimatePresence>
         </div>
       </div>
