@@ -25,6 +25,7 @@ from scripts.seed_cases import seed as seed_cases
 from scripts.seed_exam_questions import seed as seed_exams
 from scripts.seed_legal_updates import seed as seed_radar
 from scripts.seed_levels import seed_levels_and_achievements as seed_levels
+from scripts.seed_reference_persona import seed as seed_reference_persona
 
 STEPS = [
     ("Knowledge-base chunks (RAG)", seed_chunks),
@@ -32,6 +33,7 @@ STEPS = [
     ("Exam questions", seed_exams),
     ("Legal radar updates", seed_radar),
     ("Levels & achievements", seed_levels),
+    ("Reference persona (конструктор)", seed_reference_persona),
 ]
 
 

@@ -7,17 +7,15 @@ import { logger } from "@/lib/logger";
 import { AvatarPreview } from "./AvatarPreview";
 
 import { useNotificationStore } from "@/stores/useNotificationStore";
-import { useGamificationStore } from "@/stores/useGamificationStore";
 // 2026-04-21: dropped Save/CheckCircle2/SkipForward — autosave replaced the
 // standalone Save button and "Пропустить" duplicated "Далее" on optional
 // steps. The icons disappearing keeps the bundle honest.
 import {
   ArrowRight, ChevronLeft, Loader2, Sparkles, RotateCcw, Check,
-  Lock, MessageCircle, Phone, Info, ChevronDown, ChevronUp,
+  Lock, MessageCircle, Phone, Info,
 } from "lucide-react";
 import {
   Brain, Briefcase, Broadcast, UsersThree, Heart, Gauge, Cloud, FileMagnifyingGlass,
-  GraduationCap, PuzzlePiece,
 } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/Button";
 import { AppIcon } from "@/components/ui/AppIcon";
@@ -37,33 +35,8 @@ import { LEAD_SOURCES, LEAD_SOURCE_GROUPS } from "@/lib/leadSources";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
-interface TrainingPresetData {
-  id: string;
-  slug: string;
-  title: string;
-  description: string;
-  category: string;
-  difficulty: number;
-  icon_emoji: string;
-  archetype: string;
-  profession: string | null;
-  lead_source: string | null;
-  emotion_preset: string | null;
-  context_params: Record<string, string | null>;
-  bg_noise: string | null;
-  learning_goals: string[];
-  tips: string[];
-  recommended_after_level: number | null;
-  recommended_after_case: string | null;
-  related_knowledge_categories: string[];
-  order_index: number;
-}
-
-type BuilderMode = "choice" | "presets" | "wizard";
-
 interface CharacterBuilderProps {
-  storyCalls?: number;
-  userLevel?: number;
+  onGoToTests?: () => void;
 }
 
 type Step = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7;
@@ -76,23 +49,22 @@ const STEP_HINTS: Record<number, string> = {
   4: "Эмоция — это начальное настроение клиента при звонке. Тон — манера речи поверх характера.",
   5: "Сложность влияет на агрессивность, количество ловушек и адаптивность AI. 1-3 для новичков, 7+ для опытных.",
   6: "Фоновый шум, время суток и усталость меняют поведение клиента: уставший хуже слушает, шум отвлекает.",
-  7: "Проверьте сборку. Можно изменить имя и выбрать формат: чат, звонок или AI-история.",
+  7: "Проверьте сборку. Можно изменить имя и выбрать формат: чат или звонок.",
 };
 
 const STEPS: {
   icon: React.ComponentType<Record<string, unknown>>;
   label: string;
-  unlockLevel: number;
   required: boolean;
 }[] = [
-  { icon: Brain, label: "Архетип", unlockLevel: 1, required: true },        // 0
-  { icon: Briefcase, label: "Профессия", unlockLevel: 1, required: true },   // 1
-  { icon: Broadcast, label: "Источник", unlockLevel: 1, required: true },    // 2
-  { icon: UsersThree, label: "Контекст", unlockLevel: 3, required: false },  // 3 — FIX-4
-  { icon: Heart, label: "Настроение", unlockLevel: 5, required: false },     // 4 — FIX-4
-  { icon: Gauge, label: "Сложность", unlockLevel: 1, required: true },       // 5
-  { icon: Cloud, label: "Среда", unlockLevel: 8, required: false },           // 6
-  { icon: FileMagnifyingGlass, label: "Превью", unlockLevel: 1, required: false },     // 7 — FIX-4: level 9
+  { icon: Brain, label: "Архетип", required: true },        // 0
+  { icon: Briefcase, label: "Профессия", required: true },   // 1
+  { icon: Broadcast, label: "Источник", required: true },    // 2
+  { icon: UsersThree, label: "Контекст", required: false },  // 3
+  { icon: Heart, label: "Настроение", required: false },     // 4
+  { icon: Gauge, label: "Сложность", required: true },       // 5
+  { icon: Cloud, label: "Среда", required: false },           // 6
+  { icon: FileMagnifyingGlass, label: "Превью", required: false },     // 7
 ];
 
 // ─── Emotion presets data ───────────────────────────────────────────────────
@@ -223,90 +195,20 @@ function buildFriendlyAutoname(
 
 // ─── Component ──────────────────────────────────────────────────────────────
 
-export default function CharacterBuilder({ storyCalls = 3, userLevel: userLevelProp }: CharacterBuilderProps) {
+export default function CharacterBuilder({ onGoToTests }: CharacterBuilderProps) {
   const router = useRouter();
-  // 2026-04-21: userLevel used to be hard-coded to 20 so every unlockLevel
-  // check passed vacuously — the step-lock system was dead code. Now we
-  // read the real level off useGamificationStore (fed by
-  // GET /gamification/me/progress). Explicit prop override is preserved
-  // for tests/storybook. Default 1 keeps the advanced steps locked for
-  // brand-new users so the flow starts at the 3 core steps only.
-  const storeLevel = useGamificationStore((s) => s.level);
-  const fetchGamification = useGamificationStore((s) => s.fetchProgress);
-  const userLevel = userLevelProp ?? storeLevel ?? 1;
+  const [unlocked, setUnlocked] = useState<boolean | null>(null);
+  const [unlockHint, setUnlockHint] = useState<string>("");
   useEffect(() => {
-    fetchGamification().catch((err) => logger.error("[CharacterBuilder] gamification fetch failed:", err));
-  }, [fetchGamification]);
-
-  const [builderMode, setBuilderMode] = useState<BuilderMode>("choice");
-  const [presets, setPresets] = useState<TrainingPresetData[]>([]);
-  const [recommendedPresets, setRecommendedPresets] = useState<TrainingPresetData[]>([]);
-  const [presetsLoading, setPresetsLoading] = useState(false);
-  const [activePreset, setActivePreset] = useState<TrainingPresetData | null>(null);
-  const [showTips, setShowTips] = useState(false);
-  const [showStepHint, setShowStepHint] = useState<number | null>(null);
-
-  const isNewUser = userLevel <= 1;
-
-  const [completedPresetSession, setCompletedPresetSession] = useState<{
-    slug: string;
-    title: string;
-    category: string;
-    icon_emoji: string;
-    learning_goals: string[];
-    tips: string[];
-    session_id: string;
-  } | null>(null);
-  const [nextPresetSuggestion, setNextPresetSuggestion] = useState<TrainingPresetData | null>(null);
-
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem("hunterlite_active_preset");
-      if (!raw) return;
-      const data = JSON.parse(raw);
-      if (data?.slug && data?.learning_goals) {
-        setCompletedPresetSession(data);
-        api.get(`/training-presets/?category=${encodeURIComponent(data.category)}`).then((presets: TrainingPresetData[]) => {
-          const next = presets.find((p: TrainingPresetData) => p.slug !== data.slug);
-          if (next) setNextPresetSuggestion(next);
-        }).catch(() => {});
-      }
-    } catch { /* */ }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    api.get("/training-map/progress")
+      .then((d: { constructor_unlocked?: boolean; constructor_unlock_hint?: string | null }) => {
+        setUnlocked(!!d.constructor_unlocked);
+        setUnlockHint(d.constructor_unlock_hint || "");
+      })
+      .catch(() => setUnlocked(true)); // fail-open: транзиентная ошибка не должна блокировать практику (бэкенд всё равно энфорсит 403)
   }, []);
 
-  useEffect(() => {
-    if (builderMode !== "presets") return;
-    let cancelled = false;
-    setPresetsLoading(true);
-    Promise.all([
-      api.get("/training-presets/").catch(() => []),
-      api.get("/training-presets/recommended").catch(() => []),
-    ]).then(([all, rec]) => {
-      if (cancelled) return;
-      setPresets(all);
-      setRecommendedPresets(rec);
-    }).finally(() => { if (!cancelled) setPresetsLoading(false); });
-    return () => { cancelled = true; };
-  }, [builderMode]);
-
-  const applyPreset = (preset: TrainingPresetData) => {
-    setActivePreset(preset);
-    setArchetype(preset.archetype as ArchetypeCode);
-    if (preset.profession) setProfession(preset.profession as ProfessionCategory);
-    if (preset.lead_source) setLeadSource(preset.lead_source as LeadSource);
-    if (preset.emotion_preset) setEmotionPreset(preset.emotion_preset as EmotionPreset);
-    setDifficulty(preset.difficulty <= 1 ? 3 : preset.difficulty <= 2 ? 6 : 8);
-    const ctx = preset.context_params ?? {};
-    if (ctx.family_preset) setFamilyPreset(ctx.family_preset as FamilyPreset);
-    if (ctx.creditors_preset) setCreditorsPreset(ctx.creditors_preset as CreditorsPreset);
-    if (ctx.debt_stage) setDebtStage(ctx.debt_stage as DebtStage);
-    if (ctx.debt_range) setDebtRange(ctx.debt_range as DebtRange);
-    if (preset.bg_noise) setBgNoise(preset.bg_noise as BackgroundNoise);
-    setCustomName(preset.title);
-    setStep(7);
-    setBuilderMode("wizard");
-  };
+  const [showStepHint, setShowStepHint] = useState<number | null>(null);
 
   const [step, setStep] = useState<Step>(0);
   const [importRefreshKey, setImportRefreshKey] = useState(0);
@@ -352,8 +254,6 @@ export default function CharacterBuilder({ storyCalls = 3, userLevel: userLevelP
   const selectedArchetype = ARCHETYPES.find((a) => a.code === archetype);
   const selectedProfession = PROFESSIONS.find((p) => p.code === profession);
 
-  const isStepLocked = (s: number) => STEPS[s].unlockLevel > userLevel;
-
   const canNext = (): boolean => {
     if (step === 0) return archetype !== null;
     if (step === 1) return profession !== null;
@@ -361,48 +261,20 @@ export default function CharacterBuilder({ storyCalls = 3, userLevel: userLevelP
   };
 
   const nextStep = () => {
-    let next = step + 1;
-    // Skip locked steps
-    while (next < 7 && isStepLocked(next)) next++;
+    const next = step + 1;
     if (next <= 7) setStep(next as Step);
   };
 
   const prevStep = () => {
-    let prev = step - 1;
-    while (prev > 0 && isStepLocked(prev)) prev--;
+    const prev = step - 1;
     if (prev >= 0) setStep(prev as Step);
-  };
-
-  const buildStoryQuery = (scenarioId: string) => {
-    // 2026-04-21: now passes all 11 builder fields. Previously only 4 were
-    // sent → story-mode silently dropped family/creditors/debt/emotion/noise/
-    // time/fatigue. The /training/[id] page reads these off the URL and
-    // forwards them to the WS session.start handler in custom_params.
-    const params = new URLSearchParams({
-      mode: "story",
-      calls: String(storyCalls),
-      custom_archetype: archetype || "",
-      custom_profession: profession || "",
-      custom_lead_source: leadSource,
-      custom_difficulty: String(difficulty),
-      custom_family_preset: familyPreset,
-      custom_creditors_preset: creditorsPreset,
-      custom_debt_stage: debtStage,
-      custom_debt_range: debtRange,
-      custom_emotion_preset: emotionPreset,
-      custom_bg_noise: bgNoise,
-      custom_time_of_day: timeOfDay,
-      custom_fatigue: clientFatigue,
-      custom_tone: tone,
-    });
-    return `/training/${scenarioId}?${params.toString()}`;
   };
 
   // sessionMode=call routes to the phone-call UI; chat is the default text-chat.
   // Both use the same backend session — the backend receives session_mode
   // via custom_params so prompts can adapt (shorter sentences, interruptions,
   // etc.) in call mode even though the REST endpoint is the same.
-  const handleStart = async (storyMode = false, sessionMode: "chat" | "call" = "chat") => {
+  const handleStart = async (sessionMode: "chat" | "call" = "chat") => {
     if (!archetype || !profession) return;
     setStarting(true);
     try {
@@ -417,8 +289,6 @@ export default function CharacterBuilder({ storyCalls = 3, userLevel: userLevelP
           scenarioId = sorted[0].id;
         }
       } catch { /* proceed without */ }
-
-      if (storyMode && scenarioId) { router.push(buildStoryQuery(scenarioId)); return; }
 
       // 2026-04-21: autosave before starting. If the user hasn't unchecked
       // the preview-step toggle, persist the current builder state as a
@@ -479,19 +349,6 @@ export default function CharacterBuilder({ storyCalls = 3, userLevel: userLevelP
         custom_tone: tone,
         custom_session_mode: sessionMode,
       });
-      if (activePreset) {
-        try {
-          localStorage.setItem("hunterlite_active_preset", JSON.stringify({
-            slug: activePreset.slug,
-            title: activePreset.title,
-            category: activePreset.category,
-            icon_emoji: activePreset.icon_emoji,
-            learning_goals: activePreset.learning_goals,
-            tips: activePreset.tips,
-            session_id: session.id,
-          }));
-        } catch { /* localStorage unavailable */ }
-      }
       const targetPath = sessionMode === "call"
         ? `/training/${session.id}/call`
         : `/training/${session.id}`;
@@ -611,260 +468,17 @@ export default function CharacterBuilder({ storyCalls = 3, userLevel: userLevelP
     </div>
   );
 
-  const difficultyColor = (d: number) => d === 1 ? "var(--success)" : d === 2 ? "var(--warning)" : "var(--danger)";
-  const difficultyLabel = (d: number) => d === 1 ? "Базовый" : d === 2 ? "Средний" : "Продвинутый";
-
-  // ─── Choice screen ───
-  if (builderMode === "choice") {
-    return (
-      <div className="mt-8">
-        {/* Post-session preset results */}
-        {completedPresetSession && (
-          <motion.div
-            className="glass-panel rounded-2xl p-5 mb-6"
-            style={{ borderColor: "var(--success)40" }}
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-          >
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <AppIcon emoji={completedPresetSession.icon_emoji} size={22} />
-                <div>
-                  <div className="text-sm font-bold" style={{ color: "var(--text-primary)" }}>Тренировка завершена: {completedPresetSession.title}</div>
-                  <div className="text-xs" style={{ color: "var(--text-muted)" }}>{completedPresetSession.category}</div>
-                </div>
-              </div>
-              <button onClick={() => { setCompletedPresetSession(null); localStorage.removeItem("hunterlite_active_preset"); }} className="text-xs" style={{ color: "var(--text-muted)" }}>✕</button>
-            </div>
-            <div className="mb-3">
-              <div className="flex items-center gap-2 mb-2">
-                <GraduationCap size={14} weight="bold" style={{ color: "var(--success)" }} />
-                <span className="text-xs font-bold uppercase tracking-wide" style={{ color: "var(--success)" }}>Цели обучения</span>
-              </div>
-              <div className="space-y-1.5">
-                {completedPresetSession.learning_goals.map((g, i) => (
-                  <div key={i} className="flex items-start gap-2">
-                    <Check size={10} className="mt-0.5 flex-shrink-0" style={{ color: "var(--success)" }} />
-                    <span className="text-xs" style={{ color: "var(--text-secondary)" }}>{g}</span>
-                  </div>
-                ))}
-              </div>
-              <p className="mt-2 text-xs" style={{ color: "var(--text-muted)" }}>
-                Вы проработали {completedPresetSession.learning_goals.length} из {completedPresetSession.learning_goals.length} целей. Отличная работа!
-              </p>
-            </div>
-            {nextPresetSuggestion && (
-              <motion.button
-                onClick={() => { setCompletedPresetSession(null); localStorage.removeItem("hunterlite_active_preset"); applyPreset(nextPresetSuggestion); }}
-                className="w-full rounded-xl p-3 flex items-center gap-3 text-left"
-                style={{ background: "var(--accent-muted)", border: "1px solid var(--accent)30" }}
-                whileHover={{ y: -1 }}
-              >
-                <AppIcon emoji={nextPresetSuggestion.icon_emoji} size={20} />
-                <div className="min-w-0 flex-1">
-                  <div className="text-xs font-bold" style={{ color: "var(--text-primary)" }}>Следующий: {nextPresetSuggestion.title}</div>
-                  <div className="text-xs" style={{ color: "var(--text-muted)" }}>{nextPresetSuggestion.category}</div>
-                </div>
-                <span className="text-xs font-bold flex-shrink-0" style={{ color: "var(--accent)" }}>Начать →</span>
-              </motion.button>
-            )}
-          </motion.div>
-        )}
-
-        <h2 className="font-display text-lg font-bold mb-2" style={{ color: "var(--text-primary)" }}>Конструктор персонажа</h2>
-        <p className="text-sm mb-6" style={{ color: "var(--text-muted)" }}>Выберите режим создания тренировочного клиента</p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <motion.button
-            onClick={() => setBuilderMode("presets")}
-            className="glass-panel p-6 rounded-2xl text-left relative overflow-hidden"
-            whileHover={{ y: -3, boxShadow: "0 8px 30px rgba(99,102,241,0.15)" }}
-            whileTap={{ scale: 0.98 }}
-            style={{ borderColor: "var(--accent)30" }}
-          >
-            <div className="flex items-center gap-3 mb-3">
-              <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: "var(--accent-muted)" }}>
-                <GraduationCap size={24} weight="duotone" style={{ color: "var(--accent)" }} />
-              </div>
-              <div>
-                <div className="text-sm font-bold" style={{ color: "var(--text-primary)" }}>Обучающие пресеты</div>
-                <div className="text-xs" style={{ color: "var(--accent)" }}>Рекомендовано</div>
-              </div>
-            </div>
-            <p className="text-xs leading-relaxed" style={{ color: "var(--text-muted)" }}>
-              Готовые конфигурации клиентов для обучения. С целями, подсказками и привязкой к вашему уровню.
-            </p>
-          </motion.button>
-
-          <motion.button
-            onClick={() => setBuilderMode("wizard")}
-            className="glass-panel p-6 rounded-2xl text-left relative overflow-hidden"
-            whileHover={{ y: -3, boxShadow: "0 8px 30px rgba(99,102,241,0.08)" }}
-            whileTap={{ scale: 0.98 }}
-          >
-            <div className="flex items-center gap-3 mb-3">
-              <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: "var(--input-bg)" }}>
-                <PuzzlePiece size={24} weight="duotone" style={{ color: "var(--text-secondary)" }} />
-              </div>
-              <div>
-                <div className="text-sm font-bold" style={{ color: "var(--text-primary)" }}>Свободный конструктор</div>
-                <div className="text-xs" style={{ color: "var(--text-muted)" }}>8 шагов</div>
-              </div>
-            </div>
-            <p className="text-xs leading-relaxed" style={{ color: "var(--text-muted)" }}>
-              Полная настройка: архетип, профессия, контекст, эмоции, сложность и среда. Для опытных пользователей.
-            </p>
-          </motion.button>
-        </div>
-      </div>
-    );
-  }
-
-  // ─── Presets screen ───
-  if (builderMode === "presets") {
-    const grouped: Record<number, TrainingPresetData[]> = { 1: [], 2: [], 3: [] };
-    presets.forEach((p) => { (grouped[p.difficulty] ??= []).push(p); });
-
-    return (
-      <div className="mt-8">
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h2 className="font-display text-lg font-bold" style={{ color: "var(--text-primary)" }}>Обучающие пресеты</h2>
-            <p className="text-sm" style={{ color: "var(--text-muted)" }}>Готовые клиенты для тренировки навыков</p>
-          </div>
-          <Button variant="ghost" size="sm" onClick={() => setBuilderMode("choice")} icon={<ChevronLeft size={16} />}>Назад</Button>
-        </div>
-
-        {presetsLoading ? (
-          <div className="flex flex-col items-center justify-center py-16 gap-3">
-            <Loader2 size={24} className="animate-spin" style={{ color: "var(--accent)" }} />
-            <span className="text-sm" style={{ color: "var(--text-muted)" }}>Загрузка пресетов...</span>
-          </div>
-        ) : presets.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16 gap-3">
-            <GraduationCap size={32} weight="duotone" style={{ color: "var(--text-muted)" }} />
-            <span className="text-sm" style={{ color: "var(--text-muted)" }}>Пресеты скоро появятся</span>
-          </div>
-        ) : (
-          <div className="space-y-8">
-            {/* Recommended */}
-            {recommendedPresets.length > 0 && (
-              <div>
-                <div className="flex items-center gap-2 mb-3">
-                  <Sparkles size={16} style={{ color: "var(--accent)" }} />
-                  <span className="text-sm font-bold uppercase tracking-wide" style={{ color: "var(--accent)" }}>Рекомендовано для вашего уровня</span>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  {recommendedPresets.map((p, idx) => (
-                    <motion.div
-                      key={p.slug}
-                      className="glass-panel p-4 rounded-xl relative cursor-pointer"
-                      style={{ borderColor: "var(--accent)40", boxShadow: "0 0 20px var(--accent-muted)" }}
-                      initial={{ opacity: 0, y: 16 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: idx * 0.1, duration: 0.3 }}
-                      whileHover={{ y: -3, boxShadow: "0 8px 30px rgba(99,102,241,0.2)" }}
-                      whileTap={{ scale: 0.98 }}
-                      onClick={() => applyPreset(p)}
-                    >
-                      <div className="flex items-start justify-between mb-2">
-                        <div className="flex items-center gap-2">
-                          <motion.span
-                            className="text-xl"
-                            animate={{ scale: [1, 1.15, 1] }}
-                            transition={{ duration: 2, repeat: Infinity, repeatDelay: 3, ease: "easeInOut" }}
-                          ><AppIcon emoji={p.icon_emoji} size={22} /></motion.span>
-                          <div>
-                            <div className="text-sm font-bold" style={{ color: "var(--text-primary)" }}>{p.title}</div>
-                            <div className="text-xs" style={{ color: "var(--text-muted)" }}>{p.category}</div>
-                          </div>
-                        </div>
-                        <span className="rounded-full px-2 py-0.5 text-xs font-bold" style={{ background: difficultyColor(p.difficulty) + "20", color: difficultyColor(p.difficulty) }}>
-                          {difficultyLabel(p.difficulty)}
-                        </span>
-                      </div>
-                      <p className="text-xs mb-3 line-clamp-2" style={{ color: "var(--text-muted)" }}>{p.description}</p>
-                      <div className="space-y-1">
-                        {p.learning_goals.slice(0, 2).map((g, i) => (
-                          <div key={i} className="flex items-start gap-1.5">
-                            <Check size={10} className="mt-0.5 flex-shrink-0" style={{ color: "var(--accent)" }} />
-                            <span className="text-xs" style={{ color: "var(--text-secondary)" }}>{g}</span>
-                          </div>
-                        ))}
-                      </div>
-                      <div className="mt-3 text-xs font-bold text-center py-1.5 rounded-lg" style={{ background: "var(--accent-muted)", color: "var(--accent)" }}>
-                        Начать тренировку
-                      </div>
-                    </motion.div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* All presets by difficulty */}
-            {([1, 2, 3] as const).map((diff) => {
-              const group = grouped[diff] ?? [];
-              if (group.length === 0) return null;
-              const labels = { 1: "Базовые", 2: "Средние", 3: "Продвинутые" };
-              return (
-                <div key={diff}>
-                  <div className="flex items-center gap-2 mb-3">
-                    <span className="w-2.5 h-2.5 rounded-full" style={{ background: difficultyColor(diff) }} />
-                    <span className="text-sm font-bold uppercase tracking-wide" style={{ color: "var(--text-secondary)" }}>{labels[diff]}</span>
-                    <span className="text-xs" style={{ color: "var(--text-muted)" }}>({group.length})</span>
-                  </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                    {group.map((p, idx) => (
-                      <motion.div
-                        key={p.slug}
-                        className="glass-panel p-4 rounded-xl cursor-pointer"
-                        initial={{ opacity: 0, y: 12 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: idx * 0.06, duration: 0.25 }}
-                        whileHover={{ y: -2, boxShadow: `0 4px 16px ${difficultyColor(diff)}15` }}
-                        whileTap={{ scale: 0.98 }}
-                        onClick={() => applyPreset(p)}
-                      >
-                        <div className="flex items-start gap-2 mb-2">
-                          <span className="text-xl"><AppIcon emoji={p.icon_emoji} size={22} /></span>
-                          <div className="min-w-0 flex-1">
-                            <div className="text-sm font-bold truncate" style={{ color: "var(--text-primary)" }}>{p.title}</div>
-                            <div className="text-xs" style={{ color: "var(--text-muted)" }}>{p.category}</div>
-                          </div>
-                          <span className="rounded-full px-2 py-0.5 text-xs font-bold flex-shrink-0" style={{ background: difficultyColor(diff) + "20", color: difficultyColor(diff) }}>
-                            {difficultyLabel(diff)}
-                          </span>
-                        </div>
-                        <p className="text-xs mb-2 line-clamp-2" style={{ color: "var(--text-muted)" }}>{p.description}</p>
-                        <div className="space-y-1 mb-2">
-                          {p.learning_goals.map((g, i) => (
-                            <div key={i} className="flex items-start gap-1.5">
-                              <GraduationCap size={10} weight="bold" className="mt-0.5 flex-shrink-0" style={{ color: difficultyColor(diff) }} />
-                              <span className="text-xs" style={{ color: "var(--text-secondary)" }}>{g}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </motion.div>
-                    ))}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-    );
-  }
 
   // ─── Wizard mode (existing 8-step flow) ───
 
   const StepHintButton = ({ stepIdx }: { stepIdx: number }) => {
     const hint = STEP_HINTS[stepIdx];
     if (!hint) return null;
-    const isOpen = showStepHint === stepIdx || isNewUser;
+    const isOpen = showStepHint === stepIdx;
     return (
       <div className="mb-3">
         <button
-          onClick={() => setShowStepHint(isOpen && !isNewUser ? null : stepIdx)}
+          onClick={() => setShowStepHint(isOpen ? null : stepIdx)}
           className="flex items-center gap-1.5 text-xs rounded-lg px-2.5 py-1 transition-all"
           style={{ background: isOpen ? "var(--accent-muted)" : "var(--input-bg)", color: isOpen ? "var(--accent)" : "var(--text-muted)" }}
         >
@@ -889,17 +503,34 @@ export default function CharacterBuilder({ storyCalls = 3, userLevel: userLevelP
     );
   };
 
+  if (unlocked === null) {
+    return (
+      <div className="flex items-center justify-center py-24">
+        <Loader2 className="animate-spin" size={24} style={{ color: "var(--text-muted)" }} />
+      </div>
+    );
+  }
+  if (!unlocked) {
+    return (
+      <div className="mx-auto max-w-md text-center py-16 px-4">
+        <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-2xl" style={{ background: "var(--primary-muted)", border: "1px solid var(--border-color)" }}>
+          <Lock size={26} style={{ color: "var(--brand-logo-hunter)" }} />
+        </div>
+        <h2 className="font-display text-xl font-bold" style={{ color: "var(--text-primary)" }}>Практика пока закрыта</h2>
+        <p className="mt-3 text-sm leading-relaxed" style={{ color: "var(--text-muted)" }}>
+          {unlockHint || "Пройдите регион «Условия подачи» (10 уровней теста), чтобы открыть практику с клиентом."}
+        </p>
+        <div className="mt-6">
+          <Button variant="primary" size="sm" onClick={() => { if (onGoToTests) onGoToTests(); else router.push("/training?tab=tests"); }}>
+            Перейти к тестам
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="mt-8">
-      {/* Back to mode choice */}
-      <div className="flex items-center justify-between mb-4">
-        <Button variant="ghost" size="sm" onClick={() => { setBuilderMode("choice"); reset(); }} icon={<ChevronLeft size={16} />}>К выбору режима</Button>
-        {activePreset && (
-          <span className="text-xs rounded-full px-2.5 py-1" style={{ background: "var(--accent-muted)", color: "var(--accent)" }}>
-            Пресет: {activePreset.title}
-          </span>
-        )}
-      </div>
 
       {/* Stepper — 8 steps. PR-G: Lego-style "what you picked" feedback.
           Each completed step shows a tiny one-word summary of the actual
@@ -936,28 +567,24 @@ export default function CharacterBuilder({ storyCalls = 3, userLevel: userLevelP
               const Icon = s.icon;
               const done = i < step;
               const active = i === step;
-              const locked = isStepLocked(i);
               const summary = _stepSummaries[i];
               return (
                 <div key={i} className="flex items-start flex-1 min-w-0 pt-0.5">
                   <button
-                    onClick={() => !locked && i <= step && setStep(i as Step)}
+                    onClick={() => setStep(i as Step)}
                     className="flex items-start gap-1.5 flex-shrink-0"
-                    disabled={locked || i > step}
                   >
                     <div className="w-7 h-7 rounded-full flex items-center justify-center transition-all flex-shrink-0"
                       style={{
-                        background: locked ? "var(--input-bg)" : done ? "var(--accent)" : active ? "var(--accent-muted)" : "var(--input-bg)",
+                        background: done ? "var(--accent)" : active ? "var(--accent-muted)" : "var(--input-bg)",
                         border: active ? "2px solid var(--accent)" : "2px solid transparent",
-                        opacity: locked ? 0.4 : 1,
                       }}>
-                      {locked ? <Lock size={10} style={{ color: "var(--text-muted)" }} />
-                        : done ? <Check size={12} className="text-white" />
+                      {done ? <Check size={12} className="text-white" />
                         : <Icon size={12} style={{ color: active ? "var(--accent)" : "var(--text-muted)" }} />}
                     </div>
                     <div className="hidden lg:flex flex-col items-start min-w-0">
                       <span className="text-xs font-medium uppercase tracking-wide leading-none"
-                        style={{ color: locked ? "var(--text-muted)" : active ? "var(--text-primary)" : "var(--text-muted)", opacity: locked ? 0.4 : 1 }}>
+                        style={{ color: active ? "var(--text-primary)" : "var(--text-muted)" }}>
                         {s.label}
                       </span>
                       {/* PR-G Lego summary: what's actually picked at
@@ -1034,28 +661,16 @@ export default function CharacterBuilder({ storyCalls = 3, userLevel: userLevelP
               })}
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 max-h-[55vh] overflow-y-auto pr-1">
-              {filteredArchetypes.map((a) => {
-                const archetypeLocked = a.unlock_level > userLevel;
-                return (
-                  <div key={a.code} className="relative">
-                    <div style={{ opacity: archetypeLocked ? 0.4 : 1, pointerEvents: archetypeLocked ? "none" : "auto" }}>
-                      <ArchetypeCard
-                        arch={a}
-                        size="compact"
-                        selected={archetype === a.code}
-                        onSelect={() => setArchetype(a.code)}
-                      />
-                    </div>
-                    {archetypeLocked && (
-                      <div className="absolute inset-0 flex items-center justify-center rounded-xl" style={{ background: "rgba(0,0,0,0.3)" }}>
-                        <span className="flex items-center gap-1 rounded-full px-2 py-1 text-xs font-bold" style={{ background: "var(--glass-bg)", color: "var(--text-muted)", border: "1px solid var(--border-color)" }}>
-                          <Lock size={10} /> Ур. {a.unlock_level}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
+              {filteredArchetypes.map((a) => (
+                <div key={a.code} className="relative">
+                  <ArchetypeCard
+                    arch={a}
+                    size="compact"
+                    selected={archetype === a.code}
+                    onSelect={() => setArchetype(a.code)}
+                  />
+                </div>
+              ))}
             </div>
           </>)}
 
@@ -1362,56 +977,6 @@ export default function CharacterBuilder({ storyCalls = 3, userLevel: userLevelP
                 AI создаст реалистичный портрет клиента на основе всех выбранных параметров.
               </p>
 
-              {/* ── Preset learning goals + tips ── */}
-              {activePreset && (
-                <div className="mt-4 pt-4 border-t space-y-3" style={{ borderColor: "var(--border-color)" }}>
-                  <div>
-                    <div className="flex items-center gap-2 mb-2">
-                      <GraduationCap size={14} weight="bold" style={{ color: "var(--accent)" }} />
-                      <span className="text-xs font-bold uppercase tracking-wide" style={{ color: "var(--accent)" }}>Цели обучения</span>
-                    </div>
-                    <div className="space-y-1.5">
-                      {activePreset.learning_goals.map((g, i) => (
-                        <div key={i} className="flex items-start gap-2">
-                          <Check size={10} className="mt-0.5 flex-shrink-0" style={{ color: "var(--success)" }} />
-                          <span className="text-xs" style={{ color: "var(--text-secondary)" }}>{g}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                  <div>
-                    <button
-                      onClick={() => setShowTips(!showTips)}
-                      className="flex items-center gap-2 text-xs font-bold uppercase tracking-wide"
-                      style={{ color: "var(--text-muted)" }}
-                    >
-                      <Info size={12} />
-                      <span>Подсказки к тренировке</span>
-                      {showTips ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
-                    </button>
-                    <AnimatePresence>
-                      {showTips && (
-                        <motion.div
-                          initial={{ opacity: 0, height: 0 }}
-                          animate={{ opacity: 1, height: "auto" }}
-                          exit={{ opacity: 0, height: 0 }}
-                          className="overflow-hidden"
-                        >
-                          <div className="mt-2 space-y-1.5">
-                            {activePreset.tips.map((t, i) => (
-                              <div key={i} className="flex items-start gap-2 rounded-lg p-2" style={{ background: "var(--input-bg)" }}>
-                                <Info size={10} className="mt-0.5 flex-shrink-0" style={{ color: "var(--warning)" }} />
-                                <span className="text-xs" style={{ color: "var(--text-secondary)" }}>{t}</span>
-                              </div>
-                            ))}
-                          </div>
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
-                  </div>
-                </div>
-              )}
-
               {/* ── Editable name + autosave (2026-04-21) ──
                    Previously name was auto-generated from "архетип · профессия
                    · сложность/10" with no way to override — two identical
@@ -1488,14 +1053,11 @@ export default function CharacterBuilder({ storyCalls = 3, userLevel: userLevelP
                to ACTUALLY start the training; sharing the preview screen
                no longer has a fourth button that doesn't start anything. */
             <div className="flex flex-wrap gap-2.5">
-              <Button variant="primary" onClick={() => handleStart(false, "chat")} disabled={starting || !archetype || !profession} size="sm" loading={starting} icon={<MessageCircle size={16} />}>
+              <Button variant="primary" onClick={() => handleStart("chat")} disabled={starting || !archetype || !profession} size="sm" loading={starting} icon={<MessageCircle size={16} />}>
                 Чат
               </Button>
-              <Button onClick={() => handleStart(false, "call")} disabled={starting || !archetype || !profession} size="sm" loading={starting} icon={<Phone size={16} />} style={{ borderColor: "var(--accent)", color: "var(--accent)", background: "var(--accent-muted)" }}>
+              <Button onClick={() => handleStart("call")} disabled={starting || !archetype || !profession} size="sm" loading={starting} icon={<Phone size={16} />} style={{ borderColor: "var(--accent)", color: "var(--accent)", background: "var(--accent-muted)" }}>
                 Звонок
-              </Button>
-              <Button onClick={() => handleStart(true)} disabled={starting || !archetype || !profession} size="sm" loading={starting} icon={<Sparkles size={16} />} style={{ borderColor: "var(--accent-glow)", color: "var(--accent)" }}>
-                AI x{storyCalls}
               </Button>
             </div>
           )}
