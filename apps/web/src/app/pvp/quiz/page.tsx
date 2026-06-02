@@ -3,10 +3,10 @@
 // The quiz route only ever has meaning at `/pvp/quiz/[sessionId]/`
 // (that page handles the active quiz). Visitors who clicked an
 // outdated link or stripped the sessionId from the URL would have
-// landed on a Next.js 404 — now they land on the arena hub which
-// is where they would start a fresh quiz from anyway.
+// landed on a Next.js 404 — now they land on the training map where
+// they start a fresh test from anyway.
 import { redirect } from "next/navigation";
 
 export default function PvPQuizIndexPage() {
-  redirect("/pvp");
+  redirect("/training");
 }

@@ -320,7 +320,7 @@ export function KnowledgeDashboardWidget({ userId }: KnowledgeDashboardWidgetPro
                     </div>
                   </div>
                   {srs.overdue > 0 && (
-                    <Link href="/pvp?tab=knowledge">
+                    <Link href="/training">
                       <span className="status-badge status-badge--danger" style={{ fontSize: "14px", cursor: "pointer" }}>
                         <Clock size={8} weight="duotone" /> {srs.overdue} просрочено
                       </span>
@@ -397,7 +397,7 @@ export function KnowledgeDashboardWidget({ userId }: KnowledgeDashboardWidgetPro
 
       {/* Action buttons */}
       <div className="flex gap-2">
-        <Link href="/pvp?tab=knowledge" className="flex-1">
+        <Link href="/training" className="flex-1">
           <button
             className="w-full flex items-center justify-center gap-1.5 py-2 rounded text-xs font-medium transition-colors"
             style={{
@@ -409,7 +409,7 @@ export function KnowledgeDashboardWidget({ userId }: KnowledgeDashboardWidgetPro
             <ArrowRight size={12} />
           </button>
         </Link>
-        <Link href="/pvp?tab=knowledge">
+        <Link href="/training">
           <button
             className="flex items-center justify-center gap-1.5 px-3 py-2 rounded text-xs font-medium transition-colors"
             style={{

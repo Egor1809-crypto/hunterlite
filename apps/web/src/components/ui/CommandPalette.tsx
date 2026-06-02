@@ -62,10 +62,9 @@ function saveRecent(id: string) {
 const COMMANDS: CommandItem[] = [
   { id: "home", label: "Главная", description: "Дашборд менеджера", icon: Home, href: "/home", keywords: ["главная", "home", "дашборд"] },
   { id: "training", label: "Начать тренировку", description: "Выбрать сценарий", icon: Mic, href: "/training", keywords: ["тренировка", "training", "сценарий", "практика"] },
-  { id: "pvp", label: "PvP Арена", description: "Бой с другим игроком", icon: Swords, href: "/pvp", keywords: ["pvp", "арена", "бой", "дуэль", "соперник"] },
   { id: "history", label: "История тренировок", description: "Все сессии", icon: History, href: "/history", keywords: ["история", "history", "сессии", "прошлые"] },
   { id: "analytics", label: "Аналитика", description: "Статистика и прогресс", icon: BarChart3, href: "/analytics", keywords: ["аналитика", "analytics", "статистика", "прогресс", "графики"] },
-  { id: "knowledge", label: "База знаний", description: "Квизы и материалы", icon: BookOpen, href: "/pvp?tab=knowledge", keywords: ["знания", "knowledge", "квиз", "тест", "обучение"] },
+  { id: "knowledge", label: "База знаний", description: "Правовые материалы и поиск", icon: BookOpen, href: "/knowledge", keywords: ["знания", "knowledge", "база", "материалы", "право"] },
   { id: "settings", label: "Настройки", description: "Тема, звук, профиль", icon: Settings, href: "/settings", keywords: ["настройки", "settings", "тема", "профиль"] },
   { id: "dashboard", label: "Панель управления", description: "Обзор команды (РОП)", icon: Shield, href: "/dashboard", keywords: ["панель", "dashboard", "управление", "роп"], roles: ["rop", "admin"] },
 ];

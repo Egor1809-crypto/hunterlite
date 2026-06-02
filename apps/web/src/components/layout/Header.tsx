@@ -57,7 +57,6 @@ function buildNavForRole(_role: UserRole | undefined): NavItem[] {
   return [
     { href: "/home", label: "Центр", icon: Home, group: "main" },
     { href: "/training", label: "Тренировка", icon: Crosshair, group: "main" },
-    { href: "/pvp", label: "Арена", icon: Swords, group: "main" },
     { href: "/history", label: "История", icon: History, group: "main" },
     { href: "/knowledge", label: "Знания", icon: Crown, group: "main" },
   ];

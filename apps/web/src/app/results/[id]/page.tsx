@@ -63,7 +63,7 @@ import CallDroppedCard, { type CallDroppedReason } from "@/components/results/Ca
 import { BackButton } from "@/components/ui/BackButton";
 import { Button } from "@/components/ui/Button";
 import { Breadcrumb } from "@/components/ui/Breadcrumb";
-import { EMOTION_MAP, type EmotionState, type ChatMessage, type SessionResultResponse, type ActiveTournamentResponse, type TournamentSubmitResponse } from "@/types";
+import { EMOTION_MAP, type EmotionState, type ChatMessage, type SessionResultResponse } from "@/types";
 import { logger } from "@/lib/logger";
 import { colorAlpha } from "@/lib/utils";
 
@@ -105,11 +105,6 @@ export default function ResultsPage() {
   // Replay Mode state
   const [replayMessage, setReplayMessage] = useState<{ msg: ChatMessage; index: number } | null>(null);
 
-  // Tournament state
-  const [tournament, setTournament] = useState<ActiveTournamentResponse | null>(null);
-  const [tournamentSubmitting, setTournamentSubmitting] = useState(false);
-  const [tournamentResult, setTournamentResult] = useState<TournamentSubmitResponse | null>(null);
-  const [tournamentError, setTournamentError] = useState("");
   const [previousSkillRadar, setPreviousSkillRadar] = useState<Record<string, number> | null>(null);
 
   // 2026-05-04 (v2): poll until backend has finished writing score_total +
@@ -205,36 +200,11 @@ export default function ResultsPage() {
       })
       .catch(() => { /* optional: previous radar not critical */ });
 
-    // Check active tournament (one-shot)
-    api.get("/tournament/active")
-      .then((data: ActiveTournamentResponse) => {
-        if (cancelled) return;
-        setTournament(data);
-      })
-      .catch((err) => { logger.error("Failed to load active tournament:", err); });
-
     return () => {
       cancelled = true;
       if (pollTimer) clearTimeout(pollTimer);
     };
   }, [params.id]);
-
-  const submitToTournament = async () => {
-    if (tournamentSubmitting || !session || session.score_total === null) return;
-    setTournamentSubmitting(true);
-    setTournamentError("");
-    try {
-      const res: TournamentSubmitResponse = await api.post("/tournament/submit", {
-        session_id: session.id,
-        score: session.score_total,
-      });
-      setTournamentResult(res);
-    } catch (err: unknown) {
-      setTournamentError(err instanceof Error ? err.message : "Ошибка отправки");
-    } finally {
-      setTournamentSubmitting(false);
-    }
-  };
 
   if (loading) {
     return (
@@ -1024,14 +994,14 @@ export default function ResultsPage() {
                 </p>
                 <div className="flex flex-wrap gap-2 mb-4">
                   {result.weak_legal_categories.map((cat: { category: string; display_name: string; accuracy_pct: number }) => (
-                    <Link key={cat.category} href={`/pvp?tab=knowledge&category=${encodeURIComponent(cat.category)}`}>
+                    <Link key={cat.category} href={`/knowledge`}>
                       <span className="status-badge status-badge--danger" style={{ cursor: "pointer" }}>
                         {cat.display_name} · {cat.accuracy_pct}%
                       </span>
                     </Link>
                   ))}
                 </div>
-                <Button href={`/pvp?tab=knowledge&category=${encodeURIComponent(result.weak_legal_categories[0]?.category || "")}`} size="sm" icon={<BookOpen size={14} />}>
+                <Button href={`/knowledge`} size="sm" icon={<BookOpen size={14} />}>
                     Подтяни знания по ФЗ-127
                 </Button>
               </div>
@@ -1175,98 +1145,6 @@ export default function ResultsPage() {
           </div>
         )}
 
-        {/* Tournament Submit Banner */}
-        {tournament?.tournament && tournament.tournament.scenario_id === session.scenario_id && hasScores && (
-          <motion.div
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.55 }}
-            className="glass-panel mt-8 p-6 rounded-2xl relative overflow-hidden"
-            style={{ borderColor: "rgba(212,168,75,0.3)" }}
-          >
-            <div className="absolute top-0 left-0 right-0 h-[2px]" style={{ background: "linear-gradient(90deg, transparent, var(--gf-xp), transparent)" }} />
-            <div className="absolute -top-10 -right-10 w-40 h-40 rounded-full opacity-10 blur-[60px] pointer-events-none" style={{ background: "var(--gf-xp)" }} />
-
-            <div className="flex items-start gap-4 relative z-10">
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl" style={{ background: "rgba(212,168,75,0.1)", border: "1px solid rgba(212,168,75,0.2)" }}>
-                <Trophy size={22} style={{ color: "var(--gf-xp)" }} />
-              </div>
-
-              <div className="flex-1">
-                <div className="flex items-center gap-2 mb-1">
-                  <Swords size={14} style={{ color: "var(--gf-xp)" }} />
-                  <span className="font-mono text-xs uppercase tracking-widest" style={{ color: "var(--gf-xp)" }}>ЕЖЕНЕДЕЛЬНЫЙ ТУРНИР</span>
-                </div>
-                <h3 className="font-display text-lg font-bold" style={{ color: "var(--text-primary)" }}>
-                  {tournament.tournament.title}
-                </h3>
-                <p className="text-sm mt-1" style={{ color: "var(--text-secondary)" }}>
-                  Отправьте результат этой сессии в турнир и соревнуйтесь за призовые XP!
-                </p>
-
-                {/* Prize info */}
-                <div className="mt-3 flex items-center gap-4 font-mono text-xs">
-                  <span className="flex items-center gap-1" style={{ color: "var(--gf-xp)" }}>
-                    <Crown size={12} /> {tournament.tournament.bonus_xp[0]} XP
-                  </span>
-                  <span className="flex items-center gap-1" style={{ color: "var(--rank-silver)" }}>
-                    <Medal size={12} /> {tournament.tournament.bonus_xp[1]} XP
-                  </span>
-                  <span className="flex items-center gap-1" style={{ color: "var(--rank-bronze)" }}>
-                    <Medal size={12} /> {tournament.tournament.bonus_xp[2]} XP
-                  </span>
-                </div>
-
-                {/* Leaderboard mini (top 3) */}
-                {tournament.leaderboard.length > 0 && (
-                  <div className="mt-3 flex items-center gap-3">
-                    {tournament.leaderboard.slice(0, 3).map((e) => (
-                      <span key={e.user_id} className="font-mono text-xs flex items-center gap-1 px-2 py-1 rounded-full"
-                        style={{ background: "var(--input-bg)", color: "var(--text-muted)" }}
-                      >
-                        <Medal size={12} /> {e.full_name.split(" ")[0]} · {Math.round(e.best_score)}
-                      </span>
-                    ))}
-                    {tournament.leaderboard.length > 3 && (
-                      <span className="font-mono text-xs" style={{ color: "var(--text-muted)" }}>
-                        +{tournament.leaderboard.length - 3}
-                      </span>
-                    )}
-                  </div>
-                )}
-
-                {/* Submit result */}
-                {tournamentResult ? (
-                  <motion.div
-                    initial={{ opacity: 0, y: 4 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="mt-4 flex items-center gap-2 rounded-xl p-3 text-sm"
-                    style={{ background: "rgba(61,220,132,0.08)", border: "1px solid rgba(61,220,132,0.2)", color: "var(--success)" }}
-                  >
-                    <CheckCircle size={16} />
-                    Результат отправлен! Попытка {tournamentResult.attempt} · {Math.round(tournamentResult.score)} баллов
-                  </motion.div>
-                ) : (
-                  <div className="mt-4 flex items-center gap-3">
-                    <Button onClick={submitToTournament} loading={tournamentSubmitting} icon={<Trophy size={16} />}>
-                      Отправить в турнир ({Math.round(totalScore)} баллов)
-                    </Button>
-                    <span className="font-mono text-xs" style={{ color: "var(--text-muted)" }}>
-                      макс. {tournament.tournament.max_attempts} попыток
-                    </span>
-                  </div>
-                )}
-
-                {tournamentError && (
-                  <div className="mt-2 flex items-center gap-2 text-xs" style={{ color: "var(--danger)" }}>
-                    <AlertCircle size={14} />
-                    {tournamentError}
-                  </div>
-                )}
-              </div>
-            </div>
-          </motion.div>
-        )}
 
         {/* Client Reveal — hidden data revealed post-session */}
         {result.client_card && (

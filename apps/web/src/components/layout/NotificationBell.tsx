@@ -100,7 +100,9 @@ export function NotificationBell({ open: controlledOpen, onOpenChange }: Notific
           <AnimatePresence mode="popLayout">
             {toasts.map((toast) => {
               const colors = toastColors[toast.type] || toastColors.info;
-              const isPvPInvite = toast.type === "pvp_invitation" && toast.challenger_id;
+              // PvP retired — pvp_invitation toasts are no longer emitted; keep the
+              // type guard inert so the invite UI (accept/decline) never renders.
+              const isPvPInvite = false && toast.type === "pvp_invitation" && toast.challenger_id;
 
               return (
                 <motion.div

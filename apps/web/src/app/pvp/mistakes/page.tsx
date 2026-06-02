@@ -195,7 +195,7 @@ export default function ReviewPage() {
       <div className="max-w-4xl mx-auto px-4 md:px-6 py-6">
         <div className="flex items-center justify-between mb-5">
           <Link
-            href="/pvp"
+            href="/training"
             className="inline-flex items-center gap-1.5 text-sm"
             style={{ color: "var(--text-muted)" }}
           >
@@ -435,7 +435,7 @@ export default function ReviewPage() {
         {queue.length > 0 && (
           <div className="mt-6 flex justify-center">
             <Link
-              href="/pvp"
+              href="/training"
               className="inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold"
               style={{
                 background: "#a78bfa",
