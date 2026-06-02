@@ -40,7 +40,6 @@ from app.models.progress import (
     StreakFreeze,
 )
 from app.models.season_content import ContentSeason, SeasonChapter
-from app.models.league import WeeklyLeagueGroup, WeeklyLeagueMembership
 from app.models.checkpoint import CheckpointDefinition, UserCheckpoint
 from app.models.voice import (
     VoiceProfile,
@@ -90,27 +89,19 @@ from app.models.game_crm import (
     GameEventType,
     GameClientStatus,
 )
+# models/pvp.py trimmed to the functional core: PvPRating (powers the legal
+# TEST adaptive difficulty), AntiCheatLog + UserFingerprint (login anti-cheat),
+# APPurchase (AP-currency shop ledger), PvPDuel (still read by anti_cheat
+# duel-history). All dead PvP/PvE duel/season/team/ladder/boss models removed.
 from app.models.pvp import (
     PvPDuel,
     PvPRating,
-    PvPMatchQueue,
     AntiCheatLog,
-    PvPSeason,
     DuelStatus,
-    MatchQueueStatus,
     AntiCheatCheckType,
     AntiCheatAction,
     PvPRankTier,
-    DuelDifficulty,
     UserFingerprint,
-    # DOC_09-13: New PvP/PvE/Rating models
-    PvPTeam,
-    GauntletRun,
-    RapidFireMatch,
-    PvELadderRun,
-    PvEBossRun,
-    PromotionSeries,
-    SeasonReward,
     APPurchase,
 )
 from app.models.custom_character import CustomCharacter
@@ -141,25 +132,13 @@ from app.models.rag import (
     TraitCategory,
     PersonalityChunkSource,
 )
-from app.models.tournament import (
-    BracketMatch,
-    BracketMatchStatus,
-    Tournament,
-    TournamentEntry,
-    TournamentFormat,
-    TournamentParticipant,
-    # DOC_12: Tournament v2 models
-    TournamentTheme,
-    TournamentTeam,
-    TeamMatch,
-)
+# Tournament models retired (tournament feature removed).
 from app.models.xp_log import XPLog
 from app.models.xp_event import XPEvent
 # FIND-002 fix (2026-04-19): register LegalDocument in Base.metadata so
 # Alembic autogenerate doesn't mistake it for an orphan and propose a DROP.
 # The table holds ~4400 RAG documents — dropping would be catastrophic.
 from app.models.legal_document import LegalDocument  # noqa: F401
-from app.models.rating_contribution import RatingContribution, RatingSource
 from app.models.prompt_version import PromptVersion
 from app.models.cross_recommendation import CrossRecommendationCache
 from app.models.manager_wiki import (
@@ -218,6 +197,7 @@ from app.models.analytics_event import AnalyticsEvent
 # grader. Migration 20260503_001. See docs/QUIZ_V2_ARENA_DESIGN.md.
 from app.models.quiz_v2 import QuizV2AnswerKey
 from app.models.training_map import TrainingMapProgress
+from app.models.telegram_link import TelegramLinkToken
 from app.models.training_preset import TrainingPreset
 from app.models.legal_update import LegalUpdate
 from app.models.case_scenario import CaseScenario, CaseAttempt, CaseProgress
@@ -258,12 +238,6 @@ __all__ = [
     "Trap",
     "ObjectionChain",
     "ClientProfile",
-    "Tournament",
-    "TournamentEntry",
-    "TournamentFormat",
-    "TournamentParticipant",
-    "BracketMatch",
-    "BracketMatchStatus",
     "VoiceProfile",
     "EmotionVoiceModifier",
     "PauseConfig",
@@ -313,18 +287,14 @@ __all__ = [
     "GameClientEvent",
     "GameEventType",
     "GameClientStatus",
-    # Agent 8 — PvP Battle
+    # PvP-rating core (PvPRating powers TEST difficulty; anti-cheat = login)
     "PvPDuel",
     "PvPRating",
-    "PvPMatchQueue",
     "AntiCheatLog",
-    "PvPSeason",
     "DuelStatus",
-    "MatchQueueStatus",
     "AntiCheatCheckType",
     "AntiCheatAction",
     "PvPRankTier",
-    "DuelDifficulty",
     "UserFingerprint",
     # Custom Characters
     "CustomCharacter",
@@ -342,29 +312,16 @@ __all__ = [
     # DOC_04: Checkpoints
     "CheckpointDefinition",
     "UserCheckpoint",
-    # DOC_09-13: PvP/PvE/Rating expansion
-    "PvPTeam",
-    "GauntletRun",
-    "RapidFireMatch",
-    "PvELadderRun",
-    "PvEBossRun",
-    "PromotionSeries",
-    "SeasonReward",
+    # AP-currency shop ledger (kept — used by arena_points)
     "APPurchase",
     # DOC_11: Knowledge v2
     "DebateSession",
     "TeamQuizTeam",
     "DailyChallenge",
     "DailyChallengeEntry",
-    # DOC_12: Tournament v2
-    "TournamentTheme",
-    "TournamentTeam",
-    "TeamMatch",
     # DOC_15-16: Progression + Prompts
     "XPLog",
     "XPEvent",
-    "RatingContribution",
-    "RatingSource",
     "PromptVersion",
     "CrossRecommendationCache",
     # Previously missing exports (GAP-2 fix)
@@ -399,8 +356,6 @@ __all__ = [
     # Season Content & Leagues (diagnostic fix)
     "ContentSeason",
     "SeasonChapter",
-    "WeeklyLeagueGroup",
-    "WeeklyLeagueMembership",
     "GoalCompletionLog",
     "StreakFreeze",
     # S3-01: Team Challenge persistence
@@ -435,6 +390,7 @@ __all__ = [
     # Quiz Arena v2 — Path A grader storage (alembic 20260503_001)
     "QuizV2AnswerKey",
     "TrainingMapProgress",
+    "TelegramLinkToken",
     "TrainingPreset",
     "LegalUpdate",
     # TZ-Agent-2: Case scenarios

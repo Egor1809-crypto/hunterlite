@@ -47,6 +47,7 @@ const ProgressGraph = dynamic(
   { loading: () => <Skeleton height={240} width="100%" rounded="12px" />, ssr: false },
 );
 import { AchievementWall } from "@/components/profile/AchievementWall";
+import { TelegramConnectCard } from "@/components/profile/TelegramConnectCard";
 import type { TrainingStats, GamificationProgress, ProgressPoint } from "@/types";
 import { logger } from "@/lib/logger";
 
@@ -178,6 +179,13 @@ function ProfilePageContent() {
           {!isViewingOther && (
             <ProfileSection title="Активность" mt={6}>
               <ActivityHeatmap days={180} accent="var(--primary)" />
+            </ProfileSection>
+          )}
+
+          {/* Telegram-бот — только для своего профиля */}
+          {!isViewingOther && (
+            <ProfileSection title="Telegram" mt={6}>
+              <TelegramConnectCard />
             </ProfileSection>
           )}
 

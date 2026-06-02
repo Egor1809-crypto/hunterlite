@@ -56,7 +56,7 @@ export function useAuth() {
 
   const logout = useCallback(async () => {
     await storeLogout();
-    router.replace("/login");
+    router.replace("/");
   }, [router, storeLogout]);
 
   return { user, loading, logout };

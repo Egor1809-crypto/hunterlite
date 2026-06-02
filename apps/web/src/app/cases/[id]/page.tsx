@@ -1,682 +1,964 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { motion, AnimatePresence } from "framer-motion";
-import {
-  ArrowLeft,
-  ArrowRight,
-  Clock,
-  AlertTriangle,
-  CheckCircle2,
-  RotateCcw,
-  ChevronRight,
-  Eye,
-  Search,
-  Lightbulb,
-  Award,
-  Briefcase,
-  Star,
-  Info,
-  GraduationCap,
-  Loader2,
-} from "lucide-react";
+import { motion, Reorder } from "framer-motion";
 import AuthLayout from "@/components/layout/AuthLayout";
 import { api } from "@/lib/api";
 
-const NOISE_SVG = `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E")`;
-const PREMIUM_EASE: [number, number, number, number] = [0.22, 1, 0.36, 1];
+/* ── Palette (editorial / malvah-abstract) ─────────────────── */
+const PAPER = "#F2F0EB";
+const PAPER_RAISED = "#FBFAF7";
+const INK = "#16140F";
+const INK_SOFT = "#5C574E";
+const INK_FAINT = "#928C81";
+const RULE = "rgba(22,20,15,0.14)";
+const RULE_SOFT = "rgba(22,20,15,0.07)";
+const BRAND = "#7C3AED"; // сиреневый — прогресс, акценты
+const BRAND_SOFT = "rgba(124,58,237,0.10)";
+const RIGHT = "#1F5C46"; // deep green
+const WRONG = "#9A3528"; // brick
+const EASE: [number, number, number, number] = [0.22, 1, 0.36, 1];
 
-function getDiffConfig(level: 1 | 2 | 3) {
-  switch (level) {
-    case 1:
-      return { label: "Базовый", color: "#22C55E", bg: "rgba(34,197,94,0.1)" };
-    case 2:
-      return { label: "Продвинутый", color: "#F59E0B", bg: "rgba(245,158,11,0.1)" };
-    case 3:
-      return { label: "Экспертный", color: "#EF4444", bg: "rgba(239,68,68,0.1)" };
-  }
-}
-
-interface CaseStep {
+/* ── Types (mirror backend contract) ───────────────────────── */
+interface PoolItem {
   id: string;
-  title: string;
-  narrative: string;
-  context?: string;
-  hidden_fact?: { clue: string; fact?: string };
-  choices: {
-    id: string;
-    text: string;
-    consequence: string;
-    next_step_id: string | null;
-    score_impact: number;
-    is_optimal?: boolean;
-    reveals_fact?: string;
-  }[];
+  text: string;
 }
-
-interface CaseDetail {
+interface Fact {
+  label: string;
+  value: string;
+}
+interface Meta {
   id: string;
   title: string;
   description: string;
-  difficulty: 1 | 2 | 3;
+  difficulty: number;
   category: string;
   estimated_minutes: number;
   max_score: number;
-  expert_analysis: string;
-  optimal_path: string[];
-  steps: CaseStep[];
+  stage1_intro: string;
+  total_questions: number;
+  stage2_prompt: string;
+  stage2_pool: PoolItem[];
 }
-
+interface QuestionNode {
+  id: string;
+  type: "question";
+  step: number;
+  title: string;
+  question: string;
+  facts: Fact[];
+  options: { id: string; text: string }[];
+}
+interface InfoNode {
+  id: string;
+  type: "info";
+  step: number;
+  title: string;
+  body: string;
+  facts: Fact[];
+  next: Node | null;
+}
+interface OutcomeNode {
+  id: string;
+  type: "outcome";
+  outcome: string;
+  title: string;
+  summary: string;
+}
+type Node = QuestionNode | InfoNode | OutcomeNode;
 interface StartResponse {
   attempt_id: string;
-  first_step: CaseStep;
   case_title: string;
-  total_steps: number;
+  stage1_intro: string;
+  total_questions: number;
+  node: Node;
 }
-
-interface ChooseResponse {
-  consequence: string;
-  is_optimal: boolean;
-  score_impact: number;
-  new_score: number;
-  next_step: CaseStep | null;
-  reveals_fact: string | null;
+interface AnswerResponse {
+  correct: boolean;
+  explain: string;
+  next: Node | null;
+  is_outcome: boolean;
+  stage1_score: number | null;
 }
-
+interface SubmitFeedback {
+  id: string;
+  text: string;
+  placed_position: number;
+  correct_position: number | null;
+  is_distractor: boolean;
+  placed_correctly: boolean;
+  explain: string;
+}
+interface SubmitResponse {
+  stage2_score: number;
+  stage2_max: number;
+  matched: number;
+  total_correct: number;
+  feedback: SubmitFeedback[];
+}
 interface CompleteResponse {
+  stage1_score: number;
+  stage2_score: number;
   score: number;
   score_percent: number;
   max_score: number;
-  choices_made: {
-    step_id: string;
-    choice_id: string;
-    score_impact: number;
-    is_optimal: boolean;
-    text: string;
-    consequence: string;
-    step_title: string;
-  }[];
-  revealed_facts: string[];
   expert_analysis: string;
-  optimal_path: string[];
+  sequence_review: { position: number; text: string; explain: string }[];
 }
 
+type Phase =
+  | "loading"
+  | "error"
+  | "intro"
+  | "stage1"
+  | "outcome"
+  | "stage2"
+  | "stage2review"
+  | "result";
+
+/* ── Small primitives ──────────────────────────────────────── */
+function MonoLabel({
+  children,
+  color = INK_FAINT,
+  size = 12,
+}: {
+  children: React.ReactNode;
+  color?: string;
+  size?: number;
+}) {
+  return (
+    <span
+      className="font-mono uppercase"
+      style={{ fontSize: size, letterSpacing: "0.18em", color, lineHeight: 1.4 }}
+    >
+      {children}
+    </span>
+  );
+}
+
+function Rule({ soft = false }: { soft?: boolean }) {
+  return <div style={{ height: 1, background: soft ? RULE_SOFT : RULE }} />;
+}
+
+/* Row of fact cards — data visualisation in the editorial grid. */
+function FactRow({ facts }: { facts: Fact[] }) {
+  if (!facts || facts.length === 0) return null;
+  return (
+    <div className="flex flex-wrap gap-px mt-8" style={{ background: RULE }}>
+      {facts.map((f, i) => (
+        <div
+          key={i}
+          className="flex-1 px-5 py-5"
+          style={{ background: PAPER, minWidth: 150 }}
+        >
+          <MonoLabel size={10.5}>{f.label}</MonoLabel>
+          <div
+            className="font-display mt-2.5"
+            style={{ fontSize: 22, lineHeight: 1.15, letterSpacing: "-0.02em", color: INK, fontWeight: 600 }}
+          >
+            {f.value}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/* Big arrow CTA — consistent button component. */
+function ArrowButton({
+  label,
+  onClick,
+  disabled,
+  glyph = "→",
+  size = 24,
+  color = INK,
+}: {
+  label: string;
+  onClick: () => void;
+  disabled?: boolean;
+  glyph?: string;
+  size?: number;
+  color?: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className="case-focus group inline-flex items-center gap-3 disabled:opacity-40"
+      style={{ color }}
+    >
+      <span
+        className="font-display"
+        style={{ fontSize: size, fontWeight: 600, letterSpacing: "-0.02em", lineHeight: 1.1 }}
+      >
+        {label}
+      </span>
+      <span className="inline-block transition-transform group-hover:translate-x-1" style={{ fontSize: size }}>
+        {glyph}
+      </span>
+    </button>
+  );
+}
+
+/* ── Page ──────────────────────────────────────────────────── */
 export default function CasePlayerPage() {
-  const params = useParams();
   const router = useRouter();
-  const caseId = params.id as string;
+  const params = useParams();
+  const caseId = String(params?.id ?? "");
 
-  const [caseData, setCaseData] = useState<CaseDetail | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [attemptId, setAttemptId] = useState<string | null>(null);
-  const [currentStep, setCurrentStep] = useState<CaseStep | null>(null);
-  const [stepIndex, setStepIndex] = useState(0);
-  const [totalSteps, setTotalSteps] = useState(0);
-  const [score, setScore] = useState(0);
-  const [revealedFacts, setRevealedFacts] = useState<string[]>([]);
+  const [phase, setPhase] = useState<Phase>("loading");
+  const [meta, setMeta] = useState<Meta | null>(null);
+  const [errMsg, setErrMsg] = useState("");
 
-  const [showConsequence, setShowConsequence] = useState(false);
-  const [lastConsequence, setLastConsequence] = useState("");
-  const [lastChoiceOptimal, setLastChoiceOptimal] = useState(false);
-  const [nextStepData, setNextStepData] = useState<CaseStep | null>(null);
+  // stage 1
+  const [attemptId, setAttemptId] = useState("");
+  const [node, setNode] = useState<Node | null>(null);
+  const [picked, setPicked] = useState<string | null>(null);
+  const [answer, setAnswer] = useState<AnswerResponse | null>(null);
+  const [stage1Score, setStage1Score] = useState(0);
+  const [busy, setBusy] = useState(false);
 
-  const [showHiddenFact, setShowHiddenFact] = useState(false);
-  const [factRevealed, setFactRevealed] = useState(false);
-  const [factText, setFactText] = useState("");
+  // stage 2
+  const [sequence, setSequence] = useState<PoolItem[]>([]);
+  const [submit, setSubmit] = useState<SubmitResponse | null>(null);
 
-  const [completed, setCompleted] = useState(false);
-  const [completionResult, setCompletionResult] = useState<CompleteResponse | null>(null);
-  const [showExpertAnalysis, setShowExpertAnalysis] = useState(false);
-
-  const [elapsedMinutes, setElapsedMinutes] = useState(0);
-  const [startedAt] = useState(Date.now());
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setElapsedMinutes(Math.floor((Date.now() - startedAt) / 60000));
-    }, 10000);
-    return () => clearInterval(interval);
-  }, [startedAt]);
+  // result
+  const [result, setResult] = useState<CompleteResponse | null>(null);
 
   useEffect(() => {
     let cancelled = false;
-    (async () => {
-      try {
-        const detail = await api.get<CaseDetail>(`/cases/${caseId}`);
+    api
+      .get<Meta>(`/cases/${caseId}`)
+      .then((m) => {
         if (cancelled) return;
-        setCaseData(detail);
-
-        const startRes = await api.post<StartResponse>(`/cases/${caseId}/start`, {});
+        setMeta(m);
+        setPhase("intro");
+      })
+      .catch(() => {
         if (cancelled) return;
-        setAttemptId(startRes.attempt_id);
-        setCurrentStep(startRes.first_step);
-        setTotalSteps(startRes.total_steps);
-        setStepIndex(0);
-        setLoading(false);
-      } catch {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => { cancelled = true; };
+        setErrMsg("Кейс не найден");
+        setPhase("error");
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [caseId]);
 
-  const handleChoice = useCallback(
-    async (choiceId: string) => {
-      if (!attemptId || !currentStep) return;
-      try {
-        const res = await api.post<ChooseResponse>(`/cases/${caseId}/choose`, {
-          attempt_id: attemptId,
-          step_id: currentStep.id,
-          choice_id: choiceId,
-        });
-        setLastConsequence(res.consequence);
-        setLastChoiceOptimal(res.is_optimal);
-        setScore(res.new_score);
-        setNextStepData(res.next_step);
-        setShowConsequence(true);
-        setShowHiddenFact(false);
-        setFactRevealed(false);
-
-        if (res.reveals_fact) {
-          setRevealedFacts((prev) => [...prev, res.reveals_fact!]);
-        }
-
-        if (!res.next_step) {
-          setCompleted(true);
-        }
-      } catch {
-        // error handling silent
-      }
-    },
-    [attemptId, currentStep, caseId],
+  const pool = useMemo(() => meta?.stage2_pool ?? [], [meta]);
+  const available = useMemo(
+    () => pool.filter((p) => !sequence.some((s) => s.id === p.id)),
+    [pool, sequence],
   );
 
-  const proceedToNext = useCallback(async () => {
-    if (completed && attemptId) {
-      try {
-        const res = await api.post<CompleteResponse>(`/cases/${caseId}/complete`, {
-          attempt_id: attemptId,
-        });
-        setCompletionResult(res);
-      } catch {
-        // already completed, still show results
-        setCompletionResult({
-          score,
-          score_percent: caseData ? Math.round((score / caseData.max_score) * 100) : 0,
-          max_score: caseData?.max_score ?? 100,
-          choices_made: [],
-          revealed_facts: revealedFacts,
-          expert_analysis: caseData?.expert_analysis ?? "",
-          optimal_path: caseData?.optimal_path ?? [],
-        });
-      }
-      return;
-    }
-    if (nextStepData) {
-      setCurrentStep(nextStepData);
-      setStepIndex((prev) => prev + 1);
-      setNextStepData(null);
-      setShowConsequence(false);
-    }
-  }, [completed, attemptId, caseId, nextStepData, score, caseData, revealedFacts]);
-
-  const revealHiddenFact = useCallback(async () => {
-    if (!currentStep?.hidden_fact || !attemptId) return;
+  async function begin() {
+    setBusy(true);
     try {
-      const res = await api.post<{ fact_text: string; new_score: number; already_revealed: boolean }>(
-        `/cases/${caseId}/reveal-fact`,
-        { attempt_id: attemptId, step_id: currentStep.id },
-      );
-      setFactText(res.fact_text);
-      setShowHiddenFact(true);
-      setFactRevealed(true);
-      setScore(res.new_score);
-      if (!res.already_revealed) {
-        setRevealedFacts((prev) => [...prev, res.fact_text]);
-      }
+      const res = await api.post<StartResponse>(`/cases/${caseId}/start`, {});
+      setAttemptId(res.attempt_id);
+      setNode(res.node);
+      setPicked(null);
+      setAnswer(null);
+      setSequence([]);
+      setSubmit(null);
+      setResult(null);
+      setStage1Score(0);
+      setPhase("stage1");
     } catch {
-      // silent
+      setErrMsg("Не удалось начать кейс");
+      setPhase("error");
+    } finally {
+      setBusy(false);
     }
-  }, [currentStep, attemptId, caseId]);
+  }
 
-  const restart = useCallback(async () => {
-    setCompleted(false);
-    setCompletionResult(null);
-    setShowConsequence(false);
-    setShowExpertAnalysis(false);
-    setShowHiddenFact(false);
-    setFactRevealed(false);
-    setScore(0);
-    setRevealedFacts([]);
-    setStepIndex(0);
-
+  async function pick(optionId: string) {
+    if (busy || answer || !node || node.type !== "question") return;
+    setPicked(optionId);
+    setBusy(true);
     try {
-      const startRes = await api.post<StartResponse>(`/cases/${caseId}/start`, {});
-      setAttemptId(startRes.attempt_id);
-      setCurrentStep(startRes.first_step);
-      setTotalSteps(startRes.total_steps);
+      const res = await api.post<AnswerResponse>(`/cases/${caseId}/answer`, {
+        attempt_id: attemptId,
+        node_id: node.id,
+        option_id: optionId,
+      });
+      setAnswer(res);
+      if (res.stage1_score != null) setStage1Score(res.stage1_score);
     } catch {
-      // silent
+      setPicked(null);
+    } finally {
+      setBusy(false);
     }
-  }, [caseId]);
-
-  if (loading) {
-    return (
-      <AuthLayout>
-        <div className="min-h-screen flex items-center justify-center" style={{ background: "var(--bg-primary)" }}>
-          <Loader2 size={32} className="animate-spin" style={{ color: "#8B5CF6" }} />
-        </div>
-      </AuthLayout>
-    );
   }
 
-  if (!caseData) {
-    return (
-      <AuthLayout>
-        <div className="min-h-screen flex items-center justify-center" style={{ background: "var(--bg-primary)" }}>
-          <div className="text-center">
-            <Briefcase size={48} className="mx-auto mb-4" style={{ color: "var(--text-muted)" }} />
-            <h2 className="text-xl font-bold mb-2" style={{ color: "var(--text-primary)" }}>Кейс не найден</h2>
-            <p className="text-sm mb-6" style={{ color: "var(--text-muted)" }}>Этот кейс пока в разработке.</p>
-            <button
-              onClick={() => router.push("/cases")}
-              className="px-5 py-2.5 rounded-xl text-sm font-bold transition-all"
-              style={{ background: "#8B5CF6", color: "#fff" }}
-            >
-              Вернуться к списку
-            </button>
-          </div>
-        </div>
-      </AuthLayout>
-    );
+  function goTo(next: Node | null) {
+    if (!next) return;
+    if (next.type === "outcome") {
+      setNode(next);
+      setPhase("outcome");
+    } else {
+      setNode(next);
+      setPhase("stage1");
+    }
   }
 
-  const diff = getDiffConfig(caseData.difficulty);
-  const scorePercent = Math.round((score / caseData.max_score) * 100);
-
-  /* ── Completion screen ──────────────────────────────────── */
-  if (completionResult) {
-    const sp = completionResult.score_percent;
-    const grade =
-      sp >= 85
-        ? { label: "Отлично", color: "#22C55E", icon: Award }
-        : sp >= 60
-          ? { label: "Хорошо", color: "#F59E0B", icon: CheckCircle2 }
-          : { label: "Можно лучше", color: "#EF4444", icon: AlertTriangle };
-    const GradeIcon = grade.icon;
-
-    return (
-      <AuthLayout>
-        <div className="min-h-screen relative" style={{ background: "var(--bg-primary)" }}>
-          <div className="absolute inset-0 pointer-events-none overflow-hidden" aria-hidden>
-            <div
-              className="absolute -top-40 left-[20%] w-[900px] h-[900px] rounded-full opacity-[0.035]"
-              style={{ background: `radial-gradient(circle, ${grade.color} 0%, transparent 70%)` }}
-            />
-          </div>
-          <div className="absolute inset-0 pointer-events-none opacity-30 mix-blend-overlay" style={{ backgroundImage: NOISE_SVG }} aria-hidden />
-
-          <div className="relative z-10 max-w-[700px] mx-auto px-5 sm:px-8 py-8 sm:py-12">
-            <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.6 }}>
-              <div className="text-center mb-8">
-                <div
-                  className="w-20 h-20 rounded-2xl flex items-center justify-center mx-auto mb-4"
-                  style={{ background: `${grade.color}15`, boxShadow: `0 0 40px ${grade.color}20` }}
-                >
-                  <GradeIcon size={36} style={{ color: grade.color }} />
-                </div>
-                <h1 className="text-2xl font-bold mb-1" style={{ color: "var(--text-primary)" }}>Кейс завершён</h1>
-                <p className="text-sm" style={{ color: "var(--text-muted)" }}>{caseData.title}</p>
-              </div>
-
-              <div
-                className="rounded-2xl p-6 mb-6"
-                style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}
-              >
-                <div className="grid grid-cols-3 gap-4 text-center mb-6">
-                  <div>
-                    <div className="text-2xl font-bold" style={{ color: grade.color }}>{sp}%</div>
-                    <div className="text-[10px] uppercase tracking-wider mt-1" style={{ color: "var(--text-muted)" }}>Результат</div>
-                  </div>
-                  <div>
-                    <div className="text-2xl font-bold" style={{ color: "var(--text-primary)" }}>{completionResult.choices_made.length}</div>
-                    <div className="text-[10px] uppercase tracking-wider mt-1" style={{ color: "var(--text-muted)" }}>Решений</div>
-                  </div>
-                  <div>
-                    <div className="text-2xl font-bold" style={{ color: "var(--text-primary)" }}>{completionResult.revealed_facts.length}</div>
-                    <div className="text-[10px] uppercase tracking-wider mt-1" style={{ color: "var(--text-muted)" }}>Фактов найдено</div>
-                  </div>
-                </div>
-
-                <div className="w-full h-2 rounded-full mb-2" style={{ background: "rgba(255,255,255,0.06)" }}>
-                  <motion.div
-                    className="h-full rounded-full"
-                    style={{ background: grade.color }}
-                    initial={{ width: 0 }}
-                    animate={{ width: `${sp}%` }}
-                    transition={{ duration: 1, delay: 0.3 }}
-                  />
-                </div>
-                <div className="flex justify-between text-[10px]" style={{ color: "var(--text-muted)" }}>
-                  <span>0</span>
-                  <span className="font-bold" style={{ color: grade.color }}>{grade.label}</span>
-                  <span>100%</span>
-                </div>
-              </div>
-
-              {completionResult.choices_made.length > 0 && (
-                <div className="space-y-3 mb-6">
-                  <h3 className="text-xs font-bold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>Ваши решения</h3>
-                  {completionResult.choices_made.map((cm, i) => (
-                    <motion.div
-                      key={cm.choice_id}
-                      initial={{ opacity: 0, x: -12 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: 0.4 + i * 0.1 }}
-                      className="rounded-xl p-4 flex items-start gap-3"
-                      style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}
-                    >
-                      <div
-                        className="w-6 h-6 rounded-full flex items-center justify-center shrink-0 text-[10px] font-bold"
-                        style={{
-                          background: cm.is_optimal ? "rgba(34,197,94,0.15)" : "rgba(255,255,255,0.06)",
-                          color: cm.is_optimal ? "#22C55E" : "var(--text-muted)",
-                        }}
-                      >
-                        {i + 1}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="text-xs font-bold mb-0.5" style={{ color: "var(--text-primary)" }}>{cm.step_title}</div>
-                        <div className="text-xs" style={{ color: "var(--text-secondary)" }}>{cm.text}</div>
-                        {cm.is_optimal && (
-                          <span className="inline-flex items-center gap-1 mt-1 text-[10px] font-bold" style={{ color: "#22C55E" }}>
-                            <CheckCircle2 size={10} /> Оптимальный выбор
-                          </span>
-                        )}
-                      </div>
-                      <span className="text-xs font-bold shrink-0" style={{ color: cm.score_impact >= 25 ? "#22C55E" : "var(--text-muted)" }}>
-                        +{cm.score_impact}
-                      </span>
-                    </motion.div>
-                  ))}
-                </div>
-              )}
-
-              <motion.div
-                initial={{ opacity: 0, y: 12 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.8 }}
-                className="rounded-2xl p-5 mb-6"
-                style={{
-                  background: "linear-gradient(135deg, rgba(139,92,246,0.08) 0%, rgba(59,130,246,0.05) 100%)",
-                  border: "1px solid rgba(139,92,246,0.2)",
-                }}
-              >
-                <div className="flex items-center gap-2 mb-3">
-                  <GraduationCap size={16} style={{ color: "#8B5CF6" }} />
-                  <span className="text-xs font-bold uppercase tracking-wider" style={{ color: "#8B5CF6" }}>Разбор эксперта</span>
-                </div>
-                {showExpertAnalysis ? (
-                  <p className="text-sm leading-relaxed" style={{ color: "var(--text-secondary)" }}>
-                    {completionResult.expert_analysis}
-                  </p>
-                ) : (
-                  <button
-                    onClick={() => setShowExpertAnalysis(true)}
-                    className="flex items-center gap-2 text-sm font-bold transition-all"
-                    style={{ color: "#8B5CF6" }}
-                  >
-                    Показать разбор <Eye size={14} />
-                  </button>
-                )}
-              </motion.div>
-
-              {completionResult.revealed_facts.length > 0 && (
-                <div className="rounded-xl p-4 mb-6" style={{ background: "rgba(245,158,11,0.06)", border: "1px solid rgba(245,158,11,0.15)" }}>
-                  <div className="flex items-center gap-2 mb-2">
-                    <Search size={14} style={{ color: "#F59E0B" }} />
-                    <span className="text-xs font-bold" style={{ color: "#F59E0B" }}>Раскрытые факты</span>
-                  </div>
-                  {completionResult.revealed_facts.map((fact, i) => (
-                    <p key={i} className="text-xs leading-relaxed mb-1" style={{ color: "var(--text-secondary)" }}>{fact}</p>
-                  ))}
-                </div>
-              )}
-
-              <div className="flex gap-3">
-                <button
-                  onClick={restart}
-                  className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-bold transition-all"
-                  style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", color: "var(--text-primary)" }}
-                >
-                  <RotateCcw size={14} /> Пройти заново
-                </button>
-                <button
-                  onClick={() => router.push("/cases")}
-                  className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-bold transition-all"
-                  style={{ background: "#8B5CF6", color: "#fff" }}
-                >
-                  Все кейсы <ArrowRight size={14} />
-                </button>
-              </div>
-            </motion.div>
-          </div>
-        </div>
-      </AuthLayout>
-    );
+  // After answering a question: clear verdict, move to next (question | info | outcome).
+  function advance() {
+    if (!answer) return;
+    const next = answer.next;
+    setPicked(null);
+    setAnswer(null);
+    goTo(next);
   }
 
-  if (!currentStep) return null;
+  // From an info "разбор" node → its embedded next (question | outcome).
+  function continueFromInfo() {
+    if (!node || node.type !== "info") return;
+    goTo(node.next);
+  }
 
-  /* ── Active game screen ─────────────────────────────────── */
+  function addStep(item: PoolItem) {
+    setSequence((s) => [...s, item]);
+  }
+  function removeStep(id: string) {
+    setSequence((s) => s.filter((x) => x.id !== id));
+  }
+
+  async function submitOrder() {
+    if (busy || sequence.length === 0) return;
+    setBusy(true);
+    try {
+      const res = await api.post<SubmitResponse>(`/cases/${caseId}/submit-order`, {
+        attempt_id: attemptId,
+        order: sequence.map((s) => s.id),
+      });
+      setSubmit(res);
+      setPhase("stage2review");
+    } catch {
+      /* keep on stage2 */
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function finish() {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const res = await api.post<CompleteResponse>(`/cases/${caseId}/complete`, {
+        attempt_id: attemptId,
+      });
+      setResult(res);
+      setPhase("result");
+    } catch {
+      /* stay */
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const totalQuestions = meta?.total_questions ?? 5;
+  const currentStep =
+    node && (node.type === "question" || node.type === "info") ? node.step : 0;
+
+  /* ── Render ──────────────────────────────────────────────── */
   return (
-    <AuthLayout>
-      <div className="min-h-screen relative" style={{ background: "var(--bg-primary)" }}>
-        <div className="absolute inset-0 pointer-events-none overflow-hidden" aria-hidden>
-          <div
-            className="absolute -top-40 left-[20%] w-[900px] h-[900px] rounded-full opacity-[0.035]"
-            style={{ background: "radial-gradient(circle, #8B5CF6 0%, transparent 70%)" }}
-          />
-        </div>
-        <div className="absolute inset-0 pointer-events-none opacity-30 mix-blend-overlay" style={{ backgroundImage: NOISE_SVG }} aria-hidden />
-
-        <div className="relative z-10 max-w-[700px] mx-auto px-5 sm:px-8 py-6 sm:py-10">
+    <AuthLayout showBreadcrumbs={false}>
+      <style
+        dangerouslySetInnerHTML={{
+          __html: `.case-focus:focus{outline:none}.case-focus:focus-visible{outline:2px solid ${BRAND};outline-offset:3px;border-radius:3px}`,
+        }}
+      />
+      <div style={{ background: PAPER, color: INK, minHeight: "100vh" }}>
+        <div className="mx-auto max-w-[860px] px-6 sm:px-12 py-10 sm:py-16">
           {/* Top bar */}
-          <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center justify-between mb-12">
             <button
+              type="button"
               onClick={() => router.push("/cases")}
-              className="flex items-center gap-1.5 text-xs font-medium transition-all"
-              style={{ color: "var(--text-muted)" }}
+              className="case-focus font-mono uppercase transition-opacity hover:opacity-60"
+              style={{ fontSize: 12, letterSpacing: "0.18em", color: INK_SOFT }}
             >
-              <ArrowLeft size={14} /> Все кейсы
+              ← Кейсы
             </button>
-            <div className="flex items-center gap-3">
-              <span className="flex items-center gap-1 text-xs" style={{ color: "var(--text-muted)" }}>
-                <Clock size={12} /> {elapsedMinutes} мин
-              </span>
-              <span className="px-2 py-0.5 rounded-md text-[10px] font-bold uppercase" style={{ background: diff.bg, color: diff.color }}>
-                {diff.label}
-              </span>
-            </div>
+            <MonoLabel>БФЛ · ФЗ-127</MonoLabel>
           </div>
 
-          {/* Progress bar */}
-          <div className="mb-6">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-bold" style={{ color: "var(--text-primary)" }}>{caseData.title}</span>
-              <span className="text-[10px] font-bold" style={{ color: "var(--text-muted)" }}>Шаг {stepIndex + 1} / {totalSteps}</span>
-            </div>
-            <div className="w-full h-1.5 rounded-full" style={{ background: "rgba(255,255,255,0.06)" }}>
-              <motion.div
-                className="h-full rounded-full"
-                style={{ background: "linear-gradient(90deg, #8B5CF6, #7C3AED)" }}
-                animate={{ width: `${((stepIndex + 1) / totalSteps) * 100}%` }}
-                transition={{ duration: 0.5 }}
-              />
-            </div>
-          </div>
-
-          {/* Score chip */}
-          <div className="flex items-center gap-2 mb-6">
-            <div
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold"
-              style={{ background: "rgba(139,92,246,0.1)", border: "1px solid rgba(139,92,246,0.2)", color: "#8B5CF6" }}
-            >
-              <Star size={12} /> {score} очков
-            </div>
-            {revealedFacts.length > 0 && (
-              <div
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold"
-                style={{ background: "rgba(245,158,11,0.1)", border: "1px solid rgba(245,158,11,0.2)", color: "#F59E0B" }}
-              >
-                <Search size={12} /> {revealedFacts.length} фактов
-              </div>
+          <div>
+            {phase === "loading" && (
+              <p className="font-mono" style={{ fontSize: 13, color: INK_FAINT }}>
+                загрузка…
+              </p>
             )}
+
+            {phase === "error" && <p style={{ color: WRONG }}>{errMsg}</p>}
+
+            {phase === "intro" && meta && <Intro key="intro" meta={meta} onBegin={begin} busy={busy} />}
+
+            {phase === "stage1" && node && node.type === "question" && (
+              <Stage1Question
+                key={`q-${node.id}`}
+                node={node}
+                step={currentStep}
+                total={totalQuestions}
+                picked={picked}
+                answer={answer}
+                busy={busy}
+                onPick={pick}
+                onAdvance={advance}
+              />
+            )}
+
+            {phase === "stage1" && node && node.type === "info" && (
+              <InfoView
+                key={`i-${node.id}`}
+                node={node}
+                step={currentStep}
+                total={totalQuestions}
+                onContinue={continueFromInfo}
+              />
+            )}
+
+            {phase === "outcome" && node && node.type === "outcome" && (
+              <Outcome key="outcome" node={node} stage1Score={stage1Score} onContinue={() => setPhase("stage2")} />
+            )}
+
+            {phase === "stage2" && meta && (
+              <Stage2
+                key="stage2"
+                prompt={meta.stage2_prompt}
+                available={available}
+                sequence={sequence}
+                onAdd={addStep}
+                onRemove={removeStep}
+                onReorder={setSequence}
+                onSubmit={submitOrder}
+                busy={busy}
+              />
+            )}
+
+            {phase === "stage2review" && submit && (
+              <Stage2Review key="s2r" submit={submit} onFinish={finish} busy={busy} />
+            )}
+
+            {phase === "result" && result && <Result key="result" result={result} onRestart={begin} />}
           </div>
-
-          {/* Step content */}
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={currentStep.id + (showConsequence ? "-consequence" : "")}
-              initial={{ opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -16 }}
-              transition={{ duration: 0.4, ease: PREMIUM_EASE }}
-            >
-              <div
-                className="rounded-2xl overflow-hidden mb-6"
-                style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}
-              >
-                <div className="h-[2px]" style={{ background: "linear-gradient(90deg, #8B5CF6, #7C3AED, transparent 80%)" }} />
-                <div className="p-6">
-                  <h2 className="text-lg font-bold mb-3" style={{ color: "var(--text-primary)" }}>{currentStep.title}</h2>
-                  <p className="text-sm leading-relaxed mb-4" style={{ color: "var(--text-secondary)" }}>{currentStep.narrative}</p>
-                  {currentStep.context && (
-                    <div
-                      className="flex items-start gap-2 rounded-xl p-3 mb-4"
-                      style={{ background: "rgba(37,99,235,0.06)", border: "1px solid rgba(37,99,235,0.15)" }}
-                    >
-                      <Info size={14} className="shrink-0 mt-0.5" style={{ color: "#3B82F6" }} />
-                      <p className="text-xs leading-relaxed" style={{ color: "var(--text-secondary)" }}>{currentStep.context}</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Hidden fact clue */}
-              {currentStep.hidden_fact && !factRevealed && !showConsequence && (
-                <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }} className="mb-6">
-                  <button
-                    onClick={revealHiddenFact}
-                    className="w-full rounded-xl p-4 flex items-start gap-3 text-left transition-all"
-                    style={{ background: "rgba(245,158,11,0.06)", border: "1px dashed rgba(245,158,11,0.3)" }}
-                  >
-                    <Search size={16} className="shrink-0 mt-0.5" style={{ color: "#F59E0B" }} />
-                    <div>
-                      <span className="text-xs font-bold block mb-0.5" style={{ color: "#F59E0B" }}>Скрытый факт</span>
-                      <span className="text-xs" style={{ color: "var(--text-secondary)" }}>{currentStep.hidden_fact.clue}</span>
-                    </div>
-                    <Eye size={14} className="shrink-0 mt-0.5" style={{ color: "#F59E0B" }} />
-                  </button>
-                </motion.div>
-              )}
-
-              {/* Revealed hidden fact */}
-              {showHiddenFact && factText && (
-                <motion.div
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: "auto" }}
-                  className="mb-6 rounded-xl p-4"
-                  style={{ background: "rgba(245,158,11,0.08)", border: "1px solid rgba(245,158,11,0.25)" }}
-                >
-                  <div className="flex items-center gap-2 mb-2">
-                    <Lightbulb size={14} style={{ color: "#F59E0B" }} />
-                    <span className="text-xs font-bold" style={{ color: "#F59E0B" }}>Факт раскрыт! +5 очков</span>
-                  </div>
-                  <p className="text-sm leading-relaxed" style={{ color: "var(--text-secondary)" }}>{factText}</p>
-                </motion.div>
-              )}
-
-              {/* Consequence display */}
-              {showConsequence ? (
-                <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
-                  <div
-                    className="rounded-2xl p-6 mb-6"
-                    style={{
-                      background: lastChoiceOptimal ? "rgba(34,197,94,0.06)" : "rgba(255,255,255,0.03)",
-                      border: `1px solid ${lastChoiceOptimal ? "rgba(34,197,94,0.2)" : "rgba(255,255,255,0.08)"}`,
-                    }}
-                  >
-                    <div className="flex items-center gap-2 mb-3">
-                      {lastChoiceOptimal ? (
-                        <CheckCircle2 size={16} style={{ color: "#22C55E" }} />
-                      ) : (
-                        <ArrowRight size={16} style={{ color: "var(--text-muted)" }} />
-                      )}
-                      <span
-                        className="text-xs font-bold uppercase tracking-wider"
-                        style={{ color: lastChoiceOptimal ? "#22C55E" : "var(--text-muted)" }}
-                      >
-                        Последствие
-                      </span>
-                    </div>
-                    <p className="text-sm leading-relaxed" style={{ color: "var(--text-secondary)" }}>{lastConsequence}</p>
-                  </div>
-                  <button
-                    onClick={proceedToNext}
-                    className="w-full py-3.5 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all"
-                    style={{ background: "#8B5CF6", color: "#fff" }}
-                  >
-                    {completed ? "Смотреть результаты" : "Далее"} <ChevronRight size={16} />
-                  </button>
-                </motion.div>
-              ) : (
-                /* Choices */
-                <div className="space-y-3">
-                  <h3 className="text-xs font-bold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>Выберите действие</h3>
-                  {currentStep.choices.map((choice, i) => (
-                    <motion.button
-                      key={choice.id}
-                      initial={{ opacity: 0, x: -12 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: 0.15 + i * 0.08 }}
-                      onClick={() => handleChoice(choice.id)}
-                      className="w-full text-left rounded-xl p-4 flex items-start gap-3 group transition-all"
-                      style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.borderColor = "rgba(139,92,246,0.3)";
-                        e.currentTarget.style.boxShadow = "0 4px 20px rgba(139,92,246,0.1)";
-                        e.currentTarget.style.transform = "translateX(4px)";
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.borderColor = "rgba(255,255,255,0.06)";
-                        e.currentTarget.style.boxShadow = "none";
-                        e.currentTarget.style.transform = "translateX(0)";
-                      }}
-                    >
-                      <div
-                        className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 text-xs font-bold"
-                        style={{ background: "rgba(139,92,246,0.1)", color: "#8B5CF6" }}
-                      >
-                        {String.fromCharCode(65 + i)}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <span className="text-sm font-medium block" style={{ color: "var(--text-primary)" }}>{choice.text}</span>
-                      </div>
-                      <ChevronRight
-                        size={14}
-                        className="shrink-0 mt-1 opacity-0 group-hover:opacity-100 transition-opacity"
-                        style={{ color: "#8B5CF6" }}
-                      />
-                    </motion.button>
-                  ))}
-                </div>
-              )}
-            </motion.div>
-          </AnimatePresence>
         </div>
       </div>
     </AuthLayout>
+  );
+}
+
+/* ── Intro ─────────────────────────────────────────────────── */
+function Intro({ meta, onBegin, busy }: { meta: Meta; onBegin: () => void; busy: boolean }) {
+  return (
+    <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, ease: EASE }}>
+      <MonoLabel>Кейс · банкротство физлица</MonoLabel>
+      <h1
+        className="font-display mt-5"
+        style={{ fontSize: "clamp(40px,7vw,72px)", lineHeight: 1.0, letterSpacing: "-0.045em", fontWeight: 600, paddingBottom: 4 }}
+      >
+        {meta.title}
+      </h1>
+      <div className="mt-7" style={{ fontSize: 19, lineHeight: 1.6, color: INK_SOFT, maxWidth: 640 }}>
+        {meta.description}
+      </div>
+
+      <div className="mt-12 mb-12">
+        <Rule />
+        <div className="grid grid-cols-1 sm:grid-cols-3">
+          {[
+            ["Этап 1", `Дерево решений · ${meta.total_questions} вопросов`],
+            ["Этап 2", "Хронология процедуры"],
+            ["≈ время", `${meta.estimated_minutes} минут`],
+          ].map(([k, v], i) => (
+            <div
+              key={k}
+              className="py-6 sm:px-6 sm:first:pl-0"
+              style={{ borderBottom: i < 2 ? `1px solid ${RULE_SOFT}` : "none" }}
+            >
+              <MonoLabel>{k}</MonoLabel>
+              <div className="mt-2" style={{ fontSize: 17, lineHeight: 1.4, color: INK }}>
+                {v}
+              </div>
+            </div>
+          ))}
+        </div>
+        <Rule />
+      </div>
+
+      <ArrowButton label={busy ? "Запуск…" : "Начать кейс"} onClick={onBegin} disabled={busy} size={26} />
+    </motion.div>
+  );
+}
+
+/* ── Stage 1 progress header (shared) ──────────────────────── */
+function StageProgress({ step, total }: { step: number; total: number }) {
+  return (
+    <div className="mb-9">
+      <div className="flex items-center gap-3 mb-5">
+        <MonoLabel color={BRAND}>Этап 1 — внесудебная оценка</MonoLabel>
+        <div className="flex-1" />
+        <MonoLabel color={INK}>
+          {String(Math.min(Math.max(step, 1), total)).padStart(2, "0")} / {String(total).padStart(2, "0")}
+        </MonoLabel>
+      </div>
+      <div className="flex gap-1.5">
+        {Array.from({ length: total }).map((_, i) => {
+          const done = i < step - 1;
+          const current = i === step - 1;
+          return (
+            <div
+              key={i}
+              style={{
+                height: 3,
+                flex: 1,
+                borderRadius: 2,
+                background: done ? BRAND : current ? BRAND_SOFT : RULE_SOFT,
+                outline: current ? `1px solid ${BRAND}` : "none",
+                outlineOffset: -1,
+              }}
+            />
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/* ── Stage 1: decision-tree question ───────────────────────── */
+function Stage1Question({
+  node,
+  step,
+  total,
+  picked,
+  answer,
+  busy,
+  onPick,
+  onAdvance,
+}: {
+  node: QuestionNode;
+  step: number;
+  total: number;
+  picked: string | null;
+  answer: AnswerResponse | null;
+  busy: boolean;
+  onPick: (id: string) => void;
+  onAdvance: () => void;
+}) {
+  return (
+    <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, ease: EASE }}>
+      <StageProgress step={step} total={total} />
+
+      <MonoLabel>{node.title}</MonoLabel>
+      <h2
+        className="font-display mt-4"
+        style={{
+          fontSize: "clamp(27px,4.4vw,44px)",
+          lineHeight: 1.1,
+          letterSpacing: "-0.035em",
+          fontWeight: 600,
+          paddingBottom: 2,
+        }}
+      >
+        {node.question}
+      </h2>
+
+      <FactRow facts={node.facts} />
+
+      {/* Options as cards */}
+      <div className="mt-10 space-y-3">
+        {node.options.map((o, i) => {
+          const isPicked = picked === o.id;
+          const revealed = !!answer && isPicked;
+          const correct = revealed && answer!.correct;
+          const tone = revealed ? (answer!.correct ? RIGHT : WRONG) : INK;
+          const dim = !!answer && !isPicked;
+          return (
+            <button
+              key={o.id}
+              type="button"
+              disabled={busy || !!answer}
+              onClick={() => onPick(o.id)}
+              className="case-focus w-full text-left transition-all disabled:cursor-default"
+              style={{
+                border: `1px solid ${revealed ? tone : RULE}`,
+                background: isPicked ? (revealed ? (correct ? "rgba(31,92,70,0.06)" : "rgba(154,53,40,0.06)") : PAPER_RAISED) : PAPER_RAISED,
+                borderRadius: 8,
+                opacity: dim ? 0.45 : 1,
+              }}
+            >
+              <div className="flex items-start gap-4 px-5 py-5">
+                <span
+                  className="font-mono shrink-0"
+                  style={{
+                    fontSize: 13,
+                    color: revealed ? tone : INK_FAINT,
+                    width: 26,
+                    height: 26,
+                    lineHeight: "26px",
+                    textAlign: "center",
+                    border: `1px solid ${revealed ? tone : RULE}`,
+                    borderRadius: 5,
+                  }}
+                >
+                  {String.fromCharCode(65 + i)}
+                </span>
+                <span
+                  style={{ fontSize: 18.5, lineHeight: 1.45, color: tone, fontWeight: revealed ? 500 : 400, flex: 1, paddingTop: 1 }}
+                >
+                  {o.text}
+                </span>
+                {revealed && (
+                  <span className="font-mono shrink-0" style={{ fontSize: 12, color: tone, letterSpacing: "0.1em", paddingTop: 5 }}>
+                    {answer!.correct ? "ВЕРНО" : "НЕВЕРНО"}
+                  </span>
+                )}
+              </div>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Inline verdict + explanation + advance */}
+      {answer && (
+        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, ease: EASE }} className="mt-8">
+          <div
+            className="pl-5 py-3"
+            style={{ borderLeft: `3px solid ${answer.correct ? RIGHT : WRONG}` }}
+          >
+            <MonoLabel color={answer.correct ? RIGHT : WRONG}>
+              {answer.correct ? "Верный ответ" : "Ошибка — разберём"}
+            </MonoLabel>
+            <p className="mt-2.5" style={{ fontSize: 17, lineHeight: 1.6, color: INK_SOFT }}>
+              {answer.explain}
+            </p>
+          </div>
+          <div className="mt-8">
+            <ArrowButton
+              label={answer.is_outcome && answer.correct ? "К результату этапа" : answer.correct ? "Следующий вопрос" : "Подробный разбор"}
+              onClick={onAdvance}
+              size={21}
+            />
+          </div>
+        </motion.div>
+      )}
+    </motion.div>
+  );
+}
+
+/* ── Stage 1: info "разбор" node ───────────────────────────── */
+function InfoView({
+  node,
+  step,
+  total,
+  onContinue,
+}: {
+  node: InfoNode;
+  step: number;
+  total: number;
+  onContinue: () => void;
+}) {
+  const toOutcome = node.next?.type === "outcome";
+  return (
+    <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, ease: EASE }}>
+      <StageProgress step={step} total={total} />
+
+      <div style={{ border: `1px solid ${RULE}`, borderRadius: 10, background: PAPER_RAISED }} className="p-6 sm:p-9">
+        <MonoLabel color={WRONG}>Разбор · почему это неверно</MonoLabel>
+        <h2
+          className="font-display mt-4"
+          style={{ fontSize: "clamp(25px,3.8vw,38px)", lineHeight: 1.12, letterSpacing: "-0.03em", fontWeight: 600, paddingBottom: 2 }}
+        >
+          {node.title}
+        </h2>
+        <p className="mt-5" style={{ fontSize: 18, lineHeight: 1.65, color: INK_SOFT }}>
+          {node.body}
+        </p>
+        <FactRow facts={node.facts} />
+      </div>
+
+      <div className="mt-9">
+        <ArrowButton label={toOutcome ? "К результату этапа" : "Продолжить"} onClick={onContinue} size={22} />
+      </div>
+    </motion.div>
+  );
+}
+
+/* ── Outcome (between stages) ──────────────────────────────── */
+function Outcome({ node, stage1Score, onContinue }: { node: OutcomeNode; stage1Score: number; onContinue: () => void }) {
+  return (
+    <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, ease: EASE }}>
+      <div className="flex items-center justify-between mb-8">
+        <MonoLabel color={BRAND}>Этап 1 завершён</MonoLabel>
+        <MonoLabel color={INK}>{stage1Score} / 50 баллов</MonoLabel>
+      </div>
+      <Rule />
+      <h2
+        className="font-display mt-9"
+        style={{ fontSize: "clamp(28px,4.6vw,46px)", lineHeight: 1.08, letterSpacing: "-0.035em", fontWeight: 600, paddingBottom: 2 }}
+      >
+        {node.title}
+      </h2>
+      <div className="mt-7" style={{ fontSize: 18.5, lineHeight: 1.65, color: INK_SOFT, maxWidth: 660 }}>
+        {node.summary}
+      </div>
+      <div className="mt-11">
+        <ArrowButton label="Перейти ко 2 этапу" onClick={onContinue} size={26} />
+      </div>
+    </motion.div>
+  );
+}
+
+/* ── Stage 2: chronology ───────────────────────────────────── */
+function Stage2({
+  prompt,
+  available,
+  sequence,
+  onAdd,
+  onRemove,
+  onReorder,
+  onSubmit,
+  busy,
+}: {
+  prompt: string;
+  available: PoolItem[];
+  sequence: PoolItem[];
+  onAdd: (i: PoolItem) => void;
+  onRemove: (id: string) => void;
+  onReorder: (s: PoolItem[]) => void;
+  onSubmit: () => void;
+  busy: boolean;
+}) {
+  return (
+    <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, ease: EASE }}>
+      <MonoLabel color={BRAND}>Этап 2 — судебная процедура</MonoLabel>
+      <h2
+        className="font-display mt-4"
+        style={{ fontSize: "clamp(27px,4.4vw,44px)", lineHeight: 1.1, letterSpacing: "-0.035em", fontWeight: 600, paddingBottom: 2 }}
+      >
+        Хронология
+      </h2>
+      <div className="mt-5" style={{ fontSize: 18, lineHeight: 1.6, color: INK_SOFT, maxWidth: 660 }}>
+        {prompt}
+      </div>
+
+      {/* Sequence builder */}
+      <div className="mt-11">
+        <div className="flex items-center gap-3 mb-4">
+          <MonoLabel color={INK}>Ваша последовательность</MonoLabel>
+          <div className="flex-1" style={{ height: 1, background: RULE_SOFT }} />
+          <MonoLabel>{sequence.length} шаг.</MonoLabel>
+        </div>
+
+        {sequence.length === 0 ? (
+          <div
+            className="py-10 text-center"
+            style={{ border: `1px dashed ${RULE}`, borderRadius: 8, color: INK_FAINT, fontSize: 15 }}
+          >
+            Добавьте шаги из списка ниже и расположите их по порядку
+          </div>
+        ) : (
+          <Reorder.Group axis="y" values={sequence} onReorder={onReorder} className="space-y-2.5">
+            {sequence.map((item, i) => (
+              <Reorder.Item
+                key={item.id}
+                value={item}
+                className="cursor-grab active:cursor-grabbing"
+                style={{ background: PAPER_RAISED, border: `1px solid ${RULE}`, borderRadius: 8 }}
+                whileDrag={{ scale: 1.015, boxShadow: "0 8px 24px rgba(22,20,15,0.12)" }}
+              >
+                <div className="flex items-center gap-4 px-5 py-4">
+                  <span
+                    className="font-mono shrink-0"
+                    style={{ fontSize: 13, color: BRAND, width: 26, textAlign: "center" }}
+                  >
+                    {String(i + 1).padStart(2, "0")}
+                  </span>
+                  <span style={{ fontSize: 16.5, lineHeight: 1.45, color: INK, flex: 1 }}>{item.text}</span>
+                  <span className="font-mono select-none shrink-0" style={{ fontSize: 16, color: INK_FAINT }} aria-hidden>
+                    ⠿
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => onRemove(item.id)}
+                    className="case-focus font-mono transition-opacity hover:opacity-100 shrink-0"
+                    style={{ fontSize: 11, color: INK_FAINT, opacity: 0.6, letterSpacing: "0.1em" }}
+                  >
+                    УБРАТЬ
+                  </button>
+                </div>
+              </Reorder.Item>
+            ))}
+          </Reorder.Group>
+        )}
+      </div>
+
+      {/* Pool */}
+      <div className="mt-11">
+        <div className="flex items-center gap-3 mb-4">
+          <MonoLabel>Доступные шаги</MonoLabel>
+          <div className="flex-1" style={{ height: 1, background: RULE_SOFT }} />
+        </div>
+        <div className="space-y-2.5">
+          {available.length === 0 && (
+            <p className="py-4" style={{ fontSize: 15, color: INK_FAINT }}>
+              Все шаги добавлены. Уберите лишние, если ошиблись.
+            </p>
+          )}
+          {available.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => onAdd(item)}
+              className="case-focus w-full text-left group transition-colors"
+              style={{ border: `1px solid ${RULE_SOFT}`, borderRadius: 8, background: PAPER }}
+            >
+              <div className="flex items-center gap-4 py-4 px-5">
+                <span
+                  className="font-mono shrink-0 transition-colors group-hover:text-[color:var(--brand)]"
+                  style={{ fontSize: 17, color: INK_FAINT, width: 26, textAlign: "center", ["--brand" as string]: BRAND }}
+                >
+                  +
+                </span>
+                <span style={{ fontSize: 16.5, lineHeight: 1.45, color: INK_SOFT, flex: 1 }}>{item.text}</span>
+              </div>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="mt-12">
+        <ArrowButton label={busy ? "Проверка…" : "Проверить порядок"} onClick={onSubmit} disabled={busy || sequence.length === 0} size={24} />
+      </div>
+    </motion.div>
+  );
+}
+
+/* ── Stage 2 review ────────────────────────────────────────── */
+function Stage2Review({ submit, onFinish, busy }: { submit: SubmitResponse; onFinish: () => void; busy: boolean }) {
+  return (
+    <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, ease: EASE }}>
+      <div className="flex items-center justify-between mb-8 flex-wrap gap-2">
+        <MonoLabel color={BRAND}>Этап 2 — проверка</MonoLabel>
+        <MonoLabel color={INK}>
+          {submit.stage2_score} / {submit.stage2_max} баллов · {submit.matched}/{submit.total_correct} на месте
+        </MonoLabel>
+      </div>
+      <Rule />
+
+      <div className="mt-3 space-y-px" style={{ background: RULE_SOFT }}>
+        {submit.feedback.map((f) => {
+          const tone = f.is_distractor ? WRONG : f.placed_correctly ? RIGHT : "#B8791F";
+          const tag = f.is_distractor ? "ЛИШНИЙ" : f.placed_correctly ? "ВЕРНО" : "НЕ ТА ПОЗИЦИЯ";
+          return (
+            <div key={f.id} style={{ background: PAPER }} className="py-5">
+              <div className="flex items-start gap-4">
+                <span className="font-mono shrink-0" style={{ fontSize: 13, color: tone, width: 28 }}>
+                  {String(f.placed_position).padStart(2, "0")}
+                </span>
+                <div className="flex-1">
+                  <div className="flex items-start justify-between gap-4">
+                    <span style={{ fontSize: 16.5, lineHeight: 1.45, color: INK, flex: 1 }}>{f.text}</span>
+                    <span className="font-mono shrink-0" style={{ fontSize: 11, color: tone, letterSpacing: "0.12em", marginTop: 3 }}>
+                      {tag}
+                    </span>
+                  </div>
+                  <p className="mt-2" style={{ fontSize: 15, lineHeight: 1.55, color: INK_SOFT }}>
+                    {f.explain}
+                  </p>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="mt-10">
+        <ArrowButton label={busy ? "Завершение…" : "Итоги и разбор"} onClick={onFinish} disabled={busy} size={24} />
+      </div>
+    </motion.div>
+  );
+}
+
+/* ── Result ────────────────────────────────────────────────── */
+function Result({ result, onRestart }: { result: CompleteResponse; onRestart: () => void }) {
+  const router = useRouter();
+  return (
+    <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, ease: EASE }}>
+      <MonoLabel color={BRAND}>Кейс завершён</MonoLabel>
+      <div className="mt-5 flex items-end gap-4" style={{ paddingBottom: 6 }}>
+        <span
+          className="font-display"
+          style={{ fontSize: "clamp(72px,14vw,132px)", lineHeight: 0.92, letterSpacing: "-0.05em", fontWeight: 600, color: BRAND }}
+        >
+          {result.score_percent}
+        </span>
+        <span className="font-display mb-4" style={{ fontSize: 36, color: INK_FAINT, fontWeight: 500 }}>
+          %
+        </span>
+      </div>
+
+      <div className="mt-8 mb-12">
+        <Rule />
+        <div className="grid grid-cols-3">
+          {[
+            ["Этап 1", `${result.stage1_score} / 50`],
+            ["Этап 2", `${result.stage2_score} / 50`],
+            ["Итого", `${result.score} / ${result.max_score}`],
+          ].map(([k, v]) => (
+            <div key={k} className="py-6">
+              <MonoLabel>{k}</MonoLabel>
+              <div className="mt-2 font-display" style={{ fontSize: 26, color: INK, fontWeight: 600, letterSpacing: "-0.02em" }}>
+                {v}
+              </div>
+            </div>
+          ))}
+        </div>
+        <Rule />
+      </div>
+
+      {/* Correct chronology */}
+      <MonoLabel color={INK}>Верная хронология процедуры</MonoLabel>
+      <div className="mt-5 mb-12 space-y-px" style={{ background: RULE_SOFT }}>
+        {result.sequence_review.map((s) => (
+          <div key={s.position} style={{ background: PAPER }} className="py-5">
+            <div className="flex items-start gap-4">
+              <span className="font-mono shrink-0" style={{ fontSize: 13, color: BRAND, width: 28 }}>
+                {String(s.position).padStart(2, "0")}
+              </span>
+              <div className="flex-1">
+                <p style={{ fontSize: 16.5, lineHeight: 1.45, color: INK }}>{s.text}</p>
+                <p className="mt-2" style={{ fontSize: 15, lineHeight: 1.55, color: INK_SOFT }}>
+                  {s.explain}
+                </p>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Expert analysis */}
+      <div style={{ background: PAPER_RAISED, border: `1px solid ${RULE}`, borderRadius: 10 }} className="p-7 sm:p-9">
+        <MonoLabel color={BRAND}>Экспертный разбор</MonoLabel>
+        <p className="mt-4" style={{ fontSize: 17.5, lineHeight: 1.7, color: INK }}>
+          {result.expert_analysis}
+        </p>
+      </div>
+
+      <div className="mt-11 flex items-center gap-8 flex-wrap">
+        <ArrowButton label="Пройти заново" glyph="↻" onClick={onRestart} size={20} />
+        <button
+          type="button"
+          onClick={() => router.push("/cases")}
+          className="case-focus font-mono uppercase transition-opacity hover:opacity-60"
+          style={{ fontSize: 12, letterSpacing: "0.18em", color: INK_SOFT }}
+        >
+          ← Все кейсы
+        </button>
+      </div>
+    </motion.div>
   );
 }

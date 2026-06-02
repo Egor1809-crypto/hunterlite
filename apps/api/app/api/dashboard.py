@@ -194,23 +194,6 @@ async def manager_dashboard(
     except Exception:
         logger.warning("Dashboard sub-query failed", exc_info=True)
 
-    # ── Active tournament ──
-    tournament = None
-    try:
-        from app.services.tournament import get_active_tournament, get_tournament_leaderboard
-        t = await get_active_tournament(db)
-        if t:
-            lb = await get_tournament_leaderboard(t.id, db, limit=5)
-            tournament = {
-                "id": str(t.id),
-                "title": t.title,
-                "scenario_id": str(t.scenario_id),
-                "week_end": t.week_end.isoformat(),
-                "leaderboard": lb,
-            }
-    except Exception:
-        logger.warning("Dashboard sub-query failed", exc_info=True)
-
     # ── Daily Hook data (weak skills, failed traps) for personalized greeting ──
     daily_hook: dict = {}
     try:
@@ -256,7 +239,6 @@ async def manager_dashboard(
         "gamification": gamification,
         "recommendations": recommendations,
         "assignments": assignments,
-        "tournament": tournament,
         "daily_hook": daily_hook,
     }
 
@@ -374,22 +356,6 @@ async def rop_dashboard(
     active_this_week = sum(1 for m in members_data if m["sessions_this_week"] > 0)
     best_performer = max(scored, key=lambda m: m["avg_score"])["full_name"] if scored else None
 
-    # ── Tournament ──
-    tournament = None
-    try:
-        from app.services.tournament import get_active_tournament, get_tournament_leaderboard
-        t = await get_active_tournament(db)
-        if t:
-            lb = await get_tournament_leaderboard(t.id, db, limit=10)
-            tournament = {
-                "id": str(t.id),
-                "title": t.title,
-                "week_end": t.week_end.isoformat(),
-                "leaderboard": lb,
-            }
-    except Exception:
-        logger.warning("Dashboard sub-query failed", exc_info=True)
-
     data = {
         "team": {
             "name": team_name,
@@ -404,7 +370,6 @@ async def rop_dashboard(
             "best_performer": best_performer,
         },
         "members": members_data,
-        "tournament": tournament,
     }
 
     await _cache_set(cache_key, data)

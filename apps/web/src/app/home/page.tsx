@@ -24,6 +24,10 @@ import { api, ApiError } from "@/lib/api";
 import { logger } from "@/lib/logger";
 import { useAuth } from "@/hooks/useAuth";
 import { useNotificationStore } from "@/stores/useNotificationStore";
+import { Card } from "@/components/ui/Card";
+import { SectionHeader } from "@/components/ui/SectionHeader";
+import { Button } from "@/components/ui/Button";
+import { Skeleton } from "@/components/ui/Skeleton";
 
 type LearningPathProgress = {
   overall_percent: number;
@@ -152,7 +156,14 @@ export default function HomePage() {
       router.push(`/training/${session.id}`);
     } catch (err) {
       if (err instanceof ApiError && err.status === 409 && err.detail?.code === "profile_incomplete") {
-        router.push("/home");
+        // Был мёртвый push("/home") (текущая страница — no-op). Ведём в настройки,
+        // где профиль реально дозаполняется, и объясняем причину.
+        useNotificationStore.getState().addToast({
+          title: "Профиль не заполнен",
+          body: "Завершите настройку профиля в разделе «Настройки», чтобы начать тренировку.",
+          type: "error",
+        });
+        router.push("/settings");
         return;
       }
       useNotificationStore.getState().addToast({
@@ -176,150 +187,162 @@ export default function HomePage() {
 
   return (
     <AuthLayout>
-      <main className="min-h-screen bg-[var(--bg-primary)] px-5 py-8 sm:px-8 lg:px-12">
+      <main className="min-h-screen px-5 py-8 sm:px-8 lg:px-12" style={{ background: "var(--bg-primary)" }}>
         <div className="mx-auto max-w-[1180px]">
+          {/* ── Masthead ── */}
           <motion.header
-            initial={{ opacity: 0, y: 18 }}
+            initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
-            className="mb-8 grid gap-6 lg:grid-cols-[1fr_320px]"
+            transition={{ duration: 0.24, ease: "easeOut" }}
+            className="mb-12 grid gap-6 lg:grid-cols-[1fr_340px] lg:items-end"
           >
             <div>
-              <p className="mb-4 text-sm font-semibold uppercase tracking-[0.18em] text-[var(--brand-logo-hunter)]">
+              <p className="mb-4 font-mono text-[11px] font-semibold uppercase tracking-[0.18em]" style={{ color: "var(--text-secondary)" }}>
                 {getTimeGreeting()}
               </p>
-              <h1 className="max-w-3xl text-[clamp(3.5rem,8vw,7.5rem)] font-semibold leading-[0.84] tracking-[-0.075em] text-[var(--text-primary)]">
+              <h1 className="max-w-3xl font-semibold leading-[0.86] tracking-[-0.07em]" style={{ color: "var(--text-primary)", fontSize: "clamp(3.25rem, 7vw, 6rem)" }}>
                 {firstName}
               </h1>
-              <p className="mt-5 max-w-2xl text-xl leading-snug text-[var(--brand-logo-hunter)]">
-                Кабинет профессионального роста: обучение, практика, кейсы и аттестация в одной траектории.
+              <p className="mt-5 max-w-xl text-lg leading-snug" style={{ color: "var(--text-secondary)" }}>
+                Обучение, практика, кейсы и аттестация — в одной траектории.
               </p>
             </div>
 
-            <div className="rounded-[28px] border border-[var(--border-color)] bg-[var(--surface-card)] p-6 shadow-[var(--shadow-md)]">
-              <p className="text-sm font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">Общий прогресс</p>
-              <div className="mt-8 flex items-end gap-3">
-                <span className="text-6xl font-semibold leading-none tracking-[-0.08em] text-[var(--brand-logo-hunter)]">
-                  {loading ? "..." : `${overallPercent}%`}
+            <Card accentTop className="lg:self-stretch">
+              <p className="font-mono text-[11px] font-semibold uppercase tracking-[0.16em]" style={{ color: "var(--text-secondary)" }}>
+                Общий прогресс
+              </p>
+              <div className="mt-6 flex items-end gap-2">
+                <span className="font-mono text-[56px] font-semibold leading-none tabular-nums" style={{ color: "var(--text-primary)" }}>
+                  {loading ? "—" : overallPercent}
                 </span>
-                <span className="pb-2 text-sm text-[var(--text-muted)]">программы</span>
+                <span className="pb-2 text-sm" style={{ color: "var(--text-muted)" }}>% программы</span>
               </div>
-              <div className="mt-6 h-2 overflow-hidden rounded-full bg-[var(--bg-tertiary)]">
-                <div
-                  className="h-full rounded-full bg-[var(--brand-logo-hunter)]"
-                  style={{ width: `${Math.min(100, Math.max(0, overallPercent))}%` }}
+              <div className="mt-5 h-1 w-full overflow-hidden rounded-full" style={{ background: "var(--border-color)" }}>
+                <motion.div
+                  className="h-full rounded-full"
+                  style={{ background: "var(--primary)" }}
+                  initial={{ width: 0 }}
+                  animate={{ width: `${Math.min(100, Math.max(0, overallPercent))}%` }}
+                  transition={{ duration: 0.6, ease: "easeOut" }}
                 />
               </div>
-            </div>
+            </Card>
           </motion.header>
 
-          <section className="mb-8 rounded-[32px] border border-[var(--border-color)] bg-[var(--surface-card)] p-5 shadow-[var(--shadow-sm)] sm:p-7">
-            <div className="mb-6 flex items-center justify-between gap-4">
-              <div>
-                <p className="text-sm font-semibold uppercase tracking-[0.16em] text-[var(--brand-logo-hunter)]">
-                  Путь к квалификации
-                </p>
-                <h2 className="mt-2 text-3xl font-semibold tracking-[-0.05em] text-[var(--text-primary)]">
-                  5 шагов до уверенной практики
-                </h2>
-              </div>
-              <span className="hidden rounded-full border border-[var(--border-color)] px-4 py-2 text-sm font-semibold text-[var(--text-secondary)] sm:inline-flex">
-                {activeStage + 1}/5 шаг
-              </span>
-            </div>
-
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+          {/* ── Путь к квалификации ── */}
+          <section className="mb-12">
+            <SectionHeader
+              code="01 · ПУТЬ"
+              title="Пять шагов до уверенной практики"
+              right={
+                <span className="hidden font-mono text-[12px] font-semibold tabular-nums sm:inline-flex" style={{ color: "var(--text-muted)" }}>
+                  ШАГ {activeStage + 1}/5
+                </span>
+              }
+            />
+            <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
               {stages.map((stage, index) => {
                 const Icon = stage.icon;
                 const value = progress[stage.key] ?? 0;
                 const isActive = index === activeStage;
                 const done = value >= 100;
                 return (
-                  <Link
-                    key={stage.key}
-                    href={stage.href}
-                    className="rounded-[24px] border p-5 no-underline transition hover:-translate-y-0.5 hover:shadow-[var(--shadow-md)]"
-                    style={{
-                      borderColor: isActive ? "var(--brand-logo-hunter)" : "var(--border-color)",
-                      background: isActive ? "color-mix(in srgb, var(--brand-logo-hunter) 9%, var(--surface-card))" : "var(--surface-card)",
-                    }}
-                  >
-                    <div className="mb-7 flex items-center justify-between">
-                      <span
-                        className="flex h-11 w-11 items-center justify-center rounded-2xl border"
-                        style={{
-                          borderColor: done ? "var(--success)" : "var(--border-color)",
-                          color: done ? "var(--success)" : "var(--brand-logo-hunter)",
-                          background: "var(--bg-secondary)",
-                        }}
-                      >
-                          {done ? <CheckCircle2 size={20} strokeWidth={1.75} /> : <Icon size={20} strokeWidth={1.75} />}
-                      </span>
-                      <span className="text-sm font-semibold text-[var(--text-muted)]">{value}%</span>
-                    </div>
-                    <h3 className="text-xl font-semibold tracking-[-0.04em] text-[var(--text-primary)]">{stage.title}</h3>
-                    <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-[var(--bg-tertiary)]">
-                      <div className="h-full rounded-full bg-[var(--brand-logo-hunter)]" style={{ width: `${value}%` }} />
-                    </div>
+                  <Link key={stage.key} href={stage.href} className="block no-underline">
+                    <Card
+                      variant="interactive"
+                      accentTop={isActive}
+                      style={{
+                        borderColor: isActive ? "var(--primary)" : "var(--border-color)",
+                        background: isActive ? "var(--primary-muted)" : "var(--surface-card)",
+                        height: "100%",
+                      }}
+                    >
+                      <div className="mb-7 flex items-center justify-between">
+                        <span
+                          className="flex h-10 w-10 items-center justify-center rounded-xl"
+                          style={{
+                            border: `1px solid ${done ? "var(--success)" : "var(--border-color)"}`,
+                            color: done ? "var(--success)" : "var(--primary)",
+                            background: "var(--bg-secondary)",
+                          }}
+                        >
+                          {done ? <CheckCircle2 size={18} strokeWidth={1.75} /> : <Icon size={18} strokeWidth={1.75} />}
+                        </span>
+                        <span className="font-mono text-[12px] font-semibold tabular-nums" style={{ color: "var(--text-muted)" }}>{value}%</span>
+                      </div>
+                      <h3 className="text-lg font-semibold tracking-tight" style={{ color: "var(--text-primary)" }}>{stage.title}</h3>
+                      <div className="mt-4 h-1 overflow-hidden rounded-full" style={{ background: "var(--border-color)" }}>
+                        <div className="h-full rounded-full" style={{ width: `${value}%`, background: "var(--primary)" }} />
+                      </div>
+                    </Card>
                   </Link>
                 );
               })}
             </div>
           </section>
 
-          <section className="mb-8 grid gap-4 lg:grid-cols-3">
+          {/* ── Действия ── */}
+          <section className="mb-12 grid gap-4 lg:grid-cols-3">
             <ActionCard
               title={waitingClient ? "Входящий клиент" : "Тренировочный клиент"}
-              text={waitingClient ? `${waitingClient.full_name}, ${waitingClient.city}. Долг ${(waitingClient.total_debt / 1000).toFixed(0)} тыс. ₽` : "Запустите короткую консультацию с AI-клиентом."}
+              text={waitingClient ? `${waitingClient.full_name}, ${waitingClient.city}. Долг ${(waitingClient.total_debt / 1000).toFixed(0)} тыс. ₽` : "Короткая консультация с AI-клиентом."}
               icon={<MessageCircle size={22} strokeWidth={1.75} />}
-              action={starting ? "Запускаем..." : "Начать"}
+              action={starting ? "Запускаем…" : "Начать"}
               onClick={quickStart}
               disabled={starting}
             />
             <ActionCard
               title="Тест по теме"
-              text="Проверьте знания в спокойном формате без лишнего визуального шума."
+              text="Спокойная проверка знаний — без лишнего визуального шума."
               icon={<ListChecks size={22} strokeWidth={1.75} />}
               href="/training"
               action="Открыть тесты"
             />
             <ActionCard
               title="Разбор кейса"
-              text="Практическое дело с решениями, последствиями и экспертным отчётом."
+              text="Дело с решениями, последствиями и экспертным отчётом."
               icon={<FolderOpen size={22} strokeWidth={1.75} />}
               href="/cases"
               action="К кейсам"
             />
           </section>
 
+          {/* ── Метрики + Следующий шаг ── */}
           <section className="grid gap-4 lg:grid-cols-[1fr_360px]">
             <div className="grid gap-4 sm:grid-cols-2">
-              <MetricCard label="Сессий" value={stats?.total_sessions ?? 0} icon={<CircleGauge size={18} strokeWidth={1.75} />} />
-              <MetricCard label="Средний балл" value={stats?.average_score ?? 0} icon={<ListChecks size={18} strokeWidth={1.75} />} />
-              <MetricCard label="Лучший результат" value={stats?.best_score ?? 0} icon={<Award size={18} strokeWidth={1.75} />} />
-              <MetricCard label="За неделю" value={stats?.this_week_sessions ?? 0} icon={<CalendarDays size={18} strokeWidth={1.75} />} />
+              <MetricCard label="Сессий" value={stats?.total_sessions ?? 0} loading={loading} icon={<CircleGauge size={18} strokeWidth={1.75} />} />
+              <MetricCard label="Средний балл" value={stats?.average_score ?? 0} suffix="%" loading={loading} icon={<ListChecks size={18} strokeWidth={1.75} />} />
+              <MetricCard label="Лучший результат" value={stats?.best_score ?? 0} suffix="%" loading={loading} icon={<Award size={18} strokeWidth={1.75} />} />
+              <MetricCard label="За неделю" value={stats?.this_week_sessions ?? 0} loading={loading} icon={<CalendarDays size={18} strokeWidth={1.75} />} />
             </div>
 
-            <aside className="rounded-[28px] border border-[var(--border-color)] bg-[var(--surface-card)] p-6 shadow-[var(--shadow-sm)]">
-              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[var(--brand-logo-hunter)] text-white">
+            <Card accentTop className="flex flex-col">
+              <div
+                className="flex h-10 w-10 items-center justify-center rounded-xl text-white"
+                style={{ background: "var(--primary)" }}
+              >
                 {loading ? <Loader2 size={18} className="animate-spin" /> : <Sparkles size={18} />}
               </div>
-              <p className="mt-8 text-sm font-semibold uppercase tracking-[0.16em] text-[var(--brand-logo-hunter)]">
+              <p className="mt-7 font-mono text-[11px] font-semibold uppercase tracking-[0.16em]" style={{ color: "var(--text-secondary)" }}>
                 Следующий шаг
               </p>
-              <h2 className="mt-3 text-3xl font-semibold tracking-[-0.05em] text-[var(--text-primary)]">
+              <h2 className="mt-3 text-2xl font-semibold tracking-tight" style={{ color: "var(--text-primary)" }}>
                 {primaryRecommendation?.title || "Продолжить обучение"}
               </h2>
-              <p className="mt-4 text-base leading-snug text-[var(--text-secondary)]">
-                {primaryRecommendation?.description || "Закрепите материал через тест или короткий практический кейс."}
+              <p className="mt-3 flex-1 text-[15px] leading-snug" style={{ color: "var(--text-secondary)" }}>
+                {primaryRecommendation?.description || "Закрепите материал тестом или коротким кейсом."}
               </p>
-              <Link
+              <Button
                 href={primaryRecommendation?.action_url || "/training"}
-                className="mt-8 inline-flex w-full items-center justify-between rounded-full bg-[var(--text-primary)] px-5 py-4 text-sm font-semibold text-white no-underline transition hover:bg-[var(--brand-logo-hunter)]"
+                variant="primary"
+                fluid
+                iconRight={<ArrowRight size={16} />}
+                className="mt-7"
               >
                 {primaryRecommendation?.action_label || "Перейти"}
-                <ArrowRight size={18} />
-              </Link>
-            </aside>
+              </Button>
+            </Card>
           </section>
         </div>
       </main>
@@ -344,53 +367,78 @@ function ActionCard({
   onClick?: () => void;
   disabled?: boolean;
 }) {
-  const content = (
+  const inner = (
     <>
       <div className="flex items-start justify-between gap-4">
-        <span className="flex h-12 w-12 items-center justify-center rounded-2xl border border-[var(--border-color)] bg-[var(--bg-secondary)] text-[var(--brand-logo-hunter)]">
+        <span
+          className="flex h-12 w-12 items-center justify-center rounded-xl"
+          style={{ border: "1px solid var(--border-color)", background: "var(--bg-secondary)", color: "var(--primary)" }}
+        >
           {icon}
         </span>
-        <ArrowRight size={18} className="text-[var(--text-muted)]" />
+        <ArrowRight size={18} style={{ color: "var(--text-muted)" }} />
       </div>
-      <h3 className="mt-8 text-3xl font-semibold tracking-[-0.055em] text-[var(--text-primary)]">{title}</h3>
-      <p className="mt-3 min-h-[48px] text-base leading-snug text-[var(--text-secondary)]">{text}</p>
-      <div className="mt-8 text-sm font-semibold text-[var(--brand-logo-hunter)]">{action}</div>
+      <h3 className="mt-7 text-2xl font-semibold tracking-tight" style={{ color: "var(--text-primary)" }}>{title}</h3>
+      <p className="mt-2 text-[15px] leading-snug" style={{ color: "var(--text-secondary)" }}>{text}</p>
+      <div className="mt-6 text-sm font-semibold" style={{ color: "var(--primary)" }}>{action}</div>
     </>
   );
 
   if (href) {
     return (
-      <Link
-        href={href}
-        className="rounded-[28px] border border-[var(--border-color)] bg-[var(--surface-card)] p-6 no-underline shadow-[var(--shadow-sm)] transition hover:-translate-y-0.5 hover:border-[var(--brand-logo-hunter)] hover:shadow-[var(--shadow-md)]"
-      >
-        {content}
+      <Link href={href} className="block no-underline">
+        <Card variant="interactive" style={{ height: "100%" }}>{inner}</Card>
       </Link>
     );
   }
 
   return (
-    <button
-      type="button"
+    <Card
+      variant="interactive"
       onClick={onClick}
-      disabled={disabled}
-      className="rounded-[28px] border border-[var(--border-color)] bg-[var(--surface-card)] p-6 text-left shadow-[var(--shadow-sm)] transition hover:-translate-y-0.5 hover:border-[var(--brand-logo-hunter)] hover:shadow-[var(--shadow-md)] disabled:cursor-wait disabled:opacity-70"
+      role="button"
+      tabIndex={disabled ? -1 : 0}
+      aria-disabled={disabled}
+      onKeyDown={(e) => {
+        if (!disabled && (e.key === "Enter" || e.key === " ")) {
+          e.preventDefault();
+          onClick?.();
+        }
+      }}
+      style={{ height: "100%", opacity: disabled ? 0.7 : 1, cursor: disabled ? "wait" : "pointer" }}
     >
-      {content}
-    </button>
+      {inner}
+    </Card>
   );
 }
 
-function MetricCard({ label, value, icon }: { label: string; value: number; icon: ReactNode }) {
+function MetricCard({
+  label,
+  value,
+  suffix,
+  loading,
+  icon,
+}: {
+  label: string;
+  value: number;
+  suffix?: string;
+  loading?: boolean;
+  icon: ReactNode;
+}) {
   return (
-    <div className="rounded-[28px] border border-[var(--border-color)] bg-[var(--surface-card)] p-6 shadow-[var(--shadow-sm)]">
+    <Card>
       <div className="flex items-center justify-between">
-        <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[var(--bg-secondary)] text-[var(--brand-logo-hunter)]">
+        <span
+          className="flex h-10 w-10 items-center justify-center rounded-xl"
+          style={{ background: "var(--bg-secondary)", color: "var(--primary)" }}
+        >
           {icon}
         </span>
-        <span className="text-sm font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)]">{label}</span>
+        <span className="font-mono text-[11px] font-semibold uppercase tracking-[0.12em]" style={{ color: "var(--text-muted)" }}>{label}</span>
       </div>
-      <div className="mt-8 text-5xl font-semibold tracking-[-0.07em] text-[var(--text-primary)]">{value}</div>
-    </div>
+      <div className="mt-7 font-mono text-[44px] font-semibold leading-none tabular-nums" style={{ color: "var(--text-primary)" }}>
+        {loading ? <Skeleton width={64} height={40} rounded="8px" /> : <>{value}{suffix ?? ""}</>}
+      </div>
+    </Card>
   );
 }

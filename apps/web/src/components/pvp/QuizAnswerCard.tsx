@@ -43,9 +43,9 @@ export function QuizAnswerCard({
       type="button"
       onClick={() => interactive && onPick(index)}
       disabled={!interactive}
-      initial={{ opacity: 0, x: -16 }}
-      animate={{ opacity: dim ? 0.35 : 1, x: 0 }}
-      transition={{ delay: index * 0.04, duration: 0.22 }}
+      initial={false}
+      animate={{ opacity: dim ? 0.35 : 1 }}
+      transition={{ duration: 0.2 }}
       whileHover={interactive ? { y: -1 } : undefined}
       whileTap={interactive ? { y: 0 } : undefined}
       className="group relative w-full flex items-center gap-4 text-left rounded-2xl overflow-hidden"

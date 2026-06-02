@@ -102,5 +102,6 @@ class UserResponse(BaseModel):
     google_id: str | None = None
     yandex_id: str | None = None
     team_id: str | None = None
+    telegram_linked: bool = False
 
     model_config = {"from_attributes": True}

@@ -242,6 +242,7 @@ export interface User {
   google_id?: string | null;
   yandex_id?: string | null;
   team?: string;
+  telegram_linked?: boolean;
 }
 
 export interface UserProfileResponse {
@@ -433,11 +434,23 @@ export interface StorySummary {
   latest_session_id: string | null;
 }
 
+export interface HistoryQuizSummary {
+  quiz_session_id: string;
+  category: string | null;
+  map_level: number | null;
+  total_questions: number;
+  correct_answers: number;
+  incorrect_answers: number;
+  score: number;
+  completed_at: string;
+}
+
 export interface HistoryEntry {
-  kind: "story" | "session";
+  kind: "story" | "session" | "crm_client" | "quiz";
   sort_at: string;
-  latest_session: TrainingSession;
+  latest_session: TrainingSession | null;
   story: StorySummary | null;
+  quiz?: HistoryQuizSummary | null;
   sessions: StoryCallSummary[];
   calls_completed: number;
   avg_score: number | null;

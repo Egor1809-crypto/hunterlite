@@ -82,13 +82,12 @@ function PixelChip({
   active,
   label,
   onClick,
-  accent = "var(--accent)",
   disabled = false,
 }: {
   active: boolean;
   label: string;
   onClick: () => void;
-  accent?: string;
+  accent?: string; // kept for call-site compatibility; no longer drives colour
   disabled?: boolean;
 }) {
   return (
@@ -98,13 +97,13 @@ function PixelChip({
       disabled={disabled}
       whileHover={!disabled ? { scale: 1.03 } : {}}
       whileTap={!disabled ? { scale: 0.97 } : {}}
-      className="rounded-xl text-sm font-medium transition-all"
+      className="rounded-lg text-sm font-medium transition-colors"
       style={{
         padding: "8px 14px",
         fontSize: 14,
-        background: active ? accent : "rgba(255,255,255,0.04)",
-        border: `1px solid ${active ? accent : "rgba(255,255,255,0.12)"}`,
-        color: active ? "#0b0b14" : "var(--text-secondary)",
+        background: active ? "var(--primary)" : "transparent",
+        border: `1px solid ${active ? "var(--primary)" : "var(--border-color)"}`,
+        color: active ? "#fff" : "var(--text-secondary)",
         cursor: disabled ? "not-allowed" : "pointer",
         opacity: disabled ? 0.5 : 1,
       }}
@@ -152,44 +151,31 @@ function PixelInput({
 
 function SettingsSection({
   children,
-  accent,
   title,
   icon: Icon,
   description,
   mt,
 }: {
   children: ReactNode;
-  accent: string;
+  accent?: string; // kept for call-site compatibility; no longer drives colour
   title: string;
   icon: LucideIcon | React.ComponentType<{ size?: number; weight?: "duotone" | "regular" | "fill" | "bold"; style?: React.CSSProperties }>;
   description?: string;
   mt?: number;
 }) {
   return (
-    <section
-      className="relative rounded-2xl"
-      style={{
-        marginTop: mt ?? 32,
-        border: `1px solid ${accent}22`,
-        background: "var(--surface-card, rgba(8,5,18,0.45))",
-      }}
-    >
-      {/* Section header */}
-      <div
-        className="flex items-center gap-2 px-5 pt-5 pb-1"
-      >
-        <Icon size={16} weight="duotone" style={{ color: accent }} />
-        <span className="text-sm font-semibold" style={{ color: accent }}>
+    <section className="relative" style={{ marginTop: mt ?? 48 }}>
+      {/* Section header — single accent mark + scale heading, no box */}
+      <div className="flex items-center gap-2.5 border-t pt-5" style={{ borderColor: "var(--border-color)" }}>
+        <Icon size={15} style={{ color: "var(--text-muted)" }} />
+        <h2 className="text-[15px] font-semibold tracking-tight" style={{ color: "var(--text-primary)" }}>
           {title}
-        </span>
+        </h2>
       </div>
 
-      <div className="p-4 md:p-5">
+      <div className="mt-4">
         {description && (
-          <p
-            className="mb-4 text-sm"
-            style={{ color: "var(--text-muted)" }}
-          >
+          <p className="mb-4 text-[13px] leading-relaxed" style={{ color: "var(--text-muted)" }}>
             {description}
           </p>
         )}
@@ -345,12 +331,16 @@ export default function SettingsPage() {
         <div className="app-page max-w-4xl mx-auto">
           <BackButton href="/home" label="На главную" />
 
-          {/* Page title */}
+          {/* Page title — editorial header */}
           <div className="pt-2 pb-2">
-            <h1 className="font-display text-2xl sm:text-3xl font-bold" style={{ color: "var(--text-primary)" }}>
+            <div aria-hidden className="mb-4 h-0.5 w-8" style={{ background: "var(--primary)" }} />
+            <p className="font-mono text-[11px] uppercase tracking-[0.16em]" style={{ color: "var(--text-secondary)" }}>
+              LegalHunter
+            </p>
+            <h1 className="mt-2 text-3xl sm:text-4xl font-semibold tracking-tight" style={{ color: "var(--text-primary)" }}>
               Настройки
             </h1>
-            <p className="text-sm mt-1" style={{ color: "var(--text-muted)" }}>
+            <p className="text-sm mt-2" style={{ color: "var(--text-muted)" }}>
               Управление профилем и параметрами
             </p>
           </div>
@@ -401,8 +391,8 @@ export default function SettingsPage() {
                     exit={{ opacity: 0 }}
                     className="inline-flex items-center gap-2 px-2.5 py-1 rounded-xl text-sm font-medium"
                     style={{
-                      background: "rgba(255,255,255,0.05)",
-                      border: "1px solid rgba(255,255,255,0.18)",
+                      background: "var(--bg-secondary)",
+                      border: "1px solid var(--border-color)",
                       color: "var(--text-muted)",
                       fontSize: 14,
                     }}
@@ -532,16 +522,17 @@ export default function SettingsPage() {
                       key={c.key}
                       type="button"
                       onClick={() => setAccentColor(c.key)}
-                      className="rounded-xl transition-all"
+                      className="rounded-full transition-transform"
                       style={{
-                        width: 36,
-                        height: 36,
+                        width: 34,
+                        height: 34,
                         background: c.color,
-                        border: accentColor === c.key ? "3px solid #fff" : "2px solid rgba(255,255,255,0.2)",
-                        boxShadow: accentColor === c.key ? `0 0 12px ${c.color}` : "none",
+                        border: accentColor === c.key ? "2px solid var(--text-primary)" : "1px solid var(--border-color)",
+                        outline: accentColor === c.key ? "2px solid var(--bg-primary)" : "none",
+                        outlineOffset: accentColor === c.key ? "-4px" : 0,
                       }}
-                      whileHover={{ scale: 1.1 }}
-                      whileTap={{ scale: 0.9 }}
+                      whileHover={{ scale: 1.08 }}
+                      whileTap={{ scale: 0.94 }}
                       title={c.label}
                     />
                   ))}
@@ -578,19 +569,18 @@ export default function SettingsPage() {
                             : [...pipelineColumns, status]
                           );
                         }}
-                        className="inline-flex items-center gap-2 rounded-xl text-sm font-medium transition-all"
+                        className="inline-flex items-center gap-2 rounded-lg text-sm font-medium transition-colors"
                         style={{
                           padding: "8px 14px",
                           fontSize: 14,
-                          background: on ? `${statusColor}1f` : "rgba(255,255,255,0.04)",
-                          border: `2px solid ${on ? statusColor : "rgba(255,255,255,0.18)"}`,
-                          color: on ? statusColor : "var(--text-secondary)",
-                          opacity: on ? 1 : 0.7,
+                          background: on ? "var(--primary-muted)" : "transparent",
+                          border: `1px solid ${on ? "var(--primary)" : "var(--border-color)"}`,
+                          color: on ? "var(--text-primary)" : "var(--text-secondary)",
+                          opacity: on ? 1 : 0.8,
                           cursor: disabled ? "not-allowed" : "pointer",
-                          boxShadow: on ? `0 0 8px ${statusColor}55` : "none",
                         }}
                       >
-                        <span className="rounded-xl" style={{ width: 8, height: 8, background: statusColor }} />
+                        <span className="rounded-full" style={{ width: 8, height: 8, background: statusColor }} />
                         {CLIENT_STATUS_LABELS[status as ClientStatus]}
                       </button>
                     );

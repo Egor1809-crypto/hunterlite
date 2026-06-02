@@ -1674,10 +1674,10 @@ SEED_ACHIEVEMENTS: list[AchievementDef] = [
     ),
 ]
 
-# Combined registry
+# Combined registry (ARENA_ACHIEVEMENTS removed — PvP/arena layer retired)
 ALL_ACHIEVEMENT_DEFS: list[AchievementDef] = (
     BASIC_ACHIEVEMENTS + NARRATIVE_ACHIEVEMENTS + ANTI_ACHIEVEMENTS
-    + ARENA_ACHIEVEMENTS + TEAM_ACHIEVEMENTS + SEED_ACHIEVEMENTS
+    + TEAM_ACHIEVEMENTS + SEED_ACHIEVEMENTS
 )
 
 
@@ -2843,178 +2843,38 @@ class AchievementValidator:
 
     # --- PvE boss checks ---
 
+    # PvE boss achievements retired (PvE/PvP layer removed). These checks are
+    # kept registered as inert no-ops so their legacy AchievementDef entries
+    # never fire and never import the deleted models.pvp module.
     async def _check_pve_boss_flawless(
         self, user_id: uuid.UUID, db: AsyncSession, stats: dict, conditions: dict | None = None
     ) -> bool:
-        """Defeated a specific boss type without any errors."""
-        from app.models.pvp import PvEBossRun
-        boss_type = (conditions or {}).get("boss_type", "perfectionist")
-        result = await db.execute(
-            select(PvEBossRun.id).where(
-                PvEBossRun.user_id == user_id,
-                PvEBossRun.boss_type == boss_type,
-                PvEBossRun.is_defeated.is_(True),
-            ).limit(10)
-        )
-        for (run_id,) in result.all():
-            # Check special_mechanics_log for flawless
-            run_result = await db.execute(
-                select(PvEBossRun.special_mechanics_log).where(PvEBossRun.id == run_id)
-            )
-            log = run_result.scalar()
-            if isinstance(log, dict) and log.get("errors", 0) == 0:
-                return True
         return False
 
     async def _check_pve_boss_composure(
         self, user_id: uuid.UUID, db: AsyncSession, stats: dict, conditions: dict | None = None
     ) -> bool:
-        """Defeated energy vampire boss with composure above threshold."""
-        from app.models.pvp import PvEBossRun
-        min_composure = (conditions or {}).get("min_composure", 50)
-        # Vampire boss is boss_index=1 (the second boss)
-        result = await db.execute(
-            select(PvEBossRun.special_mechanics_log).where(
-                PvEBossRun.user_id == user_id,
-                PvEBossRun.boss_index == 1,
-                PvEBossRun.is_defeated.is_(True),
-            )
-        )
-        for (log,) in result.all():
-            if isinstance(log, dict):
-                composure = log.get("final_composure_pct", 0)
-                if composure > min_composure:
-                    return True
         return False
 
     async def _check_pve_boss_score(
         self, user_id: uuid.UUID, db: AsyncSession, stats: dict, conditions: dict | None = None
     ) -> bool:
-        """Defeated boss of specific type with score above threshold."""
-        from app.models.pvp import PvEBossRun
-        if not conditions:
-            return False
-        boss_type = conditions.get("boss_type", "chameleon")
-        min_score = conditions.get("min_score", 70)
-        result = await db.execute(
-            select(PvEBossRun.id).where(
-                PvEBossRun.user_id == user_id,
-                PvEBossRun.boss_type == boss_type,
-                PvEBossRun.is_defeated.is_(True),
-                PvEBossRun.score > min_score,
-            ).limit(1)
-        )
-        return result.scalar_one_or_none() is not None
+        return False
 
     # --- Cross-system checks ---
 
+    # Cross-system PvP achievements retired (PvP layer removed). Checks that
+    # depended on PvPDuel are inert no-ops; quiz/training-only cross checks
+    # (theory_practice) are preserved below.
     async def _check_cross_same_day(
         self, user_id: uuid.UUID, db: AsyncSession, stats: dict, conditions: dict | None = None
     ) -> bool:
-        """Two different activities completed on the same calendar day."""
-        from app.models.progress import SessionHistory
-        from app.models.pvp import PvPDuel
-        if not conditions:
-            return False
-        activity_a = conditions.get("activity_a", "")
-        activity_b = conditions.get("activity_b", "")
-
-        # Get dates with training sessions scoring 80+
-        training_dates: set[date] = set()
-        if activity_a in ("training", "training_80") or activity_b in ("training", "training_80"):
-            min_score = 80 if "80" in activity_a or "80" in activity_b else 0
-            result = await db.execute(
-                select(func.date(SessionHistory.created_at)).where(
-                    SessionHistory.user_id == user_id,
-                    SessionHistory.score_total >= min_score,
-                ).distinct()
-            )
-            training_dates = {row[0] for row in result.all()}
-
-        # Get dates with PvP wins/duels
-        pvp_dates: set[date] = set()
-        if "pvp" in activity_a or "pvp" in activity_b:
-            need_win = "win" in activity_a or "win" in activity_b
-            query = select(func.date(PvPDuel.completed_at)).where(
-                PvPDuel.completed_at.isnot(None),
-            )
-            if need_win:
-                query = query.where(PvPDuel.winner_id == user_id)
-            else:
-                from sqlalchemy import or_
-                query = query.where(
-                    or_(PvPDuel.player1_id == user_id, PvPDuel.player2_id == user_id)
-                )
-            result = await db.execute(query.distinct())
-            pvp_dates = {row[0] for row in result.all()}
-
-        # Get dates with knowledge quiz 90%+
-        knowledge_dates: set[date] = set()
-        if "knowledge" in activity_a or "knowledge" in activity_b:
-            from app.models.knowledge import KnowledgeQuizSession, QuizSessionStatus
-            min_quiz = 90 if "90" in activity_a or "90" in activity_b else 80
-            result = await db.execute(
-                select(func.date(KnowledgeQuizSession.started_at)).where(
-                    KnowledgeQuizSession.user_id == user_id,
-                    KnowledgeQuizSession.status == QuizSessionStatus.completed,
-                    KnowledgeQuizSession.score >= min_quiz,
-                ).distinct()
-            )
-            knowledge_dates = {row[0] for row in result.all()}
-
-        # Check overlap of date sets
-        all_sets = []
-        if training_dates:
-            all_sets.append(training_dates)
-        if pvp_dates:
-            all_sets.append(pvp_dates)
-        if knowledge_dates:
-            all_sets.append(knowledge_dates)
-
-        if len(all_sets) < 2:
-            return False
-
-        # If activity_c is specified, all three must overlap on same day
-        if conditions.get("activity_c"):
-            if len(all_sets) < 3:
-                return False
-            common = all_sets[0]
-            for s in all_sets[1:]:
-                common = common & s
-            return len(common) > 0
-
-        # Otherwise: any two sets share a date
-        for i in range(len(all_sets)):
-            for j in range(i + 1, len(all_sets)):
-                if all_sets[i] & all_sets[j]:
-                    return True
         return False
 
     async def _check_cross_full_cycle(
         self, user_id: uuid.UUID, db: AsyncSession, stats: dict, conditions: dict | None = None
     ) -> bool:
-        """Train an archetype, then meet it in PvP, then win.
-        Simplified: user has both training deal AND PvP win with same archetype-related scenario.
-        """
-        from app.models.progress import SessionHistory
-        from app.models.pvp import PvPDuel
-        # Get archetypes trained (with deal outcome)
-        result = await db.execute(
-            select(func.distinct(SessionHistory.archetype_code)).where(
-                SessionHistory.user_id == user_id,
-                SessionHistory.outcome == "deal",
-            )
-        )
-        trained = {row[0] for row in result.all()}
-        if not trained:
-            return False
-        # Check PvP wins (simplified: user won at least one PvP)
-        pvp_result = await db.execute(
-            select(PvPDuel.id).where(
-                PvPDuel.winner_id == user_id,
-            ).limit(1)
-        )
-        return pvp_result.scalar_one_or_none() is not None and len(trained) >= 1
+        return False
 
     async def _check_cross_theory_practice(
         self, user_id: uuid.UUID, db: AsyncSession, stats: dict, conditions: dict | None = None
@@ -3045,43 +2905,7 @@ class AchievementValidator:
     async def _check_cross_revenge(
         self, user_id: uuid.UUID, db: AsyncSession, stats: dict, conditions: dict | None = None
     ) -> bool:
-        """Lost a PvP -> did 3+ training sessions -> won PvP."""
-        from app.models.pvp import PvPDuel
-        from app.models.progress import SessionHistory
-        from sqlalchemy import or_, and_
-        # Find PvP losses
-        loss_result = await db.execute(
-            select(PvPDuel.completed_at).where(
-                or_(PvPDuel.player1_id == user_id, PvPDuel.player2_id == user_id),
-                PvPDuel.winner_id != user_id,
-                PvPDuel.winner_id.isnot(None),
-                PvPDuel.completed_at.isnot(None),
-            ).order_by(PvPDuel.completed_at.desc()).limit(10)
-        )
-        losses = loss_result.all()
-        if not losses:
-            return False
-
-        for (loss_time,) in losses:
-            # Count training sessions after this loss
-            training_count_result = await db.execute(
-                select(func.count(SessionHistory.id)).where(
-                    SessionHistory.user_id == user_id,
-                    SessionHistory.created_at > loss_time,
-                )
-            )
-            training_count = training_count_result.scalar() or 0
-            if training_count < 3:
-                continue
-            # Check for PvP win after training
-            win_result = await db.execute(
-                select(PvPDuel.id).where(
-                    PvPDuel.winner_id == user_id,
-                    PvPDuel.completed_at > loss_time,
-                ).limit(1)
-            )
-            if win_result.scalar_one_or_none():
-                return True
+        """Lost a PvP -> did 3+ training sessions -> won PvP. Retired (PvP removed)."""
         return False
 
     async def _check_cross_triple_threat(
@@ -3234,329 +3058,6 @@ def create_validator(
 
 
 # ═════════════════════════════════════════════════════════════════════════════
-# LEADERBOARD (unchanged from v1)
-# ═════════════════════════════════════════════════════════════════════════════
-
-async def get_leaderboard(
-    db: AsyncSession,
-    period: str = "week",
-    team_id: uuid.UUID | None = None,
-    limit: int = 20,
-) -> list[dict]:
-    """Generate leaderboard from actual session data.
-
-    Ghost filter: "all" period still limits to last 30 days to exclude inactive users.
-    """
-    from app.models.user import User
-
-    if period == "week":
-        since = datetime.now(timezone.utc) - timedelta(days=7)
-    elif period == "month":
-        since = datetime.now(timezone.utc) - timedelta(days=30)
-    else:
-        # "all" — filter out ghosts (inactive >30 days) per audit fix
-        since = datetime.now(timezone.utc) - timedelta(days=30)
-
-    # B5-11: leaderboard is the *manager* cohort. Pre-audit, the
-    # query did not filter on User.role — so admins/ROPs/methodologists
-    # who happened to start a training session for testing rendered
-    # at the top, distorting the rankings (audit found the admin
-    # user "Администратор" sitting at rank 1 on prod).
-    # Hard-filter to ``role='manager'`` so the leaderboard reflects
-    # who's actually competing. ROPs/admins log in for governance,
-    # not to play.
-    from app.models.user import UserRole
-
-    query = (
-        select(
-            TrainingSession.user_id,
-            User.full_name,
-            User.avatar_url,
-            func.count(TrainingSession.id).label("sessions_count"),
-            func.coalesce(func.sum(TrainingSession.score_total), 0).label("total_score"),
-            func.coalesce(func.avg(TrainingSession.score_total), 0).label("avg_score"),
-        )
-        .join(User, User.id == TrainingSession.user_id)
-        .where(
-            TrainingSession.status == SessionStatus.completed,
-            TrainingSession.started_at >= since,
-            User.role == UserRole.manager,
-        )
-        .group_by(TrainingSession.user_id, User.full_name, User.avatar_url)
-        .order_by(func.sum(TrainingSession.score_total).desc())
-        .limit(limit)
-    )
-
-    if team_id:
-        query = query.where(User.team_id == team_id)
-
-    result = await db.execute(query)
-    rows = result.all()
-
-    return [
-        {
-            "rank": i + 1,
-            "user_id": str(row[0]),
-            "full_name": row[1],
-            "avatar_url": row[2],
-            "sessions_count": row[3],
-            "total_score": round(float(row[4]), 1),
-            "avg_score": round(float(row[5]), 1),
-        }
-        for i, row in enumerate(rows)
-    ]
-
-
-async def get_leaderboard_extended(
-    db: AsyncSession,
-    sort_by: str = "xp",
-    period: str = "week",
-    team_id: uuid.UUID | None = None,
-    limit: int = 20,
-) -> list[dict]:
-    """Extended leaderboard with multiple sort criteria.
-
-    sort_by:
-      - "xp" — total XP earned in period
-      - "score" — average score in period
-      - "streak" — current streak days
-      - "combined" — weighted: 40% avg_score + 30% XP + 20% streak + 10% sessions
-    """
-    from app.models.user import User
-    from app.models.progress import ManagerProgress
-
-    if period == "week":
-        since = datetime.now(timezone.utc) - timedelta(days=7)
-    elif period == "month":
-        since = datetime.now(timezone.utc) - timedelta(days=30)
-    else:
-        since = datetime.min.replace(tzinfo=timezone.utc)
-
-    # Base query: sessions in period
-    base_query = (
-        select(
-            TrainingSession.user_id,
-            User.full_name,
-            User.avatar_url,
-            func.count(TrainingSession.id).label("sessions_count"),
-            func.coalesce(func.sum(TrainingSession.score_total), 0).label("total_score"),
-            func.coalesce(func.avg(TrainingSession.score_total), 0).label("avg_score"),
-        )
-        .join(User, User.id == TrainingSession.user_id)
-        .where(
-            TrainingSession.status == SessionStatus.completed,
-            TrainingSession.started_at >= since,
-        )
-        .group_by(TrainingSession.user_id, User.full_name, User.avatar_url)
-        .limit(limit)
-    )
-
-    if team_id:
-        base_query = base_query.where(User.team_id == team_id)
-
-    # Sort by chosen criteria
-    if sort_by == "score":
-        base_query = base_query.order_by(func.avg(TrainingSession.score_total).desc())
-    else:
-        # Default: XP (total_score as proxy), or will be sorted in Python for combined/streak
-        base_query = base_query.order_by(func.sum(TrainingSession.score_total).desc())
-
-    result = await db.execute(base_query)
-    rows = result.all()
-
-    # Collect all user_ids for batch queries
-    user_ids = [row[0] for row in rows]
-
-    # Batch query: ManagerProgress for all users at once
-    progress_result = await db.execute(
-        select(ManagerProgress.user_id, ManagerProgress.total_xp, ManagerProgress.level).where(
-            ManagerProgress.user_id.in_(user_ids)
-        )
-    )
-    progress_lookup = {row[0]: (row[1], row[2]) for row in progress_result.all()}
-
-    # Batch query: KnowledgeQuizSession aggregates grouped by user_id
-    from app.models.knowledge import KnowledgeQuizSession, QuizSessionStatus
-    arena_result = await db.execute(
-        select(
-            KnowledgeQuizSession.user_id,
-            func.count(KnowledgeQuizSession.id),
-            func.coalesce(func.avg(KnowledgeQuizSession.score), 0),
-        )
-        .where(
-            KnowledgeQuizSession.user_id.in_(user_ids),
-            KnowledgeQuizSession.status == QuizSessionStatus.completed,
-            KnowledgeQuizSession.started_at >= since,
-        )
-        .group_by(KnowledgeQuizSession.user_id)
-    )
-    arena_lookup = {row[0]: (row[1], float(row[2])) for row in arena_result.all()}
-
-    entries = []
-    for row in rows:
-        user_id_val = row[0]
-
-        entry = {
-            "user_id": str(user_id_val),
-            "full_name": row[1],
-            "avatar_url": row[2],
-            "sessions_count": row[3],
-            "total_score": round(float(row[4]), 1),
-            "avg_score": round(float(row[5]), 1),
-        }
-
-        # Get XP and level from batch lookup
-        progress_data = progress_lookup.get(user_id_val)
-        entry["total_xp"] = progress_data[0] if progress_data else 0
-        entry["level"] = progress_data[1] if progress_data else 1
-
-        # Get arena data from batch lookup
-        arena_data = arena_lookup.get(user_id_val)
-        arena_sessions = arena_data[0] if arena_data else 0
-        arena_avg_score = arena_data[1] if arena_data else 0.0
-
-        # Merge arena data: add sessions count and blend avg_score
-        if arena_sessions > 0:
-            total_sessions = entry["sessions_count"] + arena_sessions
-            # Weighted average of training and arena scores
-            entry["avg_score"] = round(
-                (entry["avg_score"] * entry["sessions_count"] + arena_avg_score * arena_sessions)
-                / total_sessions,
-                1,
-            )
-            entry["sessions_count"] = total_sessions
-
-        # Calculate streak
-        streak = await calculate_streak(user_id_val, db)
-        entry["streak"] = streak
-
-        entries.append(entry)
-
-    # Sort by chosen criteria
-    if sort_by == "streak":
-        entries.sort(key=lambda e: e["streak"], reverse=True)
-    elif sort_by == "combined":
-        # Normalize and combine: 40% avg_score + 30% XP + 20% streak + 10% sessions
-        max_xp = max((e["total_xp"] for e in entries), default=1) or 1
-        max_streak = max((e["streak"] for e in entries), default=1) or 1
-        max_sessions = max((e["sessions_count"] for e in entries), default=1) or 1
-
-        for e in entries:
-            e["combined_score"] = round(
-                0.4 * (e["avg_score"] / 100)
-                + 0.3 * (e["total_xp"] / max_xp)
-                + 0.2 * (e["streak"] / max_streak)
-                + 0.1 * (e["sessions_count"] / max_sessions),
-                4,
-            )
-        entries.sort(key=lambda e: e.get("combined_score", 0), reverse=True)
-
-    # Assign ranks
-    for i, entry in enumerate(entries):
-        entry["rank"] = i + 1
-
-    return entries
-
-
-async def get_team_leaderboard(
-    db: AsyncSession,
-    period: str = "week",
-    limit: int = 10,
-    my_team_id: uuid.UUID | None = None,
-) -> dict:
-    """Team leaderboard: Bayesian-shrunk average score per team.
-
-    Open to all authenticated users (internal transparency).
-
-    Ranking score = (n*avg + k*global_avg) / (n+k) where k=10. This
-    prevents a single team with 1 session at 95 from outranking a 20-
-    person team averaging 80 across 100 sessions. Frontend still gets
-    raw `avg_score` for display alongside the shrunk `score`.
-
-    Returns {rows: [...], my_team_row: {...}|null, total_teams: N} so
-    the user always sees their own team even if it's outside the top.
-    """
-    from app.models.user import User, Team
-
-    if period == "week":
-        since = datetime.now(timezone.utc) - timedelta(days=7)
-    elif period == "month":
-        since = datetime.now(timezone.utc) - timedelta(days=30)
-    else:
-        since = datetime.min.replace(tzinfo=timezone.utc)
-
-    base_q = (
-        select(
-            User.team_id,
-            Team.name.label("team_name"),
-            func.count(func.distinct(TrainingSession.user_id)).label("active_members"),
-            func.count(TrainingSession.id).label("total_sessions"),
-            func.coalesce(func.avg(TrainingSession.score_total), 0).label("avg_score"),
-            func.coalesce(func.sum(TrainingSession.score_total), 0).label("total_score"),
-        )
-        .join(User, User.id == TrainingSession.user_id)
-        .join(Team, Team.id == User.team_id)
-        .where(
-            TrainingSession.status == SessionStatus.completed,
-            TrainingSession.started_at >= since,
-            User.team_id.isnot(None),
-        )
-        .group_by(User.team_id, Team.name)
-        .having(func.count(TrainingSession.id) >= 3)
-    )
-
-    result = await db.execute(base_q)
-    raw_rows = result.all()
-
-    if not raw_rows:
-        return {"rows": [], "my_team_row": None, "total_teams": 0}
-
-    # Bayesian shrinkage: score = (n*avg + k*global_avg)/(n+k)
-    K = 10
-    total_sessions_all = sum(int(r[3]) for r in raw_rows)
-    total_score_all = sum(float(r[5]) for r in raw_rows)
-    global_avg = (total_score_all / total_sessions_all) if total_sessions_all else 0.0
-
-    enriched: list[dict] = []
-    for r in raw_rows:
-        n = int(r[3])
-        avg = float(r[4])
-        shrunk = (n * avg + K * global_avg) / (n + K)
-        enriched.append(
-            {
-                "team_id": str(r[0]),
-                "team_name": r[1],
-                "active_members": int(r[2]),
-                "total_sessions": n,
-                "avg_score": round(avg, 1),
-                "score": round(shrunk, 1),
-                "total_score": round(float(r[5]), 1),
-            }
-        )
-
-    enriched.sort(key=lambda x: x["score"], reverse=True)
-    for i, row in enumerate(enriched):
-        row["rank"] = i + 1
-
-    top = enriched[:limit]
-    my_team_row = None
-    if my_team_id is not None:
-        mine = next(
-            (e for e in enriched if e["team_id"] == str(my_team_id)), None
-        )
-        # Only attach as separate row if not already in top slice
-        if mine and not any(t["team_id"] == mine["team_id"] for t in top):
-            my_team_row = mine
-
-    return {
-        "rows": top,
-        "my_team_row": my_team_row,
-        "total_teams": len(enriched),
-        "global_avg": round(global_avg, 1),
-    }
-
-
-# ═════════════════════════════════════════════════════════════════════════════
 # ARENA ACHIEVEMENTS — stats collection and checking
 # ═════════════════════════════════════════════════════════════════════════════
 
@@ -3565,31 +3066,17 @@ async def collect_arena_stats(user_id: uuid.UUID, db: AsyncSession) -> dict:
 
     Called after each quiz/PvP session completion in the Arena.
     """
-    from app.models.pvp import PvPRating
     from app.models.knowledge import KnowledgeQuizSession, KnowledgeAnswer, QuizSessionStatus
     from app.models.progress import ManagerProgress
     from app.services.knowledge_quiz import get_category_progress
 
     stats: dict = {}
 
-    # PvP rating stats
-    rating_result = await db.execute(
-        select(PvPRating).where(
-            PvPRating.user_id == user_id,
-            PvPRating.rating_type == "knowledge_arena",
-        )
-    )
-    arena_rating = rating_result.scalar_one_or_none()
-    if arena_rating:
-        stats["arena_rating"] = arena_rating.rating
-        stats["arena_pvp_matches"] = arena_rating.total_duels
-        stats["arena_pvp_wins"] = arena_rating.wins
-        stats["arena_best_win_streak"] = arena_rating.best_streak
-    else:
-        stats["arena_rating"] = 0
-        stats["arena_pvp_matches"] = 0
-        stats["arena_pvp_wins"] = 0
-        stats["arena_best_win_streak"] = 0
+    # PvP/arena removed — arena rating stats no longer collected (legacy).
+    stats["arena_rating"] = 0
+    stats["arena_pvp_matches"] = 0
+    stats["arena_pvp_wins"] = 0
+    stats["arena_best_win_streak"] = 0
 
     # Quiz session stats
     sessions_result = await db.execute(
@@ -3656,15 +3143,26 @@ async def collect_arena_stats(user_id: uuid.UUID, db: AsyncSession) -> dict:
     )
     stats["unique_characters"] = chars_result.scalar() or 0
 
-    # ── v5: Extended arena/PvE stats for seed-aligned achievements ──
+    # ── v5: Extended quiz/training stats for seed-aligned achievements ──
+    # PvP/PvE/Tournament layer retired — the keys below are kept as inert
+    # defaults so legacy achievement lambdas (which read them via .get())
+    # stay safe; they simply never fire. No models.pvp / models.tournament
+    # queries remain on this (knowledge-quiz) hot path.
+    stats["arena_rank_tier"] = "unranked"
+    stats["arena_mode_wins"] = {}
+    stats["arena_tournaments_participated"] = 0
+    stats["arena_best_tournament_place"] = 999
+    stats["unique_opponents"] = 0
+    stats["pve_wins"] = 0
+    stats["pve_ladder_all_defeated"] = False
+    stats["pve_ladder_best_score"] = 0
+    stats["pve_bosses_defeated"] = 0
+    stats["pve_training_count"] = 0
+    stats["pve_mirror_wins"] = 0
+    stats["pve_mirror_best_streak"] = 0
+    stats["pve_modes_won"] = 0
 
-    # Rank tier string
-    if arena_rating:
-        stats["arena_rank_tier"] = arena_rating.rank_tier.value if hasattr(arena_rating.rank_tier, 'value') else str(arena_rating.rank_tier)
-    else:
-        stats["arena_rank_tier"] = "unranked"
-
-    # Categories above 80%
+    # Categories above 80% (quiz-based, kept)
     try:
         category_progress_80 = await get_category_progress(user_id, db)
         stats["categories_above_80"] = sum(
@@ -3674,150 +3172,12 @@ async def collect_arena_stats(user_id: uuid.UUID, db: AsyncSession) -> dict:
     except Exception:
         stats["categories_above_80"] = 0
 
-    # Arena mode wins (per PvP mode)
-    from app.models.pvp import PvPDuel
-    mode_wins: dict[str, int] = {}
-    try:
-        mode_result = await db.execute(
-            select(PvPDuel.pve_mode, func.count(PvPDuel.id)).where(
-                PvPDuel.winner_id == user_id,
-                PvPDuel.pve_mode.isnot(None),
-            ).group_by(PvPDuel.pve_mode)
-        )
-        for mode_val, cnt in mode_result.all():
-            if mode_val:
-                mode_wins[mode_val] = cnt
-    except Exception:
-        pass
-    stats["arena_mode_wins"] = mode_wins
-
-    # Arena blitz perfect (all correct in a blitz session)
+    # Arena blitz perfect (all correct in a blitz session — quiz-based, kept)
     stats["arena_blitz_perfect"] = False
     for s in blitz_sessions:
         if s.correct_answers and s.total_questions and s.correct_answers == s.total_questions:
             stats["arena_blitz_perfect"] = True
             break
-
-    # Tournament participation and placement
-    from app.models.tournament import TournamentParticipant
-    tp_result = await db.execute(
-        select(
-            func.count(TournamentParticipant.id),
-            func.min(TournamentParticipant.final_placement),
-        ).where(TournamentParticipant.user_id == user_id)
-    )
-    tp_row = tp_result.one()
-    stats["arena_tournaments_participated"] = tp_row[0] or 0
-    stats["arena_best_tournament_place"] = tp_row[1] if tp_row[1] is not None else 999
-
-    # Unique opponents
-    try:
-        from sqlalchemy import or_
-        opp_result = await db.execute(
-            select(func.count(func.distinct(
-                func.case(
-                    (PvPDuel.player1_id == user_id, PvPDuel.player2_id),
-                    else_=PvPDuel.player1_id,
-                )
-            ))).where(
-                or_(PvPDuel.player1_id == user_id, PvPDuel.player2_id == user_id),
-                PvPDuel.completed_at.isnot(None),
-            )
-        )
-        stats["unique_opponents"] = opp_result.scalar() or 0
-    except Exception:
-        stats["unique_opponents"] = 0
-
-    # PvE stats
-    from app.models.pvp import PvELadderRun, PvEBossRun
-    # PvE wins (any duel where pve_mode is set and user won)
-    try:
-        pve_wins_result = await db.execute(
-            select(func.count(PvPDuel.id)).where(
-                PvPDuel.winner_id == user_id,
-                PvPDuel.pve_mode.isnot(None),
-            )
-        )
-        stats["pve_wins"] = pve_wins_result.scalar() or 0
-    except Exception:
-        stats["pve_wins"] = 0
-
-    # PvE ladder
-    try:
-        ladder_result = await db.execute(
-            select(PvELadderRun).where(
-                PvELadderRun.user_id == user_id,
-                PvELadderRun.is_complete.is_(True),
-            ).order_by(PvELadderRun.cumulative_score.desc()).limit(1)
-        )
-        best_ladder = ladder_result.scalar_one_or_none()
-        stats["pve_ladder_all_defeated"] = best_ladder.all_defeated if best_ladder else False
-        stats["pve_ladder_best_score"] = best_ladder.cumulative_score if best_ladder else 0
-    except Exception:
-        stats["pve_ladder_all_defeated"] = False
-        stats["pve_ladder_best_score"] = 0
-
-    # PvE bosses defeated
-    try:
-        boss_result = await db.execute(
-            select(func.count(func.distinct(PvEBossRun.boss_type))).where(
-                PvEBossRun.user_id == user_id,
-                PvEBossRun.is_defeated.is_(True),
-            )
-        )
-        stats["pve_bosses_defeated"] = boss_result.scalar() or 0
-    except Exception:
-        stats["pve_bosses_defeated"] = 0
-
-    # PvE training count
-    try:
-        pve_training_result = await db.execute(
-            select(func.count(PvPDuel.id)).where(
-                PvPDuel.pve_mode == "training",
-                or_(PvPDuel.player1_id == user_id, PvPDuel.player2_id == user_id),
-                PvPDuel.completed_at.isnot(None),
-            )
-        )
-        stats["pve_training_count"] = pve_training_result.scalar() or 0
-    except Exception:
-        stats["pve_training_count"] = 0
-
-    # PvE mirror wins and streak
-    try:
-        mirror_result = await db.execute(
-            select(PvPDuel.winner_id).where(
-                PvPDuel.pve_mode == "mirror",
-                or_(PvPDuel.player1_id == user_id, PvPDuel.player2_id == user_id),
-                PvPDuel.completed_at.isnot(None),
-            ).order_by(PvPDuel.completed_at.desc())
-        )
-        mirror_wins = 0
-        mirror_streak = 0
-        mirror_best_streak = 0
-        for (winner,) in mirror_result.all():
-            if winner == user_id:
-                mirror_wins += 1
-                mirror_streak += 1
-                mirror_best_streak = max(mirror_best_streak, mirror_streak)
-            else:
-                mirror_streak = 0
-        stats["pve_mirror_wins"] = mirror_wins
-        stats["pve_mirror_best_streak"] = mirror_best_streak
-    except Exception:
-        stats["pve_mirror_wins"] = 0
-        stats["pve_mirror_best_streak"] = 0
-
-    # PvE modes won (count distinct pve_mode where user won)
-    try:
-        modes_won_result = await db.execute(
-            select(func.count(func.distinct(PvPDuel.pve_mode))).where(
-                PvPDuel.winner_id == user_id,
-                PvPDuel.pve_mode.isnot(None),
-            )
-        )
-        stats["pve_modes_won"] = modes_won_result.scalar() or 0
-    except Exception:
-        stats["pve_modes_won"] = 0
 
     # User level for cross-system checks
     if progress:

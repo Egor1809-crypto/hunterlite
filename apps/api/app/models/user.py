@@ -44,6 +44,10 @@ class User(Base):
     onboarding_completed: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
     google_id: Mapped[str | None] = mapped_column(String(255), unique=True, nullable=True, index=True)
     yandex_id: Mapped[str | None] = mapped_column(String(255), unique=True, nullable=True, index=True)
+    # Telegram account linking (@BFLHUNTER_bot). Stores the numeric TG
+    # user id as a string so the bot can grant attempts / push notifications
+    # to the right platform account. Set via a one-time deeplink token.
+    telegram_id: Mapped[str | None] = mapped_column(String(64), unique=True, nullable=True, index=True)
     avatar_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
     # Email verification — OAuth-registered users are auto-verified since
     # the provider (Google/Yandex) already checked the email. Password

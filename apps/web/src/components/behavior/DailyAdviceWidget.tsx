@@ -41,7 +41,7 @@ export default function DailyAdviceWidget() {
     if (dailyAdvice.action_type === "start_training") {
       window.location.href = "/training";
     } else if (dailyAdvice.action_type === "start_quiz") {
-      window.location.href = "/pvp";
+      window.location.href = "/training";
     } else if (dailyAdvice.action_type === "view_progress") {
       window.location.href = "/dashboard";
     }

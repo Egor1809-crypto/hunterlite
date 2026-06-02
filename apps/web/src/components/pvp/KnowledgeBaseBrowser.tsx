@@ -405,14 +405,22 @@ function Section({
   );
 }
 
-export function KnowledgeBaseBrowser() {
+export function KnowledgeBaseBrowser({ initialCategory }: { initialCategory?: string } = {}) {
   const searchParams = useSearchParams();
   const [data, setData] = useState<BrowseResponse | null>(null);
   const [loading, setLoading] = useState(true);
-  const [category, setCategory] = useState<string>(() => searchParams.get("category") ?? "");
+  const [category, setCategory] = useState<string>(() => initialCategory ?? searchParams.get("category") ?? "");
   const [search, setSearch] = useState<string>(() => searchParams.get("search") ?? "");
   const [difficulty, setDifficulty] = useState<number | null>(null);
   const [offset, setOffset] = useState(0);
+
+  // Filter reliably when the parent selects a topic (no URL+remount race).
+  useEffect(() => {
+    if (initialCategory !== undefined) {
+      setCategory(initialCategory);
+      setOffset(0);
+    }
+  }, [initialCategory]);
 
   const load = useCallback(async () => {
     setLoading(true);

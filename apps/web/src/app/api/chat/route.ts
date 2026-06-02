@@ -78,7 +78,11 @@ export async function POST(req: NextRequest) {
       body: JSON.stringify({
         model: MODEL,
         messages: [{ role: "system", content: SYSTEM_PROMPT }, ...trimmed],
-        max_tokens: 300,
+        // deepseek-v4-pro — reasoning-модель: часть бюджета уходит на
+        // reasoning_content. С маленьким лимитом content остаётся пустым
+        // (finish_reason=length). 2000 хватает на reasoning + полноценный
+        // content (проверено: при 1200 content пуст, при 2000 finish=stop).
+        max_tokens: 2000,
         temperature: 0.7,
       }),
     });
@@ -89,8 +93,16 @@ export async function POST(req: NextRequest) {
     }
 
     const data = await response.json();
-    const reply =
-      data.choices?.[0]?.message?.content ?? "Извините, не могу ответить сейчас.";
+    const message = data.choices?.[0]?.message ?? {};
+    // У reasoning-моделей при нехватке токенов content пуст, а текст лежит
+    // в reasoning_content — подстраховываемся. Пустую строку считаем за отказ.
+    const content =
+      typeof message.content === "string" ? message.content.trim() : "";
+    const reasoning =
+      typeof message.reasoning_content === "string"
+        ? message.reasoning_content.trim()
+        : "";
+    const reply = content || reasoning || "Извините, не могу ответить сейчас.";
 
     return NextResponse.json({ reply });
   } catch (error) {

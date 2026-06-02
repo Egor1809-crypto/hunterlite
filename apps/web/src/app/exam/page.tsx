@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   GraduationCap,
   Shield,
@@ -15,45 +15,31 @@ import {
   Loader2,
   FileText,
   Star,
+  X,
+  Scale,
+  Users,
+  Gavel,
+  ShieldAlert,
+  Trophy,
+  type LucideIcon,
 } from "lucide-react";
 import AuthLayout from "@/components/layout/AuthLayout";
 import { api } from "@/lib/api";
-
-const NOISE_SVG = `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E")`;
-const EXAM_SCHEME_SVG = `url("data:image/svg+xml,%3Csvg width='520' height='520' viewBox='0 0 520 520' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' stroke='%2385f7e8' stroke-opacity='.14' stroke-width='1'%3E%3Cpath d='M42 96h126v68h88v92h118v72h104'/%3E%3Cpath d='M62 418h92v-82h118v-76h92v-112h92'/%3E%3Cpath d='M120 46v88m188-42v116m86 138v96M204 292h174'/%3E%3Ccircle cx='168' cy='164' r='5'/%3E%3Ccircle cx='256' cy='256' r='5'/%3E%3Ccircle cx='374' cy='328' r='5'/%3E%3Ccircle cx='154' cy='336' r='5'/%3E%3C/g%3E%3Cg fill='%23ff7adf' fill-opacity='.09'%3E%3Crect x='86' y='78' width='10' height='10' rx='2'/%3E%3Crect x='300' y='86' width='10' height='10' rx='2'/%3E%3Crect x='450' y='144' width='10' height='10' rx='2'/%3E%3Crect x='390' y='438' width='10' height='10' rx='2'/%3E%3C/g%3E%3C/svg%3E")`;
-
-const EXAM_BACKGROUND = `
-  linear-gradient(135deg, rgba(11, 23, 64, 0.98) 0%, rgba(31, 19, 75, 0.96) 30%, rgba(12, 83, 105, 0.9) 58%, rgba(18, 118, 101, 0.82) 78%, rgba(92, 34, 115, 0.92) 100%),
-  linear-gradient(45deg, rgba(58, 118, 255, 0.18) 0%, transparent 34%, rgba(69, 255, 207, 0.14) 56%, rgba(236, 72, 153, 0.14) 100%)
-`;
-
-const EXAM_KEYFRAMES = `
-@keyframes examShine {
-  0% { transform: translateX(-100%) skewX(-15deg); }
-  100% { transform: translateX(200%) skewX(-15deg); }
-}
-@keyframes examGlow {
-  0%, 100% { box-shadow: 0 0 20px rgba(245,158,11,0.1); }
-  50% { box-shadow: 0 0 40px rgba(245,158,11,0.2); }
-}
-@keyframes examSchemeDrift {
-  0% { background-position: center 0, center 0, center 0; }
-  100% { background-position: center 520px, center 72px, center 72px; }
-}
-@keyframes examSchemePulse {
-  0%, 100% { opacity: 0.56; filter: hue-rotate(0deg) saturate(1); }
-  50% { opacity: 0.78; filter: hue-rotate(18deg) saturate(1.22); }
-}
-`;
+import { useAuthStore } from "@/stores/useAuthStore";
+import { Card } from "@/components/ui/Card";
+import { Button } from "@/components/ui/Button";
+import { AbstractBackdrop } from "@/components/ui/AbstractBackdrop";
+import { CertificatePreview, CERT_TOKEN_PALETTE } from "@/components/certificate/CertificatePreview";
 
 const PASS_THRESHOLD = 88;
 
-const EXAM_COLORS: Record<string, { color: string; rgb: string; icon: string }> = {
-  "exam-1": { color: "var(--info)", rgb: "59,130,246", icon: "\u{1F4D8}" },
-  "exam-2": { color: "#F59E0B", rgb: "245,158,11", icon: "\u{1F4B0}" },
-  "exam-3": { color: "#EC4899", rgb: "236,72,153", icon: "⚖️" },
-  "exam-4": { color: "#6366F1", rgb: "99,102,241", icon: "\u{1F6E1}️" },
-  "exam-5": { color: "#F59E0B", rgb: "245,158,11", icon: "\u{1F3C6}" },
+// Lucide icons — same library / tile style as /home (центр).
+const EXAM_ICONS: Record<string, LucideIcon> = {
+  "exam-1": Scale,
+  "exam-2": Users,
+  "exam-3": Gavel,
+  "exam-4": ShieldAlert,
+  "exam-5": Trophy,
 };
 
 interface ExamItem {
@@ -73,150 +59,73 @@ interface ExamItem {
   certificate_code: string | null;
 }
 
-function ExamCard({
-  exam,
-  onStart,
-}: {
-  exam: ExamItem;
-  onStart: () => void;
-}) {
-  const style = EXAM_COLORS[exam.id] ?? { color: "#8B5CF6", rgb: "139,92,246", icon: "\u{1F4DA}" };
+function ExamCard({ exam, onStart }: { exam: ExamItem; onStart: () => void }) {
+  const Icon = EXAM_ICONS[exam.id] ?? GraduationCap;
   const isFinal = exam.id === "exam-5";
 
   return (
-    <motion.div
-      className="rounded-2xl overflow-hidden relative"
-      style={{
-        background: isFinal
-          ? `linear-gradient(135deg, rgba(${style.rgb},0.06), rgba(${style.rgb},0.02))`
-          : "rgba(255,255,255,0.02)",
-        border: exam.passed
-          ? `2px solid rgba(${style.rgb},0.4)`
-          : `1px solid ${exam.is_locked ? "rgba(255,255,255,0.05)" : `rgba(${style.rgb},0.15)`}`,
-        opacity: exam.is_locked ? 0.5 : 1,
-        boxShadow: isFinal && !exam.is_locked ? `0 8px 40px rgba(${style.rgb},0.12)` : "none",
-      }}
-    >
-      {!exam.is_locked && (
-        <div
-          className="h-[2px]"
-          style={{ background: `linear-gradient(90deg, transparent, rgba(${style.rgb},0.5), transparent)` }}
-        />
-      )}
-
-      <div className="p-5 sm:p-6">
-        <div className="flex items-start gap-4 mb-4">
-          <div
-            className="w-14 h-14 rounded-xl flex items-center justify-center text-3xl shrink-0"
-            style={{
-              background: `rgba(${style.rgb},0.1)`,
-              border: `1px solid rgba(${style.rgb},0.2)`,
-            }}
-          >
-            {style.icon}
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 flex-wrap">
-              <span
-                className="text-[10px] font-bold px-2 py-0.5 rounded-md"
-                style={{ background: `rgba(${style.rgb},0.1)`, color: style.color }}
-              >
-                Экзамен {exam.order_index}
+    <Card accentTop={exam.passed} style={{ opacity: exam.is_locked ? 0.6 : 1 }}>
+      <div className="mb-4 flex items-start gap-4">
+        <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl" style={{ background: "var(--primary-muted)", border: "1px solid var(--border-color)" }}>
+          <Icon size={24} strokeWidth={1.75} style={{ color: "var(--primary)" }} />
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="font-mono text-[11px] font-semibold uppercase tracking-wide" style={{ color: "var(--primary)" }}>Экзамен {exam.order_index}</span>
+            {isFinal && <span className="font-mono text-[11px] font-semibold uppercase tracking-wide" style={{ color: "var(--warning)" }}>Финальный</span>}
+            {exam.passed && (
+              <span className="inline-flex items-center gap-1 font-mono text-[11px] font-semibold uppercase tracking-wide" style={{ color: "var(--success)" }}>
+                <CheckCircle size={11} /> Сдан
               </span>
-              {isFinal && (
-                <span
-                  className="text-[10px] font-bold px-2 py-0.5 rounded-md"
-                  style={{ background: "rgba(245,158,11,0.12)", color: "#F59E0B" }}
-                >
-                  Финальный
-                </span>
-              )}
-              {exam.passed && (
-                <span
-                  className="text-[10px] font-bold px-2 py-0.5 rounded-md"
-                  style={{ background: "rgba(34,197,94,0.1)", color: "var(--success)" }}
-                >
-                  Сдан
-                </span>
-              )}
-            </div>
-            <h3 className="font-bold text-base mt-1.5" style={{ color: "var(--text-primary)" }}>
-              {exam.title}
-            </h3>
-            <p className="text-xs mt-1 leading-relaxed" style={{ color: "var(--text-muted)" }}>
-              {exam.description}
-            </p>
+            )}
           </div>
-          {exam.passed && exam.best_score !== null && (
-            <div className="text-right shrink-0">
-              <div className="text-2xl font-bold" style={{ color: "var(--success)" }}>
-                {exam.best_score}%
-              </div>
-              <div className="text-[10px]" style={{ color: "var(--text-muted)" }}>лучший</div>
-            </div>
-          )}
+          <h3 className="mt-1.5 text-[17px] font-semibold tracking-tight" style={{ color: "var(--text-primary)" }}>{exam.title}</h3>
+          <p className="mt-1 text-[13px] leading-relaxed" style={{ color: "var(--text-muted)" }}>{exam.description}</p>
         </div>
-
-        <div className="grid grid-cols-4 gap-2 mb-4">
-          {[
-            { icon: FileText, label: "Вопросов", value: String(exam.question_count) },
-            { icon: Clock, label: "Время", value: `${exam.time_limit_minutes} мин` },
-            { icon: Star, label: "Порог", value: `${exam.pass_threshold}%` },
-            { icon: RefreshCw, label: "Попытки", value: String(exam.attempts_count) },
-          ].map(s => {
-            const Icon = s.icon;
-            return (
-              <div
-                key={s.label}
-                className="rounded-lg p-2.5 text-center"
-                style={{ background: "rgba(255,255,255,0.03)", border: "1px solid var(--border-color)" }}
-              >
-                <Icon size={12} className="mx-auto mb-1" style={{ color: style.color }} />
-                <div className="text-xs font-bold" style={{ color: "var(--text-primary)" }}>{s.value}</div>
-                <div className="text-[9px]" style={{ color: "var(--text-muted)" }}>{s.label}</div>
-              </div>
-            );
-          })}
-        </div>
-
-        <div className="flex flex-wrap gap-1.5 mb-5">
-          {exam.categories.map(t => (
-            <span
-              key={t}
-              className="text-[10px] px-2 py-1 rounded-md"
-              style={{ background: `rgba(${style.rgb},0.06)`, color: style.color, border: `1px solid rgba(${style.rgb},0.12)` }}
-            >
-              {t}
-            </span>
-          ))}
-        </div>
-
-        {exam.is_locked ? (
-          <div className="flex items-center gap-2 text-xs" style={{ color: "var(--text-muted)" }}>
-            <Lock size={12} />
-            Сдайте предыдущий экзамен для разблокировки
+        {exam.passed && exam.best_score !== null && (
+          <div className="shrink-0 text-right">
+            <div className="font-mono text-2xl font-semibold tabular-nums" style={{ color: "var(--success)" }}>{exam.best_score}%</div>
+            <div className="font-mono text-[11px]" style={{ color: "var(--text-muted)" }}>лучший</div>
           </div>
-        ) : (
-          <motion.button
-            onClick={onStart}
-            className="w-full py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all"
-            style={{
-              background: isFinal
-                ? `linear-gradient(135deg, rgba(${style.rgb},0.2), rgba(${style.rgb},0.1))`
-                : `rgba(${style.rgb},0.1)`,
-              border: `1.5px solid rgba(${style.rgb},0.3)`,
-              color: style.color,
-              boxShadow: isFinal ? `0 4px 20px rgba(${style.rgb},0.15)` : "none",
-            }}
-            whileHover={{ scale: 1.01 }}
-            whileTap={{ scale: 0.98 }}
-          >
-            <GraduationCap size={16} />
-            {exam.passed ? "Пересдать" : "Начать экзамен"}
-          </motion.button>
         )}
       </div>
-    </motion.div>
+
+      <div className="mb-4 grid grid-cols-4 gap-2">
+        {[
+          { icon: FileText, label: "Вопросов", value: String(exam.question_count) },
+          { icon: Clock, label: "Время", value: `${exam.time_limit_minutes} мин` },
+          { icon: Star, label: "Порог", value: `${exam.pass_threshold}%` },
+          { icon: RefreshCw, label: "Попытки", value: String(exam.attempts_count) },
+        ].map((s) => {
+          const Icon = s.icon;
+          return (
+            <div key={s.label} className="rounded-lg p-2.5 text-center" style={{ background: "var(--bg-secondary)", border: "1px solid var(--border-color)" }}>
+              <Icon size={13} className="mx-auto mb-1" style={{ color: "var(--text-muted)" }} />
+              <div className="font-mono text-[13px] font-semibold tabular-nums" style={{ color: "var(--text-primary)" }}>{s.value}</div>
+              <div className="font-mono text-[11px]" style={{ color: "var(--text-muted)" }}>{s.label}</div>
+            </div>
+          );
+        })}
+      </div>
+
+      {exam.categories.length > 0 && (
+        <div className="mb-5 flex flex-wrap gap-1.5">
+          {exam.categories.map((t) => (
+            <span key={t} className="rounded-md px-2 py-1 font-mono text-[11px]" style={{ background: "var(--bg-secondary)", color: "var(--text-secondary)", border: "1px solid var(--border-color)" }}>{t}</span>
+          ))}
+        </div>
+      )}
+
+      {exam.is_locked ? (
+        <div className="flex items-center gap-2 text-[13px]" style={{ color: "var(--text-muted)" }}>
+          <Lock size={13} /> Сдайте предыдущий экзамен, чтобы открыть этот.
+        </div>
+      ) : (
+        <Button variant="primary" fluid icon={<GraduationCap size={16} />} onClick={onStart}>
+          {exam.passed ? "Пересдать" : "Начать экзамен"}
+        </Button>
+      )}
+    </Card>
   );
 }
 
@@ -225,31 +134,31 @@ export default function ExamPage() {
   const [exams, setExams] = useState<ExamItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showCert, setShowCert] = useState(false);
+  const userName = useAuthStore((s) => s.user?.full_name ?? null);
 
   useEffect(() => {
     api.get<ExamItem[]>("/exams/")
-      .then(data => {
-        setExams(data);
-        setLoading(false);
-      })
-      .catch(err => {
-        setError(err.message || "Ошибка загрузки");
-        setLoading(false);
-      });
+      .then((data) => { setExams(data); setLoading(false); })
+      .catch((err) => { setError(err.message || "Ошибка загрузки"); setLoading(false); });
   }, []);
 
-  const passedModules = useMemo(
-    () => exams.filter(e => e.id !== "exam-5" && e.passed).length,
-    [exams],
-  );
-  const finalPassed = exams.find(e => e.id === "exam-5")?.passed ?? false;
+  // Deep-link: /exam?cert=1 opens the certificate preview directly.
+  useEffect(() => {
+    if (typeof window !== "undefined" && new URLSearchParams(window.location.search).get("cert") === "1") {
+      setShowCert(true);
+    }
+  }, []);
+
+  const passedModules = useMemo(() => exams.filter((e) => e.id !== "exam-5" && e.passed).length, [exams]);
+  const finalPassed = exams.find((e) => e.id === "exam-5")?.passed ?? false;
   const overallProgress = finalPassed ? 100 : Math.round((passedModules / 5) * 100);
 
   if (loading) {
     return (
       <AuthLayout>
-        <div className="min-h-screen flex items-center justify-center" style={{ background: "var(--bg-primary)" }}>
-          <Loader2 size={32} className="animate-spin" style={{ color: "#F59E0B" }} />
+        <div className="flex min-h-screen items-center justify-center" style={{ background: "var(--bg-primary)" }}>
+          <Loader2 size={28} className="animate-spin" style={{ color: "var(--primary)" }} />
         </div>
       </AuthLayout>
     );
@@ -258,9 +167,9 @@ export default function ExamPage() {
   if (error) {
     return (
       <AuthLayout>
-        <div className="min-h-screen flex items-center justify-center" style={{ background: "var(--bg-primary)" }}>
+        <div className="flex min-h-screen items-center justify-center" style={{ background: "var(--bg-primary)" }}>
           <div className="text-center">
-            <AlertTriangle size={48} className="mx-auto mb-4" style={{ color: "var(--danger)" }} />
+            <AlertTriangle size={40} className="mx-auto mb-4" style={{ color: "var(--danger)" }} />
             <p className="text-sm" style={{ color: "var(--text-muted)" }}>{error}</p>
           </div>
         </div>
@@ -270,202 +179,199 @@ export default function ExamPage() {
 
   return (
     <AuthLayout showBreadcrumbs={false}>
-      <style dangerouslySetInnerHTML={{ __html: EXAM_KEYFRAMES }} />
+      <div className="relative min-h-screen overflow-hidden bg-page-glow">
+        <AbstractBackdrop />
+        <div className="relative z-10 mx-auto max-w-[900px] px-5 py-8 sm:px-8 sm:py-12">
+          {/* Header */}
+          <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.24, ease: "easeOut" }}>
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex items-center gap-5">
+                <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl" style={{ background: "var(--primary-muted)", border: "1px solid var(--border-color)" }}>
+                  <GraduationCap size={24} style={{ color: "var(--primary)" }} />
+                </div>
+                <div>
+                  <div className="font-mono text-[11px] uppercase tracking-[0.16em]" style={{ color: "var(--text-secondary)" }}>Аттестация</div>
+                  <h1 className="mt-1 text-4xl font-semibold tracking-tight sm:text-5xl" style={{ color: "var(--text-primary)" }}>Экзамен</h1>
+                  <p className="mt-2 text-[15px]" style={{ color: "var(--text-muted)" }}>Подтверждение квалификации по ФЗ-127.</p>
+                </div>
+              </div>
 
-      <div className="min-h-screen relative" style={{ background: "var(--bg-primary)" }}>
-        <div className="absolute inset-0 pointer-events-none z-[1] opacity-[0.06]" aria-hidden style={{ backgroundImage: NOISE_SVG, backgroundRepeat: "repeat" }} />
-
-        <div className="relative z-10 max-w-[900px] mx-auto px-5 sm:px-8 py-8 sm:py-12">
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-            <div className="flex items-center gap-4">
-              <div
-                className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0"
-                style={{ background: "var(--primary-muted)", border: "1px solid var(--border-color)", boxShadow: "var(--shadow-sm)" }}
+              <button
+                id="cert-open-btn"
+                onClick={() => setShowCert(true)}
+                className="hidden shrink-0 items-center gap-2 rounded-full px-4 py-2.5 text-sm font-semibold transition-colors sm:inline-flex"
+                style={{ background: "var(--surface-card)", border: "1px solid var(--border-color)", color: "var(--text-primary)" }}
               >
-                <GraduationCap size={22} style={{ color: "var(--brand-logo-hunter)" }} />
-              </div>
-              <div>
-                <h1 className="text-4xl sm:text-6xl font-semibold tracking-[-0.07em]" style={{ color: "var(--text-primary)" }}>
-                  Экзамен
-                </h1>
-                <p className="mt-2 text-lg" style={{ color: "var(--brand-logo-hunter)" }}>
-                  Формальная аттестация и подтверждение квалификации
-                </p>
-              </div>
+                <Award size={16} style={{ color: "var(--primary)" }} /> Сертификат
+              </button>
             </div>
           </motion.div>
 
           {/* Progress banner */}
-          <motion.div
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.08 }}
-            className="mt-6 rounded-2xl overflow-hidden relative"
-            style={{
-              background: "linear-gradient(135deg, rgba(245,158,11,0.08), rgba(99,102,241,0.06))",
-              border: "1px solid rgba(245,158,11,0.15)",
-              boxShadow: "0 0 40px rgba(245,158,11,0.08)",
-            }}
-          >
-            <div className="absolute inset-0 overflow-hidden pointer-events-none" style={{ borderRadius: "inherit", zIndex: 1 }}>
-              <div style={{ position: "absolute", top: 0, left: 0, width: "50%", height: "100%", background: "linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.04) 50%, transparent 100%)", animation: "examShine 4s ease-in-out infinite" }} />
-            </div>
-
-            <div className="p-6 sm:p-8 relative z-[2]">
-              <div className="flex flex-col sm:flex-row sm:items-center gap-6">
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-3">
-                    <Award size={18} style={{ color: "#F59E0B" }} />
-                    <span className="text-xs font-bold uppercase tracking-wider" style={{ color: "#F59E0B" }}>
-                      Путь к сертификату
-                    </span>
-                  </div>
-
-                  <div className="flex items-center gap-2 flex-wrap">
-                    {exams.filter(e => e.id !== "exam-5").map((exam, i) => {
-                      const st = EXAM_COLORS[exam.id] ?? { color: "#8B5CF6", rgb: "139,92,246", icon: "" };
-                      return (
-                        <div key={exam.id} className="flex items-center gap-2">
-                          <div
-                            className="w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold"
-                            style={{
-                              background: exam.passed ? `rgba(${st.rgb},0.15)` : "rgba(255,255,255,0.05)",
-                              border: `1.5px solid ${exam.passed ? `rgba(${st.rgb},0.4)` : "rgba(255,255,255,0.08)"}`,
-                              color: exam.passed ? st.color : "var(--text-muted)",
-                            }}
-                          >
-                            {exam.passed ? <CheckCircle size={14} /> : i + 1}
-                          </div>
-                          {i < 3 && (
-                            <div
-                              className="w-6 h-0.5 rounded-full"
-                              style={{ background: exam.passed ? `rgba(${st.rgb},0.4)` : "rgba(255,255,255,0.08)" }}
-                            />
-                          )}
-                        </div>
-                      );
-                    })}
-                    <div className="w-6 h-0.5 rounded-full" style={{ background: passedModules === 4 ? "rgba(245,158,11,0.4)" : "rgba(255,255,255,0.08)" }} />
-                    <div
-                      className="w-10 h-10 rounded-xl flex items-center justify-center text-lg"
-                      style={{
-                        background: finalPassed ? "rgba(245,158,11,0.15)" : "rgba(255,255,255,0.05)",
-                        border: `2px solid ${finalPassed ? "rgba(245,158,11,0.5)" : passedModules === 4 ? "rgba(245,158,11,0.3)" : "rgba(255,255,255,0.08)"}`,
-                        boxShadow: finalPassed ? "0 0 16px rgba(245,158,11,0.2)" : "none",
-                      }}
-                    >
-                      {finalPassed ? "\u{1F3C6}" : "\u{1F512}"}
-                    </div>
-                  </div>
-
-                  <p className="text-xs mt-3" style={{ color: "var(--text-muted)" }}>
-                    {finalPassed
-                      ? "Поздравляем! Сертификат получен."
-                      : passedModules === 4
-                        ? "Все 4 модуля сданы! Финальный экзамен открыт."
-                        : `Сдано ${passedModules} из 4 модулей. Каждый экзамен требует минимум ${PASS_THRESHOLD}%.`}
-                  </p>
+          <Card accentTop className="mt-6">
+            <div className="flex flex-col gap-6 sm:flex-row sm:items-center">
+              <div className="flex-1">
+                <div className="mb-3 flex items-center gap-2">
+                  <Award size={15} style={{ color: "var(--primary)" }} />
+                  <span className="font-mono text-[11px] uppercase tracking-[0.16em]" style={{ color: "var(--text-secondary)" }}>Путь к сертификату</span>
                 </div>
 
-                <div className="flex flex-col items-center shrink-0">
-                  <div className="relative w-20 h-20">
-                    <svg viewBox="0 0 80 80" className="w-full h-full -rotate-90" style={{ filter: "drop-shadow(0 0 8px rgba(245,158,11,0.3))" }}>
-                      <circle cx="40" cy="40" r="34" fill="none" stroke="var(--border-color)" strokeWidth="6" />
-                      <circle cx="40" cy="40" r="34" fill="none" stroke="#F59E0B" strokeWidth="6" strokeLinecap="round" strokeDasharray={`${(overallProgress / 100) * 213.6} 213.6`} style={{ transition: "stroke-dasharray 0.5s ease" }} />
-                    </svg>
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <span className="text-lg font-bold" style={{ color: "var(--text-primary)" }}>{overallProgress}%</span>
+                <div className="flex flex-wrap items-center gap-2">
+                  {exams.filter((e) => e.id !== "exam-5").map((exam, i) => (
+                    <div key={exam.id} className="flex items-center gap-2">
+                      <div
+                        className="flex h-8 w-8 items-center justify-center rounded-lg font-mono text-xs font-semibold tabular-nums"
+                        style={{
+                          background: exam.passed ? "var(--primary-muted)" : "var(--bg-secondary)",
+                          border: `1.5px solid ${exam.passed ? "var(--primary)" : "var(--border-color)"}`,
+                          color: exam.passed ? "var(--primary)" : "var(--text-muted)",
+                        }}
+                      >
+                        {exam.passed ? <CheckCircle size={14} /> : i + 1}
+                      </div>
+                      {i < 3 && <div className="h-0.5 w-6 rounded-full" style={{ background: exam.passed ? "var(--primary)" : "var(--border-color)" }} />}
                     </div>
-                  </div>
-                  <span className="mt-2 text-[10px] font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>Прогресс</span>
+                  ))}
+                  <div className="h-0.5 w-6 rounded-full" style={{ background: passedModules === 4 ? "var(--primary)" : "var(--border-color)" }} />
+                  <button
+                    onClick={() => setShowCert(true)}
+                    aria-label="Посмотреть сертификат"
+                    className="flex h-10 w-10 items-center justify-center rounded-xl text-lg transition-transform hover:scale-105"
+                    style={{
+                      background: finalPassed ? "var(--primary-muted)" : "var(--bg-secondary)",
+                      border: `2px solid ${finalPassed || passedModules === 4 ? "var(--primary)" : "var(--border-color)"}`,
+                    }}
+                  >
+                    {finalPassed ? "🏆" : "🔒"}
+                  </button>
                 </div>
+
+                <p className="mt-3 text-[13px]" style={{ color: "var(--text-muted)" }}>
+                  {finalPassed
+                    ? "Сертификат получен — поздравляем."
+                    : passedModules === 4
+                      ? "Все 4 модуля сданы. Финальный экзамен открыт."
+                      : `Сдано ${passedModules} из 4 модулей. Порог каждого — ${PASS_THRESHOLD}%.`}
+                </p>
+              </div>
+
+              <div className="flex shrink-0 flex-col items-center">
+                <div className="relative h-20 w-20">
+                  <svg viewBox="0 0 80 80" className="h-full w-full -rotate-90">
+                    <circle cx="40" cy="40" r="34" fill="none" stroke="var(--border-color)" strokeWidth="6" />
+                    <circle cx="40" cy="40" r="34" fill="none" stroke="var(--primary)" strokeWidth="6" strokeLinecap="round" strokeDasharray={`${(overallProgress / 100) * 213.6} 213.6`} style={{ transition: "stroke-dasharray 0.5s ease" }} />
+                  </svg>
+                  <div className="absolute inset-0 flex items-center justify-center font-mono text-lg font-semibold tabular-nums" style={{ color: "var(--text-primary)" }}>{overallProgress}%</div>
+                </div>
+                <span className="mt-2 font-mono text-[11px] uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>Прогресс</span>
               </div>
             </div>
-          </motion.div>
+          </Card>
 
           {/* Exam cards */}
           <div className="mt-8 space-y-4">
             {exams.map((exam, i) => (
-              <motion.div
-                key={exam.id}
-                initial={{ opacity: 0, y: 16 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.16 + i * 0.06 }}
-              >
-                <ExamCard
-                  exam={exam}
-                  onStart={() => router.push(`/exam/${exam.id}`)}
-                />
+              <motion.div key={exam.id} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: Math.min(0.1 + i * 0.05, 0.35) }}>
+                <ExamCard exam={exam} onStart={() => router.push(`/exam/${exam.id}`)} />
               </motion.div>
             ))}
           </div>
 
-          {/* Certificates section */}
-          {exams.some(e => e.certificate_code) && (
-            <motion.div
-              initial={{ opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.5 }}
-              className="mt-10"
-            >
-              <h2 className="text-lg font-bold mb-4" style={{ color: "var(--text-primary)" }}>
-                Ваши сертификаты
-              </h2>
+          {/* Earned certificates */}
+          {exams.some((e) => e.certificate_code) && (
+            <div className="mt-10">
+              <h2 className="mb-4 text-lg font-semibold" style={{ color: "var(--text-primary)" }}>Ваши сертификаты</h2>
               <div className="space-y-3">
-                {exams.filter(e => e.certificate_code).map(exam => (
-                  <div
+                {exams.filter((e) => e.certificate_code).map((exam) => (
+                  <Card
                     key={exam.id}
-                    className="rounded-xl p-4 flex items-center justify-between cursor-pointer hover:opacity-90 transition-opacity"
-                    style={{
-                      background: "rgba(245,158,11,0.04)",
-                      border: "1px solid rgba(245,158,11,0.15)",
-                    }}
+                    variant="interactive"
+                    role="link"
+                    tabIndex={0}
                     onClick={() => router.push(`/exam/certificate/${exam.id}`)}
+                    onKeyDown={(e) => { if (e.key === "Enter") router.push(`/exam/certificate/${exam.id}`); }}
+                    className="group flex items-center justify-between"
                   >
                     <div className="flex items-center gap-3">
-                      <Award size={20} style={{ color: "#F59E0B" }} />
+                      <Award size={20} style={{ color: "var(--primary)" }} />
                       <div>
-                        <div className="text-sm font-bold" style={{ color: "var(--text-primary)" }}>
-                          {exam.title}
-                        </div>
-                        <div className="text-xs" style={{ color: "var(--text-muted)" }}>
-                          {exam.best_score}% — код: {exam.certificate_code}
-                        </div>
+                        <div className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>{exam.title}</div>
+                        <div className="font-mono text-[12px]" style={{ color: "var(--text-muted)" }}>{exam.best_score}% · код {exam.certificate_code}</div>
                       </div>
                     </div>
-                    <span className="text-xs font-bold" style={{ color: "#F59E0B" }}>Открыть</span>
-                  </div>
+                    <span className="font-mono text-[12px] font-semibold" style={{ color: "var(--primary)" }}>Открыть</span>
+                  </Card>
                 ))}
               </div>
-            </motion.div>
+            </div>
           )}
 
           {/* Rules */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.6 }}
-            className="mt-8 rounded-xl p-4"
-            style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}
-          >
+          <Card className="mt-8">
             <div className="flex items-start gap-3">
-              <Shield size={16} className="shrink-0 mt-0.5" style={{ color: "var(--warning)" }} />
+              <Shield size={16} className="mt-0.5 shrink-0" style={{ color: "var(--text-muted)" }} />
               <div>
-                <div className="text-xs font-semibold mb-1" style={{ color: "var(--text-primary)" }}>
-                  Правила экзаменации
-                </div>
-                <ul className="text-xs space-y-1" style={{ color: "var(--text-muted)" }}>
-                  <li>Экзамен 1 доступен сразу, далее последовательно после сдачи предыдущего</li>
-                  <li>Минимальный порог сдачи — {PASS_THRESHOLD}% на каждом экзамене</li>
-                  <li>Вопросы выбираются случайно из банка 200+ вопросов</li>
-                  <li>Финальный экзамен (5) открывается после сдачи всех 4 модулей</li>
-                  <li>При успешной сдаче выдаётся сертификат с уникальным кодом верификации</li>
+                <div className="mb-1.5 text-[13px] font-semibold" style={{ color: "var(--text-primary)" }}>Правила экзаменации</div>
+                <ul className="space-y-1 text-[13px] leading-relaxed" style={{ color: "var(--text-muted)" }}>
+                  <li>Экзамен 1 открыт сразу, остальные — последовательно после сдачи предыдущего.</li>
+                  <li>Порог сдачи — {PASS_THRESHOLD}% на каждом экзамене.</li>
+                  <li>Вопросы выбираются случайно из банка 200+ вопросов.</li>
+                  <li>Финальный экзамен открывается после сдачи всех 4 модулей.</li>
+                  <li>При успешной сдаче выдаётся сертификат с кодом верификации.</li>
                 </ul>
               </div>
             </div>
-          </motion.div>
+          </Card>
         </div>
       </div>
+
+      {/* Certificate modal */}
+      <AnimatePresence>
+        {showCert && (
+          <motion.div className="fixed inset-0 z-50 flex items-center justify-center p-4" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+            <div className="absolute inset-0" style={{ background: "rgba(8,6,12,0.62)", backdropFilter: "blur(6px)" }} onClick={() => setShowCert(false)} />
+            <motion.div
+              className="relative w-full max-w-[420px]"
+              initial={{ scale: 0.95, y: 16 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.95, y: 16 }}
+              transition={{ type: "spring", stiffness: 280, damping: 26 }}
+            >
+              <button
+                onClick={() => setShowCert(false)}
+                aria-label="Закрыть"
+                className="absolute -top-3 -right-3 z-10 flex h-9 w-9 items-center justify-center rounded-full"
+                style={{ background: "var(--surface-card)", border: "1px solid var(--border-color)", color: "var(--text-secondary)", boxShadow: "var(--shadow-md)" }}
+              >
+                <X size={16} />
+              </button>
+
+              {finalPassed ? (
+                <CertificatePreview variant="earned" palette={CERT_TOKEN_PALETTE} recipientName={userName ?? undefined} />
+              ) : (
+                <CertificatePreview
+                  variant="locked"
+                  palette={CERT_TOKEN_PALETTE}
+                  lockTitle="Сдайте экзамен минимум на 88% — и получите сертификат, заверенный лучшими юристами РФ."
+                  lockSubtitle="Станьте экспертом в процедуре банкротства физических лиц."
+                  ctaLabel="К экзаменам"
+                  onCta={() => setShowCert(false)}
+                />
+              )}
+
+              {finalPassed && (
+                <button
+                  onClick={() => { setShowCert(false); router.push("/exam/certificate/exam-5"); }}
+                  className="mt-4 flex w-full items-center justify-center gap-2 rounded-full py-3.5 text-sm font-bold"
+                  style={{ background: "var(--primary)", color: "#fff" }}
+                >
+                  <Award size={16} /> Открыть сертификат
+                </button>
+              )}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </AuthLayout>
   );
 }

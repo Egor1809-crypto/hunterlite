@@ -24,7 +24,6 @@ from app.core.redis_pool import close_redis_pool
 from app.services.scheduler import reminder_scheduler
 from app.ws.training import training_websocket
 from app.ws.notifications import notification_websocket
-from app.ws.pvp import pvp_websocket
 from app.ws.knowledge import knowledge_websocket
 
 logger = logging.getLogger(__name__)
@@ -144,33 +143,6 @@ async def lifespan(application: FastAPI):
     except Exception as e:
         logger.warning("Lifespan: seed lock failed: %s", e)
 
-    # ── Ensure PvE bot user exists (FK target for pvp_duels.player2_id) ──
-    try:
-        _BOT_UUID = "00000000-0000-0000-0000-000000000001"
-        async with async_session() as _bot_db:
-            from sqlalchemy import text as _text
-            _exists = (await _bot_db.execute(
-                _text("SELECT 1 FROM users WHERE id = :bid"),
-                {"bid": _BOT_UUID},
-            )).scalar()
-            if not _exists:
-                from app.core.security import hash_password as _hp
-                from app.models.user import User as _U, UserRole as _UR
-                import uuid as _uuid
-                _bot = _U(
-                    id=_uuid.UUID(_BOT_UUID),
-                    email="bot@system.local",
-                    hashed_password=_hp("!disabled-bot-account!"),
-                    full_name="AI Бот",
-                    role=_UR.manager,
-                    is_active=False,
-                )
-                _bot_db.add(_bot)
-                await _bot_db.commit()
-                logger.info("Lifespan: PvE bot user created")
-    except Exception as e:
-        logger.warning("Lifespan: PvE bot user check failed (non-blocking): %s", e)
-
     # Load BlitzQuestionPool for zero-latency blitz mode
     try:
         async with async_session() as db:
@@ -197,49 +169,6 @@ async def lifespan(application: FastAPI):
     from app.services.llm_health import start_monitor as start_llm_monitor
     start_llm_monitor()
 
-    # Start weekly league scheduler (form groups Monday, finalize Sunday)
-    import asyncio
-    async def _league_scheduler():
-        """Background task: checks hourly if league actions needed."""
-        from datetime import datetime, timezone
-        while True:
-            try:
-                now = datetime.now(timezone.utc)
-                # Monday 05:00-06:00 UTC (08:00-09:00 MSK) → form groups
-                if now.weekday() == 0 and 5 <= now.hour < 6:
-                    from app.services.weekly_league import form_weekly_groups
-                    async with async_session() as db:
-                        created = await form_weekly_groups(db)
-                        await db.commit()
-                        if created:
-                            logger.info("League scheduler: formed %d groups", created)
-                # Sunday 20:00-21:00 UTC (23:00-00:00 MSK) → finalize
-                elif now.weekday() == 6 and 20 <= now.hour < 21:
-                    from app.services.weekly_league import finalize_week
-                    async with async_session() as db:
-                        result = await finalize_week(db)
-                        await db.commit()
-                        if result.get("groups_finalized"):
-                            logger.info("League scheduler: finalized %s", result)
-            except Exception as e:
-                logger.warning("League scheduler error: %s", e)
-            await asyncio.sleep(3600)  # Check every hour
-    asyncio.create_task(_league_scheduler())
-
-    # Эпик 2 PR-3: start the arena-bus audit consumer when enabled.
-    # The consumer task is held in app.state so the shutdown hook can
-    # cancel cleanly; the consumer's run_forever already acks any
-    # in-flight handles before raising CancelledError, so cancellation
-    # at shutdown does not lose events.
-    application.state.arena_bus_audit_task = None
-    if settings.arena_bus_audit_consumer_enabled:
-        try:
-            from app.services.arena_bus_consumer import AuditLogConsumer
-            _audit = AuditLogConsumer(consumer="audit-1")
-            application.state.arena_bus_audit_task = asyncio.create_task(_audit.run_forever())
-            logger.info("Lifespan: arena bus AuditLogConsumer started")
-        except Exception:
-            logger.warning("Lifespan: failed to start arena bus AuditLogConsumer", exc_info=True)
 
     # Content→Arena PR-6: start the live embedding backfill worker. Held
     # in app.state so the shutdown hook can cancel it cleanly. The worker
@@ -254,24 +183,6 @@ async def lifespan(application: FastAPI):
             logger.info("Lifespan: embedding live-backfill worker started")
         except Exception:
             logger.warning("Lifespan: failed to start embedding live-backfill worker", exc_info=True)
-
-    # PR-1 (2026-05-05): PvP duel reaper. Closes duels stuck in
-    # round_1/swap/round_2/judging when the worker that owned the
-    # in-memory _disconnect_tasks dict died. Always on — there's no
-    # tradeoff to having stale rows hang around the leaderboard.
-    application.state.pvp_duel_reaper_task = None
-    try:
-        from app.services.pvp_duel_reaper import PvPDuelReaper
-        _pvp_reaper = PvPDuelReaper()
-        application.state.pvp_duel_reaper_task = asyncio.create_task(
-            _pvp_reaper.run_forever()
-        )
-        logger.info("Lifespan: pvp duel reaper started")
-    except Exception:
-        logger.warning(
-            "Lifespan: failed to start pvp duel reaper",
-            exc_info=True,
-        )
 
     # TZ-8 PR-E: review-TTL auto-flip scheduler. Held in app.state so
     # the shutdown hook can cancel cleanly. The bulk UPDATE inside is
@@ -334,16 +245,6 @@ async def lifespan(application: FastAPI):
         await _tg_shutdown()
     except Exception:
         logger.warning("Lifespan: Telegram bot shutdown failed", exc_info=True)
-    # Stop arena-bus audit consumer first so its in-flight batch acks
-    # cleanly before the Redis pool is closed. The consumer's
-    # run_forever() already handles CancelledError to flush PEL.
-    _audit_task = getattr(application.state, "arena_bus_audit_task", None)
-    if _audit_task is not None:
-        _audit_task.cancel()
-        try:
-            await _audit_task
-        except (asyncio.CancelledError, Exception):
-            pass
 
     # Stop the live embedding backfill worker before the Redis pool
     # closes — its BLPOP would otherwise raise on a half-shut connection.
@@ -366,15 +267,6 @@ async def lifespan(application: FastAPI):
         except (asyncio.CancelledError, Exception):
             pass
 
-    # PR-1: stop pvp duel reaper. Single-tick UPDATE is idempotent,
-    # so cancellation mid-sweep just means the next tick re-runs.
-    _reaper_task = getattr(application.state, "pvp_duel_reaper_task", None)
-    if _reaper_task is not None:
-        _reaper_task.cancel()
-        try:
-            await _reaper_task
-        except (asyncio.CancelledError, Exception):
-            pass
 
     # Stop outbox worker first (flush pending events)
     from app.services.event_bus import event_bus as _eb
@@ -622,15 +514,6 @@ app.add_middleware(CORSMiddleware, **_cors_kwargs)
 
 app.include_router(api_router, prefix="/api")
 
-# Sprint 4 (2026-04-20) — Arena lifelines (hint / skip / 50-50) REST API.
-# Mounted separately because the router already declares its own /api prefix.
-from app.api.arena_lifelines import router as _arena_lifelines_router  # noqa: E402
-app.include_router(_arena_lifelines_router)
-
-# Phase C (2026-04-20): Arena power-ups (×2 XP, future: shield, etc.)
-from app.api.arena_powerups import router as _arena_powerups_router  # noqa: E402
-app.include_router(_arena_powerups_router)
-
 
 # ── WebSocket origin validation ──────────────────────────────────────────────
 import re as _re
@@ -784,16 +667,6 @@ async def ws_notifications(websocket: WebSocket):
         await websocket.close(code=4003)
         return
     await notification_websocket(websocket)
-
-
-@app.websocket("/ws/pvp")
-async def ws_pvp(websocket: WebSocket):
-    """WebSocket для PvP-дуэлей (Agent 8 — PvP Battle)."""
-    _attach_ws_request_id(websocket)
-    if not _validate_ws_origin(websocket):
-        await websocket.close(code=4003)
-        return
-    await pvp_websocket(websocket)
 
 
 @app.websocket("/ws/knowledge")

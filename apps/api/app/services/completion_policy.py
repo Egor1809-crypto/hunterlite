@@ -60,7 +60,6 @@ from typing import Any
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
-from app.models.pvp import PvPDuel
 from app.models.training import SessionStatus, TrainingSession
 
 logger = logging.getLogger(__name__)
@@ -587,90 +586,6 @@ async def finalize_training_session(
     )
 
 
-# ── Finalize — PvP duels ─────────────────────────────────────────────────
-
-
-async def finalize_pvp_duel(
-    db: AsyncSession,
-    *,
-    duel: PvPDuel,
-    outcome: TerminalOutcome,
-    reason: TerminalReason,
-    allow_already_completed: bool = True,
-) -> CompletionResult:
-    """Stamp terminal columns on a PvP duel.
-
-    Unlike training this is ONLY bookkeeping — PvP rating, Arena points
-    and ``EVENT_PVP_COMPLETED`` emission live in
-    ``_finalize_duel``/``judge_full_duel`` and keep running there until
-    we explicitly move them in a later phase. Lifting them here requires
-    rating invariants the policy module doesn't own yet.
-    """
-    validate("pvp", outcome, is_pvp=True)
-
-    if duel.terminal_outcome is not None:
-        if not allow_already_completed:
-            raise InvalidTerminalOutcome(
-                f"Duel {duel.id} already finalized as {duel.terminal_outcome}"
-            )
-        try:
-            cached_outcome = TerminalOutcome(duel.terminal_outcome)
-        except ValueError:
-            cached_outcome = outcome
-        try:
-            cached_reason = TerminalReason(duel.terminal_reason or reason.value)
-        except ValueError:
-            cached_reason = reason
-        from app.services.runtime_metrics import record_finalize
-        record_finalize(
-            completed_via=CompletedVia.pvp.value,
-            outcome=cached_outcome.value,
-            strict_mode=bool(settings.completion_policy_strict),
-            already_completed=True,
-        )
-        return CompletionResult(
-            session_id=duel.id,
-            outcome=cached_outcome,
-            reason=cached_reason,
-            completed_via=CompletedVia.pvp,
-            strict_mode=bool(settings.completion_policy_strict),
-            already_completed=True,
-            events_emitted=(),
-            followup_id=None,
-        )
-
-    duel.terminal_outcome = outcome.value
-    duel.terminal_reason = reason.value
-
-    logger.info(
-        "completion_policy.pvp_finalized",
-        extra={
-            "duel_id": str(duel.id),
-            "outcome": outcome.value,
-            "reason": reason.value,
-        },
-    )
-
-    from app.services.runtime_metrics import record_finalize
-    record_finalize(
-        completed_via=CompletedVia.pvp.value,
-        outcome=outcome.value,
-        strict_mode=bool(settings.completion_policy_strict),
-        already_completed=False,
-    )
-
-    return CompletionResult(
-        session_id=duel.id,
-        outcome=outcome,
-        reason=reason,
-        completed_via=CompletedVia.pvp,
-        strict_mode=bool(settings.completion_policy_strict),
-        already_completed=False,
-        events_emitted=(),
-        followup_id=None,
-    )
-
-
 # ── Public helpers ───────────────────────────────────────────────────────
 
 
@@ -730,7 +645,6 @@ __all__ = [
     "InvalidTerminalOutcome",
     "TerminalOutcome",
     "TerminalReason",
-    "finalize_pvp_duel",
     "finalize_training_session",
     "outcome_from_raw",
     "validate",

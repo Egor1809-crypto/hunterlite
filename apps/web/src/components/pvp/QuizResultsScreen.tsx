@@ -236,7 +236,7 @@ export function QuizResultsScreen({
 
   // Share helpers.
   const shareText = `Я набрал ${accuracy}% в квизе ФЗ-127 на Hunter (${correct}/${totalQuestions}, серия ×${bestStreak}). Попробуй и ты!`;
-  const shareUrl = typeof window !== "undefined" ? window.location.origin + "/pvp" : "";
+  const shareUrl = typeof window !== "undefined" ? window.location.origin + "/training" : "";
   const tgUrl = `https://t.me/share/url?url=${encodeURIComponent(shareUrl)}&text=${encodeURIComponent(shareText)}`;
   const twUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText + "\n" + shareUrl)}`;
 
