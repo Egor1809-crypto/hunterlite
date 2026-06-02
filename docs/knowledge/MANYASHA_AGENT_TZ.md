@@ -158,10 +158,10 @@ radar_refs?, tool_trace?, conversation_id }`. Фронт показывает о
 (2) агентный `ask` через llm.py + tools; (3) API conversations; (4) FE-чат;
 (5) браузерная проверка. См. `/CLAUDE.md §1`.
 
-## 9. Открытые DECISION (заказчику)
-- **DECISION-A:** in-tab чат на `/knowledge` + скрыть плавающий (реком.) — или сделать плавающего Маняшу основным?
-- **DECISION-B:** несколько именованных бесед (реком.) или одна rolling-нить?
-- **DECISION-C:** заменить `POST /ask` на conversations (реком.) или оставить для совместимости?
+## 9. Решения (зафиксированы заказчиком 2026-06-02)
+- **DECISION-A → in-tab чат** на `/knowledge` + плавающий Маняша скрыт на этой странице.
+- **DECISION-B → несколько именованных бесед** (дефолтная = последняя активная).
+- **DECISION-C → заменить `POST /ask` на conversations** (старый эндпоинт убрать).
 
 ## Ключевые файлы
 `apps/web/src/app/knowledge/page.tsx`, `apps/web/src/components/ManyashaChat.tsx`,

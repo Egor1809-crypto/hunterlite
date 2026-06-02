@@ -143,10 +143,10 @@ GET /dashboard/weekly-report         → расширить агрегацию e
 (3) чистка настроек + добавления; (4) апгрейд истории + Маняша-блоки; (5) браузер.
 Дизайн-фаза §6 — после команды. См. `/CLAUDE.md §1`.
 
-## 10. Открытые DECISION (заказчику)
-- **DECISION-A:** «Воронка»/pipeline в настройках — удалить (реком., вне скоупа) или оставить для CRM-ролей?
-- **DECISION-B:** unified history — расширять `GET /training/history` или новый `GET /history/unified`? (реком.: новый, чище)
-- **DECISION-C:** недельный отчёт Маняши — генерить заново LLM или нарратив поверх готового `weekly_report.report_text`? (реком.: нарратив поверх готового + дозагрузка exam/case)
+## 10. Решения (зафиксированы заказчиком 2026-06-02)
+- **DECISION-A → «Воронку»/pipeline удалить** (вне скоупа LegalHunter).
+- **DECISION-B → новый `GET /history/unified`** (не расширять старый — чище).
+- **DECISION-C → недельный отчёт = нарратив поверх готового `weekly_report.report_text`** + дозагрузка exam/case в агрегацию.
 
 ## Ключевые файлы
 `apps/web/src/app/{history,profile,settings}/page.tsx`,
