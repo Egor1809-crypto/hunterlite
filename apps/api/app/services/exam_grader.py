@@ -396,6 +396,7 @@ async def build_rag_grounding(
     try:
         import uuid as _uuid
         from app.models.rag import LegalKnowledgeChunk
+        from app.services.rag_legal import RAGContext, RAGResult
         ids: list = []
         articles: list[str] = []
         for ref in rag_chunk_refs:
@@ -419,20 +420,30 @@ async def build_rag_grounding(
             )).scalars().all())
         if not rows:
             return None
-        block_parts: list[str] = []
-        total = 0
+        # Build RAGResult objects and render via the canonical, allow-listed
+        # rag_legal formatter (RAGContext.to_prompt_context). That path runs
+        # filter_rag_context + knowledge-status gating + the [DATA_*] isolation
+        # envelope — so exam grounding obeys the same prompt-isolation contract
+        # as every other RAG consumer (tests/test_rag_invariants.py). We must
+        # NOT hand-roll marker handling here.
         seen: set = set()
+        results: list = []
         for r in rows:
             if r.id in seen:
                 continue
             seen.add(r.id)
-            txt = (r.fact_text or "").replace("[DATA_START]", "").replace("[DATA_END]", "")
-            piece = f"[{r.law_article or r.category}] {txt}"
-            if total + len(piece) > max_chars:
-                break
-            block_parts.append(piece)
-            total += len(piece)
-        return "\n\n".join(block_parts) if block_parts else None
+            results.append(RAGResult(
+                chunk_id=r.id,
+                category=r.category or "",
+                fact_text=r.fact_text or "",
+                law_article=r.law_article or "",
+                relevance_score=1.0,
+                knowledge_status=getattr(r, "knowledge_status", "actual") or "actual",
+            ))
+        block = RAGContext(query="exam-grading", results=results).to_prompt_context()
+        if not block:
+            return None
+        return block[:max_chars] if len(block) > max_chars else block
     except Exception as e:
         logger.debug("exam_grader rag grounding skipped: %s", e)
         return None
