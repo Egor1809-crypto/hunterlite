@@ -24,7 +24,6 @@ from app.core.redis_pool import close_redis_pool
 from app.services.scheduler import reminder_scheduler
 from app.ws.training import training_websocket
 from app.ws.notifications import notification_websocket
-from app.ws.knowledge import knowledge_websocket
 
 logger = logging.getLogger(__name__)
 
@@ -695,15 +694,5 @@ async def ws_notifications(websocket: WebSocket):
         await websocket.close(code=4003)
         return
     await notification_websocket(websocket)
-
-
-@app.websocket("/ws/knowledge")
-async def ws_knowledge(websocket: WebSocket):
-    """WebSocket for Knowledge Quiz (127-FZ knowledge testing)."""
-    _attach_ws_request_id(websocket)
-    if not _validate_ws_origin(websocket):
-        await websocket.close(code=4003)
-        return
-    await knowledge_websocket(websocket)
 
 

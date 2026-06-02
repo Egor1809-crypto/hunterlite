@@ -348,21 +348,8 @@ async def composite_leaderboard(
         .subquery()
     )
 
-    # Sub-query: knowledge quiz accuracy
-    try:
-        from app.models.knowledge import UserAnswerHistory
-        knowledge_sq = (
-            sa_select(
-                UserAnswerHistory.user_id,
-                (sa_func.sum(case((UserAnswerHistory.is_correct == True, 1), else_=0)) * 100.0 /  # noqa: E712
-                 sa_func.count(UserAnswerHistory.id)).label("accuracy"),
-            )
-            .group_by(UserAnswerHistory.user_id)
-            .subquery()
-        )
-        has_knowledge = True
-    except Exception:
-        has_knowledge = False
+    # Knowledge-quiz retired — no quiz accuracy component in the composite.
+    has_knowledge = False
 
     # Build composite query
     query = (

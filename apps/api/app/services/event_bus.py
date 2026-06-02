@@ -46,7 +46,6 @@ EVENT_STREAK_UPDATED = "streak_updated"
 EVENT_LEVEL_UP = "level_up"
 EVENT_ACHIEVEMENT_EARNED = "achievement_earned"
 EVENT_GOAL_COMPLETED = "goal_completed"
-EVENT_KNOWLEDGE_QUIZ_COMPLETED = "knowledge_quiz_completed"
 
 ALL_EVENTS = {
     EVENT_TRAINING_COMPLETED,
@@ -57,7 +56,6 @@ ALL_EVENTS = {
     EVENT_LEVEL_UP,
     EVENT_ACHIEVEMENT_EARNED,
     EVENT_GOAL_COMPLETED,
-    EVENT_KNOWLEDGE_QUIZ_COMPLETED,
 }
 
 # Retry backoff schedule (seconds) — index = attempt number (0-based)
@@ -431,68 +429,6 @@ async def _handle_goals(event: GameEvent) -> None:
         ))
 
 
-async def _handle_arena_achievements(event: GameEvent) -> None:
-    """Check arena-specific achievements after arena/pvp events."""
-    from app.services.gamification import check_arena_achievements
-    newly_earned = await check_arena_achievements(event.user_id, event.db)
-    if newly_earned:
-        logger.info(
-            "Awarded %d arena achievement(s) to user %s",
-            len(newly_earned), event.user_id,
-        )
-        for ach in newly_earned:
-            await event_bus.emit_immediate(GameEvent(
-                kind=EVENT_ACHIEVEMENT_EARNED,
-                user_id=event.user_id,
-                db=event.db,
-                payload=ach,
-            ))
-
-
-async def _handle_training_to_srs(event: GameEvent) -> None:
-    """Feed weak legal areas from training into Knowledge SRS system.
-
-    When a training session's L10 legal accuracy reveals weak categories,
-    seed SRS entries so the user gets targeted review in Knowledge Quiz.
-    """
-    from app.services.spaced_repetition import record_review
-
-    weak_categories = event.payload.get("weak_legal_categories", [])
-    if not weak_categories:
-        return
-
-    seeded = 0
-    for cat in weak_categories[:5]:  # cap at 5 per session
-        category = cat.get("category", "")
-        article_refs = cat.get("article_refs", [])
-        if not category:
-            continue
-        # Create SRS entries for each article reference in the weak category
-        for ref in article_refs[:3]:  # cap at 3 refs per category
-            try:
-                await record_review(
-                    event.db,
-                    user_id=event.user_id,
-                    question_text=f"Повторить: {ref} ({cat.get('display_name', category)})",
-                    question_category=category,
-                    is_correct=False,  # Mark as incorrect to prioritize review
-                    response_time_ms=None,
-                    hint_used=False,
-                )
-                seeded += 1
-            except Exception:
-                logger.warning(
-                    "Failed to seed SRS for user=%s category=%s ref=%s",
-                    event.user_id, category, ref, exc_info=True,
-                )
-
-    if seeded:
-        logger.info(
-            "Seeded %d SRS entries from training weak areas for user %s",
-            seeded, event.user_id,
-        )
-
-
 async def _handle_notification(event: GameEvent) -> None:
     """Push real-time WS notification + Web Push for achievements, goals, level-ups."""
     from app.ws.notifications import notification_manager
@@ -863,33 +799,6 @@ async def _handle_pvp_to_tp(event: GameEvent) -> None:
         logger.warning("TP handler (pvp) failed", exc_info=True)
 
 
-async def _handle_knowledge_to_tp(event: GameEvent) -> None:
-    """EVENT_KNOWLEDGE_QUIZ_COMPLETED → write TP contribution."""
-    try:
-        from app.services.tournament_points import knowledge_to_tp
-        p = event.payload or {}
-        quiz_session_id = p.get("quiz_session_id") or p.get("session_id")
-        if not quiz_session_id:
-            return
-        correct = int(p.get("correct_answers", 0) or 0)
-        total = int(p.get("total_questions", 0) or 0)
-        arena_win = p.get("arena_win")
-        points = knowledge_to_tp(correct, total, arena_win)
-        if points <= 0:
-            return
-        await _write_contribution(
-            event.db,
-            user_id=event.user_id,
-            source="knowledge",
-            source_ref_id=uuid.UUID(str(quiz_session_id)),
-            points=points,
-            payload={"correct": correct, "total": total, "arena_win": arena_win},
-            earned_at=datetime.now(timezone.utc),
-        )
-    except Exception:
-        logger.warning("TP handler (knowledge) failed", exc_info=True)
-
-
 async def _handle_story_to_tp(event: GameEvent) -> None:
     """EVENT_STORY_COMPLETED → write TP contribution."""
     try:
@@ -925,18 +834,8 @@ def setup_default_handlers() -> None:
     event_bus.on(EVENT_TRAINING_COMPLETED, _handle_achievements)
     event_bus.on(EVENT_TRAINING_COMPLETED, _handle_goals)
 
-    # Training → feed weak legal areas into Knowledge SRS
-    event_bus.on(EVENT_TRAINING_COMPLETED, _handle_training_to_srs)
-
     # Story completion → achievements
     event_bus.on(EVENT_STORY_COMPLETED, _handle_achievements)
-
-    # Arena/PvP → arena achievements
-    event_bus.on(EVENT_ARENA_COMPLETED, _handle_arena_achievements)
-    event_bus.on(EVENT_PVP_COMPLETED, _handle_arena_achievements)
-
-    # Knowledge quiz → achievements
-    event_bus.on(EVENT_KNOWLEDGE_QUIZ_COMPLETED, _handle_achievements)
 
     # Notifications for earned achievements, completed goals, level ups, streaks
     event_bus.on(EVENT_ACHIEVEMENT_EARNED, _handle_notification)
@@ -949,12 +848,6 @@ def setup_default_handlers() -> None:
 
     # Home sessions → auto-create ClientStory for CRM kanban
     event_bus.on(EVENT_TRAINING_COMPLETED, _handle_home_session_to_crm)
-
-    # Unified tournament economy — every activity feeds TP ledger
-    event_bus.on(EVENT_TRAINING_COMPLETED, _handle_training_to_tp)
-    event_bus.on(EVENT_PVP_COMPLETED, _handle_pvp_to_tp)
-    event_bus.on(EVENT_KNOWLEDGE_QUIZ_COMPLETED, _handle_knowledge_to_tp)
-    event_bus.on(EVENT_STORY_COMPLETED, _handle_story_to_tp)
 
     logger.info("EventBus: registered %d default handlers", sum(
         len(h) for h in event_bus._handlers.values()

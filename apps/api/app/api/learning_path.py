@@ -32,7 +32,6 @@ from app.core.rate_limit import limiter
 from app.database import get_db
 from app.models.case_scenario import CaseAttempt, CaseProgress, CaseScenario
 from app.models.exam import ExamAttempt, ExamCertificate, ExamDefinition
-from app.models.knowledge import KnowledgeQuizSession
 from app.models.progress import ManagerProgress, SessionHistory
 from app.models.training_map import TrainingMapProgress
 from app.models.user import User
@@ -91,12 +90,10 @@ async def _get_case_progress(user_id: uuid.UUID, db: AsyncSession) -> CaseProgre
 
 
 async def _count_knowledge_sessions(user_id: uuid.UUID, db: AsyncSession) -> int:
-    result = await db.execute(
-        select(func.count()).select_from(KnowledgeQuizSession).where(
-            KnowledgeQuizSession.user_id == user_id,
-        )
-    )
-    return result.scalar_one() or 0
+    # Knowledge-quiz subsystem retired. No quiz sessions to count.
+    # TODO(step-3 UX): repoint the learning-path "knowledge" module to a kept
+    # metric (knowledge-base reads / exam progress) or drop the module.
+    return 0
 
 
 async def _count_training_sessions(user_id: uuid.UUID, db: AsyncSession) -> tuple[int, int, float | None, int | None]:

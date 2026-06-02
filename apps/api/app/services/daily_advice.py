@@ -347,18 +347,8 @@ async def _get_manager_progress(user_id: uuid.UUID, db: AsyncSession):
 
 
 async def _get_arena_weak_categories(user_id: uuid.UUID, db: AsyncSession) -> list[dict]:
-    """Get weak Arena categories (accuracy < 60%)."""
-    try:
-        from app.services.knowledge_quiz import get_category_progress
-        progress = await get_category_progress(user_id, db)
-        weak = [
-            {"category": p["category"], "accuracy": p["mastery_pct"]}
-            for p in progress
-            if p.get("total_answers", 0) >= 3 and p.get("mastery_pct", 100) < 60
-        ]
-        return sorted(weak, key=lambda x: x["accuracy"])
-    except Exception:
-        return []
+    """Knowledge-quiz retired — no quiz-derived weak categories to surface."""
+    return []
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

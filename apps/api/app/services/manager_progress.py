@@ -450,60 +450,8 @@ class ManagerProgressService:
     async def _calc_knowledge_with_arena(
         self, user_id: uuid.UUID, training_score: int,
     ) -> int:
-        """Calculate knowledge skill combining training + Arena quiz + PvP data.
-
-        Formula:
-            knowledge = training_component * 0.5 + arena_accuracy * 0.35 + pvp_win_rate * 0.15
-        """
-        from app.services.knowledge_quiz import get_category_progress
-
-        # Arena quiz accuracy
-        arena_score = 0
-        try:
-            category_progress = await get_category_progress(user_id, self._db)
-            if category_progress:
-                total_correct = sum(
-                    cp.get("correct_answers", 0) for cp in category_progress
-                )
-                total_answered = sum(
-                    cp.get("total_answers", 0) for cp in category_progress
-                )
-                if total_answered >= 5:  # Minimum data threshold
-                    arena_score = int((total_correct / total_answered) * 100)
-                else:
-                    # Not enough Arena data — use training only
-                    return training_score
-        except Exception:
-            return training_score
-
-        # PvP win rate (from PvP ratings)
-        pvp_score = 0
-        try:
-            from app.models.pvp import PvPRating
-            result = await self._db.execute(
-                select(PvPRating).where(
-                    PvPRating.user_id == user_id,
-                    PvPRating.rating_type == "knowledge_arena",
-                )
-            )
-            rating = result.scalar_one_or_none()
-            if rating and rating.total_duels >= 3:  # Minimum 3 duels
-                pvp_score = int((rating.wins / rating.total_duels) * 100)
-            else:
-                # Not enough PvP data — split between training and arena
-                final = int(training_score * 0.6 + arena_score * 0.4)
-                return max(0, min(100, final))
-        except Exception:
-            final = int(training_score * 0.6 + arena_score * 0.4)
-            return max(0, min(100, final))
-
-        # Full formula with all three components
-        final = int(
-            training_score * 0.5
-            + arena_score * 0.35
-            + pvp_score * 0.15
-        )
-        return max(0, min(100, final))
+        """Knowledge-quiz / PvP-arena retired — knowledge skill is training-only now."""
+        return training_score
 
     # ── Рекомендация следующей сессии ──
 

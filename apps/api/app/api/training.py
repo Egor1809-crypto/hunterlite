@@ -2168,43 +2168,7 @@ async def training_history(
             )
         )
 
-    # Unified history: surface every completed knowledge-quiz / test-map run
-    # as its own row. Quizzes are KnowledgeQuizSessions (separate model from
-    # TrainingSession) so they need their own query + a quiz-shaped summary.
-    from app.models.knowledge import KnowledgeQuizSession, QuizSessionStatus
-
-    quiz_result = await db.execute(
-        select(KnowledgeQuizSession)
-        .where(
-            KnowledgeQuizSession.user_id == user.id,
-            KnowledgeQuizSession.status == QuizSessionStatus.completed,
-        )
-        .order_by(KnowledgeQuizSession.ended_at.desc())
-        .limit(limit)
-        .offset(offset)
-    )
-    for quiz in quiz_result.scalars().all():
-        completed_at = quiz.ended_at or quiz.created_at or quiz.started_at
-        items.append(
-            HistoryEntryResponse(
-                kind="quiz",
-                sort_at=completed_at,
-                quiz=HistoryQuizSummary(
-                    quiz_session_id=quiz.id,
-                    category=quiz.category,
-                    map_level=None,
-                    total_questions=quiz.total_questions,
-                    correct_answers=quiz.correct_answers,
-                    incorrect_answers=quiz.incorrect_answers,
-                    score=quiz.score,
-                    completed_at=completed_at,
-                ),
-                calls_completed=1,
-                avg_score=quiz.score,
-                best_score=quiz.score,
-            )
-        )
-
+    # Knowledge-quiz subsystem retired — only training/story rows in history.
     items.sort(key=lambda item: item.sort_at, reverse=True)
     return items[:limit]
 

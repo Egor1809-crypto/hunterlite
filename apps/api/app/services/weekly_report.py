@@ -193,35 +193,8 @@ async def generate_weekly_report(
         for a in ach_result.scalars().all()
     ]
 
-    # ── Arena / Knowledge Quiz metrics ──
+    # Arena / Knowledge-Quiz / PvP metrics retired — no longer in weekly report.
     arena_stats: dict = {}
-    try:
-        from app.models.knowledge import KnowledgeQuizSession
-        from app.models.pvp import PvPRating
-        arena_sessions = await db.execute(
-            select(func.count(KnowledgeQuizSession.id))
-            .where(
-                KnowledgeQuizSession.user_id == user_id,
-                KnowledgeQuizSession.created_at >= monday,
-                KnowledgeQuizSession.created_at <= sunday,
-            )
-        )
-        arena_count = arena_sessions.scalar() or 0
-
-        rating_result = await db.execute(
-            select(PvPRating.rating, PvPRating.wins, PvPRating.losses, PvPRating.rank_tier)
-            .where(PvPRating.user_id == user_id, PvPRating.rating_type == "knowledge_arena")
-        )
-        rating_row = rating_result.first()
-        arena_stats = {
-            "quiz_sessions": arena_count,
-            "arena_rating": round(rating_row.rating, 1) if rating_row else None,
-            "arena_wins": rating_row.wins if rating_row else 0,
-            "arena_losses": rating_row.losses if rating_row else 0,
-            "arena_tier": rating_row.rank_tier.value if rating_row and rating_row.rank_tier else None,
-        }
-    except Exception:
-        pass
 
     # ── Weak points ──
     weak_points = profile.weak_points or []
