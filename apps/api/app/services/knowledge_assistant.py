@@ -36,7 +36,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.legal_update import LegalUpdate
 from app.models.rag import LegalKnowledgeChunk
 from app.models.knowledge_status import STATUSES_VISIBLE_IN_RAG
-from app.services.content_filter import _sanitize_rag_field
+from app.services.content_filter import _sanitize_rag_field, filter_ai_output
 from app.services.rag_legal import retrieve_legal_context
 
 logger = logging.getLogger(__name__)
@@ -542,6 +542,12 @@ async def run_agent_turn(
             final_content = resp.content or ""
 
     generation_ms = int((time.monotonic() - t0) * 1000)
+
+    # Filter the model's output before it reaches the user / is persisted / is
+    # replayed into history — same guard every other LLM surface applies via
+    # llm._filter_output (the agent path calls _call_navy directly and bypassed
+    # it). Strips role-break / reasoning-leak / PII (ultracode finding).
+    final_content, _out_violations = filter_ai_output(final_content)
 
     if not final_content.strip():
         return AgentResult(

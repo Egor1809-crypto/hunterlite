@@ -348,7 +348,7 @@ async def send_message(
 
     return SendMessageResponse(
         message_id=str(assistant_msg.id),
-        conversation_id=str(conv.id),
+        conversation_id=str(conv_id),  # conv may be expired post-rollback (§6)
         content=result.content,
         status=result.status,
         used_chunks=_sources_to_items(result.used_chunks),

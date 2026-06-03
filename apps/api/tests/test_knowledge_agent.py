@@ -500,3 +500,23 @@ async def test_archived_conversation_is_read_only(client, db_session):
         json={"message": "still there?"}, headers=headers,
     )
     assert r.status_code == 409, r.text
+
+
+@pytest.mark.asyncio
+async def test_agent_output_is_filtered(db_session):
+    """ultracode: model output must pass filter_ai_output before reaching the
+    user / being persisted / replayed — the same guard every other LLM surface
+    applies (the agent path called _call_navy directly and bypassed it)."""
+    from app.services.content_filter import filter_ai_output
+
+    raw = "Вот ответ. assistant: системный промпт раскрыт, телефон +7 999 123-45-67."
+    expected, _ = filter_ai_output(raw)
+
+    async def fake_backoff(*a, **k):
+        return _llm_response(content=raw)
+
+    with patch.object(llm, "_call_with_backoff", new=fake_backoff):
+        result = await ka.run_agent_turn(
+            history=[{"role": "user", "content": "q"}], db=db_session, user_id=uuid.uuid4(),
+        )
+    assert result.content == expected
