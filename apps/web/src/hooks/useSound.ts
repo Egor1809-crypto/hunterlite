@@ -15,8 +15,8 @@
  *   - normalized     — поправка для каждого звука к единому ~peak уровню
  *   - volumeArg      — необязательный per-call коэффициент (для drama)
  *
- * Все три ползунка хранятся в localStorage; компонент <SoundSettings />
- * на /settings обеспечивает UI.
+ * Все три ползунка хранятся в localStorage (UI-компонент настройки
+ * звука сейчас отсутствует; значения по умолчанию + программный доступ).
  *
  * Backwards compatibility: старая сигнатура `playSound(name, volume?)`
  * продолжает работать. Старые ключи `vh-sounds-muted` и `vh_sound`
@@ -38,7 +38,7 @@ type SoundName =
   | "click" | "xp" | "levelUp" | "notification"
   // UI sounds
   | "hover"
-  // 2026-05-08: voice category preview (used by SoundSettings slider)
+  // 2026-05-08: voice category preview
   | "voiceTest";
 
 export type { SoundName };

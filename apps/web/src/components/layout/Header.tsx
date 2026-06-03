@@ -5,7 +5,6 @@ import { usePathname, useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Crosshair,
-  User,
   LogOut,
   Menu,
   X,
@@ -210,17 +209,8 @@ export default function Header() {
 
                     <div className="px-3 py-3">
                       <motion.button
-                        onClick={() => { setOpenPanel("none"); router.push("/profile"); }}
-                        className="flex w-full items-center gap-3 rounded-[18px] px-4 py-3 text-sm"
-                        style={{ color: "var(--header-text)" }}
-                        whileHover={{ background: "var(--header-btn-bg)" }}
-                      >
-                        <User size={16} />
-                        Профиль
-                      </motion.button>
-                      <motion.button
                         onClick={() => { setOpenPanel("none"); router.push("/settings"); }}
-                        className="mt-1 flex w-full items-center gap-3 rounded-[18px] px-4 py-3 text-sm"
+                        className="flex w-full items-center gap-3 rounded-[18px] px-4 py-3 text-sm"
                         style={{ color: "var(--header-text)" }}
                         whileHover={{ background: "var(--header-btn-bg)" }}
                       >

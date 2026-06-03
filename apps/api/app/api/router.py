@@ -80,3 +80,6 @@ api_router.include_router(exams_router, tags=["exams"])
 
 from app.api.learning_path import router as learning_path_router
 api_router.include_router(learning_path_router, tags=["learning-path"])
+
+from app.api.history import router as history_router
+api_router.include_router(history_router, tags=["history"])
