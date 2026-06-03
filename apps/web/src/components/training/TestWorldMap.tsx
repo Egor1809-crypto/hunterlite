@@ -12,6 +12,17 @@ import {
   GraduationCap,
   X,
   Award,
+  ClipboardCheck,
+  Landmark,
+  Home,
+  Scale,
+  Coins,
+  Users,
+  FileText,
+  Clock,
+  Gavel,
+  ShieldCheck,
+  type LucideIcon,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { useAuthStore } from "@/stores/useAuthStore";
@@ -26,7 +37,7 @@ interface Island {
   id: string;
   category: string;
   name: string;
-  icon: string;
+  Icon: LucideIcon;
   color: string;
   colorRgb: string;
   levels: number[];
@@ -39,7 +50,7 @@ const ISLANDS: Island[] = [
     id: "eligibility",
     category: "eligibility",
     name: "Условия подачи",
-    icon: "📘",
+    Icon: ClipboardCheck,
     color: "var(--info)",
     colorRgb: "59,130,246",
     levels: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
@@ -50,7 +61,7 @@ const ISLANDS: Island[] = [
     id: "procedure",
     category: "procedure",
     name: "Порядок процедуры",
-    icon: "🏛️",
+    Icon: Landmark,
     color: "#8B5CF6",
     colorRgb: "139,92,246",
     levels: [11, 12, 13, 14, 15, 16, 17, 18, 19, 20],
@@ -61,7 +72,7 @@ const ISLANDS: Island[] = [
     id: "property",
     category: "property",
     name: "Имущество должника",
-    icon: "🏠",
+    Icon: Home,
     color: "var(--warning)",
     colorRgb: "245,158,11",
     levels: [21, 22, 23, 24, 25, 26, 27, 28, 29, 30],
@@ -72,7 +83,7 @@ const ISLANDS: Island[] = [
     id: "consequences",
     category: "consequences",
     name: "Последствия",
-    icon: "⚖️",
+    Icon: Scale,
     color: "var(--danger)",
     colorRgb: "239,68,68",
     levels: [31, 32, 33, 34, 35, 36, 37, 38, 39, 40],
@@ -83,7 +94,7 @@ const ISLANDS: Island[] = [
     id: "costs",
     category: "costs",
     name: "Стоимость процедуры",
-    icon: "💰",
+    Icon: Coins,
     color: "#F59E0B",
     colorRgb: "245,158,11",
     levels: [41, 42, 43, 44, 45, 46, 47, 48, 49, 50],
@@ -94,7 +105,7 @@ const ISLANDS: Island[] = [
     id: "creditors",
     category: "creditors",
     name: "Кредиторы",
-    icon: "👥",
+    Icon: Users,
     color: "var(--success)",
     colorRgb: "34,197,94",
     levels: [51, 52, 53, 54, 55, 56, 57, 58, 59, 60],
@@ -105,7 +116,7 @@ const ISLANDS: Island[] = [
     id: "documents",
     category: "documents",
     name: "Документы",
-    icon: "📋",
+    Icon: FileText,
     color: "#14B8A6",
     colorRgb: "20,184,166",
     levels: [61, 62, 63, 64, 65, 66, 67, 68, 69, 70],
@@ -116,7 +127,7 @@ const ISLANDS: Island[] = [
     id: "timeline",
     category: "timeline",
     name: "Сроки",
-    icon: "⏰",
+    Icon: Clock,
     color: "#F97316",
     colorRgb: "249,115,22",
     levels: [71, 72, 73, 74, 75, 76, 77, 78, 79, 80],
@@ -127,7 +138,7 @@ const ISLANDS: Island[] = [
     id: "court",
     category: "court",
     name: "Судебные процессы",
-    icon: "🔨",
+    Icon: Gavel,
     color: "#EC4899",
     colorRgb: "236,72,153",
     levels: [81, 82, 83, 84, 85, 86, 87, 88, 89, 90],
@@ -138,7 +149,7 @@ const ISLANDS: Island[] = [
     id: "rights",
     category: "rights",
     name: "Права должника",
-    icon: "🛡️",
+    Icon: ShieldCheck,
     color: "#6366F1",
     colorRgb: "99,102,241",
     levels: [91, 92, 93, 94, 95, 96, 97, 98, 99, 100],
@@ -565,41 +576,90 @@ function RegionBlock({
         disabled={!clickable}
         minHeight={status === "active" ? 72 : 56}
       >
-        <div className="flex items-center gap-3">
+        <div
+          className="flex items-center gap-3.5 rounded-2xl px-3.5 py-3 transition-colors"
+          style={{
+            background:
+              status === "locked"
+                ? "transparent"
+                : `linear-gradient(180deg, color-mix(in srgb, rgb(${island.colorRgb}) ${status === "active" ? 9 : 5}%, var(--surface-card)), var(--surface-card))`,
+            border: `1px solid ${status === "locked" ? "var(--border-color)" : `color-mix(in srgb, rgb(${island.colorRgb}) ${status === "active" ? 38 : 20}%, var(--border-color))`}`,
+            boxShadow: status === "active" ? `0 1px 0 color-mix(in srgb, rgb(${island.colorRgb}) 10%, transparent)` : "none",
+          }}
+        >
+          {/* Region identity tile — colour-coded legal domain */}
+          <span
+            className="flex shrink-0 items-center justify-center rounded-xl"
+            style={{
+              width: status === "active" ? 48 : 40,
+              height: status === "active" ? 48 : 40,
+              background: status === "locked" ? "var(--bg-secondary)" : `color-mix(in srgb, rgb(${island.colorRgb}) 16%, var(--surface-card))`,
+              border: `1px solid ${status === "locked" ? "var(--border-color)" : `color-mix(in srgb, rgb(${island.colorRgb}) 32%, transparent)`}`,
+              opacity: status === "locked" ? 0.55 : 1,
+            }}
+          >
+            <island.Icon
+              size={status === "active" ? 24 : 20}
+              strokeWidth={1.75}
+              color={status === "locked" ? "var(--text-muted)" : `rgb(${island.colorRgb})`}
+            />
+          </span>
+
           <div className="min-w-0 flex-1">
-            <div className="font-mono text-[10.5px] uppercase tracking-[0.14em]" style={{ color: "var(--text-muted)", opacity: status === "locked" ? 0.6 : 1 }}>
-              {code}
+            <div className="flex items-center gap-2">
+              <span className="font-mono text-[10px] uppercase tracking-[0.16em]" style={{ color: status === "locked" ? "var(--text-muted)" : `rgb(${island.colorRgb})`, opacity: status === "locked" ? 0.6 : 1 }}>
+                {code}
+              </span>
+              {status === "completed" && (
+                <span className="flex items-center gap-1 font-mono text-[9.5px] font-bold uppercase tracking-[0.1em]" style={{ color: "var(--primary)" }}>
+                  <Check size={10} strokeWidth={3} /> пройден
+                </span>
+              )}
             </div>
             <h3
               className="mt-0.5 truncate font-bold tracking-tight"
               style={{
                 color: status === "locked" ? "var(--text-muted)" : "var(--text-primary)",
-                fontSize: status === "active" ? 22 : 17,
+                fontSize: status === "active" ? 21 : 16,
                 opacity: status === "locked" ? 0.6 : 1,
               }}
             >
               {island.name}
             </h3>
-            {status === "active" && (
-              <p className="mt-1 text-[12px]" style={{ color: "var(--text-secondary)" }}>
-                {island.checkpoint ? "Все 10 уровней — и открываются врата." : "Десять уровней пути."}
-              </p>
-            )}
-            {status === "locked" && (
+
+            {/* 10-segment progress — one tick per level, in the region colour */}
+            {status !== "locked" ? (
+              <div className="mt-2 flex items-center gap-2">
+                <div className="flex flex-1 gap-1">
+                  {Array.from({ length: 10 }).map((_, k) => {
+                    const filled = k < completedCount;
+                    return (
+                      <span
+                        key={k}
+                        className="h-[3px] flex-1 rounded-full"
+                        style={{ background: filled ? `rgb(${island.colorRgb})` : "var(--border-color)", opacity: filled ? 1 : 0.7 }}
+                      />
+                    );
+                  })}
+                </div>
+                <span className="shrink-0 font-mono text-[11px] font-semibold tabular-nums" style={{ color: status === "completed" ? "var(--primary)" : `rgb(${island.colorRgb})` }}>
+                  {completedCount}/10
+                </span>
+              </div>
+            ) : (
               <p className="mt-0.5 text-[11.5px]" style={{ color: "var(--text-muted)", opacity: 0.7 }}>
                 Откроется на уровне {island.levels[0]}.
               </p>
             )}
           </div>
-          <span className="shrink-0 text-xl leading-none select-none" style={{ opacity: status === "locked" ? 0.4 : 1 }}>
-            {island.icon}
-          </span>
-          <span
-            className="shrink-0 font-mono text-[12px] font-semibold tabular-nums"
-            style={{ color: status === "completed" ? "var(--primary)" : "var(--text-muted)" }}
-          >
-            {completedCount}/10
-          </span>
+
+          {clickable && (
+            <ArrowRight
+              size={16}
+              className="shrink-0 transition-transform group-hover:translate-x-0.5"
+              style={{ color: "var(--text-muted)", transform: expanded ? "rotate(90deg)" : "none" }}
+            />
+          )}
         </div>
       </TrailRow>
 
@@ -902,13 +962,13 @@ function LevelDetailModal({
           {/* Header: eyebrow + large title */}
           <div className="flex items-start gap-4">
             <div
-              className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl text-xl"
-              style={{ background: "var(--primary-muted)", border: "1px solid var(--border-color)" }}
+              className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl"
+              style={{ background: `color-mix(in srgb, rgb(${island.colorRgb}) 16%, var(--surface-card))`, border: `1px solid color-mix(in srgb, rgb(${island.colorRgb}) 32%, transparent)` }}
             >
-              {island.icon}
+              <island.Icon size={22} strokeWidth={1.75} color={`rgb(${island.colorRgb})`} />
             </div>
             <div className="min-w-0 pt-0.5">
-              <div className="text-[10.5px] font-semibold uppercase tracking-[0.22em]" style={{ color: "var(--primary)" }}>
+              <div className="text-[10.5px] font-semibold uppercase tracking-[0.22em]" style={{ color: `rgb(${island.colorRgb})` }}>
                 {island.name}
               </div>
               <h3 className="mt-1 text-[26px] font-bold leading-none tracking-tight" style={{ color: "var(--text-primary)" }}>
