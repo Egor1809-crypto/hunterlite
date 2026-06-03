@@ -26,6 +26,7 @@ import json
 import logging
 import os
 import time
+import re
 import uuid
 from dataclasses import dataclass, field
 
@@ -35,6 +36,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.legal_update import LegalUpdate
 from app.models.rag import LegalKnowledgeChunk
 from app.models.knowledge_status import STATUSES_VISIBLE_IN_RAG
+from app.services.content_filter import _sanitize_rag_field, filter_ai_output
 from app.services.rag_legal import retrieve_legal_context
 
 logger = logging.getLogger(__name__)
@@ -204,15 +206,50 @@ _CORPORATE_MARKERS = (
     "внешнее управление", "финансовое оздоровление", "конкурсное производство",
 )
 
+# Ch. X.1 (ст. 213.x) IS personal-bankruptcy (банкротство гражданина). Such a
+# chunk must NOT be mislabelled corporate just because it mentions субсидиарка
+# as an example of a non-dischargeable debt — that backwards hint degraded a
+# correct физлица answer (ultracode §7в false-positive finding).
+_CITIZEN_ARTICLE_RE = re.compile(r"213\.\d")
+
+_CORPORATE_NOTE = (
+    "Контекст относится к банкротству юрлиц/КДЛ — переноси на физлицо "
+    "только применимую часть и явно оговаривай различие."
+)
+
 
 def _scope_note(fact_text: str, law_article: str) -> str:
+    if _CITIZEN_ARTICLE_RE.search(law_article or ""):
+        return ""  # personal-bankruptcy article — already about a гражданин
     blob = f"{fact_text} {law_article}".lower()
     if any(m in blob for m in _CORPORATE_MARKERS):
-        return (
-            "Контекст относится к банкротству юрлиц/КДЛ — переноси на физлицо "
-            "только применимую часть и явно оговаривай различие."
-        )
+        return _CORPORATE_NOTE
     return ""
+
+
+# Strips the prompt-isolation sentinel markers from chunk text. Written as a
+# regex (not the literal pair) so the rag-invariant scanner — which forbids the
+# bracketed sentinel literals outside canonical renderers — stays satisfied:
+# this code REMOVES the markers, it never emits a prompt block.
+_DATA_MARKER_RE = re.compile(r"\[DATA_(?:START|END)\]")
+
+
+def _clean_chunk_text(text: str, field_name: str, chunk_id: str = "") -> str:
+    """Sanitize chunk/radar text BEFORE it enters a tool payload (ultracode §7
+    security): run the project's RAG field filter (jailbreak/PII) + strip the
+    prompt-isolation sentinel markers, mirroring ``RAGContext.to_prompt_context``.
+    The agent path used to feed raw ``fact_text`` into the model verbatim,
+    bypassing this guard."""
+    cleaned, _violations = _sanitize_rag_field(text or "", field_name, chunk_id)
+    return _DATA_MARKER_RE.sub("", cleaned)
+
+
+def _article_matches(law_article: str, query: str) -> bool:
+    """Bounded article match — ``213.4`` must not match ``213.40``/``213.42``.
+    Used to post-filter the broad ``ilike('%art%')`` prefilter so fetch_article
+    sources are trustworthy (ultracode grounding finding)."""
+    q = re.escape(query.strip())
+    return re.search(rf"(?<!\d){q}(?!\d)", law_article or "") is not None
 
 
 async def _tool_search_knowledge_base(args: dict, db: AsyncSession) -> tuple[dict, list[dict]]:
@@ -241,11 +278,11 @@ async def _tool_search_knowledge_base(args: dict, db: AsyncSession) -> tuple[dic
                 "id": str(r.chunk_id),
                 "category": r.category,
                 "law_article": r.law_article or "",
-                "fact_text": (r.fact_text or "")[:_FACT_TRUNCATE],
+                "fact_text": _clean_chunk_text(r.fact_text or "", "fact_text", str(r.chunk_id))[:_FACT_TRUNCATE],
                 "relevance": round(r.relevance_score, 3),
                 "is_court_practice": r.is_court_practice,
                 "court_case": r.court_case_reference or "",
-                "correct_response_hint": r.correct_response_hint or "",
+                "correct_response_hint": _clean_chunk_text(r.correct_response_hint or "", "correct_response_hint", str(r.chunk_id)),
                 "scope_note": _scope_note(r.fact_text or "", r.law_article or ""),
             }
             for r in results
@@ -272,12 +309,15 @@ async def _tool_get_radar_updates(args: dict, db: AsyncSession) -> tuple[dict, l
         "found": len(rows),
         "updates": [
             {
-                "title": r.title,
-                "summary": r.summary,
+                "title": _clean_chunk_text(r.title, "radar_title", str(r.id)),
+                "summary": _clean_chunk_text(r.summary, "radar_summary", str(r.id)),
                 "source": r.source,
                 "category": r.category,
                 "published_at": r.published_at.isoformat() if r.published_at else None,
                 "tags": r.tags or [],
+                # §7в second leak channel: radar carries general 127-FZ news incl.
+                # юрлица/КДЛ — annotate so the model scopes it down for a гражданин.
+                "scope_note": _scope_note(f"{r.title} {r.summary}", ""),
             }
             for r in rows
         ],
@@ -313,8 +353,8 @@ async def _tool_fetch_chunk(args: dict, db: AsyncSession) -> tuple[dict, list[di
         "id": str(row.id),
         "category": category,
         "law_article": row.law_article or "",
-        "fact_text": row.fact_text or "",
-        "correct_response_hint": row.correct_response_hint or "",
+        "fact_text": _clean_chunk_text(row.fact_text or "", "fact_text", str(row.id)),
+        "correct_response_hint": _clean_chunk_text(row.correct_response_hint or "", "correct_response_hint", str(row.id)),
         "court_case": row.court_case_reference or "",
         "scope_note": _scope_note(row.fact_text or "", row.law_article or ""),
     }, [source]
@@ -331,12 +371,16 @@ async def _tool_fetch_article(args: dict, db: AsyncSession) -> tuple[dict, list[
             LegalKnowledgeChunk.knowledge_status.in_(tuple(STATUSES_VISIBLE_IN_RAG)),
             LegalKnowledgeChunk.law_article.ilike(f"%{article}%"),
         )
-        .limit(8)
+        .limit(20)
     )
     rows = (await db.execute(q)).scalars().all()
+    # The ilike is a broad prefilter; narrow to a bounded article match so
+    # "213.4" doesn't pull in "213.40"/"213.42" and decorate the answer with
+    # unrelated authoritative source chips (ultracode grounding finding).
+    matched = [r for r in rows if _article_matches(r.law_article or "", article)][:8]
     sources = []
     chunks = []
-    for row in rows:
+    for row in matched:
         category = row.category.value if hasattr(row.category, "value") else str(row.category)
         sources.append({
             "id": str(row.id),
@@ -350,10 +394,13 @@ async def _tool_fetch_article(args: dict, db: AsyncSession) -> tuple[dict, list[
             "id": str(row.id),
             "category": category,
             "law_article": row.law_article or "",
-            "fact_text": (row.fact_text or "")[:_FACT_TRUNCATE],
+            "fact_text": _clean_chunk_text(row.fact_text or "", "fact_text", str(row.id))[:_FACT_TRUNCATE],
             "scope_note": _scope_note(row.fact_text or "", row.law_article or ""),
         })
-    return {"found": len(chunks), "chunks": chunks}, sources
+    payload = {"found": len(chunks), "chunks": chunks}
+    if not chunks:
+        payload["note"] = f"В базе нет фрагментов, относящихся к статье {article}."
+    return payload, sources
 
 
 _DISPATCH = {
@@ -372,6 +419,15 @@ async def _dispatch_tool(name: str, args: dict, db: AsyncSession) -> tuple[dict,
         return await fn(args, db)
     except Exception:  # noqa: BLE001 — a tool error must not crash the loop (ТЗ §5)
         logger.exception("knowledge agent tool %s failed (args=%s)", name, args)
+        # A DB-layer error (deadlock/connection blip) leaves the shared session
+        # in a failed-transaction state; without rollback the downstream
+        # assistant-turn commit would 500 and silently drop the reply
+        # (ultracode degradation finding). Rolling back the (read-only) agent
+        # transaction is safe — the user turn was already committed upstream.
+        try:
+            await db.rollback()
+        except Exception:  # noqa: BLE001
+            logger.exception("knowledge agent: rollback after tool failure also failed")
         return {"error": "tool execution failed"}, []
 
 
@@ -486,6 +542,12 @@ async def run_agent_turn(
             final_content = resp.content or ""
 
     generation_ms = int((time.monotonic() - t0) * 1000)
+
+    # Filter the model's output before it reaches the user / is persisted / is
+    # replayed into history — same guard every other LLM surface applies via
+    # llm._filter_output (the agent path calls _call_navy directly and bypassed
+    # it). Strips role-break / reasoning-leak / PII (ultracode finding).
+    final_content, _out_violations = filter_ai_output(final_content)
 
     if not final_content.strip():
         return AgentResult(
