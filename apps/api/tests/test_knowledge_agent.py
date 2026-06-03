@@ -469,3 +469,34 @@ async def test_cross_user_conversation_authz(client, db_session):
         json={"message": "hi"}, headers=headers,
     )).status_code == 404
     assert (await client.delete(f"/api/knowledge-ai/conversations/{cid}", headers=headers)).status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_archived_conversation_is_read_only(client, db_session):
+    """ultracode: a soft-deleted (archived) conversation must reject new
+    messages (409), not silently accept writes to a 'deleted' thread."""
+    from app.core.deps import get_current_user
+    from app.main import app as fastapi_app
+    from app.models.user import User
+
+    uid = uuid.uuid4()
+    db_session.add(User(
+        id=uid, email=f"arch_{uid.hex[:8]}@hunter888.test", full_name="A",
+        role="manager", hashed_password="$2b$12$x", is_active=True,
+    ))
+    conv = AssistantConversation(id=uuid.uuid4(), user_id=uid, title="t", is_archived=True)
+    db_session.add(conv)
+    await db_session.commit()
+    cid = str(conv.id)
+
+    user = await db_session.get(User, uid)
+    fastapi_app.dependency_overrides[get_current_user] = lambda: user
+    csrf = "test-csrf-token"
+    client.cookies.set("csrf_token", csrf)
+    headers = {"X-CSRF-Token": csrf}
+
+    r = await client.post(
+        f"/api/knowledge-ai/conversations/{cid}/messages",
+        json={"message": "still there?"}, headers=headers,
+    )
+    assert r.status_code == 409, r.text

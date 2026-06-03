@@ -270,6 +270,10 @@ async def send_message(
     from app.services.knowledge_assistant import AgentResult, run_agent_turn
 
     conv = await _get_owned_conversation(conversation_id, user, db)
+    if conv.is_archived:
+        # Archived (soft-deleted) threads are read-only — DELETE archives, the
+        # list hides them, but the id was still writable (ultracode finding).
+        raise HTTPException(status_code=409, detail="Беседа архивирована")
     conv_id = conv.id  # capture before any rollback expires the ORM instance (§6 fix)
     # Filter the user message before it reaches the model / history / storage:
     # neutralises prompt-injection / jailbreak / PII (ultracode §7 security).
