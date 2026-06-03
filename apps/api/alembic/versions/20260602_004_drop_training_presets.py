@@ -1,11 +1,12 @@
 """drop training_presets table (constructor rebuild — presets removed)
 
 Revision ID: 20260602_004
-Revises: 20260602_003
+Revises: 20260602_exam_001
 Create Date: 2026-06-02
 
-(Re-chained при ребейзе на origin/main: надстроено над смерженной 20260602_003
-другого агента, чтобы не расщеплять alembic head.)
+(Re-chained при ребейзе на origin/main: надстроено над последней смерженной
+миграцией main — 20260602_exam_001 (TZ-4 exam) — чтобы не расщеплять alembic head.
+Содержимое миграции от порядка не зависит: разные таблицы.)
 
 Constructor rebuild (CONSTRUCTOR_TZ §1.1): the preset subsystem is removed
 entirely — only the free constructor remains. This drops the now-unused
@@ -20,7 +21,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 revision: str = "20260602_004"
-down_revision: Union[str, None] = "20260602_003"
+down_revision: Union[str, None] = "20260602_exam_001"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
