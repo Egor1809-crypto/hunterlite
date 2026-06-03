@@ -198,8 +198,8 @@ from app.models.analytics_event import AnalyticsEvent
 from app.models.quiz_v2 import QuizV2AnswerKey
 from app.models.training_map import TrainingMapProgress
 from app.models.telegram_link import TelegramLinkToken
-from app.models.training_preset import TrainingPreset
 from app.models.legal_update import LegalUpdate
+from app.models.reference_persona import ReferencePersona
 from app.models.case_scenario import CaseScenario, CaseAttempt, CaseProgress
 from app.models.exam import (
     ExamDefinition,
@@ -403,8 +403,9 @@ __all__ = [
     "QuizV2AnswerKey",
     "TrainingMapProgress",
     "TelegramLinkToken",
-    "TrainingPreset",
     "LegalUpdate",
+    # CONSTRUCTOR_TZ §2 — reference persona (gold-standard debtor, ФЗ-127)
+    "ReferencePersona",
     # TZ-Agent-2: Case scenarios
     "CaseScenario",
     "CaseAttempt",

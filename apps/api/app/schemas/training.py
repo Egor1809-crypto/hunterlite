@@ -157,8 +157,8 @@ class CustomCharacterResponse(BaseModel):
     last_played_at: str | None = None
     created_at: str
     updated_at: str | None = None
-    is_shared: bool = False
-    share_code: str | None = None
+    # Шеринг персонажей убран (CONSTRUCTOR_TZ DECISION-2) — is_shared/share_code
+    # больше не отдаются. Колонки в модели остаются (без миграции), но не используются.
 
     model_config = {"from_attributes": True}
 

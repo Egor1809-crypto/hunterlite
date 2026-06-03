@@ -1,6 +1,9 @@
-"""CRUD + share endpoints for custom character presets (v2: 8-step constructor)."""
+"""CRUD endpoints for custom character presets (v2: 8-step constructor).
 
-import secrets
+Шеринг персонажей убран (CONSTRUCTOR_TZ DECISION-2): остались только личные
+сохранения пользователя (list/create/update/delete).
+"""
+
 from uuid import UUID
 
 from app.core.rate_limit import limiter
@@ -46,8 +49,6 @@ def _char_to_response(c: CustomCharacter) -> CustomCharacterResponse:
         last_played_at=c.last_played_at.isoformat() if c.last_played_at else None,
         created_at=c.created_at.isoformat(),
         updated_at=c.updated_at.isoformat() if c.updated_at else None,
-        is_shared=c.is_shared or False,
-        share_code=c.share_code,
     )
 
 
@@ -166,115 +167,3 @@ async def delete_custom_character(
         delete(CustomCharacter).where(CustomCharacter.id == character_id)
     )
     await db.commit()
-
-
-# ─── Sharing ────────────────────────────────────────────────────────────────
-
-@router.post("/characters/custom/{character_id}/share")
-async def share_character(
-    character_id: UUID,
-    user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-) -> dict:
-    """Generate a share code for a character."""
-    result = await db.execute(
-        select(CustomCharacter).where(
-            CustomCharacter.id == character_id,
-            CustomCharacter.user_id == user.id,
-        )
-    )
-    char = result.scalar_one_or_none()
-    if not char:
-        raise HTTPException(status_code=404, detail="Персонаж не найден")
-
-    if char.share_code:
-        return {"share_code": char.share_code}
-
-    # Generate unique 8-char code
-    for _ in range(10):
-        code = secrets.token_urlsafe(6)[:8].upper()
-        existing = await db.execute(
-            select(CustomCharacter).where(CustomCharacter.share_code == code)
-        )
-        if not existing.scalar_one_or_none():
-            break
-    else:
-        raise HTTPException(status_code=500, detail="Не удалось сгенерировать код")
-
-    char.share_code = code
-    char.is_shared = True
-    await db.commit()
-
-    return {"share_code": code}
-
-
-@router.get("/characters/shared/{share_code}")
-async def get_shared_character(
-    share_code: str,
-    db: AsyncSession = Depends(get_db),
-) -> CustomCharacterResponse:
-    """Get a shared character by share code (no auth required)."""
-    result = await db.execute(
-        select(CustomCharacter).where(
-            CustomCharacter.share_code == share_code,
-            CustomCharacter.is_shared == True,  # noqa: E712
-        )
-    )
-    char = result.scalar_one_or_none()
-    if not char:
-        raise HTTPException(status_code=404, detail="Персонаж не найден")
-
-    return _char_to_response(char)
-
-
-@router.post("/characters/shared/{share_code}/import", status_code=201)
-async def import_shared_character(
-    share_code: str,
-    user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-) -> CustomCharacterResponse:
-    """Import a shared character into the current user's collection."""
-    result = await db.execute(
-        select(CustomCharacter).where(
-            CustomCharacter.share_code == share_code,
-            CustomCharacter.is_shared == True,  # noqa: E712
-        )
-    )
-    source = result.scalar_one_or_none()
-    if not source:
-        raise HTTPException(status_code=404, detail="Персонаж не найден")
-
-    # Check limit
-    count_result = await db.execute(
-        select(func.count()).select_from(CustomCharacter).where(CustomCharacter.user_id == user.id)
-    )
-    count = count_result.scalar() or 0
-    if count >= MAX_CHARACTERS_PER_USER:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Максимум {MAX_CHARACTERS_PER_USER} сохранённых персонажей",
-        )
-
-    new_char = CustomCharacter(
-        user_id=user.id,
-        name=f"{source.name} (импорт)",
-        archetype=source.archetype,
-        profession=source.profession,
-        lead_source=source.lead_source,
-        difficulty=source.difficulty,
-        description=source.description,
-        family_preset=source.family_preset,
-        creditors_preset=source.creditors_preset,
-        debt_stage=source.debt_stage,
-        debt_range=source.debt_range,
-        emotion_preset=source.emotion_preset,
-        bg_noise=source.bg_noise,
-        time_of_day=source.time_of_day,
-        client_fatigue=source.client_fatigue,
-        tone=source.tone,
-    )
-    db.add(new_char)
-    await db.commit()
-    await db.refresh(new_char)
-
-    return _char_to_response(new_char)

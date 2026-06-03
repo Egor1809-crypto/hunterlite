@@ -12,6 +12,10 @@ from app.models.user import User
 from app.models.training_map import TrainingMapProgress
 from app.core.deps import get_current_user
 from app.services import telegram_attempts
+from app.services.constructor_access import (
+    CONSTRUCTOR_UNLOCK_HINT,
+    is_constructor_unlocked,
+)
 
 router = APIRouter(prefix="/training-map", tags=["training-map"])
 
@@ -21,6 +25,9 @@ class TrainingMapResponse(BaseModel):
     exams: Any
     cases: Any
     energy: Any
+    # CONSTRUCTOR_TZ §3 — разблокировка конструктора по региону 1 теста.
+    constructor_unlocked: bool = False
+    constructor_unlock_hint: str | None = None
 
 
 class TrainingMapUpdate(BaseModel):
@@ -40,9 +47,16 @@ async def get_progress(
     )
     row = result.scalar_one_or_none()
     if row is None:
-        return TrainingMapResponse(test_map={}, exams={}, cases={}, energy={})
+        return TrainingMapResponse(
+            test_map={}, exams={}, cases={}, energy={},
+            constructor_unlocked=False,
+            constructor_unlock_hint=CONSTRUCTOR_UNLOCK_HINT,
+        )
+    unlocked = is_constructor_unlocked(row.test_map)
     return TrainingMapResponse(
         test_map=row.test_map, exams=row.exams, cases=row.cases, energy=row.energy or {},
+        constructor_unlocked=unlocked,
+        constructor_unlock_hint=None if unlocked else CONSTRUCTOR_UNLOCK_HINT,
     )
 
 
@@ -78,8 +92,11 @@ async def save_progress(
 
     await db.commit()
     await db.refresh(row)
+    unlocked = is_constructor_unlocked(row.test_map)
     return TrainingMapResponse(
         test_map=row.test_map, exams=row.exams, cases=row.cases, energy=row.energy or {},
+        constructor_unlocked=unlocked,
+        constructor_unlock_hint=None if unlocked else CONSTRUCTOR_UNLOCK_HINT,
     )
 
 
