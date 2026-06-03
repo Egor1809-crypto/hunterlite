@@ -23,6 +23,14 @@ logger = logging.getLogger(__name__)
 
 
 async def seed() -> None:
+    # Защита (ultrareview #2): пустой каталог НЕ должен молча деактивировать все
+    # строки. Пустой PERSONAS — это аномалия (ошибка упаковки/cwd: persona_*.py не
+    # обнаружены), а не легитимный «обнули каталог».
+    if not PERSONAS:
+        raise SystemExit(
+            "refusing to seed: PERSONAS пуст — это деактивировало бы весь каталог "
+            "reference_personas. Проверь scripts/personas_data/ (persona_*.py)."
+        )
     async with async_session() as session:
         existing = {
             row.slug: row

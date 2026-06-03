@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { logger } from "@/lib/logger";
@@ -239,8 +239,11 @@ export default function CharacterBuilder({ onGoToTests }: CharacterBuilderProps)
   const [clientFatigue, setClientFatigue] = useState<ClientFatigue>("normal");
   // UI state
   const [starting, setStarting] = useState(false);
-  const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  // ultrareview #7: id автосохранённого персонажа храним в ref, чтобы при ретрае
+  // старта (autosave прошёл, а session-create упал) повторная попытка
+  // переиспользовала уже созданного персонажа, а не теряла привязку.
+  const savedCharIdRef = useRef<string | undefined>(undefined);
   // 2026-04-21: autosave flow. Old UI had a standalone "Сохранить" button
   // right next to "Чат"/"Звонок" on the preview step — the user had to
   // click save MANUALLY before starting, and forgetting meant the carefully
@@ -297,7 +300,6 @@ export default function CharacterBuilder({ onGoToTests }: CharacterBuilderProps)
       // block the session start — a saved-toast is nice-to-have, a running
       // session is the actual goal. `saved` guards against double-save on
       // repeated Start clicks.
-      let savedCharId: string | undefined;
       if (autoSave && !saved) {
         try {
           const a = ARCHETYPES.find((x) => x.code === archetype);
@@ -316,7 +318,7 @@ export default function CharacterBuilder({ onGoToTests }: CharacterBuilderProps)
             client_fatigue: clientFatigue,
             tone: tone !== "neutral" ? tone : null,
           });
-          savedCharId = savedChar?.id;
+          savedCharIdRef.current = savedChar?.id;
           setSaved(true);
         } catch (saveErr) {
           logger.warn("Autosave failed — starting session anyway", saveErr);
@@ -333,7 +335,7 @@ export default function CharacterBuilder({ onGoToTests }: CharacterBuilderProps)
       // keep filtering locally.
       const session = await api.post("/training/sessions", {
         ...(scenarioId ? { scenario_id: scenarioId } : {}),
-        ...(savedCharId ? { custom_character_id: savedCharId } : {}),
+        ...(savedCharIdRef.current ? { custom_character_id: savedCharIdRef.current } : {}),
         custom_archetype: archetype,
         custom_profession: profession,
         custom_lead_source: leadSource,
@@ -380,6 +382,20 @@ export default function CharacterBuilder({ onGoToTests }: CharacterBuilderProps)
           return;
         }
       }
+      // ultrareview #10: если бэкенд закрыл старт гейтом региона 1 (например, гейт
+      // на маунте был fail-open из-за транзиентной ошибки), перерендерим
+      // заглушку «Практика закрыта» с подсказкой и CTA, а не показываем toast.
+      if (
+        err instanceof ApiError &&
+        err.status === 403 &&
+        err.detail &&
+        (err.detail as { code?: string }).code === "constructor_locked"
+      ) {
+        setUnlockHint((err.detail as { message?: string }).message || "");
+        setUnlocked(false);
+        setStarting(false);
+        return;
+      }
       useNotificationStore.getState().addToast({
         title: "Ошибка",
         body: err instanceof Error ? err.message : "Не удалось создать сессию",
@@ -389,35 +405,8 @@ export default function CharacterBuilder({ onGoToTests }: CharacterBuilderProps)
     }
   };
 
-  const handleSave = async () => {
-    if (!archetype || !profession) return;
-    setSaving(true);
-    try {
-      const a = ARCHETYPES.find((x) => x.code === archetype);
-      const p = PROFESSIONS.find((x) => x.code === profession);
-      const defaultName = `${a?.name || archetype} \u00B7 ${p?.name || profession} \u00B7 ${difficulty}/10`;
-      await api.post("/characters/custom", {
-        name: (customName.trim() || defaultName),
-        archetype, profession, lead_source: leadSource, difficulty,
-        family_preset: familyPreset !== "random" ? familyPreset : null,
-        creditors_preset: creditorsPreset !== "random" ? creditorsPreset : null,
-        debt_stage: debtStage !== "random" ? debtStage : null,
-        debt_range: debtRange !== "random" ? debtRange : null,
-        // 2026-04-21: saving "neutral"/"afternoon"/"normal"/"none" as-is too —
-        // they're valid picks, not pseudo-defaults (matches the handleStart fix).
-        emotion_preset: emotionPreset,
-        bg_noise: bgNoise,
-        time_of_day: timeOfDay,
-        client_fatigue: clientFatigue,
-        tone: tone !== "neutral" ? tone : null,
-      });
-      setSaved(true);
-      setTimeout(() => setSaved(false), 2000);
-    } catch (err) {
-      logger.error("Save error:", err);
-      useNotificationStore.getState().addToast({ title: "Ошибка", body: "Не удалось сохранить", type: "error" });
-    } finally { setSaving(false); }
-  };
+  // ultrareview #6: standalone handleSave удалён — мёртвый код (не вызывался
+  // после перехода на autosave; сохранение идёт в handleStart).
 
   const reset = () => {
     // 2026-04-21: confirm before nuking N steps of user input. Previously
@@ -433,7 +422,7 @@ export default function CharacterBuilder({ onGoToTests }: CharacterBuilderProps)
     setEmotionPreset("neutral"); setTone("neutral"); setDifficulty(5);
     setBgNoise("none"); setTimeOfDay("afternoon"); setClientFatigue("normal");
     setGroupFilter(null); setTierFilter(null);
-    setCustomName(""); setAutoSave(true); setSaved(false);
+    setCustomName(""); setAutoSave(true); setSaved(false); savedCharIdRef.current = undefined;
   };
 
   const filteredArchetypes = ARCHETYPES.filter((a) => {

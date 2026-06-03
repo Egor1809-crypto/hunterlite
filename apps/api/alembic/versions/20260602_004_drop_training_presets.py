@@ -33,7 +33,8 @@ def upgrade() -> None:
 def downgrade() -> None:
     op.create_table(
         "training_presets",
-        sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
+        sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True,
+                  server_default=sa.text("gen_random_uuid()")),
         sa.Column("slug", sa.String(length=80), nullable=False),
         sa.Column("title", sa.String(length=120), nullable=False),
         sa.Column("description", sa.Text(), nullable=False),

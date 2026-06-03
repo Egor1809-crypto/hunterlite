@@ -43,7 +43,7 @@ class ReferencePersona(Base):
 
     # ── Эмоция / манера / среда ──
     emotion_preset: Mapped[str | None] = mapped_column(String(80), nullable=True)
-    difficulty: Mapped[str] = mapped_column(String(20), nullable=False, default="medium")
+    difficulty: Mapped[str] = mapped_column(String(20), nullable=False, default="medium", server_default="medium")
     environment: Mapped[str | None] = mapped_column(String(120), nullable=True)
     client_fatigue: Mapped[str | None] = mapped_column(String(20), nullable=True)
     tone: Mapped[str | None] = mapped_column(String(40), nullable=True)
