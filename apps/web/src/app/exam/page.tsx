@@ -133,6 +133,7 @@ export default function ExamPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showCert, setShowCert] = useState(false);
+  const [showSample, setShowSample] = useState(false);
   const userName = useAuthStore((s) => s.user?.full_name ?? null);
 
   useEffect(() => {
@@ -326,17 +327,17 @@ export default function ExamPage() {
       {/* Certificate modal */}
       <AnimatePresence>
         {showCert && (
-          <motion.div className="fixed inset-0 z-50 flex items-center justify-center p-4" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-            <div className="absolute inset-0" style={{ background: "rgba(8,6,12,0.62)", backdropFilter: "blur(6px)" }} onClick={() => setShowCert(false)} />
+          <motion.div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+            <div className="absolute inset-0" style={{ background: "rgba(8,6,12,0.62)", backdropFilter: "blur(6px)" }} onClick={() => { setShowCert(false); setShowSample(false); }} />
             <motion.div
-              className="relative w-full max-w-[420px]"
+              className="relative w-full max-w-[820px]"
               initial={{ scale: 0.95, y: 16 }}
               animate={{ scale: 1, y: 0 }}
               exit={{ scale: 0.95, y: 16 }}
               transition={{ type: "spring", stiffness: 280, damping: 26 }}
             >
               <button
-                onClick={() => setShowCert(false)}
+                onClick={() => { setShowCert(false); setShowSample(false); }}
                 aria-label="Закрыть"
                 className="absolute -top-3 -right-3 z-10 flex h-9 w-9 items-center justify-center rounded-full"
                 style={{ background: "var(--surface-card)", border: "1px solid var(--border-color)", color: "var(--text-secondary)", boxShadow: "var(--shadow-md)" }}
@@ -344,8 +345,12 @@ export default function ExamPage() {
                 <X size={16} />
               </button>
 
-              {finalPassed ? (
-                <CertificatePreview variant="earned" palette={CERT_TOKEN_PALETTE} recipientName={userName ?? undefined} />
+              {finalPassed || showSample ? (
+                <CertificatePreview
+                  variant="earned"
+                  palette={CERT_TOKEN_PALETTE}
+                  recipientName={userName ?? "Фамилия Имя Отчество"}
+                />
               ) : (
                 <CertificatePreview
                   variant="locked"
@@ -353,8 +358,27 @@ export default function ExamPage() {
                   lockTitle="Сдайте экзамен на проходной балл — и получите сертификат, заверенный лучшими юристами РФ."
                   lockSubtitle="Станьте экспертом в процедуре банкротства физических лиц."
                   ctaLabel="К экзаменам"
-                  onCta={() => setShowCert(false)}
+                  onCta={() => { setShowCert(false); setShowSample(false); }}
                 />
+              )}
+
+              {/* Sample preview toggle — lets you see the diploma design before passing */}
+              {!finalPassed && (
+                <div className="mt-4 flex flex-col items-center gap-1.5">
+                  <button
+                    onClick={() => setShowSample((v) => !v)}
+                    className="flex items-center justify-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold transition-colors"
+                    style={{ background: "var(--surface-card)", border: "1px solid var(--border-color)", color: "var(--text-primary)" }}
+                  >
+                    <Award size={15} style={{ color: "var(--primary)" }} />
+                    {showSample ? "Скрыть образец" : "Посмотреть образец сертификата"}
+                  </button>
+                  {showSample && (
+                    <span className="font-mono text-[11px]" style={{ color: "var(--text-muted)" }}>
+                      Это образец — сдайте экзамен, чтобы получить именной сертификат.
+                    </span>
+                  )}
+                </div>
               )}
 
               {finalPassed && (

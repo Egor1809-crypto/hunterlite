@@ -26,6 +26,7 @@ from scripts.seed_exam_questions import seed as seed_exams
 from scripts.seed_legal_updates import seed as seed_radar
 from scripts.seed_levels import seed_levels_and_achievements as seed_levels
 from scripts.seed_reference_persona import seed as seed_reference_persona
+from scripts.seed_demo_progress import seed as seed_demo_progress
 
 STEPS = [
     ("Knowledge-base chunks (RAG)", seed_chunks),
@@ -34,6 +35,8 @@ STEPS = [
     ("Legal radar updates", seed_radar),
     ("Levels & achievements", seed_levels),
     ("Reference persona (конструктор)", seed_reference_persona),
+    # Demo accounts must exist first (seeded on API startup); no-ops otherwise.
+    ("Demo region-1 progress (unlocks конструктор)", seed_demo_progress),
 ]
 
 

@@ -9,6 +9,9 @@ import {
   Puzzle,
   Target,
   BookOpen,
+  Map as MapIcon,
+  ClipboardList,
+  GraduationCap,
 } from "lucide-react";
 import AuthLayout from "@/components/layout/AuthLayout";
 import CharacterBuilder from "@/components/training/CharacterBuilder";
@@ -38,19 +41,18 @@ const TABS: {
   id: Tab;
   label: string;
   icon: React.ComponentType<{ size: number; style?: React.CSSProperties }>;
-  emoji: string;
   hue: string;
 }[] = [
-  { id: "tests",     label: "Тесты",  icon: Target,         emoji: "🗺️", hue: "var(--brand-logo-hunter)" },
-  { id: "builder",   label: "Мои клиенты",   icon: Puzzle,         emoji: "🧩", hue: "var(--brand-logo-hunter)" },
+  { id: "tests",     label: "Тесты",        icon: MapIcon, hue: "var(--brand-logo-hunter)" },
+  { id: "builder",   label: "Мои клиенты",  icon: Puzzle,  hue: "var(--brand-logo-hunter)" },
 ];
 
 const LP_STAGES = [
-  { key: "knowledge", icon: "\u{1f4da}", label: "Знания", href: "/knowledge" },
-  { key: "tests", icon: "\u{1f5fa}️", label: "Тесты", href: "/training" },
-  { key: "cases", icon: "\u{1f4cb}", label: "Кейсы", href: "/cases" },
-  { key: "exams", icon: "\u{1f393}", label: "Экзамены", href: "/exam" },
-  { key: "practice", icon: "\u{1f3af}", label: "Практика", href: "/training" },
+  { key: "knowledge", icon: BookOpen, label: "Знания", href: "/knowledge" },
+  { key: "tests", icon: MapIcon, label: "Тесты", href: "/training" },
+  { key: "cases", icon: ClipboardList, label: "Кейсы", href: "/cases" },
+  { key: "exams", icon: GraduationCap, label: "Экзамены", href: "/exam" },
+  { key: "practice", icon: Target, label: "Практика", href: "/training" },
 ];
 
 function LearningPathWidget() {
@@ -80,17 +82,17 @@ function LearningPathWidget() {
           const p = progress[s.key] ?? 0;
           const isActive = i === active;
           const done = p >= 100;
+          const StageIcon = s.icon;
           return (
             <Link key={s.key} href={s.href} className="no-underline flex flex-col items-center relative z-10" style={{ flex: 1 }}>
               <div
-                className="w-7 h-7 rounded-full flex items-center justify-center text-sm mb-1"
+                className="w-7 h-7 rounded-full flex items-center justify-center mb-1"
                 style={{
                   background: done ? "var(--success)" : isActive ? "var(--accent)" : "var(--input-bg)",
                   border: isActive ? "2px solid var(--accent)" : done ? "2px solid var(--success)" : "1px solid var(--border-color)",
-                  fontSize: "12px",
                 }}
               >
-                {s.icon}
+                <StageIcon size={13} strokeWidth={2} color={done || isActive ? "#fff" : "var(--text-muted)"} />
               </div>
               <span className="text-[8px] font-bold" style={{ color: isActive ? "var(--accent)" : done ? "var(--success)" : "var(--text-muted)" }}>{p}%</span>
             </Link>
@@ -161,6 +163,7 @@ function TrainingPageContent() {
           <div className="mt-6 flex gap-1 rounded-[24px] border p-1 overflow-x-auto" style={{ background: "var(--surface-card)", borderColor: "var(--border-color)", boxShadow: "var(--shadow-sm)" }}>
             {TABS.map((t) => {
               const active = tab === t.id;
+              const TabIcon = t.icon;
               return (
                 <motion.button
                   key={t.id}
@@ -183,29 +186,7 @@ function TrainingPageContent() {
                     />
                   )}
                   <span className="relative z-10 flex items-center gap-2.5">
-                    <motion.span
-                      style={{
-                        fontSize: 26,
-                        lineHeight: 1,
-                        display: "inline-block",
-                        filter: active ? "none" : "grayscale(0.45) opacity(0.85)",
-                        transition: "filter 200ms",
-                      }}
-                      animate={active ? {
-                        scale: [1, 1.08, 1],
-                        rotate: [0, -3, 3, 0],
-                      } : { scale: 1, rotate: 0 }}
-                      transition={active ? {
-                        duration: 1.6,
-                        repeat: Infinity,
-                        repeatDelay: 2.4,
-                        ease: "easeInOut",
-                      } : { duration: 0.2 }}
-                      whileHover={!active ? { rotate: [-4, 4, -4, 0], transition: { duration: 0.4 } } : undefined}
-                      aria-hidden
-                    >
-                      {t.emoji}
-                    </motion.span>
+                    <TabIcon size={18} style={{ color: active ? t.hue : "var(--text-muted)" }} />
                     <span className="text-sm font-semibold leading-none tracking-wide">
                       {t.label}
                     </span>
