@@ -203,12 +203,14 @@ export function ManyashaTab({ onOpenSource }: { onOpenSource?: (category: string
         { id: tempId, role: "user", content: q, status: "ok", used_chunks: [] },
       ]);
 
+      let createdConvId: string | null = null;
       try {
         // Ensure a conversation exists.
         let convId = activeId;
         if (!convId) {
           const created = await api.post<ConversationSummary>("/knowledge-ai/conversations", {});
           convId = created.id;
+          createdConvId = convId;
           justCreatedRef.current = convId;  // guard the load effect (§8)
           setActiveId(convId);
           setConversations((prev) => [created, ...prev]);
@@ -241,6 +243,16 @@ export function ManyashaTab({ onOpenSource }: { onOpenSource?: (category: string
         // Roll back the optimistic bubble.
         setMessages((prev) => prev.filter((m) => m.id !== tempId));
         setInput(q);
+        // If we created the conversation in THIS call and the message POST
+        // failed, don't leave an orphan empty thread with a stuck load guard
+        // (ultracode failure-path finding): drop it client- and server-side.
+        if (createdConvId) {
+          const orphan = createdConvId;
+          setActiveId(null);
+          setConversations((prev) => prev.filter((c) => c.id !== orphan));
+          justCreatedRef.current = null;
+          api.delete(`/knowledge-ai/conversations/${orphan}`).catch(() => {});
+        }
       } finally {
         setSending(false);
       }
