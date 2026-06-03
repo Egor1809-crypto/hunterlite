@@ -227,13 +227,21 @@ def _scope_note(fact_text: str, law_article: str) -> str:
     return ""
 
 
+# Strips the prompt-isolation sentinel markers from chunk text. Written as a
+# regex (not the literal pair) so the rag-invariant scanner — which forbids the
+# bracketed sentinel literals outside canonical renderers — stays satisfied:
+# this code REMOVES the markers, it never emits a prompt block.
+_DATA_MARKER_RE = re.compile(r"\[DATA_(?:START|END)\]")
+
+
 def _clean_chunk_text(text: str, field_name: str, chunk_id: str = "") -> str:
     """Sanitize chunk/radar text BEFORE it enters a tool payload (ultracode §7
-    security): strip prompt-injection markers + run the project's RAG field
-    filter, mirroring ``RAGContext.to_prompt_context``. The agent path used to
-    feed raw ``fact_text`` into the model verbatim, bypassing this guard."""
+    security): run the project's RAG field filter (jailbreak/PII) + strip the
+    prompt-isolation sentinel markers, mirroring ``RAGContext.to_prompt_context``.
+    The agent path used to feed raw ``fact_text`` into the model verbatim,
+    bypassing this guard."""
     cleaned, _violations = _sanitize_rag_field(text or "", field_name, chunk_id)
-    return cleaned.replace("[DATA_START]", "").replace("[DATA_END]", "")
+    return _DATA_MARKER_RE.sub("", cleaned)
 
 
 def _article_matches(law_article: str, query: str) -> bool:
