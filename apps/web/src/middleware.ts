@@ -199,6 +199,15 @@ export function middleware(request: NextRequest) {
     return response;
   }
 
+  // ── 2.5. Retired /profile → /settings (page deleted; avoid 404 on
+  //         bookmarked/external deep links — TZ History/Profile/Settings §3) ──
+  if (pathname === "/profile" || pathname.startsWith("/profile/")) {
+    const response = NextResponse.redirect(new URL("/settings", request.url));
+    response.headers.set("Content-Security-Policy", cspHeaderValue);
+    response.headers.set("x-nonce", nonce);
+    return response;
+  }
+
   // ── 3. Auth guard ────────────────────────────────────────────────────
   const hasAccessToken = request.cookies.get("access_token");
   const hasMarker = request.cookies.get("vh_authenticated");
