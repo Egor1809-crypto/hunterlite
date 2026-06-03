@@ -70,53 +70,14 @@ const ecosystem = [
   "Калькулятор процедур банкротства",
 ];
 
-const tiers = [
-  {
-    tag: "Тариф 1 · старт",
-    name: "Безоплатный",
-    price: "0 ₽",
-    per: "",
-    note: "Войдите в профессию и попробуйте платформу без оплаты.",
-    cta: "Начать безоплатно",
-    featured: false,
-    features: [
-      "Тесты: 1500 вопросов по ФЗ-127 («острова»)",
-      "База знаний (RAG) + Радар изменений",
-      "Маняша — AI-помощник по базе знаний",
-      "Конструктор клиента (после 1-го региона тестов)",
-    ],
-  },
-  {
-    tag: "Тариф 2 · эксперт",
-    name: "Эксперт БФЛ",
-    price: "по запросу",
-    per: "",
-    note: "Полный путь: обучение → практика → аттестация и сертификат.",
-    cta: "Начать обучение",
-    featured: true,
-    features: [
-      "Всё из «Безоплатного»",
-      "Интерактивные кейсы БФЛ (реальная практика)",
-      "AI-тренировки: чат и звонок с клиентом-должником",
-      "Экзамены (5 механик) + сертификат аттестации",
-      "История с разбором слабых мест от Маняши",
-    ],
-  },
-  {
-    tag: "Тариф 3 · команда",
-    name: "Команда и партнёры",
-    price: "по запросу",
-    per: "",
-    note: "Для бюро и партнёров: рост команды под контролем РОП.",
-    cta: "Обсудить внедрение",
-    featured: false,
-    features: [
-      "Всё из «Эксперта» для каждого сотрудника",
-      "Командные KPI и аналитика РОП",
-      "Назначение программ и контроль прогресса",
-      "Приоритетная поддержка и онбординг",
-    ],
-  },
+const freeTierFeatures = [
+  "Тесты: 1500 вопросов по ФЗ-127 («острова»)",
+  "Интерактивные кейсы БФЛ (реальная практика)",
+  "AI-тренировки: чат и звонок с клиентом-должником",
+  "База знаний (RAG) + Радар изменений",
+  "Маняша — AI-помощник по базе знаний",
+  "Конструктор клиента (после 1-го региона тестов)",
+  "Экзамены и сертификат аттестации",
 ];
 
 export default function LandingPage() {
@@ -363,51 +324,39 @@ export default function LandingPage() {
           </section>
 
           <section id="tariffs" className="border-b border-[#D9C9E8] py-20 lg:py-28">
-            <p className="text-sm uppercase tracking-[0.16em] text-[#9B7DB4]">Тарифы</p>
+            <p className="text-sm uppercase tracking-[0.16em] text-[#9B7DB4]">Тариф</p>
             <h2 className="mt-3 max-w-3xl text-[clamp(2.4rem,5vw,5rem)] font-semibold leading-[0.92] tracking-[-0.06em] text-[#18131D]">
-              Начните бесплатно — растите по мере практики.
+              Вся платформа — безоплатно.
             </h2>
 
-            <div className="mt-12 grid gap-6 lg:grid-cols-3">
-              {tiers.map((t) => (
-                <div
-                  key={t.name}
-                  className={`flex flex-col rounded-[28px] border p-8 ${
-                    t.featured
-                      ? "border-transparent bg-[#18131D] text-white"
-                      : "border-[#D9C9E8] bg-[#FFFDF8] text-[#18131D]"
-                  }`}
-                >
-                  <p className={`text-sm uppercase tracking-[0.16em] ${t.featured ? "text-[#D8B4FE]" : "text-[#9B7DB4]"}`}>
-                    {t.tag}
-                  </p>
-                  <h3 className="mt-4 text-2xl font-semibold tracking-[-0.03em]">{t.name}</h3>
-                  <div className="mt-4 flex items-baseline gap-2">
-                    <span className="text-4xl font-semibold tracking-[-0.05em]">{t.price}</span>
-                    {t.per && <span className={t.featured ? "text-[#B9A8C9]" : "text-[#9B8AA8]"}>{t.per}</span>}
-                  </div>
-                  <p className={`mt-3 text-sm leading-snug ${t.featured ? "text-[#CFC3DE]" : "text-[#5F5367]"}`}>{t.note}</p>
-                  <ul className="mt-6 space-y-3 text-[15px]">
-                    {t.features.map((f) => (
-                      <li key={f} className="flex gap-2.5">
-                        <Check className={`mt-0.5 shrink-0 ${t.featured ? "text-[#D8B4FE]" : "text-[#7C3AED]"}`} size={17} />
-                        <span className={t.featured ? "text-[#EFE7F6]" : "text-[#3C3344]"}>{f}</span>
-                      </li>
-                    ))}
-                  </ul>
-                  <button
-                    onClick={openRegister}
-                    className={`mt-8 inline-flex items-center justify-center gap-2 rounded-full px-6 py-4 text-sm font-semibold transition ${
-                      t.featured
-                        ? "bg-[#D8B4FE] text-[#18131D] hover:bg-white"
-                        : "bg-[#18131D] text-white hover:bg-[#7C3AED]"
-                    }`}
-                  >
-                    {t.cta}
-                    <ArrowRight size={16} />
-                  </button>
+            <div className="mt-12 grid items-start gap-8 rounded-[28px] border border-[#D9C9E8] bg-[#FFFDF8] p-8 lg:grid-cols-[0.9fr_1.1fr] lg:p-12">
+              <div>
+                <p className="text-sm uppercase tracking-[0.16em] text-[#9B7DB4]">Единственный тариф</p>
+                <h3 className="mt-4 text-3xl font-semibold tracking-[-0.04em] text-[#18131D]">Безоплатный</h3>
+                <div className="mt-5 flex items-baseline gap-2">
+                  <span className="text-[clamp(3rem,6vw,5rem)] font-semibold leading-none tracking-[-0.06em] text-[#7C3AED]">0 ₽</span>
+                  <span className="text-[#9B8AA8]">навсегда</span>
                 </div>
-              ))}
+                <p className="mt-5 max-w-sm text-lg leading-snug text-[#5F5367]">
+                  Полный доступ ко всей платформе — обучение, практика и аттестация без оплаты.
+                </p>
+                <button
+                  onClick={openRegister}
+                  className="mt-8 inline-flex items-center gap-3 rounded-full bg-[#18131D] px-7 py-4 text-sm font-semibold text-white transition hover:bg-[#7C3AED]"
+                >
+                  Начать безоплатно
+                  <ArrowRight size={18} />
+                </button>
+              </div>
+
+              <ul className="grid gap-3.5 border-t border-[#D9C9E8] pt-8 sm:grid-cols-2 lg:border-l lg:border-t-0 lg:pl-12 lg:pt-0">
+                {freeTierFeatures.map((f) => (
+                  <li key={f} className="flex gap-2.5">
+                    <Check className="mt-0.5 shrink-0 text-[#7C3AED]" size={18} />
+                    <span className="text-[15px] leading-snug text-[#3C3344]">{f}</span>
+                  </li>
+                ))}
+              </ul>
             </div>
           </section>
         </section>
