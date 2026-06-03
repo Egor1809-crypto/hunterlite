@@ -530,6 +530,33 @@ async def start_session(
             body.custom_session_mode, body.real_client_id, body.custom_character_id,
         )
 
+    # ── CONSTRUCTOR_TZ §3/§4 — гейт конструктора по региону 1 теста ───────
+    # Старт из конструктора («Мои клиенты») распознаём по кастомному персонажу/
+    # архетипу без привязки к реальному CRM-клиенту. CRM/сценарные потоки этим
+    # гейтом не блокируются. Пока регион 1 не пройден → 403 constructor_locked.
+    _is_constructor_start = (
+        body.real_client_id is None
+        and (body.custom_character_id is not None or body.custom_archetype is not None)
+    )
+    if _is_constructor_start:
+        from app.services.constructor_access import (
+            CONSTRUCTOR_LOCKED_CODE,
+            CONSTRUCTOR_UNLOCK_HINT,
+            is_constructor_unlocked,
+        )
+        from app.models.training_map import TrainingMapProgress
+        _tmp_row = (await db.execute(
+            select(TrainingMapProgress).where(TrainingMapProgress.user_id == user.id)
+        )).scalar_one_or_none()
+        if not is_constructor_unlocked(_tmp_row.test_map if _tmp_row else None):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail={
+                    "code": CONSTRUCTOR_LOCKED_CODE,
+                    "message": CONSTRUCTOR_UNLOCK_HINT,
+                },
+            )
+
     # ── 2026-04-23 Zone 1 — real_client_id ownership validation ───────────
     # Frontend /clients/[id]/page.tsx sends real_client_id + source on both
     # "Написать" and "Позвонить". Without this check, a malicious user could

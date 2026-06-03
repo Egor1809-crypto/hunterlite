@@ -44,6 +44,11 @@ const nextConfig: NextConfig = {
       // redirect to /pvp so any cached browser tab / bookmark / WhatsApp
       // link goes straight to the arena instead of showing a 404.
       { source: "/pvp/tutorial", destination: "/pvp", permanent: true },
+      // 2026-06-02 — /profile route removed; password-change + Telegram moved
+      // into /settings. Redirect keeps bookmarks and the old РОП
+      // `/profile?user=` deep-links from 404-ing (query is dropped, lands on
+      // /settings root in one hop).
+      { source: "/profile", destination: "/settings", permanent: true },
     ];
   },
 

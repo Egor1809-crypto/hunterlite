@@ -66,9 +66,6 @@ api_router.include_router(scenarios_router, tags=["scenarios"])
 from app.api.training_map import router as training_map_router
 api_router.include_router(training_map_router, tags=["training-map"])
 
-from app.api.training_presets import router as training_presets_router
-api_router.include_router(training_presets_router, tags=["training-presets"])
-
 from app.api.knowledge_ai import router as knowledge_ai_router
 api_router.include_router(knowledge_ai_router, tags=["knowledge-ai"])
 
@@ -80,3 +77,6 @@ api_router.include_router(exams_router, tags=["exams"])
 
 from app.api.learning_path import router as learning_path_router
 api_router.include_router(learning_path_router, tags=["learning-path"])
+
+from app.api.history import router as history_router
+api_router.include_router(history_router, tags=["history"])

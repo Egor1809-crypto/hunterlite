@@ -787,6 +787,7 @@ async def get_weekly_report(
         "skills_snapshot": report.skills_snapshot,
         "skills_change": report.skills_change,
         "weak_points": report.weak_points,
+        "outcomes": report.outcomes,
         "recommendations": report.recommendations,
         "report_text": report.report_text,
         "weekly_rank": report.weekly_rank,

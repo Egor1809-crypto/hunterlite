@@ -284,6 +284,85 @@ async def test_non_json_content_returns_none(monkeypatch, mem_cache):
 
 
 @pytest.mark.asyncio
+async def test_retry_recovers_transient_failure(monkeypatch, mem_cache):
+    # First navy call fails transiently; the one retry succeeds → real grade,
+    # NOT a needless drop to grading_pending.
+    state = {"n": 0}
+    good = json.dumps({"score": 70, "covered": ["kp1"], "missed": [], "feedback": "ok"})
+
+    class _Seq:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *a):
+            return False
+
+        async def post(self, url, headers=None, json=None):
+            state["n"] += 1
+            if state["n"] == 1:
+                raise httpx.ConnectError("transient")
+            return _FakeResponse(200, good)
+
+    monkeypatch.setattr(exam_grader.httpx, "AsyncClient", lambda *a, **k: _Seq())
+    g = await exam_grader.grade_item(
+        item_id="i1", item_type="case_analysis", prompt="p",
+        user_answer="ответ", max_score=10.0, rubric=RUBRIC_NO_REQ,
+    )
+    assert g is not None and g.percent == 70
+    assert state["n"] == 2  # retried exactly once
+
+
+@pytest.mark.asyncio
+async def test_timeout_does_not_retry(monkeypatch, mem_cache):
+    # A timeout already consumed the full budget; retrying would re-hold the
+    # request (and its attempt row lock). It must fail fast to pending, no retry.
+    state = {"n": 0}
+
+    class _Timeout:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *a):
+            return False
+
+        async def post(self, url, headers=None, json=None):
+            state["n"] += 1
+            raise httpx.TimeoutException("slow navy")
+
+    monkeypatch.setattr(exam_grader.httpx, "AsyncClient", lambda *a, **k: _Timeout())
+    g = await exam_grader.grade_item(
+        item_id="i1", item_type="case_analysis", prompt="p",
+        user_answer="ответ", max_score=10.0, rubric=RUBRIC_NO_REQ,
+    )
+    assert g is None
+    assert state["n"] == 1  # timeout → no retry
+
+
+@pytest.mark.asyncio
+async def test_retry_gives_up_after_max_attempts(monkeypatch, mem_cache):
+    state = {"n": 0}
+
+    class _AlwaysFail:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *a):
+            return False
+
+        async def post(self, url, headers=None, json=None):
+            state["n"] += 1
+            raise httpx.ConnectError("down")
+
+    monkeypatch.setattr(exam_grader.httpx, "AsyncClient", lambda *a, **k: _AlwaysFail())
+    g = await exam_grader.grade_item(
+        item_id="i1", item_type="case_analysis", prompt="p",
+        user_answer="ответ", max_score=10.0, rubric=RUBRIC_NO_REQ,
+    )
+    assert g is None
+    assert state["n"] == exam_grader._MAX_ATTEMPTS  # bounded, no infinite retry
+
+
+@pytest.mark.asyncio
 async def test_fenced_json_is_parsed(monkeypatch, mem_cache):
     fenced = "```json\n" + json.dumps({"score": 60, "covered": ["kp1", "kp2"], "missed": [], "feedback": "x"}) + "\n```"
     _patch_client(monkeypatch, response=_FakeResponse(200, fenced))

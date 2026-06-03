@@ -2,80 +2,98 @@
 
 import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowRight,
   History,
   Search,
   Clock,
-  CheckCircle2,
-  XCircle,
   AlertTriangle,
-  Inbox,
   BarChart3,
   Sparkles,
   TrendingUp,
   TrendingDown,
   Trophy,
-  Timer,
-  Star,
   Filter,
   GraduationCap,
   Loader2,
+  Activity,
+  CheckCircle2,
+  XCircle,
+  BookOpen,
+  Briefcase,
+  Award,
+  ChevronDown,
+  Inbox,
+  Layers,
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { AbstractBackdrop } from "@/components/ui/AbstractBackdrop";
+import { ActivityHeatmap } from "@/components/profile/ActivityHeatmap";
 import { api } from "@/lib/api";
 import { scoreColor } from "@/lib/utils";
-import { CATEGORY_LABELS } from "@/lib/categories";
 import AuthLayout from "@/components/layout/AuthLayout";
-import type { HistoryEntry } from "@/types";
+import type {
+  UnifiedHistoryItem,
+  UnifiedHistoryKind,
+  ManyashaExplainResponse,
+  WeeklyReportResponse,
+} from "@/types";
 
-type StatusFilter = "all" | "completed" | "active";
-type TypeFilter = "all" | "training" | "story" | "quiz";
-type ScoreFilter = "all" | "excellent" | "good" | "practice";
+type TypeFilter = "all" | "training" | "quiz" | "case" | "exam";
 
-/* ── Helpers ─────────────────────────────────────────────── */
+/* ── Metric helpers ──────────────────────────────────────── */
 
-function statusConfig(status: string) {
-  switch (status) {
-    case "completed":
-      return { label: "Завершено", icon: CheckCircle2, color: "var(--success)" };
-    case "abandoned":
-      return { label: "Прервано", icon: XCircle, color: "var(--danger)" };
-    case "error":
-      return { label: "Ошибка", icon: AlertTriangle, color: "var(--warning)" };
+function num(v: unknown): number | null {
+  return typeof v === "number" && Number.isFinite(v) ? v : null;
+}
+function bool(v: unknown): boolean | null {
+  return typeof v === "boolean" ? v : null;
+}
+function str(v: unknown): string | null {
+  return typeof v === "string" && v.length > 0 ? v : null;
+}
+
+/** Extract the single representative score for aggregates / sparklines. */
+function itemScore(item: UnifiedHistoryItem): number | null {
+  const m = item.metrics;
+  switch (item.kind) {
+    case "exam":
+      return num(m.score_percent);
+    case "quiz":
+      return num(m.score);
+    case "case":
+      return num(m.score_percent);
+    case "session":
+      return num(m.score_total);
+    case "story":
+      return num(m.best_score) ?? num(m.avg_score);
     default:
-      return { label: "Активно", icon: Clock, color: "var(--primary)" };
+      return null;
   }
 }
 
-function formatDuration(seconds: number | null) {
-  if (seconds === null || seconds === undefined) return "—";
-  const m = Math.floor(seconds / 60);
-  const s = seconds % 60;
-  return `${m}:${s.toString().padStart(2, "0")}`;
-}
+const KIND_LABEL: Record<UnifiedHistoryKind, string> = {
+  session: "Тренировка",
+  story: "AI Story",
+  case: "Кейс",
+  exam: "Экзамен",
+  quiz: "Тест",
+};
 
-function formatTotalTime(totalSeconds: number): string {
-  if (totalSeconds < 60) return `${totalSeconds}с`;
-  const hours = Math.floor(totalSeconds / 3600);
-  const mins = Math.floor((totalSeconds % 3600) / 60);
-  if (hours > 0) return `${hours}ч ${mins}м`;
-  return `${mins}м`;
-}
+const KIND_ICON: Record<UnifiedHistoryKind, typeof BookOpen> = {
+  session: GraduationCap,
+  story: Layers,
+  case: Briefcase,
+  exam: Award,
+  quiz: BookOpen,
+};
 
 function formatDate(iso: string) {
   const d = new Date(iso);
   return d.toLocaleDateString("ru-RU", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
-}
-
-function scoreBadge(score: number | null): { label: string; accentColor: string; bgColor: string } {
-  if (score === null) return { label: "", accentColor: "var(--text-muted)", bgColor: "transparent" };
-  if (score >= 80) return { label: "Отлично", accentColor: "var(--success)", bgColor: "var(--success-muted)" };
-  if (score >= 60) return { label: "Хорошо", accentColor: "var(--info)", bgColor: "var(--info-muted)" };
-  return { label: "Нужна практика", accentColor: "var(--warning)", bgColor: "var(--warning-muted)" };
 }
 
 /* ── Score Trend Chart (SVG, token-based) ────────────────── */
@@ -207,35 +225,6 @@ function CircularScore({ score, size = 44 }: { score: number; size?: number }) {
   );
 }
 
-/* ── Mini Score Bars (single accent) ─────────────────────── */
-
-function MiniScoreBars({ session }: { session: NonNullable<HistoryEntry["latest_session"]> }) {
-  const bars = [
-    { label: "Скрипт", value: session.score_script_adherence, max: 30 },
-    { label: "Возражения", value: session.score_objection_handling, max: 25 },
-    { label: "Коммуникация", value: session.score_communication, max: 20 },
-    { label: "Результат", value: session.score_result, max: 10 },
-  ];
-  return (
-    <div className="mt-2 flex gap-2">
-      {bars.map((bar) => {
-        const pct = bar.value !== null && bar.max > 0 ? Math.round((bar.value / bar.max) * 100) : 0;
-        return (
-          <div key={bar.label} className="flex-1" title={`${bar.label}: ${bar.value ?? 0}/${bar.max}`}>
-            <div className="mb-0.5 flex items-center justify-between">
-              <span style={{ fontSize: 10, color: "var(--text-muted)" }}>{bar.label}</span>
-              <span className="font-mono tabular-nums" style={{ fontSize: 10, color: "var(--text-muted)" }}>{pct}%</span>
-            </div>
-            <div className="h-1 overflow-hidden rounded-full" style={{ background: "var(--border-color)" }}>
-              <motion.div className="h-full rounded-full" initial={{ width: 0 }} animate={{ width: `${pct}%` }} transition={{ duration: 0.6, ease: "easeOut" }} style={{ background: "var(--primary)" }} />
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
 /* ── Filter Chip (token, single accent) ──────────────────── */
 
 function FilterChip({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
@@ -255,165 +244,358 @@ function FilterChip({ label, active, onClick }: { label: string; active: boolean
   );
 }
 
+/* ── Manyasha explain panel (per-item, lazy) ─────────────── */
+
+interface ExplainState {
+  loading: boolean;
+  data: ManyashaExplainResponse | null;
+  error: string | null;
+}
+
+function ManyashaPanel({ state, onRetry }: { state: ExplainState; onRetry: () => void }) {
+  if (state.loading) {
+    return (
+      <div className="mt-3 flex items-center gap-2 font-mono text-[12px]" style={{ color: "var(--text-muted)" }}>
+        <Loader2 size={13} className="animate-spin" /> Маняша готовит разбор…
+      </div>
+    );
+  }
+  if (state.error) {
+    return (
+      <div className="mt-3 flex flex-wrap items-center gap-3 font-mono text-[12px]" style={{ color: "var(--text-muted)" }}>
+        <span>Разбор временно недоступен. Попробуйте позже.</span>
+        <Button variant="ghost" size="sm" icon={<Loader2 size={13} />} onClick={onRetry}>Повторить</Button>
+      </div>
+    );
+  }
+  if (!state.data) return null;
+  const { report_text, weak_points, sources } = state.data;
+  return (
+    <div className="mt-3 border-t pt-3" style={{ borderColor: "var(--border-color)" }}>
+      <div className="mb-2 flex items-center gap-1.5 font-mono text-[11px] uppercase tracking-[0.16em]" style={{ color: "var(--primary)" }}>
+        <Sparkles size={12} /> Разбор от Маняши
+      </div>
+      {report_text && (
+        <p className="text-[13px] leading-relaxed" style={{ color: "var(--text-secondary)", whiteSpace: "pre-line" }}>
+          {report_text}
+        </p>
+      )}
+      {weak_points.length > 0 && (
+        <div className="mt-3 flex flex-wrap gap-1.5">
+          {weak_points.map((w, i) => (
+            <span key={i} className="rounded-full px-2 py-0.5 font-mono text-[11px]" style={{ background: "var(--warning-muted)", color: "var(--warning)" }}>
+              {w}
+            </span>
+          ))}
+        </div>
+      )}
+      {sources.length > 0 && (
+        <div className="mt-3 space-y-1.5">
+          <div className="font-mono text-[10px] uppercase tracking-[0.14em]" style={{ color: "var(--text-muted)" }}>Источники</div>
+          {sources.map((s, i) => (
+            <div key={i} className="flex flex-wrap items-center gap-2 font-mono text-[11px]" style={{ color: "var(--text-secondary)" }}>
+              <span className="font-semibold" style={{ color: "var(--primary)" }}>{s.law_article || "—"}</span>
+              <span style={{ color: "var(--text-muted)" }}>{s.category}</span>
+              {s.is_court_practice && s.court_case && (
+                <span style={{ color: "var(--text-muted)" }}>· {s.court_case}</span>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ── Per-kind metric body ────────────────────────────────── */
+
+function MetricBody({ item }: { item: UnifiedHistoryItem }) {
+  const m = item.metrics;
+  if (item.kind === "session") {
+    const hf = num(m.score_human_factor);
+    const nar = num(m.score_narrative);
+    const leg = num(m.score_legal);
+    const parts = [
+      hf !== null ? `Чел. фактор ${hf}` : null,
+      nar !== null ? `Нарратив ${nar}` : null,
+      leg !== null ? `Право ${leg}` : null,
+    ].filter(Boolean);
+    return (
+      <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 font-mono text-[12px] tabular-nums" style={{ color: "var(--text-secondary)" }}>
+        {parts.length > 0 ? parts.map((p, i) => <span key={i}>{p}</span>) : <span style={{ color: "var(--text-muted)" }}>Без детальных оценок</span>}
+      </div>
+    );
+  }
+  if (item.kind === "story") {
+    const done = num(m.calls_completed);
+    const leg = num(m.score_legal);
+    const hf = num(m.score_human_factor);
+    return (
+      <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 font-mono text-[12px] tabular-nums" style={{ color: "var(--text-secondary)" }}>
+        {done !== null && <span>{done} звонков</span>}
+        {hf !== null && <span>Чел. фактор {hf}</span>}
+        {leg !== null && <span>Право {leg}</span>}
+      </div>
+    );
+  }
+  if (item.kind === "case") {
+    const pct = num(m.score_percent);
+    const s1 = num(m.stage1_score);
+    const s2 = num(m.stage2_score);
+    const max = num(m.max_score);
+    const raw = num(m.score);
+    return (
+      <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 font-mono text-[12px] tabular-nums" style={{ color: "var(--text-secondary)" }}>
+        {pct !== null && <span>{pct}%</span>}
+        {raw !== null && max !== null && <span>{raw}/{max} баллов</span>}
+        {(s1 !== null || s2 !== null) && <span>этап1 {s1 ?? "—"} · этап2 {s2 ?? "—"}</span>}
+      </div>
+    );
+  }
+  if (item.kind === "exam") {
+    const pct = num(m.score_percent);
+    const passed = bool(m.passed);
+    const threshold = num(m.pass_threshold);
+    const correct = num(m.correct_count);
+    const total = num(m.total_count);
+    const cert = str(m.certificate_code);
+    return (
+      <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 font-mono text-[12px] tabular-nums" style={{ color: "var(--text-secondary)" }}>
+        {pct !== null && <span>{pct}%{threshold !== null && <span style={{ color: "var(--text-muted)" }}> / порог {threshold}%</span>}</span>}
+        {correct !== null && total !== null && <span>{correct}/{total} верно</span>}
+        {passed !== null && (
+          <span className="inline-flex items-center gap-1" style={{ color: passed ? "var(--success)" : "var(--danger)" }}>
+            {passed ? <CheckCircle2 size={12} /> : <XCircle size={12} />}
+            {passed ? "сдан" : "не сдан"}
+          </span>
+        )}
+        {cert && <span style={{ color: "var(--success)" }}>сертификат {cert}</span>}
+      </div>
+    );
+  }
+  // quiz
+  const correct = num(m.correct_answers);
+  const incorrect = num(m.incorrect_answers);
+  const total = num(m.total_questions);
+  const score = num(m.score);
+  return (
+    <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 font-mono text-[12px] tabular-nums" style={{ color: "var(--text-secondary)" }}>
+      {correct !== null && total !== null && <span>{correct}/{total} верно</span>}
+      {incorrect !== null && incorrect > 0 && <span style={{ color: "var(--text-muted)" }}>{incorrect} ошибок</span>}
+      {score !== null && <span>{Math.round(score)}%</span>}
+    </div>
+  );
+}
+
+/* ── Weekly summary block ────────────────────────────────── */
+
+function WeeklySummary({ weekly, loading }: { weekly: WeeklyReportResponse | null; loading: boolean }) {
+  const reportText = str(weekly?.report_text ?? null);
+  const recs = (weekly?.recommendations ?? []).filter((r): r is string => typeof r === "string" && r.length > 0);
+
+  return (
+    <Card accentTop className="mt-6">
+      <div className="mb-2 flex items-center gap-2">
+        <Sparkles size={15} style={{ color: "var(--primary)" }} />
+        <span className="font-mono text-[11px] uppercase tracking-[0.16em]" style={{ color: "var(--text-secondary)" }}>Итоги недели</span>
+      </div>
+      {loading ? (
+        <div className="flex items-center gap-2 font-mono text-[12px]" style={{ color: "var(--text-muted)" }}>
+          <Loader2 size={13} className="animate-spin" /> Маняша считает неделю…
+        </div>
+      ) : reportText ? (
+        <>
+          <p className="text-[13px]" style={{ color: "var(--text-muted)" }}>Маняша подвела итог твоей недели:</p>
+          <p className="mt-2 text-[14px] leading-relaxed" style={{ color: "var(--text-secondary)", whiteSpace: "pre-line" }}>
+            {reportText}
+          </p>
+          {recs.length > 0 && (
+            <ul className="mt-3 space-y-1.5">
+              {recs.map((r, i) => (
+                <li key={i} className="flex items-start gap-2 text-[13px]" style={{ color: "var(--text-secondary)" }}>
+                  <span className="mt-1 font-mono" style={{ color: "var(--primary)" }}>—</span>
+                  <span>{r}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </>
+      ) : (
+        <p className="text-[13px]" style={{ color: "var(--text-muted)" }}>
+          Недельный отчёт появится после нескольких занятий.
+        </p>
+      )}
+    </Card>
+  );
+}
+
 /* ── Main Page ───────────────────────────────────────────── */
 
 export default function HistoryPage() {
   const router = useRouter();
-  const [entries, setEntries] = useState<HistoryEntry[]>([]);
+  const [items, setItems] = useState<UnifiedHistoryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [weekly, setWeekly] = useState<WeeklyReportResponse | null>(null);
+  const [weeklyLoading, setWeeklyLoading] = useState(true);
+
   const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
-  const [scoreFilter, setScoreFilter] = useState<ScoreFilter>("all");
   const [searchQuery, setSearchQuery] = useState("");
 
-  const fetchHistory = useCallback((silent = false) => {
+  // Per-item Manyasha разбор state, keyed by `${kind}:${id}`.
+  const [explain, setExplain] = useState<Record<string, ExplainState>>({});
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+
+  const fetchAll = useCallback((silent = false) => {
     if (silent) setRefreshing(true);
     api
-      .get("/training/history?limit=50")
-      .then(setEntries)
+      .get<UnifiedHistoryItem[]>("/history/unified?limit=100")
+      .then((data) => setItems(Array.isArray(data) ? data : []))
       .catch((err: Error) => setError(err.message || "Ошибка загрузки"))
       .finally(() => { setLoading(false); setRefreshing(false); });
+
+    api
+      .get<WeeklyReportResponse>("/dashboard/weekly-report")
+      .then((data) => setWeekly(data ?? null))
+      .catch(() => setWeekly(null))
+      .finally(() => setWeeklyLoading(false));
   }, []);
 
-  useEffect(() => { fetchHistory(); }, [fetchHistory]);
+  useEffect(() => { fetchAll(); }, [fetchAll]);
 
   useEffect(() => {
-    const onVisible = () => { if (document.visibilityState === "visible") fetchHistory(true); };
+    const onVisible = () => { if (document.visibilityState === "visible") fetchAll(true); };
     document.addEventListener("visibilitychange", onVisible);
     return () => document.removeEventListener("visibilitychange", onVisible);
-  }, [fetchHistory]);
+  }, [fetchAll]);
 
-  /* ── Computed data ─────────────────────────────────────── */
+  const fetchExplain = useCallback((item: UnifiedHistoryItem) => {
+    const key = `${item.kind}:${item.id}`;
+    setExplain((ex) => {
+      if (ex[key]?.data || ex[key]?.loading) return ex;
+      api
+        .get<ManyashaExplainResponse>(`/history/${item.kind}/${item.id}/explain`)
+        .then((data) =>
+          setExplain((e2) => ({ ...e2, [key]: { loading: false, data, error: null } })),
+        )
+        .catch((err: Error) =>
+          setExplain((e2) => ({ ...e2, [key]: { loading: false, data: null, error: err.message || "Ошибка" } })),
+        );
+      return { ...ex, [key]: { loading: true, data: null, error: null } };
+    });
+  }, []);
 
-  const latestSessions = entries.map((entry) => entry.latest_session).filter((s): s is NonNullable<typeof s> => s !== null);
-  const completed = latestSessions.filter((s) => s.status === "completed");
-  const avgScore = completed.length > 0 ? Math.round(completed.reduce((sum, s) => sum + (s.score_total ?? 0), 0) / completed.length) : null;
-  const bestScore = completed.length > 0 ? Math.max(...completed.map((s) => s.score_total ?? 0)) : null;
-  const totalTime = latestSessions.reduce((sum, s) => sum + (s.duration_seconds ?? 0), 0);
+  const retryExplain = useCallback((item: UnifiedHistoryItem) => {
+    const key = `${item.kind}:${item.id}`;
+    // Clear the prior error state so fetchExplain re-runs.
+    setExplain((ex) => {
+      const next = { ...ex };
+      delete next[key];
+      return next;
+    });
+    fetchExplain(item);
+  }, [fetchExplain]);
 
-  const scoreTrendData = useMemo(() => {
-    return [...completed]
-      .filter((s) => s.score_total !== null)
-      .sort((a, b) => new Date(a.started_at).getTime() - new Date(b.started_at).getTime())
+  const toggleExplain = useCallback((item: UnifiedHistoryItem) => {
+    const key = `${item.kind}:${item.id}`;
+    setExpanded((prev) => {
+      const next = !prev[key];
+      // Lazy-fetch on first open.
+      if (next) fetchExplain(item);
+      return { ...prev, [key]: next };
+    });
+  }, [fetchExplain]);
+
+  /* ── Computed aggregates (real scores only) ──────────────── */
+
+  const scored = useMemo(
+    () => items.map((it) => ({ it, score: itemScore(it) })).filter((x): x is { it: UnifiedHistoryItem; score: number } => x.score !== null),
+    [items],
+  );
+
+  const avgScore = scored.length > 0 ? Math.round(scored.reduce((s, x) => s + x.score, 0) / scored.length) : null;
+  const bestScore = scored.length > 0 ? Math.max(...scored.map((x) => x.score)) : null;
+
+  const byTypeCounts = useMemo(() => {
+    const c: Record<UnifiedHistoryKind, number> = { session: 0, story: 0, case: 0, exam: 0, quiz: 0 };
+    for (const it of items) c[it.kind]++;
+    return c;
+  }, [items]);
+
+  const trendData = useMemo(() => {
+    return [...scored]
+      .sort((a, b) => new Date(a.it.date).getTime() - new Date(b.it.date).getTime())
       .slice(-20)
-      .map((s) => ({ score: s.score_total ?? 0, date: formatDate(s.started_at) }));
-  }, [completed]);
+      .map((x) => ({ score: x.score, date: formatDate(x.it.date) }));
+  }, [scored]);
 
   const recentScores = useMemo(() => {
-    return [...completed]
-      .filter((s) => s.score_total !== null)
-      .sort((a, b) => new Date(a.started_at).getTime() - new Date(b.started_at).getTime())
+    return [...scored]
+      .sort((a, b) => new Date(a.it.date).getTime() - new Date(b.it.date).getTime())
       .slice(-5)
-      .map((s) => s.score_total ?? 0);
-  }, [completed]);
-
-  const recentCounts = useMemo(() => {
-    const now = Date.now();
-    const weeks: number[] = [0, 0, 0, 0, 0];
-    for (const e of entries) {
-      const age = now - new Date(e.sort_at).getTime();
-      const weekIdx = Math.min(4, Math.floor(age / (7 * 86400000)));
-      weeks[4 - weekIdx]++;
-    }
-    return weeks;
-  }, [entries]);
+      .map((x) => x.score);
+  }, [scored]);
 
   const scoreTrend = useMemo(() => {
-    if (completed.length < 4) return null;
-    const sorted = [...completed].filter((s) => s.score_total !== null).sort((a, b) => new Date(a.started_at).getTime() - new Date(b.started_at).getTime());
+    if (scored.length < 4) return null;
+    const sorted = [...scored].sort((a, b) => new Date(a.it.date).getTime() - new Date(b.it.date).getTime());
     const half = Math.floor(sorted.length / 2);
-    const firstHalf = sorted.slice(0, half);
-    const secondHalf = sorted.slice(half);
-    const avgFirst = firstHalf.reduce((s, x) => s + (x.score_total ?? 0), 0) / firstHalf.length;
-    const avgSecond = secondHalf.reduce((s, x) => s + (x.score_total ?? 0), 0) / secondHalf.length;
+    const avgFirst = sorted.slice(0, half).reduce((s, x) => s + x.score, 0) / half;
+    const avgSecond = sorted.slice(half).reduce((s, x) => s + x.score, 0) / (sorted.length - half);
     return Math.round(avgSecond - avgFirst);
-  }, [completed]);
+  }, [scored]);
 
-  const bestSessionOfWeek = useMemo(() => {
-    const weekAgo = Date.now() - 7 * 86400000;
-    const thisWeek = entries.filter((e) => new Date(e.sort_at).getTime() > weekAgo && e.latest_session?.status === "completed" && e.latest_session?.score_total !== null);
-    if (thisWeek.length === 0) return null;
-    return thisWeek.reduce((best, e) => (e.latest_session?.score_total ?? 0) > (best.latest_session?.score_total ?? 0) ? e : best);
-  }, [entries]);
+  /* ── Filtering + grouping ────────────────────────────────── */
 
-  /* ── Filtered + grouped ────────────────────────────────── */
-
-  const filteredEntries = useMemo(() => {
-    let result = entries;
-    if (statusFilter !== "all") {
-      result = result.filter((e) => {
-        const status = e.kind === "quiz" ? "completed" : e.latest_session?.status;
-        if (statusFilter === "completed") return status === "completed";
-        return status !== "completed";
-      });
-    }
+  const filteredItems = useMemo(() => {
+    let result = items;
     if (typeFilter !== "all") {
-      result = result.filter((e) => {
-        if (typeFilter === "story") return e.kind === "story";
-        if (typeFilter === "quiz") return e.kind === "quiz";
-        return e.kind === "session" || e.kind === "crm_client";
-      });
-    }
-    if (scoreFilter !== "all") {
-      result = result.filter((e) => {
-        const score = e.avg_score ?? e.latest_session?.score_total ?? null;
-        if (score === null) return scoreFilter === "practice";
-        if (scoreFilter === "excellent") return score >= 80;
-        if (scoreFilter === "good") return score >= 60 && score < 80;
-        return score < 60;
+      result = result.filter((it) => {
+        if (typeFilter === "training") return it.kind === "session" || it.kind === "story";
+        if (typeFilter === "quiz") return it.kind === "quiz";
+        if (typeFilter === "case") return it.kind === "case";
+        if (typeFilter === "exam") return it.kind === "exam";
+        return true;
       });
     }
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase().trim();
-      result = result.filter((e) => {
-        const storyName = e.story?.story_name?.toLowerCase() ?? "";
-        const scenarioId = e.latest_session?.scenario_id?.toLowerCase() ?? "";
-        const quizCat = e.quiz?.category?.toLowerCase() ?? "";
-        return storyName.includes(q) || scenarioId.includes(q) || quizCat.includes(q);
-      });
+      result = result.filter((it) => it.title.toLowerCase().includes(q));
     }
     return result;
-  }, [entries, statusFilter, typeFilter, scoreFilter, searchQuery]);
+  }, [items, typeFilter, searchQuery]);
 
-  const groupedEntries = useMemo(() => {
+  const groupedItems = useMemo(() => {
     const now = new Date();
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
     const weekStart = todayStart - (now.getDay() === 0 ? 6 : now.getDay() - 1) * 86400000;
-    const groups: { label: string; entries: HistoryEntry[] }[] = [
-      { label: "Сегодня", entries: [] },
-      { label: "На этой неделе", entries: [] },
-      { label: "Ранее", entries: [] },
+    const groups: { label: string; items: UnifiedHistoryItem[] }[] = [
+      { label: "Сегодня", items: [] },
+      { label: "На этой неделе", items: [] },
+      { label: "Ранее", items: [] },
     ];
-    for (const entry of filteredEntries) {
-      const t = new Date(entry.sort_at).getTime();
-      if (t >= todayStart) groups[0].entries.push(entry);
-      else if (t >= weekStart) groups[1].entries.push(entry);
-      else groups[2].entries.push(entry);
+    for (const it of filteredItems) {
+      const t = new Date(it.date).getTime();
+      if (t >= todayStart) groups[0].items.push(it);
+      else if (t >= weekStart) groups[1].items.push(it);
+      else groups[2].items.push(it);
     }
-    return groups.filter((g) => g.entries.length > 0);
-  }, [filteredEntries]);
+    return groups.filter((g) => g.items.length > 0);
+  }, [filteredItems]);
 
-  const hasActiveFilters = statusFilter !== "all" || typeFilter !== "all" || scoreFilter !== "all" || searchQuery.trim() !== "";
-
-  const comparisonData = useMemo(() => {
-    if (completed.length < 2) return null;
-    const sorted = [...completed].sort((a, b) => new Date(a.started_at).getTime() - new Date(b.started_at).getTime());
-    return { first: sorted[0], last: sorted[sorted.length - 1] };
-  }, [completed]);
-
-  const resetFilters = () => { setStatusFilter("all"); setTypeFilter("all"); setScoreFilter("all"); setSearchQuery(""); };
+  const hasActiveFilters = typeFilter !== "all" || searchQuery.trim() !== "";
+  const resetFilters = () => { setTypeFilter("all"); setSearchQuery(""); };
 
   const statCards = [
-    { label: "Всего сессий", value: entries.length, icon: BarChart3, spark: recentCounts, trend: null as number | null },
+    { label: "Всего записей", value: items.length, icon: BarChart3, spark: [] as number[], trend: null as number | null },
     { label: "Средний балл", value: avgScore !== null ? avgScore : "—", icon: Sparkles, spark: recentScores, trend: scoreTrend },
     { label: "Лучший балл", value: bestScore !== null ? bestScore : "—", icon: Trophy, spark: recentScores, trend: null as number | null },
-    { label: "Время обучения", value: formatTotalTime(totalTime), icon: Timer, spark: [] as number[], trend: null as number | null },
+    { label: "Экзамены · Кейсы", value: `${byTypeCounts.exam} · ${byTypeCounts.case}`, icon: Award, spark: [] as number[], trend: null as number | null },
   ];
 
-  /* ── Render ────────────────────────────────────────────── */
+  /* ── Render ──────────────────────────────────────────────── */
 
   return (
     <AuthLayout>
@@ -429,7 +611,7 @@ export default function HistoryPage() {
             <div className="flex-1">
               <div className="font-mono text-[11px] uppercase tracking-[0.16em]" style={{ color: "var(--text-secondary)" }}>Хронология</div>
               <h1 className="mt-1 text-4xl font-semibold tracking-tight sm:text-5xl" style={{ color: "var(--text-primary)" }}>История</h1>
-              <p className="mt-2 text-[15px]" style={{ color: "var(--text-muted)" }}>Обучение, практика и профессиональный рост — по шагам.</p>
+              <p className="mt-2 text-[15px]" style={{ color: "var(--text-muted)" }}>Тренировки, тесты, кейсы и экзамены — в одной хронике.</p>
             </div>
             {refreshing && (
               <span className="hidden items-center gap-1.5 font-mono text-[11px] sm:inline-flex" style={{ color: "var(--text-muted)" }}>
@@ -438,8 +620,20 @@ export default function HistoryPage() {
             )}
           </motion.div>
 
+          {/* ── Итоги недели от Маняши ── */}
+          <WeeklySummary weekly={weekly} loading={weeklyLoading} />
+
+          {/* ── 180-day activity ── */}
+          <Card className="mt-6">
+            <div className="mb-3 flex items-center gap-2">
+              <Activity size={15} style={{ color: "var(--text-muted)" }} />
+              <span className="font-mono text-[11px] uppercase tracking-[0.16em]" style={{ color: "var(--text-secondary)" }}>Активность за 180 дней</span>
+            </div>
+            <ActivityHeatmap days={180} accent="var(--primary)" />
+          </Card>
+
           {/* ── Score trend ── */}
-          {!loading && scoreTrendData.length >= 2 && (
+          {!loading && trendData.length >= 2 && (
             <Card accentTop className="mt-6">
               <div className="mb-2 flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -453,12 +647,12 @@ export default function HistoryPage() {
                   </div>
                 )}
               </div>
-              <ScoreTrendChart sessions={scoreTrendData} />
+              <ScoreTrendChart sessions={trendData} />
             </Card>
           )}
 
           {/* ── Stats ── */}
-          {!loading && entries.length > 0 && (
+          {!loading && items.length > 0 && (
             <div className="mt-6 grid grid-cols-2 gap-3 md:grid-cols-4">
               {statCards.map((item) => {
                 const Icon = item.icon;
@@ -484,25 +678,13 @@ export default function HistoryPage() {
           )}
 
           {/* ── Filters ── */}
-          {!loading && entries.length > 0 && (
+          {!loading && items.length > 0 && (
             <Card className="mt-6">
               <div className="flex flex-wrap items-center gap-x-3 gap-y-3">
                 <Filter size={15} style={{ color: "var(--text-muted)" }} />
                 <div className="flex flex-wrap gap-1.5">
-                  {([["all", "Все"], ["completed", "Завершённые"], ["active", "В процессе"]] as [StatusFilter, string][]).map(([val, label]) => (
-                    <FilterChip key={val} label={label} active={statusFilter === val} onClick={() => setStatusFilter(val)} />
-                  ))}
-                </div>
-                <div className="hidden h-5 w-px sm:block" style={{ background: "var(--border-color)" }} />
-                <div className="flex flex-wrap gap-1.5">
-                  {([["all", "Все типы"], ["training", "Тренировки"], ["quiz", "Тесты"], ["story", "AI Story"]] as [TypeFilter, string][]).map(([val, label]) => (
+                  {([["all", "Все"], ["training", "Тренировки"], ["quiz", "Тесты"], ["case", "Кейсы"], ["exam", "Экзамены"]] as [TypeFilter, string][]).map(([val, label]) => (
                     <FilterChip key={val} label={label} active={typeFilter === val} onClick={() => setTypeFilter(val)} />
-                  ))}
-                </div>
-                <div className="hidden h-5 w-px sm:block" style={{ background: "var(--border-color)" }} />
-                <div className="flex flex-wrap gap-1.5">
-                  {([["all", "Все баллы"], ["excellent", "80+"], ["good", "60–80"], ["practice", "<60"]] as [ScoreFilter, string][]).map(([val, label]) => (
-                    <FilterChip key={val} label={label} active={scoreFilter === val} onClick={() => setScoreFilter(val)} />
                   ))}
                 </div>
                 <div className="relative w-full sm:ml-auto sm:w-auto sm:min-w-[180px] sm:flex-1">
@@ -518,53 +700,7 @@ export default function HistoryPage() {
             </Card>
           )}
 
-          {/* ── Было / Стало ── */}
-          {!loading && comparisonData && (() => {
-            const { first, last } = comparisonData;
-            const firstScore = first.score_total ?? 0;
-            const lastScore = last.score_total ?? 0;
-            const diff = Math.round(lastScore - firstScore);
-            const isPositive = diff > 0;
-            return (
-              <div className="mt-6">
-                <div className="mb-3 flex items-center gap-2.5">
-                  <span className="font-mono text-[11px] uppercase tracking-[0.16em]" style={{ color: "var(--text-secondary)" }}>Было · Стало</span>
-                  <span className="rounded-full px-2 py-0.5 font-mono text-[11px] font-semibold tabular-nums" style={{ background: isPositive ? "var(--success-muted)" : "var(--danger-muted)", color: isPositive ? "var(--success)" : "var(--danger)" }}>
-                    {isPositive ? "+" : ""}{diff} баллов
-                  </span>
-                </div>
-                <div className="grid grid-cols-[1fr_auto_1fr] items-stretch gap-3">
-                  <Card>
-                    <div className="font-mono text-[11px] uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>Первая сессия</div>
-                    <div className="mt-3 flex items-center gap-3">
-                      <CircularScore score={firstScore} size={52} />
-                      <div className="font-mono text-[12px]" style={{ color: "var(--text-muted)" }}>
-                        <div>{formatDate(first.started_at)}</div>
-                        <div className="mt-1 tabular-nums" style={{ color: "var(--text-secondary)" }}>{formatDuration(first.duration_seconds)}</div>
-                      </div>
-                    </div>
-                  </Card>
-                  <div className="flex items-center justify-center">
-                    <span className="flex h-9 w-9 items-center justify-center rounded-full" style={{ background: "var(--primary-muted)" }}>
-                      <ArrowRight size={17} style={{ color: "var(--primary)" }} />
-                    </span>
-                  </div>
-                  <Card accentTop>
-                    <div className="font-mono text-[11px] uppercase tracking-wide" style={{ color: "var(--primary)" }}>Последняя сессия</div>
-                    <div className="mt-3 flex items-center gap-3">
-                      <CircularScore score={lastScore} size={52} />
-                      <div className="font-mono text-[12px]" style={{ color: "var(--text-muted)" }}>
-                        <div>{formatDate(last.started_at)}</div>
-                        <div className="mt-1 tabular-nums" style={{ color: "var(--text-secondary)" }}>{formatDuration(last.duration_seconds)}</div>
-                      </div>
-                    </div>
-                  </Card>
-                </div>
-              </div>
-            );
-          })()}
-
-          {/* ── Session list ── */}
+          {/* ── Entry list ── */}
           {loading ? (
             <div className="mt-6 space-y-3">
               {[1, 2, 3, 4, 5].map((i) => (
@@ -581,127 +717,105 @@ export default function HistoryPage() {
             <div className="mt-16 flex flex-col items-center">
               <AlertTriangle size={36} style={{ color: "var(--danger)" }} />
               <p className="mt-3 text-sm" style={{ color: "var(--danger)" }}>{error}</p>
-              <Button variant="ghost" size="sm" icon={<Loader2 size={14} />} onClick={() => fetchHistory()} className="mt-3">Повторить</Button>
+              <Button variant="ghost" size="sm" icon={<Loader2 size={14} />} onClick={() => fetchAll()} className="mt-3">Повторить</Button>
             </div>
-          ) : entries.length === 0 ? (
-            <div className="mt-16 flex flex-col items-center text-center">
-              <Inbox size={36} style={{ color: "var(--text-muted)" }} />
-              <p className="mt-3 text-sm" style={{ color: "var(--text-muted)" }}>Твоя история начнётся с первой тренировки.</p>
-              <Button onClick={() => router.push("/training")} className="mt-4" iconRight={<ArrowRight size={16} />}>Начать обучение</Button>
-            </div>
-          ) : filteredEntries.length === 0 ? (
+          ) : items.length === 0 ? (
+            <EmptyState
+              icon={Inbox}
+              title="Здесь появится твоя история"
+              description="Тренировки, тесты, кейсы и экзамены собираются в единую хронику."
+              hint="Начни с первой тренировки"
+              actionLabel="Начать обучение"
+              onAction={() => router.push("/training")}
+              className="mt-10"
+            />
+          ) : filteredItems.length === 0 ? (
             <div className="mt-12 flex flex-col items-center text-center">
               <Search size={30} style={{ color: "var(--text-muted)" }} />
-              <p className="mt-3 text-sm" style={{ color: "var(--text-muted)" }}>Нет сессий по выбранным фильтрам.</p>
+              <p className="mt-3 text-sm" style={{ color: "var(--text-muted)" }}>Нет записей по выбранным фильтрам.</p>
               <button type="button" onClick={resetFilters} className="mt-2 font-mono text-[12px]" style={{ color: "var(--primary)" }}>Сбросить фильтры</button>
             </div>
           ) : (
             <div className="mt-6 space-y-7">
-              {groupedEntries.map((group) => (
+              {groupedItems.map((group) => (
                 <div key={group.label}>
                   <div className="mb-3 flex items-center gap-3">
                     <span className="font-mono text-[11px] uppercase tracking-[0.16em]" style={{ color: "var(--text-secondary)" }}>{group.label}</span>
                     <div className="h-px flex-1" style={{ background: "var(--border-color)" }} />
-                    <span className="font-mono text-[11px] tabular-nums" style={{ color: "var(--text-muted)" }}>{group.entries.length}</span>
+                    <span className="font-mono text-[11px] tabular-nums" style={{ color: "var(--text-muted)" }}>{group.items.length}</span>
                   </div>
                   <div className="space-y-3">
-                    {group.entries.map((entry, i) => {
-                      // Quiz / test-map runs — compact row.
-                      if (entry.kind === "quiz" && entry.quiz) {
-                        const q = entry.quiz;
-                        const qScore = Math.round(q.score);
-                        const qTitle = q.category ? CATEGORY_LABELS[q.category] ?? q.category : "Тест по ФЗ-127";
-                        return (
-                          <motion.div key={q.quiz_session_id} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: Math.min(i * 0.03, 0.2) }}>
-                            <Card>
-                              <div className="flex items-center gap-4">
-                                <CircularScore score={qScore} size={48} />
-                                <div className="min-w-0 flex-1">
-                                  <div className="flex flex-wrap items-center gap-2">
-                                    <span className="inline-flex items-center gap-1 font-mono text-[11px] font-semibold uppercase tracking-wide" style={{ color: "var(--primary)" }}>
-                                      <GraduationCap size={12} /> Тест
-                                    </span>
-                                    <span className="font-mono text-[11px]" style={{ color: "var(--text-muted)" }}>{formatDate(q.completed_at)}</span>
-                                  </div>
-                                  <div className="mt-1.5 truncate text-[15px] font-semibold" style={{ color: "var(--text-primary)" }}>{qTitle}</div>
-                                  <div className="mt-1 flex items-center gap-4 font-mono text-[12px] tabular-nums" style={{ color: "var(--text-secondary)" }}>
-                                    <span>{q.correct_answers}/{q.total_questions} верно</span>
-                                    <span>{qScore}%</span>
-                                  </div>
-                                </div>
-                              </div>
-                            </Card>
-                          </motion.div>
-                        );
-                      }
-
-                      const session = entry.latest_session;
-                      if (!session) return null;
-                      const st = statusConfig(session.status);
-                      const Icon = st.icon;
-                      const canViewResults = session.status === "completed" && session.score_total !== null;
-                      const story = entry.story;
-                      // Single nav target: story → its arc; session → its results. No second button.
-                      const targetHref = story ? `/results/${story.id}` : `/results/${session.id}`;
-                      const canOpen = canViewResults || !!story;
-                      const entryScore = entry.avg_score ?? session.score_total;
-                      const badge = scoreBadge(entryScore);
-                      const isFeatured = !!bestSessionOfWeek && (story?.id || session.id) === (bestSessionOfWeek.story?.id || bestSessionOfWeek.latest_session?.id);
-
+                    {group.items.map((item, i) => {
+                      const key = `${item.kind}:${item.id}`;
+                      const KindIcon = KIND_ICON[item.kind];
+                      const score = itemScore(item);
+                      const isOpen = !!expanded[key];
                       return (
-                        <motion.div key={story?.id || session.id} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: Math.min(i * 0.03, 0.2) }}>
+                        <motion.div key={key} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: Math.min(i * 0.03, 0.2) }}>
                           <Card
-                            variant={canOpen ? "interactive" : "hairline"}
-                            accentTop={isFeatured}
-                            role={canOpen ? "link" : undefined}
-                            tabIndex={canOpen ? 0 : undefined}
-                            onClick={canOpen ? () => router.push(targetHref) : undefined}
-                            onKeyDown={canOpen ? (e) => { if (e.key === "Enter") router.push(targetHref); } : undefined}
+                            variant="interactive"
+                            role="link"
+                            tabIndex={0}
+                            onClick={() => router.push(item.deep_link)}
+                            onKeyDown={(e) => { if (e.key === "Enter") router.push(item.deep_link); }}
                             className="group"
                           >
                             <div className="flex items-center gap-4">
                               <div className="shrink-0">
-                                {entryScore !== null ? (
-                                  <CircularScore score={entryScore} size={48} />
+                                {score !== null ? (
+                                  <CircularScore score={score} size={48} />
                                 ) : (
                                   <span className="flex h-12 w-12 items-center justify-center rounded-full" style={{ background: "var(--bg-secondary)" }}>
-                                    <Icon size={20} style={{ color: st.color }} />
+                                    <KindIcon size={20} style={{ color: "var(--text-muted)" }} />
                                   </span>
                                 )}
                               </div>
 
                               <div className="min-w-0 flex-1">
                                 <div className="flex flex-wrap items-center gap-2">
-                                  {canViewResults && badge.label && (
-                                    <span className="rounded-full px-2 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-wide" style={{ background: badge.bgColor, color: badge.accentColor }}>{badge.label}</span>
-                                  )}
-                                  <span className="font-mono text-[11px] font-semibold uppercase tracking-wide" style={{ color: story ? "var(--primary)" : st.color }}>
-                                    {story ? "AI Story" : st.label}
+                                  <span className="inline-flex items-center gap-1 font-mono text-[11px] font-semibold uppercase tracking-wide" style={{ color: "var(--primary)" }}>
+                                    <KindIcon size={12} /> {KIND_LABEL[item.kind]}
                                   </span>
-                                  {isFeatured && <Star size={13} style={{ color: "var(--warning)" }} />}
-                                  <span className="font-mono text-[11px]" style={{ color: "var(--text-muted)" }}>{formatDate(session.started_at)}</span>
+                                  <span className="font-mono text-[11px]" style={{ color: "var(--text-muted)" }}>{formatDate(item.date)}</span>
                                 </div>
 
                                 <div className="mt-1.5 truncate text-[15px] font-semibold" style={{ color: "var(--text-primary)" }}>
-                                  {story ? story.story_name : (session.scenario_id || "Тренировка")}
+                                  {item.title}
                                 </div>
 
-                                <div className="mt-1 flex items-center gap-4 font-mono text-[12px] tabular-nums" style={{ color: "var(--text-secondary)" }}>
-                                  <span className="flex items-center gap-1"><Clock size={12} />{formatDuration(session.duration_seconds)}</span>
-                                  {story && <span>{story.completed_calls}/{story.total_calls_planned} звонков</span>}
-                                </div>
+                                <MetricBody item={item} />
 
-                                {canViewResults && <MiniScoreBars session={session} />}
+                                <button
+                                  type="button"
+                                  onClick={(e) => { e.stopPropagation(); toggleExplain(item); }}
+                                  className="mt-2.5 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 font-mono text-[11px] transition-colors"
+                                  style={{
+                                    background: isOpen ? "var(--primary-muted)" : "transparent",
+                                    color: isOpen ? "var(--primary)" : "var(--text-secondary)",
+                                    border: `1px solid ${isOpen ? "var(--primary)" : "var(--border-color)"}`,
+                                  }}
+                                >
+                                  <Sparkles size={11} /> Разбор от Маняши
+                                  <ChevronDown size={12} style={{ transform: isOpen ? "rotate(180deg)" : "none", transition: "transform 0.2s" }} />
+                                </button>
 
-                                {story && (
-                                  <div className="mt-2 flex flex-wrap items-center gap-3 font-mono text-[11px]" style={{ color: "var(--text-muted)" }}>
-                                    <span>Статус: {story.game_status}</span>
-                                    <span>Факторов: {story.active_factors.length}</span>
-                                  </div>
-                                )}
+                                <AnimatePresence initial={false}>
+                                  {isOpen && (
+                                    <motion.div
+                                      initial={{ opacity: 0, height: 0 }}
+                                      animate={{ opacity: 1, height: "auto" }}
+                                      exit={{ opacity: 0, height: 0 }}
+                                      transition={{ duration: 0.2 }}
+                                      style={{ overflow: "hidden" }}
+                                      onClick={(e) => e.stopPropagation()}
+                                    >
+                                      <ManyashaPanel state={explain[key] ?? { loading: true, data: null, error: null }} onRetry={() => retryExplain(item)} />
+                                    </motion.div>
+                                  )}
+                                </AnimatePresence>
                               </div>
 
-                              {canOpen && <ArrowRight size={16} className="shrink-0 transition-transform group-hover:translate-x-0.5" style={{ color: "var(--text-muted)" }} />}
+                              <ArrowRight size={16} className="shrink-0 transition-transform group-hover:translate-x-0.5" style={{ color: "var(--text-muted)" }} />
                             </div>
                           </Card>
                         </motion.div>

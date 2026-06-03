@@ -48,7 +48,10 @@ _CACHE_TTL_SECONDS = 30 * 24 * 3600  # 30 days — certifiable, longer than warm
 
 # deepseek reasoning over a full case analysis can be slower than the warmup
 # one-liner grade; give it room before falling back to grading_pending.
-_REQUEST_TIMEOUT = 60.0
+_REQUEST_TIMEOUT = 90.0
+# One retry on transient failures (timeout / 5xx / 429 / empty content). Keeps a
+# slow or flaky navy response from needlessly dropping the attempt to pending.
+_MAX_ATTEMPTS = 2
 
 # deepseek-v4-pro is a REASONING model: its hidden reasoning tokens count
 # against the completion budget BEFORE the visible JSON is emitted. A tight
@@ -311,26 +314,43 @@ async def grade_item(
         "response_format": {"type": "json_object"},
     }
 
-    try:
-        async with httpx.AsyncClient(timeout=_REQUEST_TIMEOUT) as client:
-            resp = await client.post(url, headers=headers, json=body)
-    except (httpx.TimeoutException, httpx.HTTPError) as e:
-        logger.info("exam_grader network error: %s", e)
-        return None
+    data: dict[str, Any] | None = None
+    for attempt_no in range(_MAX_ATTEMPTS):
+        try:
+            async with httpx.AsyncClient(timeout=_REQUEST_TIMEOUT) as client:
+                resp = await client.post(url, headers=headers, json=body)
+        except httpx.TimeoutException as e:
+            # A timeout already consumed the full _REQUEST_TIMEOUT budget; a retry
+            # would just wait another full timeout while the caller holds its
+            # request transaction (and the attempt row lock) open. Fail fast to
+            # grading_pending — the user can regrade once navy recovers.
+            logger.info("exam_grader timeout (attempt %d/%d): %s", attempt_no + 1, _MAX_ATTEMPTS, e)
+            return None
+        except httpx.HTTPError as e:
+            # Connection blip / transport error — cheap to retry once.
+            logger.info("exam_grader network error (attempt %d/%d): %s", attempt_no + 1, _MAX_ATTEMPTS, e)
+            continue
+        # 4xx other than rate-limit won't be fixed by a retry — give up.
+        if resp.status_code >= 400 and resp.status_code != 429 and resp.status_code < 500:
+            logger.info("exam_grader upstream %d: %s", resp.status_code, resp.text[:200])
+            return None
+        if resp.status_code >= 500 or resp.status_code == 429:
+            logger.info("exam_grader upstream %d (attempt %d/%d)", resp.status_code, attempt_no + 1, _MAX_ATTEMPTS)
+            continue
+        try:
+            raw_content = resp.json()["choices"][0]["message"]["content"]
+        except (KeyError, IndexError, ValueError) as e:
+            logger.warning("exam_grader malformed response (attempt %d/%d): %s", attempt_no + 1, _MAX_ATTEMPTS, e)
+            continue
+        data = _parse_llm_json(raw_content)
+        if data:
+            break
+        # Empty/non-JSON content (e.g. reasoning model truncated the verdict) —
+        # worth one retry before falling back to grading_pending.
+        logger.warning("exam_grader non-JSON content (attempt %d/%d): %r",
+                       attempt_no + 1, _MAX_ATTEMPTS, (raw_content or "")[:200])
 
-    if resp.status_code >= 400:
-        logger.info("exam_grader upstream %d: %s", resp.status_code, resp.text[:200])
-        return None
-
-    try:
-        raw_content = resp.json()["choices"][0]["message"]["content"]
-    except (KeyError, IndexError, ValueError) as e:
-        logger.warning("exam_grader malformed response: %s", e)
-        return None
-
-    data = _parse_llm_json(raw_content)
     if not data:
-        logger.warning("exam_grader non-JSON content: %r", (raw_content or "")[:200])
         return None
 
     g = _coerce(data, max_score)

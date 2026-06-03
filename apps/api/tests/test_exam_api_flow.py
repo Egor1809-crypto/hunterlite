@@ -12,8 +12,9 @@ import uuid
 from datetime import datetime, timedelta, timezone
 
 import pytest
+from sqlalchemy.exc import IntegrityError
 
-from app.models.exam import ExamAttempt, ExamDefinition, ExamItem
+from app.models.exam import ExamAttempt, ExamCertificate, ExamDefinition, ExamItem
 from app.models.user import User
 from app.services import exam_grader
 
@@ -213,6 +214,29 @@ async def test_regrade_transient_outage_keeps_earned_certificate(client, db_sess
     assert rg["grading_status"] == "complete"
     assert rg["certificate_code"] == code
     assert (await client.get(f"/api/exams/certificate/{code}")).status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_one_certificate_per_attempt_db_constraint(db_session):
+    # The unique index on exam_certificates.attempt_id is the DB backstop against
+    # a concurrent submit/regrade race issuing two certs for the same attempt.
+    user = await _seed_user(db_session)
+    await _seed_case_exam(db_session)
+    att = ExamAttempt(id=uuid.uuid4(), user_id=user.id, exam_id="exam-3", question_ids=[])
+    db_session.add(att)
+    await db_session.commit()
+
+    db_session.add(ExamCertificate(
+        id=uuid.uuid4(), user_id=user.id, exam_id="exam-3", attempt_id=att.id,
+        certificate_code="HL-A", score_percent=90, user_name="x"))
+    await db_session.commit()
+
+    db_session.add(ExamCertificate(
+        id=uuid.uuid4(), user_id=user.id, exam_id="exam-3", attempt_id=att.id,
+        certificate_code="HL-B", score_percent=80, user_name="x"))
+    with pytest.raises(IntegrityError):
+        await db_session.commit()
+    await db_session.rollback()
 
 
 @pytest.mark.asyncio
