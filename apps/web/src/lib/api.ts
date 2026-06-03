@@ -251,7 +251,10 @@ async function request(path: string, options: RequestInit = {}): Promise<unknown
 
   // On 403 CSRF error, refresh token (which also refreshes the CSRF cookie) and retry once
   if (response.status === 403 && _CSRF_METHODS.has(method)) {
-    const body403 = await response.json().catch(() => ({}));
+    // Clone before reading: reading response.json() consumes the body stream,
+    // so any later attempt to read the same response (error surfacing) fails and
+    // masks the real 403 detail as a generic "Request failed" (mirrors 429 branch).
+    const body403 = await response.clone().json().catch(() => ({}));
     const detail = typeof body403.detail === "string" ? body403.detail : "";
     if (detail.toLowerCase().includes("csrf")) {
       const refreshed = await handleTokenRefresh();
@@ -387,7 +390,10 @@ async function uploadMultipart(
   }
 
   if (response.status === 403) {
-    const body403 = await response.json().catch(() => ({}));
+    // Clone before reading: reading response.json() consumes the body stream,
+    // so any later attempt to read the same response (error surfacing) fails and
+    // masks the real 403 detail as a generic "Request failed" (mirrors 429 branch).
+    const body403 = await response.clone().json().catch(() => ({}));
     const detail = typeof body403.detail === "string" ? body403.detail : "";
     if (detail.toLowerCase().includes("csrf")) {
       const refreshed = await handleTokenRefresh();
@@ -473,7 +479,10 @@ async function uploadFile(path: string, file: File): Promise<unknown> {
 
   // On 403 CSRF error, refresh token (which also refreshes the CSRF cookie) and retry once
   if (response.status === 403) {
-    const body403 = await response.json().catch(() => ({}));
+    // Clone before reading: reading response.json() consumes the body stream,
+    // so any later attempt to read the same response (error surfacing) fails and
+    // masks the real 403 detail as a generic "Request failed" (mirrors 429 branch).
+    const body403 = await response.clone().json().catch(() => ({}));
     const detail = typeof body403.detail === "string" ? body403.detail : "";
     if (detail.toLowerCase().includes("csrf")) {
       const refreshed = await handleTokenRefresh();

@@ -14,9 +14,24 @@ from sqlalchemy import select
 
 from app.database import async_session
 from app.core.security import hash_password
-from app.models.user import User, UserRole
+from app.models.user import User, UserConsent, UserRole
 
 logger = logging.getLogger(__name__)
+
+# Required consents mirror app.api.consent.REQUIRED_CONSENTS — the single source
+# of truth for what check_consent_accepted enforces at training-start. We seed an
+# accepted record for each demo user so demo logins on a fresh DB can start
+# trainings immediately.
+#
+# PRODUCT GAP (temporary): the frontend has NO UI to accept consent — it only
+# calls GET /consent/status; POST /consent/ is never invoked anywhere. So a real
+# (non-demo) user can never satisfy check_consent_accepted and gets stuck with a
+# 403 at training start. Seeding demo-consent below only unblocks the demo
+# accounts; the missing acceptance UI is a separate product task that must be
+# built before non-demo onboarding works. See docs/constructor/CONSENT_GAP.md.
+REQUIRED_CONSENTS = [
+    {"consent_type": "personal_data_processing", "version": "1.0"},
+]
 
 # Demo accounts (одинаковый паттерн паролей; роли разные для проверки доступов).
 DEMO_USERS = [
@@ -32,14 +47,15 @@ async def seed() -> None:
     """Create the demo accounts if missing (idempotent — safe to re-run)."""
     async with async_session() as db:
         created = 0
+        consents_created = 0
         for email, password, full_name, role in DEMO_USERS:
             existing = (
                 await db.execute(select(User).where(User.email == email))
             ).scalar_one_or_none()
             if existing:
-                continue
-            db.add(
-                User(
+                user = existing
+            else:
+                user = User(
                     id=uuid.uuid4(),
                     email=email,
                     hashed_password=hash_password(password),
@@ -48,10 +64,41 @@ async def seed() -> None:
                     is_active=True,
                     must_change_password=False,
                 )
-            )
-            created += 1
+                db.add(user)
+                await db.flush()  # assign user.id for the consent FK below
+                created += 1
+
+            # Ensure each demo user has accepted every required consent
+            # (idempotent — skip if an accepted record already exists).
+            for req in REQUIRED_CONSENTS:
+                already = (
+                    await db.execute(
+                        select(UserConsent).where(
+                            UserConsent.user_id == user.id,
+                            UserConsent.consent_type == req["consent_type"],
+                            UserConsent.version == req["version"],
+                            UserConsent.accepted == True,  # noqa: E712
+                        )
+                    )
+                ).scalar_one_or_none()
+                if already:
+                    continue
+                db.add(
+                    UserConsent(
+                        id=uuid.uuid4(),
+                        user_id=user.id,
+                        consent_type=req["consent_type"],
+                        version=req["version"],
+                        accepted=True,
+                    )
+                )
+                consents_created += 1
         await db.commit()
-        logger.info("seed_db: demo accounts ensured (%d created)", created)
+        logger.info(
+            "seed_db: demo accounts ensured (%d users created, %d consents created)",
+            created,
+            consents_created,
+        )
 
 
 if __name__ == "__main__":
