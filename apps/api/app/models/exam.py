@@ -154,6 +154,13 @@ class ExamCertificate(Base):
     )
     user_name: Mapped[str] = mapped_column(String(200), nullable=False)
 
+    # One certificate per attempt — DB-enforced so two concurrent submits/
+    # regrades on the same attempt cannot issue two certificate rows (the loser
+    # of the race hits this constraint; the API also row-locks the attempt).
+    __table_args__ = (
+        Index("idx_exam_certificates_attempt_unique", "attempt_id", unique=True),
+    )
+
 
 # ── TZ-4 exam-rebuild: own learning-content DB (independent of ExamQuestion) ──
 #

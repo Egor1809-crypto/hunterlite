@@ -9,6 +9,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from sqlalchemy import delete, func, select, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.deps import get_current_user
@@ -323,11 +324,24 @@ async def _finalize_attempt(
             )).scalar_one()
             if existing_best is None or score_percent >= existing_best:
                 certificate_code = _generate_certificate_code(exam.id)
-                db.add(ExamCertificate(
-                    id=uuid.uuid4(), user_id=user.id, exam_id=exam.id, attempt_id=attempt.id,
-                    certificate_code=certificate_code, score_percent=score_percent,
-                    issued_at=datetime.now(timezone.utc), user_name=user.full_name,
-                ))
+                # Insert inside a savepoint: the unique(attempt_id) index means a
+                # concurrent issuer (or a drifted row where attempt.certificate_code
+                # was NULL but a cert already exists) would otherwise raise
+                # IntegrityError and 500 the whole request. Catch it and reuse the
+                # certificate that already exists for this attempt.
+                try:
+                    async with db.begin_nested():
+                        db.add(ExamCertificate(
+                            id=uuid.uuid4(), user_id=user.id, exam_id=exam.id, attempt_id=attempt.id,
+                            certificate_code=certificate_code, score_percent=score_percent,
+                            issued_at=datetime.now(timezone.utc), user_name=user.full_name,
+                        ))
+                        await db.flush()
+                except IntegrityError:
+                    winner = (await db.execute(
+                        select(ExamCertificate).where(ExamCertificate.attempt_id == attempt.id)
+                    )).scalar_one_or_none()
+                    certificate_code = winner.certificate_code if winner else None
         elif existing_cert is not None:
             # Regrade still passing → keep the cert but sync its verifiable score
             # so the public certificate never disagrees with the attempt (§5).
@@ -463,7 +477,7 @@ async def submit_exam(
             ExamAttempt.id == uuid.UUID(body.attempt_id),
             ExamAttempt.user_id == user.id,
             ExamAttempt.exam_id == exam_id,
-        )
+        ).with_for_update()  # serialize concurrent submit/regrade on this attempt (PG)
     )).scalar_one_or_none()
     if not attempt:
         raise HTTPException(status_code=404, detail="Попытка не найдена")
@@ -519,7 +533,7 @@ async def regrade_attempt(
         select(ExamAttempt).where(
             ExamAttempt.id == uuid.UUID(attempt_id),
             ExamAttempt.user_id == user.id,
-        )
+        ).with_for_update()  # serialize concurrent regrades on this attempt (PG)
     )).scalar_one_or_none()
     if not attempt:
         raise HTTPException(status_code=404, detail="Попытка не найдена")
