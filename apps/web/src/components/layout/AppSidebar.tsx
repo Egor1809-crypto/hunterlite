@@ -8,7 +8,6 @@ import {
   Crosshair,
   History,
   BookOpen,
-  User,
   Settings,
   LogOut,
   ChevronDown,
@@ -427,25 +426,6 @@ export default function AppSidebar({ collapsed, onToggle }: AppSidebarProps) {
               }}
             >
               <div className="p-1.5">
-                <button
-                  onClick={() => {
-                    setUserMenuOpen(false);
-                    router.push("/profile");
-                  }}
-                  className="flex w-full items-center gap-2.5 whitespace-nowrap rounded-lg px-3 py-2 text-sm transition-colors"
-                  style={{ color: "var(--text-secondary)" }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.background = "var(--bg-secondary)";
-                    e.currentTarget.style.color = "var(--text-primary)";
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.background = "transparent";
-                    e.currentTarget.style.color = "var(--text-secondary)";
-                  }}
-                >
-                  <User size={16} />
-                  Профиль
-                </button>
                 <button
                   onClick={() => {
                     setUserMenuOpen(false);

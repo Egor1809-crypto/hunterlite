@@ -124,6 +124,61 @@ async def generate_weekly_report(
     sessions_count = len(sessions)
     total_time = sum(s.duration_seconds for s in sessions) // 60 if sessions else 0
 
+    # ── Exams за неделю (DECISION-C) ──
+    exam_stats: dict = {}
+    exam_weak_categories: list[str] = []
+    try:
+        from app.models.exam import ExamAttempt
+        exam_result = await db.execute(
+            select(ExamAttempt).where(
+                and_(
+                    ExamAttempt.user_id == user_id,
+                    ExamAttempt.finished_at.isnot(None),
+                    ExamAttempt.finished_at >= monday,
+                    ExamAttempt.finished_at <= sunday,
+                )
+            )
+        )
+        week_exams = list(exam_result.scalars().all())
+        if week_exams:
+            exam_scores = [e.score_percent for e in week_exams if e.score_percent is not None]
+            exam_stats = {
+                "count": len(week_exams),
+                "passed": sum(1 for e in week_exams if e.passed),
+                "avg_score_percent": round(mean(exam_scores), 1) if exam_scores else None,
+            }
+            # Слабые экзамены → темы для рекомендаций
+            low_threshold = 70
+            for e in week_exams:
+                if e.score_percent is not None and e.score_percent < low_threshold:
+                    exam_weak_categories.append(e.exam_id)
+    except Exception:
+        logger.exception("Weekly report: exam aggregation failed for user %s", user_id)
+
+    # ── Cases за неделю (DECISION-C) ──
+    case_stats: dict = {}
+    try:
+        from app.models.case_scenario import CaseAttempt
+        case_result = await db.execute(
+            select(CaseAttempt).where(
+                and_(
+                    CaseAttempt.user_id == user_id,
+                    CaseAttempt.completed.is_(True),
+                    func.coalesce(CaseAttempt.finished_at, CaseAttempt.created_at) >= monday,
+                    func.coalesce(CaseAttempt.finished_at, CaseAttempt.created_at) <= sunday,
+                )
+            )
+        )
+        week_cases = list(case_result.scalars().all())
+        if week_cases:
+            case_scores = [c.score_percent for c in week_cases if c.score_percent is not None]
+            case_stats = {
+                "count": len(week_cases),
+                "avg_score_percent": round(mean(case_scores), 1) if case_scores else None,
+            }
+    except Exception:
+        logger.exception("Weekly report: case aggregation failed for user %s", user_id)
+
     # ── Scores ──
     scores = [s.score_total for s in sessions] if sessions else []
     avg_score = round(mean(scores), 2) if scores else None
@@ -224,7 +279,10 @@ async def generate_weekly_report(
         pass
 
     # ── Weak points ──
-    weak_points = profile.weak_points or []
+    weak_points = list(profile.weak_points or [])
+    # DECISION-C: surface low-scoring exams as weak topics for recommendations
+    for exam_id in exam_weak_categories:
+        weak_points.append({"skill": f"exam:{exam_id}", "source": "weekly_exam"})
 
     # ── Recommendations ──
     recommendations = _build_recommendations(
@@ -277,6 +335,15 @@ async def generate_weekly_report(
         if arena_stats.get("arena_rating"):
             report_text += f", рейтинг {arena_stats['arena_rating']:.0f}"
         report_text += ". "
+    if exam_stats.get("count", 0) > 0 or case_stats.get("count", 0) > 0:
+        report_text += (
+            f"Экзамены: {exam_stats.get('count', 0)} "
+            f"(сдано {exam_stats.get('passed', 0)}); "
+            f"кейсы: {case_stats.get('count', 0)}"
+        )
+        if case_stats.get("avg_score_percent") is not None:
+            report_text += f", средний балл {case_stats['avg_score_percent']:.0f}%"
+        report_text += ". "
     report_text += f"Уровень: {level_name} ({level_now})."
 
     # ── Save / Update ──
@@ -307,9 +374,14 @@ async def generate_weekly_report(
     report.weak_points = weak_points
     report.recommendations = recommendations
     # Extend outcomes with arena stats (JSONB field supports arbitrary data)
-    if arena_stats:
+    if arena_stats or exam_stats or case_stats:
         merged = dict(report.outcomes or {})
-        merged["arena"] = arena_stats
+        if arena_stats:
+            merged["arena"] = arena_stats
+        if exam_stats:
+            merged["exams"] = exam_stats
+        if case_stats:
+            merged["cases"] = case_stats
         report.outcomes = merged
     report.weekly_rank = weekly_rank
     report.rank_change = rank_change

@@ -64,7 +64,7 @@ function levelColor(level: 0 | 1 | 2 | 3 | 4, accent: string): string {
   // Прозрачность от 0.08 до 1.0; 0 — почти невидимая клетка-плейсхолдер.
   const alphas = [0.08, 0.28, 0.48, 0.72, 1.0];
   return level === 0
-    ? "rgba(255,255,255,0.06)"
+    ? "var(--border-color)"
     : `color-mix(in srgb, ${accent} ${Math.round(alphas[level] * 100)}%, transparent)`;
 }
 
@@ -87,7 +87,7 @@ function isoDayOfWeek(iso: string): number {
   return wd === 0 ? 7 : wd;
 }
 
-export function ActivityHeatmap({ days = 180, accent = "var(--accent)" }: Props) {
+export function ActivityHeatmap({ days = 180, accent = "var(--primary)" }: Props) {
   const [data, setData] = useState<ActivityResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -207,7 +207,7 @@ export function ActivityHeatmap({ days = 180, accent = "var(--accent)" }: Props)
   if (loading) {
     return (
       <div className="flex items-center justify-center py-10">
-        <Loader2 size={20} className="animate-spin" style={{ color: "var(--accent)" }} />
+        <Loader2 size={20} className="animate-spin" style={{ color: "var(--primary)" }} />
       </div>
     );
   }
@@ -231,7 +231,7 @@ export function ActivityHeatmap({ days = 180, accent = "var(--accent)" }: Props)
       {/* Заголовок секции с stat-блоками */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
-          <Activity size={16} style={{ color: "var(--accent)" }} />
+          <Activity size={16} style={{ color: "var(--primary)" }} />
           <span
             className="font-medium uppercase tracking-wide"
             style={{ color: "var(--text-secondary)", fontSize: 14 }}
@@ -244,19 +244,19 @@ export function ActivityHeatmap({ days = 180, accent = "var(--accent)" }: Props)
             icon={<Flame size={14} />}
             label="ТЕКУЩИЙ СТРИК"
             value={`${data.streak_current}д`}
-            color={data.streak_current > 0 ? "#fb923c" : "var(--text-muted)"}
+            color={data.streak_current > 0 ? "var(--warning)" : "var(--text-muted)"}
           />
           <Stat
             icon={<Trophy size={14} />}
             label="ЛУЧШИЙ"
             value={`${data.streak_best}д`}
-            color="#facc15"
+            color="var(--warning)"
           />
           <Stat
             icon={<Activity size={14} />}
             label="ДНЕЙ В ИГРЕ"
             value={`${data.total_days_active}`}
-            color="var(--accent)"
+            color="var(--primary)"
           />
         </div>
       </div>
@@ -265,8 +265,8 @@ export function ActivityHeatmap({ days = 180, accent = "var(--accent)" }: Props)
       <div
         className="rounded-md p-4 overflow-x-auto"
         style={{
-          background: "rgba(8,5,18,0.45)",
-          border: "1px dashed rgba(255,255,255,0.12)",
+          background: "var(--bg-secondary)",
+          border: "1px solid var(--border-color)",
         }}
       >
         <div
@@ -354,11 +354,11 @@ export function ActivityHeatmap({ days = 180, accent = "var(--accent)" }: Props)
                         width: cellSize,
                         height: cellSize,
                         background: cell.iso
-                          ? levelColor(cell.level, accent === "var(--accent)" ? "#a78bfa" : accent)
+                          ? levelColor(cell.level, accent)
                           : "transparent",
                         border: isToday
-                          ? `1px solid ${accent === "var(--accent)" ? "#a78bfa" : accent}`
-                          : "1px solid rgba(255,255,255,0.05)",
+                          ? `1px solid ${accent}`
+                          : "1px solid var(--border-color)",
                         borderRadius: 2,
                         cursor: cell.iso && cell.sessions > 0 ? "pointer" : "default",
                       }}
@@ -409,12 +409,9 @@ export function ActivityHeatmap({ days = 180, accent = "var(--accent)" }: Props)
                   style={{
                     width: cellSize,
                     height: cellSize,
-                    background: levelColor(
-                      lvl as 0 | 1 | 2 | 3 | 4,
-                      accent === "var(--accent)" ? "#a78bfa" : accent,
-                    ),
+                    background: levelColor(lvl as 0 | 1 | 2 | 3 | 4, accent),
                     borderRadius: 2,
-                    border: "1px solid rgba(255,255,255,0.05)",
+                    border: "1px solid var(--border-color)",
                   }}
                 />
               ))}
