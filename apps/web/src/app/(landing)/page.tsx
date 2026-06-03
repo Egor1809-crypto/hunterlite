@@ -2,10 +2,10 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { ArrowRight, Check, FileCheck, GraduationCap, ShieldCheck, Send } from "lucide-react";
+import { ArrowRight, Check, GraduationCap, ShieldCheck, Send } from "lucide-react";
 import { useLandingAuth } from "@/components/landing/LandingAuthContext";
 import { BrandLogo } from "@/components/ui/BrandLogo";
-import { CertificatePreview, CERT_LIGHT_PALETTE } from "@/components/certificate/CertificatePreview";
+import { CertificatePreview } from "@/components/certificate/CertificatePreview";
 
 const stats = [
   { value: "18 000+", label: "квалифицированных юристов вышли из наших программ" },
@@ -70,10 +70,53 @@ const ecosystem = [
   "Калькулятор процедур банкротства",
 ];
 
-const proof = [
-  "Готовим юристов и специалистов по банкротству с 2019 года.",
-  "Соединяем опыт практиков, судебную логику и современные технологии.",
-  "Доводим знания до уровня, на котором они работают в реальном деле с людьми.",
+const tiers = [
+  {
+    tag: "Тариф 1 · старт",
+    name: "Безоплатный",
+    price: "0 ₽",
+    per: "",
+    note: "Войдите в профессию и попробуйте платформу без оплаты.",
+    cta: "Начать безоплатно",
+    featured: false,
+    features: [
+      "Тесты: 1500 вопросов по ФЗ-127 («острова»)",
+      "База знаний (RAG) + Радар изменений",
+      "Маняша — AI-помощник по базе знаний",
+      "Конструктор клиента (после 1-го региона тестов)",
+    ],
+  },
+  {
+    tag: "Тариф 2 · эксперт",
+    name: "Эксперт БФЛ",
+    price: "по запросу",
+    per: "",
+    note: "Полный путь: обучение → практика → аттестация и сертификат.",
+    cta: "Начать обучение",
+    featured: true,
+    features: [
+      "Всё из «Безоплатного»",
+      "Интерактивные кейсы БФЛ (реальная практика)",
+      "AI-тренировки: чат и звонок с клиентом-должником",
+      "Экзамены (5 механик) + сертификат аттестации",
+      "История с разбором слабых мест от Маняши",
+    ],
+  },
+  {
+    tag: "Тариф 3 · команда",
+    name: "Команда и партнёры",
+    price: "по запросу",
+    per: "",
+    note: "Для бюро и партнёров: рост команды под контролем РОП.",
+    cta: "Обсудить внедрение",
+    featured: false,
+    features: [
+      "Всё из «Эксперта» для каждого сотрудника",
+      "Командные KPI и аналитика РОП",
+      "Назначение программ и контроль прогресса",
+      "Приоритетная поддержка и онбординг",
+    ],
+  },
 ];
 
 export default function LandingPage() {
@@ -128,18 +171,6 @@ export default function LandingPage() {
           </nav>
 
           <div className="mt-auto hidden space-y-3 pt-8 lg:block">
-            <a
-              href="/landing/certificates/certificate-bfl.pdf"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center justify-between rounded-2xl border border-[#D9C9E8] bg-white/55 px-4 py-4 text-sm font-semibold text-[#18131D] transition hover:border-[#B98CDA]"
-            >
-              <span className="flex items-center gap-2">
-                <FileCheck size={17} />
-                Сертификат
-              </span>
-              <ArrowRight size={16} />
-            </a>
             <a
               href="#tariffs"
               className="flex items-center justify-between rounded-2xl border border-[#D9C9E8] bg-white/55 px-4 py-4 text-sm font-semibold text-[#18131D] transition hover:border-[#B98CDA]"
@@ -236,7 +267,8 @@ export default function LandingPage() {
                     href="https://pravotech.pro/"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="bg-gradient-to-r from-[#22D3EE] via-[#7C3AED] to-[#EC4899] bg-clip-text font-semibold text-transparent transition-opacity hover:opacity-80"
+                    title="ТехнологИИ Права — pravotech.pro"
+                    className="relative z-20 inline-block cursor-pointer bg-gradient-to-r from-[#22D3EE] via-[#7C3AED] to-[#EC4899] bg-clip-text font-semibold text-transparent transition-opacity hover:opacity-80"
                   >
                     ТехнологИИ Права
                   </a>
@@ -290,17 +322,17 @@ export default function LandingPage() {
 
           {/* 5.1 — the certificate as the destination: a blurred, locked diploma
                     the visitor is invited to earn. Editorial band, hero object breathes. */}
-          <section id="certificate" className="grid items-center gap-10 border-b border-[#D9C9E8] py-14 lg:grid-cols-[1fr_440px] lg:gap-16 lg:py-20">
-            <div className="order-2 lg:order-1">
-              <ShieldCheck size={30} className="text-[#7C3AED]" />
-              <h2 className="mt-8 text-[clamp(2.6rem,5vw,5.8rem)] font-semibold leading-[0.9] tracking-[-0.07em] text-[#18131D]">
+          <section id="certificate" className="border-b border-[#D9C9E8] py-20 lg:py-28">
+            <div className="mx-auto max-w-2xl text-center">
+              <ShieldCheck size={30} className="mx-auto text-[#7C3AED]" />
+              <h2 className="mt-6 text-[clamp(2.6rem,5vw,5.8rem)] font-semibold leading-[0.9] tracking-[-0.07em] text-[#18131D]">
                 Сертификат, которому доверяют.
               </h2>
-              <p className="mt-6 max-w-xl text-lg leading-snug text-[#5F5367]">
+              <p className="mx-auto mt-6 max-w-xl text-lg leading-snug text-[#5F5367]">
                 Документ эксперта по банкротству физических лиц, заверенный практикующими юристами РФ.
                 Его получают только те, кто прошёл курс и сдал экзамен.
               </p>
-              <div className="mt-9 flex flex-wrap items-center gap-3">
+              <div className="mt-9 flex flex-wrap items-center justify-center gap-3">
                 <button
                   onClick={openRegister}
                   className="inline-flex items-center gap-3 rounded-full bg-[#18131D] px-6 py-4 text-sm font-semibold text-white transition hover:bg-[#7C3AED]"
@@ -320,10 +352,9 @@ export default function LandingPage() {
               </div>
             </div>
 
-            <div className="order-1 lg:order-2">
+            <div className="mt-14">
               <CertificatePreview
                 variant="locked"
-                palette={CERT_LIGHT_PALETTE}
                 lockTitle="Пройдите курс экспертов по банкротству физических лиц — и получите сертификат."
                 ctaLabel="Начать обучение"
                 onCta={openRegister}
@@ -331,25 +362,52 @@ export default function LandingPage() {
             </div>
           </section>
 
-          <section id="tariffs" className="border-b border-[#D9C9E8] py-14 lg:py-20">
-            <div className="rounded-[28px] border border-[#D9C9E8] bg-[#18131D] p-8 text-white lg:p-12">
-              <p className="text-sm uppercase tracking-[0.16em] text-[#D8B4FE]">Тарифы</p>
-              <h3 className="mt-6 text-4xl font-semibold tracking-[-0.05em]">Для юристов, команд и партнёров</h3>
-              <ul className="mt-8 space-y-4 text-lg text-[#EFE7F6]">
-                {proof.map((item) => (
-                  <li key={item} className="flex gap-3">
-                    <Check className="mt-1 shrink-0 text-[#D8B4FE]" size={18} />
-                    <span>{item}</span>
-                  </li>
-                ))}
-              </ul>
-              <button
-                onClick={openRegister}
-                className="mt-10 inline-flex items-center gap-3 rounded-full bg-[#D8B4FE] px-6 py-4 text-sm font-semibold text-[#18131D] transition hover:bg-white"
-              >
-                Получить доступ
-                <ArrowRight size={18} />
-              </button>
+          <section id="tariffs" className="border-b border-[#D9C9E8] py-20 lg:py-28">
+            <p className="text-sm uppercase tracking-[0.16em] text-[#9B7DB4]">Тарифы</p>
+            <h2 className="mt-3 max-w-3xl text-[clamp(2.4rem,5vw,5rem)] font-semibold leading-[0.92] tracking-[-0.06em] text-[#18131D]">
+              Начните бесплатно — растите по мере практики.
+            </h2>
+
+            <div className="mt-12 grid gap-6 lg:grid-cols-3">
+              {tiers.map((t) => (
+                <div
+                  key={t.name}
+                  className={`flex flex-col rounded-[28px] border p-8 ${
+                    t.featured
+                      ? "border-transparent bg-[#18131D] text-white"
+                      : "border-[#D9C9E8] bg-[#FFFDF8] text-[#18131D]"
+                  }`}
+                >
+                  <p className={`text-sm uppercase tracking-[0.16em] ${t.featured ? "text-[#D8B4FE]" : "text-[#9B7DB4]"}`}>
+                    {t.tag}
+                  </p>
+                  <h3 className="mt-4 text-2xl font-semibold tracking-[-0.03em]">{t.name}</h3>
+                  <div className="mt-4 flex items-baseline gap-2">
+                    <span className="text-4xl font-semibold tracking-[-0.05em]">{t.price}</span>
+                    {t.per && <span className={t.featured ? "text-[#B9A8C9]" : "text-[#9B8AA8]"}>{t.per}</span>}
+                  </div>
+                  <p className={`mt-3 text-sm leading-snug ${t.featured ? "text-[#CFC3DE]" : "text-[#5F5367]"}`}>{t.note}</p>
+                  <ul className="mt-6 space-y-3 text-[15px]">
+                    {t.features.map((f) => (
+                      <li key={f} className="flex gap-2.5">
+                        <Check className={`mt-0.5 shrink-0 ${t.featured ? "text-[#D8B4FE]" : "text-[#7C3AED]"}`} size={17} />
+                        <span className={t.featured ? "text-[#EFE7F6]" : "text-[#3C3344]"}>{f}</span>
+                      </li>
+                    ))}
+                  </ul>
+                  <button
+                    onClick={openRegister}
+                    className={`mt-8 inline-flex items-center justify-center gap-2 rounded-full px-6 py-4 text-sm font-semibold transition ${
+                      t.featured
+                        ? "bg-[#D8B4FE] text-[#18131D] hover:bg-white"
+                        : "bg-[#18131D] text-white hover:bg-[#7C3AED]"
+                    }`}
+                  >
+                    {t.cta}
+                    <ArrowRight size={16} />
+                  </button>
+                </div>
+              ))}
             </div>
           </section>
         </section>
