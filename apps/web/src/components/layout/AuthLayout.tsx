@@ -50,6 +50,7 @@ import { KeyboardShortcutsOverlay } from "@/components/ui/KeyboardShortcutsOverl
 import { CommandPalette } from "@/components/ui/CommandPalette";
 import { LLMDegradationBanner } from "@/components/ui/LLMDegradationBanner";
 import ManyashaChat from "@/components/ManyashaChat";
+import ConsentGate from "./ConsentGate";
 
 /** Check if vh_authenticated marker cookie exists (survives page reload). */
 function hasAuthMarkerCookie(): boolean {
@@ -127,7 +128,7 @@ export default function AuthLayout({
   // hosts the in-tab Manyasha chat (ТЗ-3 DECISION-A) — one mascot per page.
   const hideAssistant =
     (pathname?.startsWith("/cases") || pathname?.startsWith("/knowledge")) ?? false;
-  const [state, setState] = useState<"loading" | "ready" | "redirecting" | "error">("loading");
+  const [state, setState] = useState<"loading" | "ready" | "redirecting" | "consent" | "error">("loading");
   const [errorMessage, setErrorMessage] = useState("");
   const retryCount = useRef(0);
   const didRun = useRef(false);
@@ -182,8 +183,9 @@ export default function AuthLayout({
       }
 
       if (_consentChecked) {
-        setState(_consentOk ? "ready" : "redirecting");
-        if (!_consentOk) router.replace("/home");
+        // Missing consent → show the acceptance gate (no longer a dead-end
+        // redirect to /home, which itself requires consent).
+        setState(_consentOk ? "ready" : "consent");
         return;
       }
 
@@ -191,12 +193,7 @@ export default function AuthLayout({
         const data = await api.get("/consent/status");
         _consentChecked = true;
         _consentOk = data.all_accepted;
-        if (data.all_accepted) {
-          setState("ready");
-        } else {
-          setState("redirecting");
-          router.replace("/home");
-        }
+        setState(data.all_accepted ? "ready" : "consent");
       } catch (err: unknown) {
         logger.error("[AuthLayout] consent error:", err);
         _consentChecked = false;
@@ -251,9 +248,8 @@ export default function AuthLayout({
             const data = await api.get("/consent/status");
             _consentChecked = true;
             _consentOk = data.all_accepted;
-            setState(data.all_accepted ? "ready" : "redirecting");
+            setState(data.all_accepted ? "ready" : "consent");
             if (data.all_accepted) retryCount.current = 0;
-            if (!data.all_accepted) router.replace("/home");
           } catch {
             setState("error");
             setErrorMessage("Сервер по-прежнему недоступен");
@@ -269,6 +265,19 @@ export default function AuthLayout({
         message={errorMessage || "Не удалось подключиться к серверу"}
         actionLabel="Повторить"
         onAction={handleRetry}
+      />
+    );
+  }
+
+  if (state === "consent") {
+    return (
+      <ConsentGate
+        onAccepted={() => {
+          _consentChecked = true;
+          _consentOk = true;
+          retryCount.current = 0;
+          setState("ready");
+        }}
       />
     );
   }

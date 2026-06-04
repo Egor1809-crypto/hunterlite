@@ -7,6 +7,7 @@ from app.api.health import router as health_router
 from app.api.training import router as training_router
 from app.api.users import router as users_router
 from app.api.home import router as home_router
+from app.api.consent import router as consent_router
 from app.api.morning_drill import router as morning_drill_router
 from app.api.routes.emotion_traps import router as emotion_traps_router
 from app.api.routes.progress import router as progress_router
@@ -15,6 +16,7 @@ api_router = APIRouter()
 
 api_router.include_router(health_router, tags=["monitoring"])
 api_router.include_router(home_router, tags=["home"])
+api_router.include_router(consent_router, prefix="/consent", tags=["consent"])
 api_router.include_router(auth_router, prefix="/auth", tags=["auth"])
 api_router.include_router(users_router, prefix="/users", tags=["users"])
 api_router.include_router(training_router, prefix="/training", tags=["training"])

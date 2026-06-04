@@ -119,7 +119,7 @@ function TrainingPageContent() {
   }, [tabParam]);
 
   return (
-    <AuthLayout showBreadcrumbs={false}>
+    <AuthLayout showBreadcrumbs={false} requireConsent>
       <style dangerouslySetInnerHTML={{ __html: TRAINING_SURFACE_CSS }} />
       <div
         className="training-solid-page relative min-h-screen overflow-hidden"
