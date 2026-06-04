@@ -215,10 +215,11 @@ class TestHandlerSetup:
         eb_module.event_bus = bus
         try:
             setup_default_handlers()
-            # Training fans out into achievements, goals, SRS, and home-session
-            # CRM sync. (League XP + tournament-points handlers were retired with
-            # the league/tournament subsystems.)
-            assert len(bus._handlers.get(EVENT_TRAINING_COMPLETED, [])) == 4
+            # Training fans out into achievements, goals, and SRS. (League XP +
+            # tournament-points handlers were retired with the league/tournament
+            # subsystems; the home-session→CRM-kanban sync handler was retired in
+            # the training-rework de-CRM pass — ClientStory CRM game removed.)
+            assert len(bus._handlers.get(EVENT_TRAINING_COMPLETED, [])) == 3
             # Achievement earned → notification
             assert len(bus._handlers.get(EVENT_ACHIEVEMENT_EARNED, [])) == 1
             # Goal completed → notification
