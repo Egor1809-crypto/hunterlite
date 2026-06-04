@@ -192,6 +192,23 @@ def _get_health_lock() -> asyncio.Lock:
     return _provider_health_lock
 
 
+def _resolve_fallback_models(primary_override: str | None) -> list[str]:
+    """Parse ``settings.local_llm_fallback_models`` into an ordered, de-duped
+    list of model names to try after the primary fails, excluding the primary
+    itself. Empty → no fallback (legacy retry-primary-only behaviour)."""
+    raw = getattr(settings, "local_llm_fallback_models", "") or ""
+    primary = (primary_override or settings.local_llm_model or "").strip().lower()
+    out: list[str] = []
+    seen: set[str] = set()
+    for m in raw.split(","):
+        m = m.strip()
+        if not m or m.lower() == primary or m.lower() in seen:
+            continue
+        seen.add(m.lower())
+        out.append(m)
+    return out
+
+
 async def _call_with_backoff(
     provider_name: str,
     call_fn,
@@ -223,6 +240,65 @@ async def _call_with_backoff(
         if not health.is_available():
             logger.info("Skipping %s: circuit breaker open", provider_name)
             return None
+
+    # ── Model-level fallback (2026-06-04) ──────────────────────────────────
+    # The navy provider is single-endpoint but multi-model. When the primary
+    # model (deepseek-v4-pro, a reasoning model) lags or 500s, retry the SAME
+    # request against the configured fallback chain (gpt-5.5, gemini-3.5-flash)
+    # — first healthy answer wins. Provider health is recorded ONCE on the
+    # overall outcome, so a deepseek failure rescued by a fallback success does
+    # NOT open the circuit (the success resets the consecutive-failure count).
+    # Only when EVERY model fails do we record a provider failure.
+    fallback_models = _resolve_fallback_models(model_override) if provider_name == "local" else []
+    if fallback_models:
+        models_plan: list[str | None] = [model_override, *fallback_models]
+        quota_hit = False
+        last_err: Exception | None = None
+        for idx, m in enumerate(models_plan):
+            try:
+                _kwargs = {}
+                if tools is not None:
+                    _kwargs["tools"] = tools
+                if m:  # None ⇒ primary default model inside _call_navy
+                    _kwargs["model_override"] = m
+                if raw_messages is not None:
+                    _kwargs["raw_messages"] = raw_messages
+                if _kwargs:
+                    response = await call_fn(system, messages, timeout, max_tokens, temperature, **_kwargs)
+                else:
+                    response = await call_fn(system, messages, timeout, max_tokens, temperature)
+                async with lock:
+                    health.record_success()
+                if idx > 0:
+                    response.is_fallback = True
+                    logger.warning(
+                        "navy primary degraded — answered via fallback model=%s (%d tokens, %dms)",
+                        m, response.output_tokens, response.latency_ms,
+                    )
+                else:
+                    logger.info(
+                        "%s: %d tokens, %dms, model=%s",
+                        provider_name, response.output_tokens, response.latency_ms, response.model,
+                    )
+                return response
+            except LLMError as e:
+                last_err = e
+                err_str = str(e).lower()
+                if "429" in err_str or "quota" in err_str or "rate_limit" in err_str:
+                    quota_hit = True
+                logger.warning(
+                    "navy model '%s' failed (%d/%d): %s — trying next",
+                    m or settings.local_llm_model, idx + 1, len(models_plan), e,
+                )
+                continue
+        # Every model in the chain failed.
+        async with lock:
+            if quota_hit:
+                health.record_quota_exhaustion()
+            else:
+                health.record_failure()
+        logger.warning("navy: all models failed (primary + %d fallback): %s", len(fallback_models), last_err)
+        return None
 
     for attempt in range(max_attempts):
         try:
@@ -1737,10 +1813,16 @@ async def _call_navy(
         "messages": oai_messages,
         # max_tokens=None preserves the historical 800 cap.
         "max_tokens": max_tokens if max_tokens is not None else 800,
-        # PR E: temperature=None preserves historical 0.85 default.
-        "temperature": temperature if temperature is not None else 0.85,
         "timeout": timeout,
     }
+    # 2026-06-04: gpt-5.x reasoning models on navy.api reject any non-default
+    # temperature ("Only the default (1) value is supported") — sending one
+    # 400s the request. When such a model is used (e.g. as a fallback for a
+    # lagging deepseek), omit temperature entirely so it uses its default.
+    # All other models keep the historical behaviour (None → 0.85).
+    if not _effective_model.lower().startswith("gpt-5"):
+        # PR E: temperature=None preserves historical 0.85 default.
+        kwargs["temperature"] = temperature if temperature is not None else 0.85
     if tools:
         kwargs["tools"] = tools
         kwargs["tool_choice"] = "auto"
