@@ -27,6 +27,9 @@ api_router.include_router(progress_router, tags=["progress"])
 from app.api.custom_characters import router as custom_characters_router
 api_router.include_router(custom_characters_router, tags=["characters"])
 
+from app.api.reference_personas import router as reference_personas_router
+api_router.include_router(reference_personas_router, tags=["characters"])
+
 from app.api.knowledge import router as knowledge_router
 api_router.include_router(knowledge_router, prefix="/knowledge", tags=["knowledge"])
 

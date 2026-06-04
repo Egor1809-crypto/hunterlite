@@ -45,6 +45,14 @@ class SessionStartRequest(BaseModel):
     # Custom character link
     custom_character_id: uuid.UUID | None = None  # link to saved CustomCharacter
 
+    # ── 2026-06-04 — reference-persona gallery start (CONSTRUCTOR_TZ) ──
+    # When the user picks one of the 25 gold-standard reference personas in
+    # the «Мои клиенты» gallery, FE sends only this slug. The backend loads
+    # the persona (404 if missing/inactive) and derives custom_params from
+    # its fields + cached_dossier client-brief. The flat custom_* path stays
+    # intact for any legacy caller.
+    reference_persona_slug: str | None = None
+
     # ── 2026-04-23 Zone 1 — CRM-card → session linkage ──
     # When the user opens /clients/{id} and clicks «Написать»/«Позвонить»,
     # the frontend already sends real_client_id + source (e.g. "crm_chat",
