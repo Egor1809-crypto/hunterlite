@@ -470,7 +470,12 @@ class ClientProfile(Base):
     trust_level: Mapped[int] = mapped_column(Integer, default=3)  # 1-10
     resistance_level: Mapped[int] = mapped_column(Integer, default=5)  # 1-10
     # Context
-    lead_source: Mapped[str] = mapped_column(String(50), default="cold_base")
+    # 2026-06-04: widened 50→500. Reference personas put a descriptive source
+    # sentence here (e.g. «пришёл по рекомендации знакомого, после определения
+    # арбитражного суда о субсидиарке» = 86 chars), not just a short code like
+    # "cold_base" — the old varchar(50) truncated → StringDataRightTruncation
+    # crashed session-start (ClientProfile flush) → "СВЯЗЬ ОБОРВАНА".
+    lead_source: Mapped[str] = mapped_column(String(500), default="cold_base")
     call_history: Mapped[list] = mapped_column(JSONB, default=list)
     crm_notes: Mapped[str | None] = mapped_column(Text)
     # Hidden (manager doesn't see)

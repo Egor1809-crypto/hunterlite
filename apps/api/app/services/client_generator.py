@@ -34,6 +34,29 @@ from sqlalchemy.ext.asyncio import AsyncSession
 logger = logging.getLogger(__name__)
 
 
+def _clamp_client_profile_strings(profile) -> None:
+    """Defensively truncate every String column on a ClientProfile to its
+    declared length before flush.
+
+    A training session must NEVER hard-crash on profile text length. Reference
+    personas feed descriptive sentences (lead_source, etc.) into columns sized
+    for short codes; an over-long value used to raise
+    StringDataRightTruncationError mid-flush, poison the transaction, and end
+    the session in `error` ("СВЯЗЬ ОБОРВАНА"). This clamps as a safety net
+    (column widths are also right-sized — see ClientProfile.lead_source).
+    """
+    try:
+        for col in profile.__table__.columns:
+            length = getattr(getattr(col, "type", None), "length", None)
+            if not isinstance(length, int):
+                continue
+            val = getattr(profile, col.name, None)
+            if isinstance(val, str) and len(val) > length:
+                setattr(profile, col.name, val[:length])
+    except Exception:  # never let the safety net itself break session-start
+        logger.warning("clamp_client_profile_strings failed", exc_info=True)
+
+
 # ══════════════════════════════════════════════════════════════════════
 #  OCEAN (Big Five) Anchors per Archetype
 #  O=Openness, C=Conscientiousness, E=Extraversion, A=Agreeableness, N=Neuroticism
@@ -1681,6 +1704,7 @@ async def persist_client_profile_from_dict(
         resistance_level=int(profile_dict.get("resistance_level", 5)),
         lead_source=profile_dict.get("lead_source", "cold_base"),
     )
+    _clamp_client_profile_strings(profile)
     db.add(profile)
     await db.flush()
     return profile
@@ -1759,6 +1783,7 @@ async def generate_client_profile(
         resistance_level=gen.resistance_level,
         lead_source=gen.lead_source,
     )
+    _clamp_client_profile_strings(profile)
     db.add(profile)
     await db.flush()
 
@@ -1890,6 +1915,7 @@ async def build_profile_from_real_client(
         lead_source=lead_source,
         crm_notes=real_client.notes,
     )
+    _clamp_client_profile_strings(profile)
     db.add(profile)
     await db.flush()
     return profile
