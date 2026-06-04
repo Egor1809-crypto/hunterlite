@@ -39,15 +39,11 @@ const EXAM_ICONS: Record<string, LucideIcon> = {
   "exam-5": Trophy,
 };
 
-// Per-exam accent — gives each card its own identity (Abstract/Malvah-style:
-// restrained colour, one accent per panel).
-const EXAM_ACCENT: Record<string, string> = {
-  "exam-1": "#6366F1",
-  "exam-2": "#F59E0B",
-  "exam-3": "#EC4899",
-  "exam-4": "#8B5CF6",
-  "exam-5": "#10B981",
-};
+// 2026-06-04: ONE restrained brand accent for every card (was a per-exam
+// rainbow that read as gamey/chaotic). Editorial calm (malvah/abstract) =
+// neutral surfaces + a single accent. The accent is a fixed brand purple so
+// the hex-alpha tints below resolve correctly in both light and dark.
+const ACCENT = "#7C3AED";
 
 // The mechanic is the new differentiator — surface it on every card.
 const MECHANIC_META: Record<string, { label: string; ai: boolean }> = {
@@ -81,7 +77,7 @@ interface ExamItem {
 function ExamCard({ exam, onStart }: { exam: ExamItem; onStart: () => void }) {
   const Icon = EXAM_ICONS[exam.id] ?? GraduationCap;
   const isFinal = exam.id === "exam-5";
-  const accent = EXAM_ACCENT[exam.id] ?? "var(--primary)";
+  const accent = ACCENT;
   const mech = MECHANIC_META[exam.mechanic] ?? { label: exam.mechanic, ai: false };
 
   return (
@@ -317,13 +313,15 @@ export default function ExamPage() {
                   <button
                     onClick={() => setShowCert(true)}
                     aria-label="Посмотреть сертификат"
-                    className="flex h-10 w-10 items-center justify-center rounded-xl text-lg transition-transform hover:scale-105"
+                    className="flex h-10 w-10 items-center justify-center rounded-xl transition-transform hover:scale-105"
                     style={{
                       background: finalPassed ? "var(--primary-muted)" : "var(--bg-secondary)",
                       border: `2px solid ${finalPassed || passedModules === 4 ? "var(--primary)" : "var(--border-color)"}`,
                     }}
                   >
-                    {finalPassed ? "🏆" : "🔒"}
+                    {finalPassed
+                      ? <Award size={18} style={{ color: "var(--primary)" }} />
+                      : <Lock size={16} style={{ color: passedModules === 4 ? "var(--primary)" : "var(--text-muted)" }} />}
                   </button>
                 </div>
 
@@ -332,7 +330,7 @@ export default function ExamPage() {
                     ? "Сертификат получен — поздравляем."
                     : passedModules === 4
                       ? "Все 4 модуля сданы. Финальный экзамен открыт."
-                      : `Сдано ${passedModules} из 4 модулей. У каждого экзамена свой порог.`}
+                      : `Сдано ${passedModules} из 4 модулей. Порог сдачи — 88%.`}
                 </p>
               </div>
 
@@ -395,7 +393,7 @@ export default function ExamPage() {
                 <div className="mb-1.5 text-[13px] font-semibold" style={{ color: "var(--text-primary)" }}>Правила экзаменации</div>
                 <ul className="space-y-1.5 text-[13px] leading-relaxed" style={{ color: "var(--text-secondary)" }}>
                   <li>Все экзамены открыты — проходите в любом порядке.</li>
-                  <li>У каждого экзамена своя механика и свой порог сдачи.</li>
+                  <li>У каждого экзамена своя механика; порог сдачи везде — 88%.</li>
                   <li>Задания формируются по плану экзамена; сложные ответы оценивает ИИ-эксперт (deepseek) по рубрике.</li>
                   <li>Таймер проверяется на сервере; сертификат — только при проходе в срок.</li>
                   <li>При успешной сдаче выдаётся сертификат с кодом верификации.</li>
