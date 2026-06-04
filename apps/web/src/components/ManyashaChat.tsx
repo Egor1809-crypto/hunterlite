@@ -90,10 +90,10 @@ const DEFAULTS: Required<
   Omit<ManyashaConfig, "apiEndpoint" | "telegramUrl" | "theme">
 > & { telegramUrl: string | null } = {
   botName: "Маняша",
-  statusText: "AI-помощник · онлайн",
-  greetingTitle: "Привет! Я Маняша 👋",
+  statusText: "Помощник · ФЗ-127",
+  greetingTitle: "Чем помочь по банкротству?",
   greetingSubtitle:
-    "Помогу разобраться с БФЛ, долгами, процедурой и документами. Спрашивайте!",
+    "Объясню процедуру, документы, сроки и последствия простыми словами.",
   quickQuestions: ["Подходит ли мне БФЛ?", "Какие нужны документы?", "Что будет с долгами?"],
   telegramUrl: "https://t.me/ailegal_academy_bot",
   mascotVideo: "/mascot/manyasha-idle-alpha.webm",
@@ -135,7 +135,7 @@ function styleSheet(): string {
   position: absolute; right: 0;
   background: var(--surface-card);
   border: 1px solid var(--border-color);
-  border-radius: 20px; box-shadow: var(--shadow-lg);
+  border-radius: 18px; box-shadow: var(--shadow-lg);
   display: flex; flex-direction: column; overflow: hidden;
   animation: mnya-fadeIn .22s cubic-bezier(.16,1,.3,1);
 }
@@ -145,11 +145,12 @@ function styleSheet(): string {
   color: var(--text-muted); opacity: .45; }
 .mnya-resize:hover { opacity: 1; color: var(--text-secondary); }
 
+/* ── Header — editorial: имя + mono-эйбров, без «онлайн»-пульса ── */
 .mnya-header { position: relative; display: flex; align-items: center; gap: 12px;
-  padding: 14px 16px; background: var(--bg-secondary);
+  padding: 15px 18px; background: var(--surface-card);
   border-bottom: 1px solid var(--border-color); flex-shrink: 0; }
-.mnya-grid { display: none; }
-.mnya-avatar { position: relative; width: 40px; height: 40px; border-radius: 9999px; overflow: hidden;
+.mnya-grid, .mnya-dot, .mnya-dot-ping, .mnya-dot-core { display: none; }
+.mnya-avatar { position: relative; width: 38px; height: 38px; border-radius: 9999px; overflow: hidden;
   box-shadow: 0 0 0 1px var(--border-color); flex-shrink: 0; background: var(--bg-tertiary); }
 .mnya-avatar-video {
   width: 100%; height: 100%; object-fit: cover; object-position: center;
@@ -157,60 +158,66 @@ function styleSheet(): string {
   display: block; background: transparent;
 }
 .mnya-head-text { position: relative; flex: 1; min-width: 0; }
-.mnya-name { font-size: 14px; font-weight: 600; color: var(--text-primary); line-height: 1.2; margin: 0; }
-.mnya-status { font-size: 11px; color: var(--text-muted); font-weight: 500;
-  display: flex; align-items: center; gap: 6px; margin: 0; }
-.mnya-dot { position: relative; display: flex; height: 6px; width: 6px; }
-.mnya-dot-ping { position: absolute; display: inline-flex; height: 100%; width: 100%; border-radius: 9999px;
-  background: var(--success); opacity: .6; animation: mnya-ping 1.6s cubic-bezier(0,0,.2,1) infinite; }
-.mnya-dot-core { position: relative; display: inline-flex; border-radius: 9999px; height: 6px; width: 6px; background: var(--success); }
+.mnya-name { font-size: 15px; font-weight: 600; color: var(--text-primary); line-height: 1.15; margin: 0; letter-spacing: -0.01em; }
+.mnya-status { font-family: var(--font-geist-mono), ui-monospace, "SFMono-Regular", monospace;
+  font-size: 10px; text-transform: uppercase; letter-spacing: 0.15em; color: var(--text-muted);
+  font-weight: 500; display: flex; align-items: center; margin: 3px 0 0; }
 .mnya-close { position: relative; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center;
-  color: var(--text-muted); background: transparent; border: 0; border-radius: 9999px; cursor: pointer; transition: .15s; flex-shrink: 0; }
+  color: var(--text-muted); background: transparent; border: 0; border-radius: 8px; cursor: pointer; transition: .15s; flex-shrink: 0; }
 .mnya-close:hover { color: var(--text-primary); background: var(--bg-tertiary); }
 
-.mnya-msgs { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 14px; min-height: 0; background: var(--bg-primary); }
-.mnya-greet { text-align: center; padding: 20px 0; }
-.mnya-greet-avatar { width: 60px; height: 60px; margin: 0 auto 12px; border-radius: 9999px; overflow: hidden;
-  box-shadow: 0 0 0 1px var(--border-color); background: var(--bg-tertiary); }
-.mnya-greet-avatar .mnya-avatar-video { transform: scale(2.3) translateY(10%); }
-.mnya-greet-title { color: var(--text-primary); font-size: 15px; font-weight: 600; margin: 0; }
-.mnya-greet-sub { color: var(--text-muted); font-size: 12px; margin: 6px auto 0; max-width: 240px; line-height: 1.5; }
-.mnya-quick { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 18px; }
-.mnya-quick button { padding: 8px 14px; font-size: 12px; background: var(--surface-card);
-  border: 1px solid var(--border-color); color: var(--text-secondary); border-radius: 9999px; cursor: pointer; transition: .15s; }
-.mnya-quick button:hover { border-color: var(--primary); background: var(--primary-muted); color: var(--primary); }
+.mnya-msgs { flex: 1; overflow-y: auto; padding: 18px; display: flex; flex-direction: column; gap: 12px; min-height: 0; background: var(--bg-primary); }
 
+/* ── Greeting — left-aligned editorial, без большого центр-аватара ── */
+.mnya-greet { text-align: left; padding: 4px 2px 2px; }
+.mnya-greet-avatar { display: none; }
+.mnya-greet-title { color: var(--text-primary); font-size: 17px; font-weight: 600; margin: 0; letter-spacing: -0.02em; line-height: 1.25; }
+.mnya-greet-sub { color: var(--text-muted); font-size: 13px; margin: 8px 0 0; max-width: 290px; line-height: 1.5; }
+
+/* ── Quick topics — hairline-индекс со стрелкой (как список /cases), не «таблетки» ── */
+.mnya-quick { display: flex; flex-direction: column; gap: 0; margin-top: 18px; border-top: 1px solid var(--border-color); }
+.mnya-quick button { position: relative; width: 100%; text-align: left;
+  padding: 13px 28px 13px 2px; font-size: 13.5px; line-height: 1.3;
+  background: transparent; border: 0; border-bottom: 1px solid var(--border-color);
+  color: var(--text-secondary); cursor: pointer; transition: color .15s; }
+.mnya-quick button::after { content: "→"; position: absolute; right: 4px; top: 50%;
+  transform: translateY(-50%); color: var(--text-muted); transition: transform .15s, color .15s; }
+.mnya-quick button:hover { color: var(--primary); }
+.mnya-quick button:hover::after { color: var(--primary); transform: translateY(-50%) translateX(3px); }
+
+/* ── Message stream — без аватарок на каждом сообщении (деклаттер) ── */
 .mnya-row { display: flex; align-items: flex-end; gap: 8px; justify-content: flex-start; }
 .mnya-row-user { justify-content: flex-end; }
-.mnya-msg-avatar { width: 26px; height: 26px; border-radius: 9999px; overflow: hidden;
-  box-shadow: 0 0 0 1px var(--border-color); background: var(--bg-tertiary); flex-shrink: 0; }
-.mnya-msg-avatar .mnya-avatar-video { transform: scale(2.55) translateY(10%); }
-.mnya-bubble { max-width: 80%; padding: 9px 13px; font-size: 14px; line-height: 1.5; }
+.mnya-msg-avatar { display: none; }
+.mnya-bubble { max-width: 84%; padding: 9px 13px; font-size: 14px; line-height: 1.5; }
 .mnya-bubble-bot { background: var(--surface-card); color: var(--text-primary);
-  border-radius: 14px; border-bottom-left-radius: 5px; border: 1px solid var(--border-color); }
+  border-radius: 13px; border-bottom-left-radius: 4px; border: 1px solid var(--border-color); }
 .mnya-bubble-user { background: var(--primary); color: #fff;
-  border-radius: 14px; border-bottom-right-radius: 5px; }
+  border-radius: 13px; border-bottom-right-radius: 4px; }
 
 .mnya-typing { background: var(--surface-card); border: 1px solid var(--border-color);
-  padding: 11px 15px; border-radius: 14px; border-bottom-left-radius: 5px; }
+  padding: 11px 14px; border-radius: 13px; border-bottom-left-radius: 4px; }
 .mnya-typing .d { display: inline-flex; gap: 4px; }
 .mnya-typing .d span { width: 7px; height: 7px; background: var(--text-muted);
   border-radius: 9999px; animation: mnya-bounce 1s infinite; }
 
+/* ── Input — плоский (radius, не «pill»), один акцент на отправке ── */
 .mnya-input-area { padding: 12px; border-top: 1px solid var(--border-color);
   background: var(--surface-card); flex-shrink: 0; }
 .mnya-input-row { display: flex; gap: 8px; align-items: center; }
 .mnya-input { flex: 1; background: var(--input-bg); border: 1px solid var(--input-border);
-  border-radius: 9999px; padding: 10px 16px; font-size: 14px; color: var(--text-primary); outline: none; transition: .15s; }
+  border-radius: 11px; padding: 11px 14px; font-size: 14px; color: var(--text-primary); outline: none; transition: border-color .15s; }
 .mnya-input::placeholder { color: var(--text-muted); }
 .mnya-input:focus { border-color: var(--primary); }
 .mnya-input:disabled { opacity: .5; }
-.mnya-send { width: 40px; height: 40px; display: flex; align-items: center; justify-content: center;
-  background: var(--primary); color: #fff; border: 0; border-radius: 9999px; cursor: pointer; transition: .15s; flex-shrink: 0; }
+.mnya-send { width: 42px; height: 42px; display: flex; align-items: center; justify-content: center;
+  background: var(--primary); color: #fff; border: 0; border-radius: 11px; cursor: pointer; transition: background .15s; flex-shrink: 0; }
 .mnya-send:hover:not(:disabled) { background: var(--primary-hover); }
 .mnya-send:disabled { opacity: .4; cursor: not-allowed; }
-.mnya-tg { display: flex; align-items: center; justify-content: center; gap: 8px;
-  margin-top: 10px; padding: 6px 0; font-size: 11px; color: var(--text-muted); text-decoration: none; transition: .15s; }
+.mnya-tg { display: flex; align-items: center; justify-content: center; gap: 7px;
+  margin-top: 10px; padding: 6px 0; font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 10px; text-transform: uppercase; letter-spacing: 0.12em;
+  color: var(--text-muted); text-decoration: none; transition: color .15s; }
 .mnya-tg:hover { color: var(--primary); }
 
 .mnya-mascot { position: relative; user-select: none; touch-action: none; }
