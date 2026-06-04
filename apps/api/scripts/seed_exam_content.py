@@ -58,7 +58,7 @@ DEFINITION_OVERRIDES: dict[str, dict] = {
         "description": "Жёсткие MCQ + числа и сроки ФЗ-127 (гл. X): пороги, сроки, прожиточный минимум.",
         "categories": ["Сроки и пороги", "Прожиточный минимум", "Процедуры физлиц"],
         "mechanic": "hard_mcq",
-        "pass_threshold": 85,
+        "pass_threshold": 88,
         "blueprint": {"items": [{"type": "mcq", "count": 8}, {"type": "numeric", "count": 3}], "shuffle": False},
     },
     "exam-2": {
@@ -66,7 +66,7 @@ DEFINITION_OVERRIDES: dict[str, dict] = {
         "description": "Порядок процедур и сопоставление статей ↔ действий (sequencing / matching).",
         "categories": ["Порядок процедур", "Статьи и последствия", "Оспаривание сделок"],
         "mechanic": "sequencing",
-        "pass_threshold": 80,
+        "pass_threshold": 88,
         "blueprint": {"items": [{"type": "sequencing", "count": 3}, {"type": "matching", "count": 3}], "shuffle": False},
     },
     "exam-3": {
@@ -74,7 +74,7 @@ DEFINITION_OVERRIDES: dict[str, dict] = {
         "description": "Дан факт-паттерн — напишите юридический анализ. AI-оценка по рубрике с заземлением на ФЗ-127.",
         "categories": ["Единственное жильё", "Оспоримые сделки", "Выбор процедуры"],
         "mechanic": "case_analysis",
-        "pass_threshold": 75,
+        "pass_threshold": 88,
         "blueprint": {"items": [{"type": "case_analysis", "count": 3}], "shuffle": False},
     },
     "exam-4": {
@@ -82,7 +82,7 @@ DEFINITION_OVERRIDES: dict[str, dict] = {
         "description": "Составьте реальный процессуальный документ. AI-оценка полноты и юр-корректности.",
         "categories": ["Заявление о банкротстве", "Опись имущества", "МФЦ"],
         "mechanic": "document_drafting",
-        "pass_threshold": 75,
+        "pass_threshold": 88,
         "blueprint": {"items": [{"type": "document_drafting", "count": 2}], "shuffle": False},
     },
     "exam-5": {
@@ -90,7 +90,7 @@ DEFINITION_OVERRIDES: dict[str, dict] = {
         "description": "Сквозное симулированное дело: смешанные шаги, тайм-пресс, высокий порог. AI-оценка свободных шагов.",
         "categories": ["Комплексное дело", "Стратегия", "Все процедуры"],
         "mechanic": "multi_step",
-        "pass_threshold": 80,
+        "pass_threshold": 88,
         "blueprint": {"items": [{"type": "multi_step", "count": 1}], "shuffle": False},
     },
 }

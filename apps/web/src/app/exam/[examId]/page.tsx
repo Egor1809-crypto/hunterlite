@@ -84,14 +84,9 @@ interface SubmitResponse {
   results: ItemResult[];
 }
 
-// Per-exam accent — aligned with the exam list (Abstract/Malvah identity).
-const EXAM_COLORS: Record<string, string> = {
-  "exam-1": "#6366F1",
-  "exam-2": "#F59E0B",
-  "exam-3": "#EC4899",
-  "exam-4": "#8B5CF6",
-  "exam-5": "#10B981",
-};
+// 2026-06-04: single restrained brand accent (was a per-exam rainbow) — matches
+// the exam list. Editorial calm, not a game.
+const ACCENT = "#7C3AED";
 
 const RULE_TYPES = new Set(["mcq", "multi_select", "numeric", "sequencing", "matching"]);
 
@@ -99,13 +94,13 @@ export default function ExamPlayerPage() {
   const params = useParams();
   const router = useRouter();
   const examId = params.examId as string;
-  const color = EXAM_COLORS[examId] ?? "var(--primary)";
+  const color = ACCENT;
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [attemptId, setAttemptId] = useState<string | null>(null);
   const [items, setItems] = useState<ExamItem[]>([]);
-  const [passThreshold, setPassThreshold] = useState(80);
+  const [passThreshold, setPassThreshold] = useState(88);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<string, unknown>>({});
   const [remainingSeconds, setRemainingSeconds] = useState(0);
