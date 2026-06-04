@@ -39,8 +39,16 @@ from app.models.training import (
 )
 from app.models.user import User
 from app.services.scoring import (
+    L1_MAX,
+    L2_MAX,
+    L3_MAX,
+    L5_MAX,
+    L6_MAX,
+    L8_MAX,
+    L10_MAX,
     ScoreBreakdown,
     calculate_scores,
+    compose_total_from_layers,
     generate_layer_explanations,
     _generate_rule_based_recommendations,
 )
@@ -51,25 +59,35 @@ from app.services.scoring import (
 # ──────────────────────────────────────────────────────────────────────────
 
 def _full_breakdown(**overrides) -> ScoreBreakdown:
-    """A ScoreBreakdown with every layer at (or near) its max, overridable."""
+    """A ScoreBreakdown with every layer at (or near) its max, overridable.
+
+    P3 reweight (legal consultation): caps are now the module constants
+    L*_MAX — L1 18, L2 12, L3 12, L5 18, L6 5, L8 10, L10 +25 (span -10..+25).
+    The sub-score details under ``human_factor`` / ``communication`` are
+    stored NORMALIZED to [0, 1] (S3-07), so a "full" fixture uses 1.0 there,
+    not the legacy raw 5.0. ``check_score`` stays on its raw 0-5 scale.
+    """
     base = dict(
-        script_adherence=22.5,
-        objection_handling=18.75,
-        communication=15.0,
+        script_adherence=L1_MAX,          # L1 18
+        objection_handling=L2_MAX,        # L2 12
+        communication=L3_MAX,             # L3 12
         anti_patterns=0.0,
-        result=7.5,
-        chain_traversal=7.5,
-        trap_handling=0.0,          # L7 dead
-        human_factor=15.0,
-        narrative_progression=0.0,  # L9 dead
-        legal_accuracy=5.0,
+        result=L5_MAX,                    # L5 18
+        chain_traversal=L6_MAX,           # L6 5
+        trap_handling=0.0,                # L7 dead
+        human_factor=L8_MAX,              # L8 10
+        narrative_progression=0.0,        # L9 dead
+        legal_accuracy=L10_MAX,           # L10 +25 (full positive)
         total=100.0,
         details={
-            "human_factor": {"composure_score": 5.0, "empathy_score": 5.0,
-                             "patience_score": 5.0, "warmth_score": 5.0},
+            # S3-07: L3/L8 sub-scores are normalized to [0, 1].
+            "human_factor": {"composure_score": 1.0, "empathy_score": 1.0,
+                             "patience_score": 1.0, "warmth_score": 1.0,
+                             "empathy_check_score": 1.0},
             "communication": {"pace_score": 1.0, "control_score": 1.0,
-                              "listening_score": 1.0, "discovery_score": 10.0},
-            "objection_handling": {"check_score": 5.0},
+                              "listening_score": 1.0, "empathy_score": 1.0,
+                              "discovery_score": 10.0},
+            "objection_handling": {"check_score": 5.0},  # raw 0-5 scale
             "trap_handling": {"traps": []},
         },
         time_management=5.0,
@@ -310,3 +328,220 @@ def test_rule_based_recommendations_are_legal_not_sales():
     low_recs = recs.lower()
     assert "фз-127" in low_recs or "127-фз" in low_recs
     assert "реструктуризац" in low_recs or "реализац" in low_recs
+
+
+# ──────────────────────────────────────────────────────────────────────────
+# (d) WEIGHT MODEL of `total` — legal substance dominates rigid script
+#     These two tests assert on the P3 reweight directly (the weighted sum
+#     behind `total`), not on the regex layers. They FAIL on the pre-reweight
+#     model where L1 (script) carried 22.5 and L5/L10 were capped at 7.5/±5,
+#     so "follow the script" could outscore "give the correct legal advice".
+# ──────────────────────────────────────────────────────────────────────────
+
+def test_correct_legal_advice_to_cold_client_scores_high():
+    """P3 weight model: correct legal advice (high L10 + high L5) to a cold
+    client earns a HIGH total even when the rigid sales-script layer (L1) is
+    low — the legal weight (L5 18 + L10 +25 = 43 of 100) dominates.
+
+    FAILS on the pre-reweight model: L5 capped at 7.5 and L10 at ±5, so the
+    same legal-heavy profile could not clear 70 — script adherence (old cap
+    22.5) was the heaviest single lever.
+    """
+    total = compose_total_from_layers(
+        script_adherence=3.0,          # low L1 — did not follow the rigid script
+        objection_handling=9.0,        # decent soft skills
+        communication=9.0,
+        anti_patterns=0.0,
+        result=L5_MAX,                 # L5 18 — correct procedural recommendation
+        chain_traversal=3.0,
+        human_factor=8.0,
+        legal_accuracy=L10_MAX,        # L10 +25 — high legal accuracy
+        judge_score=0.0,
+    )
+    assert total >= 70.0, total
+    # And the legal core alone (L5 + L10) is the single largest contribution.
+    assert (L5_MAX + L10_MAX) >= 0.4 * 100  # 43% of the whole scale
+
+
+def test_script_following_without_legal_substance_scores_low():
+    """P3 weight model: full script adherence (max L1) with ZERO legal
+    substance (L5 = 0, L10 = 0) yields a LOW total (< 50) — following the
+    script is not consulting.
+
+    FAILS on the pre-reweight model where L1's 22.5 cap plus soft-skill
+    layers could push such a transcript comfortably past 50 despite the
+    consultant never giving a correct ФЗ-127 recommendation.
+    """
+    total = compose_total_from_layers(
+        script_adherence=L1_MAX,       # L1 18 — perfect script adherence
+        objection_handling=9.0,        # plausible soft skills
+        communication=9.0,
+        anti_patterns=0.0,
+        result=0.0,                    # L5 0 — NO recommendation
+        chain_traversal=2.0,
+        human_factor=6.0,
+        legal_accuracy=0.0,            # L10 0 — NO legal substance
+        judge_score=0.0,
+    )
+    assert total < 50.0, total
+
+
+def test_rule_based_recommendation_flags_uncovered_must_clarify():
+    """P3 rubric consumption in the RULE-BASED layer: a persona session whose
+    ``must_clarify`` items were not all covered produces a targeted legal
+    recommendation naming the uncovered обстоятельства.
+
+    FAILS on pre-P3 code: the rubric was consumed nowhere, so
+    ``_generate_rule_based_recommendations`` had no persona_must_clarify block
+    to read and never emitted the "Не выяснены ключевые обстоятельства" line.
+    """
+    bd = _full_breakdown(
+        details={
+            "script_adherence": {
+                "persona_must_clarify": {
+                    "covered": 1,
+                    "total": 3,
+                    "coverage": 0.33,
+                    "items": [
+                        {"item": "сумма долга", "covered": True, "classes": ["debt"]},
+                        {"item": "наличие ипотеки", "covered": False, "classes": ["housing"]},
+                        {"item": "сделки за 3 года", "covered": False, "classes": ["deals"]},
+                    ],
+                },
+            },
+        },
+    )
+    recs = _generate_rule_based_recommendations(bd)
+    low = recs.lower()
+    # The targeted must_clarify line is present and names the uncovered items.
+    assert "не выяснены ключевые обстоятельства" in low
+    assert "наличие ипотеки" in low
+    assert "сделки за 3 года" in low
+    # And it is grounded in ФЗ-127, not sales copy.
+    assert "фз-127" in low or "127-фз" in low
+    _assert_no_sales_phrase(recs, "must_clarify_recommendation")
+
+
+# ──────────────────────────────────────────────────────────────────────────
+# (e) P3.1: analytics.compute_session_radar mirrors ScoreBreakdown.skill_radar
+# ──────────────────────────────────────────────────────────────────────────
+
+class _StoredSession:
+    """Lightweight stand-in carrying only the attributes compute_session_radar
+    reads. We avoid instantiating the SQLAlchemy-mapped TrainingSession (its
+    instrumented attributes need a session/state) — a plain object is enough
+    since compute_session_radar only does attribute access.
+    """
+    def __init__(self, **kw):
+        self.__dict__.update(kw)
+
+
+def _session_from_breakdown(bd: ScoreBreakdown) -> "_StoredSession":
+    """Build a stored-session view whose score_* fields + scoring_details carry
+    exactly the layer values of ``bd``, so compute_session_radar reads the same
+    inputs ScoreBreakdown.skill_radar reads off the dataclass.
+
+    L6 is stored only as the raw 0-10 ``final_score`` inside
+    scoring_details.chain_traversal (objection_chain.calculate_chain_score),
+    so we materialize a final_score whose _normalize(·,10) equals
+    _normalize(bd.chain_traversal, L6_MAX).
+    """
+    details = dict(bd.details)
+    # chain_traversal stored shape: raw final_score on a 0-10 scale.
+    l6_norm = bd.chain_traversal / L6_MAX if L6_MAX else 0.0
+    details["chain_traversal"] = {"has_chain": True, "final_score": l6_norm * 10.0}
+    return _StoredSession(
+        score_script_adherence=bd.script_adherence,
+        score_objection_handling=bd.objection_handling,
+        score_communication=bd.communication,
+        score_anti_patterns=bd.anti_patterns,
+        score_result=bd.result,
+        score_human_factor=bd.human_factor,
+        score_legal=bd.legal_accuracy,
+        scoring_details=details,
+    )
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        {},  # perfect score
+        # mid-score session across the shared axes
+        dict(
+            script_adherence=L1_MAX * 0.5,
+            objection_handling=L2_MAX * 0.4,
+            communication=L3_MAX * 0.6,
+            anti_patterns=-7.0,
+            result=L5_MAX * 0.5,
+            chain_traversal=L6_MAX * 0.6,
+            human_factor=L8_MAX * 0.7,
+            legal_accuracy=3.0,
+        ),
+        # gross legal error (negative L10) — the axis that the old ±5 mapping
+        # collapsed on the dashboard.
+        dict(legal_accuracy=-8.0, result=L5_MAX * 0.3),
+    ],
+)
+def test_compute_session_radar_mirrors_skill_radar(overrides):
+    """P3.1: the dashboard radar (analytics.compute_session_radar, stored-data
+    mirror) must equal the per-session radar (ScoreBreakdown.skill_radar) on
+    the 6 shared axes after the cap reweight.
+
+    FAILS on the pre-P3.1 analytics, which hardcoded the legacy v5 caps
+    (22.5/18.75/7.5/3.75 and the ±5 L10 mapping) against new-scale stored
+    fields — knowledge/objection_handling/stress/closing/legal were all
+    distorted, the L10 axis worst of all.
+    """
+    from app.services.analytics import compute_session_radar
+
+    bd = _full_breakdown(**overrides)
+    expected = bd.skill_radar
+    got = compute_session_radar(_session_from_breakdown(bd))
+
+    for axis in ("empathy", "knowledge", "objection_handling",
+                 "stress_resistance", "closing", "qualification"):
+        assert abs(got[axis] - expected[axis]) <= 0.2, (
+            f"axis {axis}: dashboard {got[axis]} != session {expected[axis]}"
+        )
+
+
+# ──────────────────────────────────────────────────────────────────────────
+# (f) P3.1: L5 correct-path judging fires on the REAL seeded rubric
+# ──────────────────────────────────────────────────────────────────────────
+
+def test_l5_correct_path_consumes_real_seeded_rubric():
+    """P3.1: _score_result reads the expected path from the validated rubric
+    location (metrics.result.criteria), not the non-existent top-level
+    correct_path/recommended_path keys.
+
+    FAILS on pre-P3.1 code: it read rubric.get('correct_path') etc., which no
+    seeded persona carries, so expected_path_class was never populated and the
+    wrong_path_for_persona penalty never fired.
+    """
+    from app.services.scoring import _score_result
+    from scripts.personas_data.persona_01_irina import PERSONA
+
+    rubric = PERSONA["scoring_rubric"]
+
+    # Persona 01 (Ирина) expects the restructuring path (metrics.result.criteria
+    # mentions «реструктуризация при доходе»). A consultant who recommends THAT
+    # path matches; one who pushes realization of property does not.
+    right_msgs = [
+        "При вашем стабильном доходе подойдёт реструктуризация долгов, "
+        "план погашения, добросовестность обязательна. Подготовим документы.",
+    ]
+    _score, right = _score_result(right_msgs, None, rubric=rubric)
+    assert right.get("expected_path_class") == "restructuring", right
+    assert right.get("correct_path_match") is True, right
+    assert "wrong_path_for_persona" not in right
+
+    # Wrong path that is otherwise GROUNDED (mentions доход) so it would earn
+    # full path credit — the persona penalty must cap it back to partial.
+    wrong_msgs = [
+        "Учитывая ваш доход, предлагаю реализацию имущества — "
+        "всё продадут и спишут. Подготовим заявление.",
+    ]
+    _score2, wrong = _score_result(wrong_msgs, None, rubric=rubric)
+    assert wrong.get("expected_path_class") == "restructuring", wrong
+    assert wrong.get("correct_path_match") is False, wrong
+    assert wrong.get("wrong_path_for_persona") is True, wrong

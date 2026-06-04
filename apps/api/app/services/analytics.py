@@ -21,6 +21,17 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.character import Character
 from app.models.scenario import Scenario
 from app.models.training import Message, MessageRole, SessionStatus, TrainingSession
+from app.services.scoring import (
+    L1_MAX,
+    L2_MAX,
+    L3_MAX,
+    L4_MIN,
+    L5_MAX,
+    L6_MAX,
+    L8_MAX,
+    L10_MAX,
+    L10_MIN,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -145,19 +156,22 @@ class AnalyticsSnapshot:
     meta: dict
 
 
-# ─── Skill definitions (v5 rescaled) ─────────────────────────────────────────
-
+# ─── Skill definitions ───────────────────────────────────────────────────────
+# P3.1: caps rebased onto the new L*_MAX weight model (was the legacy v5
+# 22.5/18.75/7.5/5.0 set). Keys are stable mapping ids — do not rename.
+# (This table is currently unreferenced but kept as documentation of the
+# per-layer caps; the live denominators are imported L*_MAX constants.)
 SKILLS_V5 = {
-    "script_adherence": {"max": 22.5, "label": "Следование скрипту", "weight": 0.225},
-    "objection_handling": {"max": 18.75, "label": "Работа с возражениями", "weight": 0.1875},
-    "communication": {"max": 15.0, "label": "Коммуникация", "weight": 0.15},
-    "anti_patterns": {"max": 0.0, "label": "Антипаттерны", "weight": 0.1125},
-    "result": {"max": 7.5, "label": "Результат", "weight": 0.075},
-    "chain_traversal": {"max": 7.5, "label": "Цепочки возражений", "weight": 0.075},
-    "trap_handling": {"max": 7.5, "label": "Ловушки", "weight": 0.075},
-    "human_factor": {"max": 15.0, "label": "Человеческий фактор", "weight": 0.15},
-    "narrative": {"max": 10.0, "label": "Нарратив", "weight": 0.10},
-    "legal": {"max": 5.0, "label": "Юр. точность", "weight": 0.05},
+    "script_adherence": {"max": L1_MAX, "label": "Следование скрипту", "weight": 0.18},
+    "objection_handling": {"max": L2_MAX, "label": "Работа с возражениями", "weight": 0.12},
+    "communication": {"max": 12.0, "label": "Коммуникация", "weight": 0.12},
+    "anti_patterns": {"max": 0.0, "label": "Антипаттерны", "weight": 0.15},
+    "result": {"max": L5_MAX, "label": "Результат", "weight": 0.18},
+    "chain_traversal": {"max": L6_MAX, "label": "Цепочки возражений", "weight": 0.05},
+    "trap_handling": {"max": 0.0, "label": "Ловушки (мёртвый слой)", "weight": 0.0},
+    "human_factor": {"max": 10.0, "label": "Человеческий фактор", "weight": 0.10},
+    "narrative": {"max": 0.0, "label": "Нарратив (мёртвый слой)", "weight": 0.0},
+    "legal": {"max": L10_MAX, "label": "Юр. точность", "weight": 0.25},
 }
 
 # 6 canonical radar skills.
@@ -214,7 +228,13 @@ async def get_user_sessions(
 def compute_session_radar(session: TrainingSession) -> dict[str, float]:
     """Compute 6-skill radar from a single session's scoring_details.
 
-    Uses the same formula as ScoreBreakdown.skill_radar but from stored data.
+    Uses the same formula AND the same normalization caps as
+    ScoreBreakdown.skill_radar, but from stored data. The denominators below
+    are imported from scoring.py (L1_MAX/L2_MAX/L5_MAX/L6_MAX/L4_MIN and the
+    L10_MIN..L10_MAX span) so this stored-data mirror cannot drift away from
+    the per-session radar after a reweight (P3.1 fix — the old hardcoded
+    22.5/18.75/7.5/3.75 caps were the pre-reweight v5 values and systematically
+    distorted the dashboard radar against the new-scale stored fields).
     """
     details = session.scoring_details or {}
 
@@ -222,6 +242,12 @@ def compute_session_radar(session: TrainingSession) -> dict[str, float]:
         if mx <= 0:
             return 0.0
         return max(0.0, min(1.0, val / mx))
+
+    # L10 spans [L10_MIN, L10_MAX]; normalize across the full span so a 0
+    # legal_accuracy lands at the neutral midpoint, not 0. Mirrors
+    # scoring.ScoreBreakdown.skill_radar._norm_l10.
+    def _norm_l10(v: float) -> float:
+        return _norm(v - L10_MIN, L10_MAX - L10_MIN)
 
     # Pull sub-scores from details
     comm = details.get("communication", {})
@@ -245,26 +271,36 @@ def compute_session_radar(session: TrainingSession) -> dict[str, float]:
 
     # P3 (training-rework): L7 (ловушки-продажи) выпилен из потока — мёртвый вес
     # перенесён на живые слои. «Правовая база» (knowledge) теперь = L1·0.4 + L10·0.6.
-    # Зеркально весам scoring.py.skill_radar (участок A).
+    # Зеркально весам И каппам scoring.py.skill_radar (участок A): L1→L1_MAX,
+    # L10→полный спан [L10_MIN, L10_MAX] через _norm_l10.
     knowledge = (
-        _norm(l1, 22.5) * 0.4
-        + _norm(l10 + 5, 10) * 0.6
+        _norm(l1, L1_MAX) * 0.4
+        + _norm_l10(l10) * 0.6
     ) * 100
 
     l2 = session.score_objection_handling or 0
     l6_details = details.get("chain_traversal", {})
-    l6 = l6_details.get("chain_score", 0) if isinstance(l6_details, dict) else 0
+    # L6 is stored only inside scoring_details.chain_traversal as the raw 0-10
+    # ``final_score`` (objection_chain.calculate_chain_score). scoring.py's
+    # skill_radar normalizes the remapped layer value self.chain_traversal
+    # (= _normalize(raw, 10) * L6_MAX) against L6_MAX, i.e. _normalize(raw, 10).
+    # Mirror that exactly: read the raw 0-10 chain score and normalize over 10.
+    if isinstance(l6_details, dict):
+        l6_raw = l6_details.get("final_score", l6_details.get("chain_score", 0)) or 0
+    else:
+        l6_raw = 0
     # P3: «Сомнения должника» (objection_handling) = L2·0.6 + L6·0.4 (L7-вес перенесён).
     objection_handling = (
-        _norm(l2, 18.75) * 0.6
-        + _norm(l6, 7.5) * 0.4
+        _norm(l2, L2_MAX) * 0.6
+        + _norm(l6_raw, 10.0) * 0.4
     ) * 100
 
     l4 = session.score_anti_patterns or 0
     composure = hf.get("composure_score", 0)
     pace = comm.get("pace_score", 0)
+    # L4 ∈ [L4_MIN, 0]; shift by -L4_MIN so 0-penalty → 1.0, full → 0.0.
     stress_resistance = (
-        _norm(l4 + 11.25, 11.25) * 0.4
+        _norm(l4 - L4_MIN, -L4_MIN) * 0.4
         + composure * 0.3      # S3-07: already [0,1]
         + pace * 0.3           # S3-07: already [0,1]
     ) * 100
@@ -275,9 +311,11 @@ def compute_session_radar(session: TrainingSession) -> dict[str, float]:
     # L9 (story-нарратив) выпилен в P1 — его вес перенесён на L5 (результат
     # консультации). Ключ оси остаётся «closing» (стабильный id маппинга),
     # юр-лейбл «Рекомендация» задаётся в RADAR_SKILLS / FE SKILL_LABELS.
+    # check_score хранится на сырой шкале 0-5 → нормируем против 5.0
+    # (как _L2_CHECK_MAX в scoring.skill_radar), L5 против L5_MAX.
     closing = (
-        _norm(l5, 7.5) * 0.7
-        + _norm(check_score, 3.75) * 0.3
+        _norm(l5, L5_MAX) * 0.7
+        + _norm(check_score, 5.0) * 0.3
     ) * 100
 
     discovery = script.get("discovery_score", 0)
@@ -875,19 +913,23 @@ async def generate_insights(
         insights.append(f"Зона роста — {RADAR_SKILLS[worst_skill]} ({radar_dict[worst_skill]:.0f}%). Сфокусируйтесь на этом навыке.")
 
     # ── Human factor insights ──
+    # P3.1: score_human_factor now maxes at L8_MAX=10 (was 15); thresholds
+    # rescaled to ~47%/~85% of the cap so the "отлично" branch stays reachable.
     hf_scores = [s.score_human_factor or 0 for s in sessions[:10]]
     avg_hf = sum(hf_scores) / len(hf_scores) if hf_scores else 0
-    if avg_hf < 7:
+    if avg_hf < L8_MAX * 0.47:
         insights.append("Работа с человеческим фактором ниже среднего. Больше терпения при агрессии, больше эмпатии при страхе клиента.")
-    elif avg_hf > 12:
+    elif avg_hf > L8_MAX * 0.85:
         insights.append("Отлично справляетесь с человеческим фактором — вы умеете сохранять спокойствие и проявлять эмпатию.")
 
     # ── Legal accuracy insights ──
+    # P3.1: legal_accuracy now spans [L10_MIN=-10, L10_MAX=+25] (was ±5).
+    # Thresholds scaled to the new span: gross-error zone vs strong-accuracy.
     legal_scores = [s.score_legal or 0 for s in sessions[:10]]
     avg_legal = sum(legal_scores) / len(legal_scores) if legal_scores else 0
     if avg_legal < -2:
         insights.append("Юридическая точность требует внимания: повторите основные статьи 127-ФЗ перед тренировкой.")
-    elif avg_legal > 2:
+    elif avg_legal > L10_MAX * 0.4:
         insights.append("Высокая юридическая точность — вы хорошо знаете 127-ФЗ и цитируете статьи.")
 
     # ── Story arc insights ──
@@ -1060,42 +1102,42 @@ async def _detect_archetype_weaknesses(
         if cnt < 2:
             continue
 
-        # Check objection handling
-        avg_obj_pct = (float(avg_obj or 0) / 18.75 * 100)
+        # Check objection handling (P3.1: L2_MAX, was legacy 18.75)
+        avg_obj_pct = (float(avg_obj or 0) / L2_MAX * 100) if L2_MAX else 0
         if avg_obj_pct < 50:
             weak.append(WeakSpot(
                 skill="objection_handling",
                 sub_skill=None,
                 avg_score=round(float(avg_obj or 0), 1),
-                max_possible=18.75,
+                max_possible=L2_MAX,
                 pct=round(avg_obj_pct, 1),
                 trend="stagnant", trend_delta=0.0,
                 archetype=slug,
                 recommendation=f"С «{name}» проседает работа с возражениями ({avg_obj_pct:.0f}%). Попробуйте «присоединение + аргумент + проверка».",
             ))
 
-        # Check communication
-        avg_comm_pct = (float(avg_comm or 0) / 15.0 * 100)
+        # Check communication (P3.1: L3_MAX, was legacy 15.0)
+        avg_comm_pct = (float(avg_comm or 0) / L3_MAX * 100) if L3_MAX else 0
         if avg_comm_pct < 50:
             weak.append(WeakSpot(
                 skill="empathy",
                 sub_skill=None,
                 avg_score=round(float(avg_comm or 0), 1),
-                max_possible=15.0,
+                max_possible=L3_MAX,
                 pct=round(avg_comm_pct, 1),
                 trend="stagnant", trend_delta=0.0,
                 archetype=slug,
                 recommendation=f"Коммуникация с «{name}» ниже среднего ({avg_comm_pct:.0f}%). Больше эмпатии и уточняющих вопросов.",
             ))
 
-        # Check human factor
-        avg_hf_pct = (float(avg_hf or 0) / 15.0 * 100) if avg_hf else 0
+        # Check human factor (P3.1: L8_MAX, was legacy 15.0)
+        avg_hf_pct = (float(avg_hf or 0) / L8_MAX * 100) if (avg_hf and L8_MAX) else 0
         if avg_hf_pct < 40:
             weak.append(WeakSpot(
                 skill="stress_resistance",
                 sub_skill=None,
                 avg_score=round(float(avg_hf or 0), 1),
-                max_possible=15.0,
+                max_possible=L8_MAX,
                 pct=round(avg_hf_pct, 1),
                 trend="stagnant", trend_delta=0.0,
                 archetype=slug,

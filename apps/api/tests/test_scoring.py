@@ -155,12 +155,14 @@ class TestObjectionHandling:
     """L2: Objection handling scoring."""
 
     def test_no_objections_full_score(self):
-        """If no objections raised, user gets full marks."""
+        """If no objections raised, user gets half credit (easy scenario)."""
+        from app.services.scoring import L2_MAX
         score, details = _score_objection_handling(
             user_messages=["Здравствуйте, расскажу о нашем предложении"],
             assistant_messages=["Здравствуйте, слушаю вас"],
         )
-        assert score == pytest.approx(18.75)
+        # P3 reweight: L2_MAX=12; "no objections" → half credit = 6.0.
+        assert score == pytest.approx(L2_MAX * 0.5)
 
     def test_objection_with_full_handling(self):
         """User acknowledges, clarifies, argues, and checks."""
@@ -179,12 +181,17 @@ class TestObjectionHandling:
         assert details["checked"] is True
 
     def test_objection_no_handling(self):
-        """Objection raised but user doesn't handle it properly."""
+        """Objection raised but user doesn't handle it properly.
+
+        BUG-10 semantics: ``heard`` now requires an ACKNOWLEDGE pattern (not a
+        mere clarifying question). A bare brush-off acknowledges nothing, so
+        both ``heard`` and ``acknowledged`` are False.
+        """
         assistant_msgs = ["Не уверен, что мне это нужно"]
         user_msgs = ["Ну ладно, до свидания"]
         score, details = _score_objection_handling(user_msgs, assistant_msgs)
-        # Only "heard" should be true
-        assert details["heard"] is True
+        # No acknowledgement → neither heard nor acknowledged.
+        assert details["heard"] is False
         assert details["acknowledged"] is False
 
 
@@ -308,7 +315,8 @@ class TestHumanFactor:
             {"state": "hostile"},
         ]
         score, details = _score_human_factor(user_msgs, assistant_msgs, timeline)
-        assert details["patience_score"] >= 4.0
+        # S3-07: sub-scores are stored normalized to [0, 1] (raw 5.0 → 1.0).
+        assert details["patience_score"] >= 0.8
 
     def test_aggressive_response_penalized(self):
         user_msgs = ["Да вы что, хватит кричать!"]

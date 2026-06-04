@@ -19,7 +19,9 @@ class TestCommunication:
             "Пожалуйста, расскажите подробнее",
         ]
         score, details = _score_communication(msgs)
-        assert score >= 10
+        # P3 reweight: L3_MAX dropped 15 → 12, so a polite-but-not-empathetic
+        # transcript (raw 16/20 = 0.8) now lands at 0.8 × 12 = 9.6, not ≥10.
+        assert score >= 9.5
         assert details["polite_markers"] >= 2
 
     def test_empty_scores_zero(self):
@@ -31,25 +33,26 @@ class TestObjectionHandling:
     def test_no_objections_half_credit(self):
         """When the conversation has no objections at all the scorer
         awards half credit (the scenario was easy, not perfectly
-        handled). Pre-V3_RESCALE this branch returned full 25.0;
-        the V3_RESCALE = 0.75 + half-credit logic at scoring.py:349
-        sets the value to 9.375."""
+        handled). P3 reweight: L2_MAX=12, so half credit = 6.0
+        (was 9.375 under the old 18.75 cap)."""
+        from app.services.scoring import L2_MAX
         score, details = _score_objection_handling(
             user_messages=["Здравствуйте"],
             assistant_messages=["Добрый день"],
         )
-        assert score == 9.375
+        assert score == L2_MAX * 0.5
         assert details["objections_found"] == 0
 
     def test_acknowledged_objection(self):
         """``Я вас понимаю`` matches ACKNOWLEDGE_PATTERNS, setting
-        both ``heard`` and ``acknowledged``. Raw score = 10, after
-        V3_RESCALE = 0.75 → final 7.5."""
+        both ``heard`` and ``acknowledged``. Raw score = 10 of 25,
+        remapped to L2_MAX=12 → final 4.8 (was 7.5 under old cap)."""
+        from app.services.scoring import L2_MAX
         score, details = _score_objection_handling(
             user_messages=["Я вас понимаю, давайте разберёмся"],
             assistant_messages=["Зачем мне это, у меня уже есть кредит"],
         )
-        assert score == 7.5
+        assert score == pytest.approx(10.0 / 25.0 * L2_MAX)
         assert details["heard"] is True
 
 

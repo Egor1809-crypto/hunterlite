@@ -255,11 +255,11 @@ export default function ResultsPage() {
   // Product owner approved consolidation to the 5-axis canonical set;
   // the 10-axis `_skill_radar` is no longer rendered as a pentagram.
   const scoreItems = [
-    { label: "Полнота выяснения обстоятельств", value: session.score_script_adherence ?? 0, max: 22.5 },
-    { label: "Отработка сомнений и страхов", value: session.score_objection_handling ?? 0, max: 18.75 },
-    { label: "Ясность и эмпатия", value: session.score_communication ?? 0, max: 15 },
-    { label: "Этические нарушения", value: Math.max(0, 11.25 + (session.score_anti_patterns ?? 0)), max: 11.25 },
-    { label: "Корректность рекомендации", value: session.score_result ?? 0, max: 7.5 },
+    { label: "Полнота выяснения обстоятельств", value: session.score_script_adherence ?? 0, max: 18 },
+    { label: "Правовая точность ФЗ-127", value: session.score_legal ?? 0, max: 25 },
+    { label: "Корректность рекомендации", value: session.score_result ?? 0, max: 18 },
+    { label: "Отработка сомнений и страхов", value: session.score_objection_handling ?? 0, max: 12 },
+    { label: "Этические нарушения", value: Math.max(0, 15 + (session.score_anti_patterns ?? 0)), max: 15 },
   ];
 
   // Phase C: previous-session overlay extracted from `score_breakdown`
@@ -269,12 +269,13 @@ export default function ResultsPage() {
     ? [
         // _skill_radar from history may still carry older wider sets;
         // we map the 5 canonical axes from whatever's present, falling
-        // back to 0 silently.
+        // back to 0 silently. Order must match `scoreItems` above:
+        // Полнота / Правовая точность / Корректность / Сомнения / Этич.нарушения.
         Math.min(100, Math.max(0, (previousSkillRadar.script_adherence ?? 0))),
-        Math.min(100, Math.max(0, (previousSkillRadar.objection_handling ?? 0))),
-        Math.min(100, Math.max(0, (previousSkillRadar.communication ?? 0))),
-        Math.min(100, Math.max(0, (previousSkillRadar.anti_patterns ?? 0))),
+        Math.min(100, Math.max(0, (previousSkillRadar.legal ?? 0))),
         Math.min(100, Math.max(0, (previousSkillRadar.result ?? 0))),
+        Math.min(100, Math.max(0, (previousSkillRadar.objection_handling ?? 0))),
+        Math.min(100, Math.max(0, (previousSkillRadar.anti_patterns ?? 0))),
       ]
     : undefined;
 

@@ -178,6 +178,7 @@ export default function TrainingSessionPage() {
     chain_traversal: number;
     trap_handling: number;
     human_factor: number;
+    legal: number;
     realtime_estimate: number;
     max_possible_realtime: number;
   } | null>(null);
@@ -570,6 +571,7 @@ export default function TrainingSessionPage() {
             chain_traversal: Number(data.data.chain_traversal || 0),
             trap_handling: Number(data.data.trap_handling || 0),
             human_factor: Number(data.data.human_factor || 0),
+            legal: Number(data.data.legal || 0),
             realtime_estimate: Number(data.data.realtime_estimate || 0),
             max_possible_realtime: Number(data.data.max_possible_realtime || 0),
           });
@@ -1774,32 +1776,49 @@ export default function TrainingSessionPage() {
                 </div>
                 {scoreHint ? (
                   // P3 (training-rework): relabelled to the legal-consultation
-                  // rubric — same five axes and the SAME max caps
-                  // (22.5/18.75/15/11.25/7.5) the post-call /results page and
-                  // ScoreLayersBreakdown render, so the in-call mirror matches
-                  // the final card. Previously this surfaced sales-script
-                  // jargon (Скрипт/Возражения/…) and stale pre-rework caps
-                  // (30/25/20/15/10), under-/over-rendering the bars.
+                  // rubric. Caps match the new weighting model (L1=18, L5=18,
+                  // L2=12, L4 penalty offset 15) and the post-call /results
+                  // pentagram + ScoreLayersBreakdown, so the in-call mirror
+                  // matches the final card.
+                  //
+                  // P3.1: the «Правовая точность ФЗ-127» (L10, max 25) axis is
+                  // POST-SESSION only — calculate_realtime_scores does NOT emit
+                  // `legal` (it is computed after the call ends, see scoring.py
+                  // realtime note). Rendering it as a live 0/25 bar made the
+                  // heaviest axis read as a hard failure for the whole call. We
+                  // render it as a "после завершения" placeholder instead of a
+                  // false zero.
                   <div className="mt-3 space-y-2">
                     {([
-                      ["Полнота выяснения обстоятельств", scoreHint.script_adherence, 22.5, "var(--accent)"],
-                      ["Отработка сомнений и страхов", scoreHint.objection_handling, 18.75, "var(--warning)"],
-                      ["Ясность и эмпатия", scoreHint.communication, 15, "var(--info)"],
-                      ["Этические нарушения", Math.max(0, 11.25 + (scoreHint.anti_patterns ?? 0)), 11.25, "var(--danger)"],
-                      ["Корректность рекомендации", scoreHint.result, 7.5, "var(--success)"],
-                    ] as const).map(([label, value, max, color]) => (
+                      ["Полнота выяснения обстоятельств", scoreHint.script_adherence, 18, "var(--accent)", false],
+                      ["Правовая точность ФЗ-127", 0, 25, "var(--info)", true],
+                      ["Корректность рекомендации", scoreHint.result, 18, "var(--success)", false],
+                      ["Отработка сомнений и страхов", scoreHint.objection_handling, 12, "var(--warning)", false],
+                      ["Этические нарушения", Math.max(0, 15 + (scoreHint.anti_patterns ?? 0)), 15, "var(--danger)", false],
+                    ] as const).map(([label, value, max, color, pending]) => (
                       <div key={label}>
                         <div className="mb-0.5 flex items-center justify-between text-[11px]" style={{ color: "var(--text-muted)" }}>
                           <span>{label}</span>
-                          <span className="tabular-nums font-mono" style={{ color }}>{Math.round(value)}<span className="opacity-50">/{max}</span></span>
+                          {pending ? (
+                            <span className="italic opacity-60">после завершения</span>
+                          ) : (
+                            <span className="tabular-nums font-mono" style={{ color }}>{Math.round(value)}<span className="opacity-50">/{max}</span></span>
+                          )}
                         </div>
                         <div className="h-1.5 w-full rounded-full overflow-hidden" style={{ background: "var(--bg-secondary)" }}>
-                          <motion.div
-                            className="h-full rounded-full"
-                            animate={{ width: `${Math.min(100, (value / max) * 100)}%` }}
-                            transition={{ duration: 0.5, ease: "easeOut" }}
-                            style={{ background: color }}
-                          />
+                          {pending ? (
+                            <div
+                              className="h-full w-full rounded-full opacity-30"
+                              style={{ background: `repeating-linear-gradient(90deg, ${"var(--text-muted)"} 0 4px, transparent 4px 8px)` }}
+                            />
+                          ) : (
+                            <motion.div
+                              className="h-full rounded-full"
+                              animate={{ width: `${Math.min(100, (value / max) * 100)}%` }}
+                              transition={{ duration: 0.5, ease: "easeOut" }}
+                              style={{ background: color }}
+                            />
+                          )}
                         </div>
                       </div>
                     ))}

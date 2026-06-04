@@ -209,7 +209,11 @@ class TestHybridScoringIntegration:
             score, details = await _score_legal_accuracy(uuid.uuid4(), AsyncMock())
 
         assert details["scoring_method"] == "regex_only"
-        assert score == 2.0  # 100% regex
+        # P3: combined (2.0 on [-5,+5]) remapped to [L10_MIN, L10_MAX].
+        # Positive side scales ×(L10_MAX/5) = ×5 → 2.0 → 10.0.
+        from app.services.scoring import L10_MAX, _RAW_L10_SPAN
+        assert details["raw_combined"] == 2.0
+        assert score == pytest.approx(2.0 / _RAW_L10_SPAN * L10_MAX)  # 10.0
 
     @pytest.mark.asyncio
     async def test_hybrid_combines_scores(self):
@@ -240,5 +244,9 @@ class TestHybridScoringIntegration:
             score, details = await _score_legal_accuracy(uuid.uuid4(), AsyncMock())
 
         assert details["scoring_method"] == "hybrid"
-        expected = 0.6 * 3.0 + 0.4 * 1.0  # 1.8 + 0.4 = 2.2
+        combined = 0.6 * 3.0 + 0.4 * 1.0  # 1.8 + 0.4 = 2.2 (on [-5,+5])
+        assert details["raw_combined"] == pytest.approx(combined)
+        # P3: remapped to [L10_MIN, L10_MAX]; positive side ×5 → 2.2 → 11.0.
+        from app.services.scoring import L10_MAX, _RAW_L10_SPAN
+        expected = combined / _RAW_L10_SPAN * L10_MAX
         assert abs(score - expected) < 0.01
