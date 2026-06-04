@@ -65,7 +65,7 @@ async def check_rate_limit(user_id: uuid.UUID, db: AsyncSession) -> None:
             await r.expire(day_key, 86400)
         if current > limit:
             raise RateLimitError(
-                f"Daily session limit reached ({limit}). Try again tomorrow."
+                f"Достигнут дневной лимит тренировок ({limit}). Продолжите завтра."
             )
         return  # Under limit
     except RateLimitError:
@@ -84,7 +84,7 @@ async def check_rate_limit(user_id: uuid.UUID, db: AsyncSession) -> None:
     count = result.scalar() or 0
     if count >= limit:
         raise RateLimitError(
-            f"Daily session limit reached ({limit}). Try again tomorrow."
+            f"Достигнут дневной лимит тренировок ({limit}). Продолжите завтра."
         )
 
 
