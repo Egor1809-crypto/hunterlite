@@ -252,11 +252,17 @@ function styleSheet(): string {
 
 function useInjectStyles() {
   useEffect(() => {
-    if (document.getElementById(STYLE_ID)) return;
-    const el = document.createElement("style");
-    el.id = STYLE_ID;
+    // ВАЖНО: всегда перезаписываем содержимое. Раньше делали early-return при
+    // существующем элементе — из-за этого старый (неоновый) style-sheet
+    // «прилипал» в <head> и новая токен-тема не применялась (чат оставался
+    // тёмным даже в светлой теме платформы) до жёсткой перезагрузки.
+    let el = document.getElementById(STYLE_ID) as HTMLStyleElement | null;
+    if (!el) {
+      el = document.createElement("style");
+      el.id = STYLE_ID;
+      document.head.appendChild(el);
+    }
     el.textContent = styleSheet();
-    document.head.appendChild(el);
   }, []);
 }
 
@@ -654,14 +660,14 @@ export default function ManyashaChat({ config, onSpeak }: Props) {
           onPointerUp={onPointerUp}
           className={`mnya-video-wrap ${dragging ? "dragging" : ""}`}
         >
+          {/* Большой плавающий маскот — ЖИВОЙ (idle-анимация). Статичны только
+              маленькие аватары-иконки внутри чата (см. ManyashaAvatar). */}
           <video
             src={cfg.mascotVideo}
             poster={cfg.mascotPoster}
-            muted playsInline autoPlay preload="auto"
+            loop muted playsInline autoPlay preload="auto"
             draggable={false}
             className="mnya-video"
-            onLoadedData={freezeFrame}
-            onPlay={(e) => { try { e.currentTarget.pause(); } catch { /* ignore */ } }}
           />
         </div>
 
