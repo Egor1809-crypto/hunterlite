@@ -204,7 +204,7 @@ export const ARCHETYPES: ArchetypeInfo[] = [
   // ══════════════════════════════════════════════════════════════════════════
   {
     code: "grateful", name: "Благодарный", subtitle: "Спасибо что позвонили",
-    description: "Готов сотрудничать, ценит помощь, лёгкий на закрытие.",
+    description: "Готов сотрудничать, ценит помощь, открыт к рекомендациям.",
     detailed_behavior: "Самый лёгкий клиент. Благодарит, слушает, соглашается. Ловушка для менеджера: расслабиться и не квалифицировать должным образом.",
     group: "emotional", tier: 1, difficulty: 2, unlock_level: 1,
     color: "var(--accent)", icon: "\u{1F49C}",
@@ -1116,20 +1116,24 @@ export function getTierLabel(tier: ArchetypeTier): string {
 
 /** Russian labels for English skill codes */
 export const SKILL_LABELS: Record<string, string> = {
-  objection_handling: "Возражения",
+  objection_handling: "Сомнения должника",
   stress_resistance: "Стрессоустойчивость",
-  adaptation: "Адаптация",
-  knowledge: "Экспертиза",
+  // P3: радар-ось adaptation (L11 — продажные архетипы) снята в бэкенде
+  // (scoring.py / analytics.py больше её не отдают). Этот лейбл остаётся
+  // только для чипов «чему учит сценарий» в каталоге — переведён в
+  // нейтральную юр-формулировку, продажная «Адаптация» снята.
+  adaptation: "Гибкость подхода",
+  knowledge: "Правовая база",
   rapport: "Контакт",
-  script_adherence: "Скрипт",
+  script_adherence: "Выяснение обстоятельств",
   active_listening: "Слушание",
   empathy: "Эмпатия",
   negotiation: "Переговоры",
-  closing: "Закрытие",
+  closing: "Рекомендация",
   patience: "Терпение",
   creativity: "Креативность",
   authority: "Авторитет",
-  time_management: "Темп",
+  time_management: "Темп консультации",
   professionalism: "Профессионализм",
   analytical: "Аналитика",
   emotional_intelligence: "EQ",

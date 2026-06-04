@@ -25,10 +25,10 @@ interface BenchmarkData {
 
 const SKILL_LABELS: Record<string, string> = {
   empathy: "Эмпатия",
-  knowledge: "Знания",
-  objection_handling: "Возражения",
+  knowledge: "Правовая база",
+  objection_handling: "Сомнения должника",
   stress_resistance: "Стрессоуст.",
-  closing: "Закрытие",
+  closing: "Рекомендация",
   qualification: "Квалификация",
 };
 

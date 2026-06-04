@@ -126,13 +126,21 @@ class TestScoreBreakdown:
         )
         assert bd.total == 100.0
 
-    def test_skill_radar_returns_six_skills(self, breakdown):
+    def test_skill_radar_returns_legal_axes(self, breakdown):
+        # P3 (training-rework): the radar moved from the sales pentagram to
+        # the legal-consultation axes. L7 (traps) and L9 (narrative) are dead
+        # after de-gamification, so their weight was folded into the live
+        # axes; the L11 "adaptation" axis (sales archetypes) was dropped
+        # entirely (a 0-pinned axis misreads as a real weakness).
         radar = breakdown.skill_radar
         expected_keys = {
             "empathy", "knowledge", "objection_handling",
             "stress_resistance", "closing", "qualification",
+            "time_management", "legal_knowledge", "rapport_building",
         }
         assert set(radar.keys()) == expected_keys
+        # "adaptation" (L11 sales archetypes) must be gone.
+        assert "adaptation" not in radar
 
     def test_skill_radar_values_in_range(self, breakdown):
         for skill, value in breakdown.skill_radar.items():
@@ -220,28 +228,57 @@ class TestCommunication:
 # ---------------------------------------------------------------------------
 
 class TestResultScoring:
-    """L5: Result/outcome scoring."""
+    """L5: «Корректность рекомендации» — graded from the CONSULTANT's turns.
+
+    P3 (training-rework): L5 no longer rewards a cold-sales "client agreed /
+    meeting scheduled" outcome. It grades whether the trainee recommended the
+    correct procedural path under ФЗ-127 (реструктуризация / реализация,
+    grounded in income/assets, with a good-faith caveat) and gave a concrete
+    lawful next step. The layer reads ``user_messages`` (the consultant), not
+    the AI debtor's replies.
+    """
 
     def test_no_messages(self):
         score, details = _score_result([], [])
         assert score == 0.0
 
-    def test_agreement_detected(self):
-        assistant_msgs = ["Ладно, давайте попробуем"]
-        score, details = _score_result(assistant_msgs, [])
-        assert details["consultation_agreed"] is True
+    def test_path_recommended_and_grounded(self):
+        # Consultant names a procedure AND grounds it in the debtor's situation.
+        user_msgs = [
+            "Исходя из вашей ситуации подойдёт реструктуризация долгов — "
+            "составим план погашения на три года.",
+        ]
+        score, details = _score_result(user_msgs, [])
+        assert details["path_recommended"] is True
+        assert details["path_grounded_in_situation"] is True
         assert score > 0
 
-    def test_meeting_scheduled(self):
-        assistant_msgs = ["Давайте в понедельник в 10:00"]
-        score, details = _score_result(assistant_msgs, [])
-        assert details["meeting_scheduled"] is True
+    def test_good_faith_caveat_adds_credit(self):
+        user_msgs = [
+            "Подойдёт реструктуризация долгов, исходя из вашей ситуации, "
+            "но только при условии добросовестности — нельзя скрывать сделки.",
+        ]
+        score, details = _score_result(user_msgs, [])
+        assert details["good_faith_caveat"] is True
+        # procedure + grounding (4.0) + good_faith (+1.0) = 5.0 raw before rescale
+        assert details["path_score"] == pytest.approx(5.0)
 
-    def test_positive_final_emotion(self):
-        assistant_msgs = ["Согласен, интересно"]
-        timeline = [{"state": "cold"}, {"state": "curious"}, {"state": "deal"}]
-        score, details = _score_result(assistant_msgs, timeline)
-        assert details.get("ended_positive") is True
+    def test_next_step_given(self):
+        user_msgs = [
+            "Следующий шаг — подготовить документы и подать заявление в суд.",
+        ]
+        score, details = _score_result(user_msgs, [])
+        assert details["next_step_given"] is True
+        assert score > 0
+
+    def test_no_recommendation_no_credit(self):
+        # The debtor's "ладно, давайте" must NOT earn L5 credit any more —
+        # the layer reads the consultant's turns, and there is no path here.
+        user_msgs = ["Ну ладно, давайте попробуем что-нибудь"]
+        score, details = _score_result(user_msgs, [])
+        assert details["path_recommended"] is False
+        assert details["next_step_given"] is False
+        assert score == 0.0
 
 
 # ---------------------------------------------------------------------------

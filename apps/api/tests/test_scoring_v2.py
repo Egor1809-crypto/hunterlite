@@ -54,27 +54,37 @@ class TestObjectionHandling:
 
 
 class TestResult:
-    def test_agreed_conversation(self):
-        """``Ладно, присылайте`` triggers ``consultation_agreed``.
-        Raw score 5 (agreed) × V3_RESCALE 0.75 = 3.75."""
-        assistant_msgs = [
-            "У меня строительная компания",
-            "Какие условия?",
-            "Ладно, присылайте предложение",
+    """L5 — P3: «Корректность рекомендации» (legal path), not a sales deal.
+
+    The layer grades the CONSULTANT's turns (``user_messages``) for a correct
+    procedural recommendation under ФЗ-127 and a concrete lawful next step.
+    """
+
+    def test_correct_path_recommended(self):
+        """A grounded реструктуризация recommendation earns path credit.
+        procedure + grounding = 4.0 raw × V3_RESCALE 0.75 = 3.0."""
+        user_msgs = [
+            "Расскажите про ваши долги и доход.",
+            "Исходя из вашей ситуации, подойдёт реструктуризация долгов "
+            "с планом погашения.",
         ]
-        score, details = _score_result(assistant_msgs, [])
-        assert score >= 3.75
-        assert details["consultation_agreed"] is True
+        score, details = _score_result(user_msgs, [])
+        assert score >= 3.0
+        assert details["path_recommended"] is True
+        assert details["path_grounded_in_situation"] is True
 
     def test_empty_scores_zero(self):
         score, _ = _score_result([], [])
         assert score == 0.0
 
-    def test_deal_emotion_tracked(self):
-        timeline = [{"state": "cold"}, {"state": "curious"}, {"state": "deal"}]
-        score, details = _score_result(["Ладно, давайте"], timeline)
-        assert details.get("ended_positive") is True
-        assert details.get("final_emotion") == "deal"
+    def test_debtor_assent_is_not_scored(self):
+        # The AI debtor's "ладно, давайте" used to trigger a deal outcome.
+        # P3: L5 reads the consultant's turns, so a bare debtor assent with
+        # no procedural recommendation earns nothing.
+        score, details = _score_result(["Ладно, давайте"], [])
+        assert details["path_recommended"] is False
+        assert details["next_step_given"] is False
+        assert score == 0.0
 
 
 class TestHasPattern:

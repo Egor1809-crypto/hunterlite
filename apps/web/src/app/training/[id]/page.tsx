@@ -1773,22 +1773,20 @@ export default function TrainingSessionPage() {
                   </motion.div>
                 </div>
                 {scoreHint ? (
-                  // Phase C (2026-05-08): consolidated to the canonical
-                  // 5 axes (script/objections/communication/anti-patterns/
-                  // result) — same set the post-call /results page
-                  // renders, with the SAME max caps (30/25/20/15/10).
-                  // Previously this rendered 8 layers with `value/12.5*100`
-                  // assuming equal weights, which under-rendered Скрипт
-                  // (cap 30 → bar would max at ~42% even when the user
-                  // scored full marks) and over-rendered Результат (cap
-                  // 10 → bar showed 80% for a perfect 10).
+                  // P3 (training-rework): relabelled to the legal-consultation
+                  // rubric — same five axes and the SAME max caps
+                  // (22.5/18.75/15/11.25/7.5) the post-call /results page and
+                  // ScoreLayersBreakdown render, so the in-call mirror matches
+                  // the final card. Previously this surfaced sales-script
+                  // jargon (Скрипт/Возражения/…) and stale pre-rework caps
+                  // (30/25/20/15/10), under-/over-rendering the bars.
                   <div className="mt-3 space-y-2">
                     {([
-                      ["Скрипт", scoreHint.script_adherence, 30, "var(--accent)"],
-                      ["Возражения", scoreHint.objection_handling, 25, "var(--warning)"],
-                      ["Коммуникация", scoreHint.communication, 20, "var(--info)"],
-                      ["Анти-паттерны", Math.max(0, 15 + (scoreHint.anti_patterns ?? 0)), 15, "var(--danger)"],
-                      ["Результат", scoreHint.result, 10, "var(--success)"],
+                      ["Полнота выяснения обстоятельств", scoreHint.script_adherence, 22.5, "var(--accent)"],
+                      ["Отработка сомнений и страхов", scoreHint.objection_handling, 18.75, "var(--warning)"],
+                      ["Ясность и эмпатия", scoreHint.communication, 15, "var(--info)"],
+                      ["Этические нарушения", Math.max(0, 11.25 + (scoreHint.anti_patterns ?? 0)), 11.25, "var(--danger)"],
+                      ["Корректность рекомендации", scoreHint.result, 7.5, "var(--success)"],
                     ] as const).map(([label, value, max, color]) => (
                       <div key={label}>
                         <div className="mb-0.5 flex items-center justify-between text-[11px]" style={{ color: "var(--text-muted)" }}>

@@ -29,10 +29,10 @@ interface WeeklyReportData {
 
 const SKILL_LABELS: Record<string, string> = {
   empathy: "Эмпатия",
-  knowledge: "Знания",
-  objection_handling: "Работа с возражениями",
+  knowledge: "Правовая база",
+  objection_handling: "Сомнения должника",
   stress_resistance: "Стрессоустойчивость",
-  closing: "Закрытие",
+  closing: "Рекомендация",
   qualification: "Квалификация",
 };
 

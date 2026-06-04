@@ -168,7 +168,8 @@ jobs:
             tests/test_call_rag_cache.py \
             tests/test_llm_model_fallback.py \
             tests/test_consent_routes.py \
-            tests/test_client_profile_clamp.py
+            tests/test_client_profile_clamp.py \
+            tests/test_training_rework_p3_scoring.py
 
   frontend:
     runs-on: ubuntu-latest

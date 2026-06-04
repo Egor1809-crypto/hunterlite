@@ -25,7 +25,7 @@ const BAR_STOPS = [
   { key: "deal",        color: EMOTION_MAP.deal.color },
 ] as const;
 
-const BAR_LABELS = ["Враж", "Настор", "Любоп", "Торг", "Сделка"] as const;
+const BAR_LABELS = ["Враж", "Настор", "Любоп", "Торг", "Готов"] as const;
 
 interface VibeMeterProps {
   emotion: EmotionState;

@@ -166,7 +166,7 @@ export default function DashboardPage() {
       .then((stats: PipelineStats[]) => setPipelineStats(stats))
       .catch((err) => {
         logger.error("Failed to load pipeline stats:", err);
-        toast.error("Не удалось загрузить статистику воронки", { description: "Воронка продаж" });
+        toast.error("Не удалось загрузить статистику", { description: "Динамика тренировок" });
       });
   }, [user]);
 

@@ -2608,7 +2608,7 @@ async def ask_coach(
     if skill_data:
         skill_lines = [f"  {k}: {v:.0f}/100" for k, v in skill_data.items() if isinstance(v, (int, float))]
         if skill_lines:
-            skill_ctx = "\nНавыки менеджера:\n" + "\n".join(skill_lines)
+            skill_ctx = "\nНавыки консультанта:\n" + "\n".join(skill_lines)
 
     # Cited moments from report (if available)
     cited_ctx = ""

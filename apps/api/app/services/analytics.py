@@ -160,13 +160,17 @@ SKILLS_V5 = {
     "legal": {"max": 5.0, "label": "Юр. точность", "weight": 0.05},
 }
 
-# 6 canonical radar skills
+# 6 canonical radar skills.
+# P3 (training-rework): КЛЮЧИ — стабильные id маппинга на score_*/scoring_details,
+# их НЕ менять. Юр-перелейбл затрагивает только отображаемые значения:
+#   knowledge → «Правовая база», objection_handling → «Сомнения должника»,
+#   closing → «Рекомендация» (продажный «Закрытие сделки» снят).
 RADAR_SKILLS = {
     "empathy": "Эмпатия",
-    "knowledge": "Знания",
-    "objection_handling": "Работа с возражениями",
+    "knowledge": "Правовая база",
+    "objection_handling": "Сомнения должника",
     "stress_resistance": "Стрессоустойчивость",
-    "closing": "Закрытие сделки",
+    "closing": "Рекомендация",
     "qualification": "Квалификация клиента",
 }
 
@@ -238,24 +242,22 @@ def compute_session_radar(session: TrainingSession) -> dict[str, float]:
 
     l1 = session.score_script_adherence or 0
     l10 = session.score_legal or 0
-    l7 = getattr(session, "_trap_score", 0)  # May not be stored separately
-    # Use scoring_details for trap
-    trap_details = details.get("trap_handling", {})
-    l7 = trap_details.get("net_score", 0)
 
+    # P3 (training-rework): L7 (ловушки-продажи) выпилен из потока — мёртвый вес
+    # перенесён на живые слои. «Правовая база» (knowledge) теперь = L1·0.4 + L10·0.6.
+    # Зеркально весам scoring.py.skill_radar (участок A).
     knowledge = (
-        _norm(l1, 22.5) * 0.3
-        + _norm(l10 + 5, 10) * 0.4
-        + _norm(l7 + 7.5, 15) * 0.3
+        _norm(l1, 22.5) * 0.4
+        + _norm(l10 + 5, 10) * 0.6
     ) * 100
 
     l2 = session.score_objection_handling or 0
     l6_details = details.get("chain_traversal", {})
     l6 = l6_details.get("chain_score", 0) if isinstance(l6_details, dict) else 0
+    # P3: «Сомнения должника» (objection_handling) = L2·0.6 + L6·0.4 (L7-вес перенесён).
     objection_handling = (
-        _norm(l2, 18.75) * 0.5
-        + _norm(l6, 7.5) * 0.3
-        + _norm(l7 + 7.5, 15) * 0.2
+        _norm(l2, 18.75) * 0.6
+        + _norm(l6, 7.5) * 0.4
     ) * 100
 
     l4 = session.score_anti_patterns or 0
@@ -268,12 +270,14 @@ def compute_session_radar(session: TrainingSession) -> dict[str, float]:
     ) * 100
 
     l5 = session.score_result or 0
-    l9 = session.score_narrative or 0
     check_score = obj.get("check_score", 0)
+    # P3: ось «Рекомендация» (closing) = L5·0.7 + L2.check·0.3.
+    # L9 (story-нарратив) выпилен в P1 — его вес перенесён на L5 (результат
+    # консультации). Ключ оси остаётся «closing» (стабильный id маппинга),
+    # юр-лейбл «Рекомендация» задаётся в RADAR_SKILLS / FE SKILL_LABELS.
     closing = (
-        _norm(l5, 7.5) * 0.5
-        + _norm(l9, 10) * 0.3
-        + _norm(check_score, 3.75) * 0.2
+        _norm(l5, 7.5) * 0.7
+        + _norm(check_score, 3.75) * 0.3
     ) * 100
 
     discovery = script.get("discovery_score", 0)

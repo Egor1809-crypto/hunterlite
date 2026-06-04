@@ -4,15 +4,18 @@ import { motion } from "framer-motion";
 import { Check, X, ArrowRight } from "lucide-react";
 import { Warning, PhoneDisconnect, Lightbulb } from "@phosphor-icons/react";
 
-/** Stage labels matching backend STAGE_LABELS */
+/** Этапы юридической консультации по ФЗ-127 (P3 training-rework).
+    Раньше это был 7-этапный скрипт продаж — переработан в этапы
+    консультации должника. Названия используются и в рекомендациях
+    (generateRecommendations) и в сводке. */
 const STAGE_META: Record<number, { name: string; description: string }> = {
-  1: { name: "Приветствие", description: "Представиться, назвать компанию, цель звонка" },
-  2: { name: "Контакт", description: "Расположить к себе, показать эмпатию" },
-  3: { name: "Квалификация", description: "Узнать сумму долга, кредиторов, имущество" },
-  4: { name: "Презентация", description: "Объяснить банкротство, преимущества, сроки" },
-  5: { name: "Возражения", description: "Обработать сомнения клиента" },
-  6: { name: "Встреча", description: "Назначить конкретный следующий шаг" },
-  7: { name: "Закрытие", description: "Подвести итог, подтвердить договорённость" },
+  1: { name: "Контакт", description: "Представиться, обозначить роль и цель разговора, расположить к себе" },
+  2: { name: "Выяснение обстоятельств", description: "Долги, доход, иждивенцы, жильё/ипотека, сделки, стадия взыскания" },
+  3: { name: "Правовой анализ", description: "Соотнести ситуацию с нормами 127-ФЗ, оценить применимые процедуры" },
+  4: { name: "Объяснение путей", description: "Разъяснить варианты: реструктуризация или реализация имущества" },
+  5: { name: "Снятие страхов", description: "Развеять опасения («отнимут квартиру») без ложных гарантий" },
+  6: { name: "Рекомендация", description: "Предложить корректный путь под обстоятельства должника" },
+  7: { name: "Следующий шаг", description: "Договориться о конкретном следующем действии" },
 };
 
 interface StageProgressData {
@@ -53,7 +56,7 @@ function generateRecommendations(
       if (meta) {
         recs.push({
           type: "warning",
-          text: `Вы пропустили этап "${meta.name}". ${meta.description} — это важно для построения доверия.`,
+          text: `Вы пропустили этап "${meta.name}". ${meta.description} — без этого консультация неполная.`,
         });
       }
     }
@@ -71,22 +74,22 @@ function generateRecommendations(
     }
   }
 
-  // Check if greeting was too short
+  // Check if the contact stage was too short
   const greetingScore = scores["1"] || 0;
   if (greetingScore < 0.15 && completed.has(1)) {
     recs.push({
       type: "tip",
-      text: "Приветствие было очень кратким. Назовите своё имя, компанию и цель звонка — это создаёт доверие.",
+      text: "Контакт был очень кратким. Представьтесь, обозначьте свою роль и цель разговора — это создаёт доверие.",
     });
   }
 
-  // Check for hangup
+  // Check for early termination
   if (callOutcome === "hangup") {
     const finalStage = stageProgress.final_stage || 1;
     const meta = STAGE_META[finalStage];
     recs.push({
       type: "warning",
-      text: `Клиент бросил трубку на этапе "${meta?.name || "?"}" (${finalStage}/${total}). Обратите внимание на тон и тактику работы с негативом.`,
+      text: `Разговор прервался на этапе "${meta?.name || "?"}" (${finalStage}/${total}). Обратите внимание на тон и работу с тревогой должника.`,
     });
   }
 
@@ -94,16 +97,16 @@ function generateRecommendations(
   if (completed.size >= 5) {
     recs.push({
       type: "success",
-      text: `Отлично! Вы прошли ${completed.size} из ${total} этапов скрипта.`,
+      text: `Хорошо! Вы прошли ${completed.size} из ${total} этапов консультации.`,
     });
   }
 
-  // Qualification check
-  const qualScore = scores["3"] || 0;
-  if (qualScore >= 0.5) {
+  // Disclosure check — stage 2 «Выяснение обстоятельств»
+  const disclosureScore = scores["2"] || 0;
+  if (disclosureScore >= 0.5) {
     recs.push({
       type: "success",
-      text: "Хорошая квалификация — вы задали достаточно вопросов о ситуации клиента.",
+      text: "Хорошее выяснение обстоятельств — вы собрали достаточно данных о ситуации должника.",
     });
   }
 
@@ -139,7 +142,7 @@ export default function StageBreakdown({
         style={{ color: "var(--text-primary)", borderColor: "var(--border-color)" }}
       >
         <ArrowRight size={18} style={{ color: "var(--accent)" }} />
-        ЭТАПЫ СКРИПТА
+        ЭТАПЫ КОНСУЛЬТАЦИИ
       </h2>
 
       {/* Stage timeline */}
@@ -261,7 +264,7 @@ export default function StageBreakdown({
         {isHangup && (
           <span style={{ color: "var(--danger)" }}>
             <PhoneDisconnect size={11} weight="duotone" className="inline mr-1" />
-            Клиент бросил трубку
+            Разговор прервался
           </span>
         )}
       </div>
@@ -271,7 +274,7 @@ export default function StageBreakdown({
         <div className="mt-6 border-t pt-4" style={{ borderColor: "var(--border-color)" }}>
           <h3 className="font-mono text-xs uppercase tracking-widest mb-3 flex items-center gap-1.5" style={{ color: "var(--text-muted)" }}>
             <Lightbulb size={12} weight="duotone" style={{ color: "var(--warning)" }} />
-            РЕКОМЕНДАЦИИ ПО СКРИПТУ
+            РЕКОМЕНДАЦИИ ПО КОНСУЛЬТАЦИИ
           </h3>
           <div className="space-y-2">
             {recommendations.map((rec, i) => (

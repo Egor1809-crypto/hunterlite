@@ -799,7 +799,17 @@ class ManagerProgressService:
             "qualification": self._calc_qualification(sessions),
             # 4 additional v5 skills — derived from per-session skill_radar
             "time_management": self._calc_from_radar(sessions, "time_management"),
-            "adaptation": self._calc_from_radar(sessions, "adaptation"),
+            # P3 (training-rework): the L11 "adaptation" axis (sales archetypes)
+            # is dead after de-gamification — scoring.skill_radar no longer emits
+            # the key, so _calc_from_radar(sessions, "adaptation") would return
+            # None for every session and freeze skill_adaptation at its default
+            # 50, surfacing a fictitious skill in weekly_report / rop_export.
+            # We keep the SKILL_NAMES key (storage/migration invariant — do NOT
+            # drop the column) but feed it a LIVE neutral signal: mirror the
+            # "rapport_building" radar axis («Гибкость подхода / Контакт»), which
+            # is the closest surviving behavioural axis. This keeps the skill
+            # tracking reality instead of pinning it to a stale default.
+            "adaptation": self._calc_from_radar(sessions, "rapport_building"),
             "legal_knowledge": self._calc_from_radar(sessions, "legal_knowledge"),
             "rapport_building": self._calc_from_radar(sessions, "rapport_building"),
         }

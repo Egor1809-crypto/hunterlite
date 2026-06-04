@@ -37,12 +37,10 @@ const PentagramChart = dynamic(() => import("@/components/results/PentagramChart
 const EmotionTimeline = dynamic(() => import("@/components/results/EmotionTimeline"), {
   loading: () => <Skeleton height={200} width="100%" rounded="12px" />, ssr: false,
 });
-import TrapResults from "@/components/results/TrapResults";
 import SoftSkillsCard from "@/components/results/SoftSkillsCard";
 import AIRecommendations from "@/components/results/AIRecommendations";
 import CheckpointProgress from "@/components/results/CheckpointProgress";
 import StageBreakdown from "@/components/results/StageBreakdown";
-import ScriptProgressReport from "@/components/results/ScriptProgressReport";
 import AICoachSection from "@/components/results/AICoachSection";
 import ScoreLayersBreakdown from "@/components/results/ScoreLayersBreakdown";
 import JudgeVerdictCard from "@/components/results/JudgeVerdictCard";
@@ -257,11 +255,11 @@ export default function ResultsPage() {
   // Product owner approved consolidation to the 5-axis canonical set;
   // the 10-axis `_skill_radar` is no longer rendered as a pentagram.
   const scoreItems = [
-    { label: "Скрипт", value: session.score_script_adherence ?? 0, max: 30 },
-    { label: "Возражения", value: session.score_objection_handling ?? 0, max: 25 },
-    { label: "Коммуникация", value: session.score_communication ?? 0, max: 20 },
-    { label: "Антипаттерны", value: Math.max(0, 15 + (session.score_anti_patterns ?? 0)), max: 15 },
-    { label: "Результат", value: session.score_result ?? 0, max: 10 },
+    { label: "Полнота выяснения обстоятельств", value: session.score_script_adherence ?? 0, max: 22.5 },
+    { label: "Отработка сомнений и страхов", value: session.score_objection_handling ?? 0, max: 18.75 },
+    { label: "Ясность и эмпатия", value: session.score_communication ?? 0, max: 15 },
+    { label: "Этические нарушения", value: Math.max(0, 11.25 + (session.score_anti_patterns ?? 0)), max: 11.25 },
+    { label: "Корректность рекомендации", value: session.score_result ?? 0, max: 7.5 },
   ];
 
   // Phase C: previous-session overlay extracted from `score_breakdown`
@@ -756,13 +754,6 @@ export default function ResultsPage() {
             «История клиента / Звонок N из M / последствия» surface is cut
             front-and-back. The backend no longer projects story/story_calls. */}
 
-        {/* Trap Results */}
-        {result.trap_results && result.trap_results.length > 0 && (
-          <div className="mt-8">
-            <TrapResults traps={result.trap_results} />
-          </div>
-        )}
-
         {/* Soft Skills */}
         {result.soft_skills && (
           <div className="mt-6">
@@ -890,13 +881,6 @@ export default function ResultsPage() {
               callOutcome={((result.score_breakdown as Record<string, unknown> | null)?.call_outcome as string) || undefined}
               emotionTimeline={session.emotion_timeline || undefined}
             />
-          </div>
-        )}
-
-        {/* Educational script progress report (Sprint 4) */}
-        {stageProgress && (
-          <div className="mt-6">
-            <ScriptProgressReport stageProgress={stageProgress} />
           </div>
         )}
 
