@@ -189,28 +189,66 @@ def _format_transcript(
     return transcript
 
 
+def _build_rubric_block(
+    must_clarify: list[str] | None,
+    red_flags: list[str] | None,
+) -> str:
+    """Render the persona rubric checklist for the judge prompt.
+
+    P3 (training-rework): when the session was started from a
+    ``ReferencePersona``, its ``scoring_rubric.must_clarify`` /
+    ``scoring_rubric.red_flags`` are surfaced here so the judge cross-checks
+    the transcript against the persona's expected discovery items and known
+    legal pitfalls. Empty / missing → returns an empty string (no-op for
+    non-persona sessions). Items are length-capped to keep the prompt bounded.
+    """
+    clarify = [str(x).strip() for x in (must_clarify or []) if str(x).strip()]
+    flags = [str(x).strip() for x in (red_flags or []) if str(x).strip()]
+    if not clarify and not flags:
+        return ""
+
+    lines = ["", "Эталонный чек-лист консультации (по этому клиенту):"]
+    if clarify:
+        lines.append("- ОБЯЗАН выяснить:")
+        for item in clarify[:12]:
+            lines.append(f"    • {item[:160]}")
+    if flags:
+        lines.append("- КРАСНЫЕ ФЛАГИ (юр-ошибки, которые здесь — провал):")
+        for item in flags[:12]:
+            lines.append(f"    • {item[:160]}")
+    lines.append(
+        "Сверь транскрипт с чек-листом: пропущенные пункты «обязан выяснить» — "
+        "это слабые места, а любое совпадение с красным флагом — red_flag.\n"
+    )
+    return "\n".join(lines)
+
+
 def _build_user_prompt(
     *,
     transcript: str,
     archetype: str | None,
     emotion_arc: list[str],
     call_outcome: str,
+    must_clarify: list[str] | None = None,
+    red_flags_checklist: list[str] | None = None,
 ) -> str:
     """Build the Russian-language judge prompt body."""
     arch = archetype or "не указан"
     arc = ", ".join([e for e in emotion_arc if e]) or "не зафиксирована"
     outcome = call_outcome or "unknown"
+    rubric_block = _build_rubric_block(must_clarify, red_flags_checklist)
 
     return (
-        "Контекст звонка:\n"
-        f"- Архетип клиента: {arch}\n"
+        "Контекст консультации:\n"
+        f"- Архетип должника: {arch}\n"
         f"- Эмоциональная дуга: {arc}\n"
-        f"- Исход звонка: {outcome}\n\n"
-        "Транскрипт (M[i] = i-я реплика менеджера, К = реплика клиента):\n"
+        f"- Итог консультации: {outcome}\n"
+        f"{rubric_block}\n"
+        "Транскрипт (M[i] = i-я реплика консультанта, К = реплика должника):\n"
         "---\n"
         f"{transcript}\n"
         "---\n\n"
-        "Задание: оцени работу менеджера и верни СТРОГО валидный JSON со следующими полями:\n"
+        "Задание: оцени работу консультанта и верни СТРОГО валидный JSON со следующими полями:\n"
         '  "verdict"       — одно из: "excellent", "good", "mixed", "poor", "red_flag"\n'
         f'  "score_adjust"  — целое число в диапазоне [{_SCORE_ADJUST_MIN}, {_SCORE_ADJUST_MAX}]\n'
         '  "rationale_ru"  — 1-2 предложения по-русски, чему равен этот вердикт\n'
@@ -220,26 +258,28 @@ def _build_user_prompt(
         '                        "excerpt": <цитата из M[i] до 100 символов>,\n'
         '                        "fix_example": <как лучше было сказать, до 160 символов>}\n'
         '                    Каждый red_flag ОБЯЗАН ссылаться на конкретный M[i].\n'
-        '                    Используй -1 в message_index ТОЛЬКО если проблема разлита по всему звонку.\n'
+        '                    Используй -1 в message_index ТОЛЬКО если проблема разлита по всей консультации.\n'
         '  "strengths"     — список ОБЪЕКТОВ. Каждый объект:\n'
         '                       {"label": <короткая похвала>,\n'
         '                        "message_index": <индекс M[i] или -1 если общая>,\n'
         '                        "excerpt": <цитата из M[i] до 100 символов или пустая строка>}\n\n'
         "Пример red_flag:\n"
-        '  {"label": "Оскорбление клиента",\n'
+        '  {"label": "Ложная гарантия списания",\n'
         '   "message_index": 4,\n'
-        '   "excerpt": "вы что, идиот?",\n'
-        '   "fix_example": "Давайте я объясню по-другому, чтобы стало понятно."}\n\n'
+        '   "excerpt": "вам гарантированно спишут все долги",\n'
+        '   "fix_example": "Списание возможно при добросовестности; суд может отказать, если были фиктивные сделки."}\n\n'
         "Никакого текста ВНЕ JSON. Никаких markdown-обёрток. Только сам JSON-объект."
     )
 
 
 _SYSTEM_PROMPT = (
-    "Ты — наставник для менеджера холодных звонков по теме банкротства физических лиц "
-    "(127-ФЗ). Ты получаешь полный транскрипт одного звонка и оцениваешь работу менеджера: "
-    "выявил ли он потребность, грамотно ли работал с возражениями, не нарушал ли законов и "
-    "профессиональной этики, удержал ли клиента до закрытия. Отвечай ТОЛЬКО JSON по "
-    "указанной схеме, без пояснений вне JSON."
+    "Ты — наставник юриста-консультанта по банкротству физических лиц (127-ФЗ). "
+    "Ты получаешь полный транскрипт одной консультации и оцениваешь работу консультанта: "
+    "полноту выяснения обстоятельств должника (долги, доход, иждивенцы, жильё/ипотека, "
+    "сделки, стадия взыскания), правовую корректность советов по ФЗ-127, отсутствие ложных "
+    "гарантий списания и запугивания, эмпатию к должнику в стрессе и ясность объяснения "
+    "путей (реструктуризация/реализация). Отвечай ТОЛЬКО JSON по указанной схеме, без "
+    "пояснений вне JSON."
 )
 
 
@@ -408,6 +448,8 @@ async def judge_transcript(
     emotion_arc: list[str],
     call_outcome: str,
     redis_client: Any = None,
+    must_clarify: list[str] | None = None,
+    red_flags_checklist: list[str] | None = None,
 ) -> JudgeVerdict:
     """Run the LLM judge over a full transcript and return a structured verdict.
 
@@ -433,6 +475,8 @@ async def judge_transcript(
         archetype=archetype,
         emotion_arc=emotion_arc,
         call_outcome=call_outcome,
+        must_clarify=must_clarify,
+        red_flags_checklist=red_flags_checklist,
     )
 
     try:

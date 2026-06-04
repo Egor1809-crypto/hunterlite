@@ -19,7 +19,9 @@ class TestCommunication:
             "Пожалуйста, расскажите подробнее",
         ]
         score, details = _score_communication(msgs)
-        assert score >= 10
+        # P3 reweight: L3_MAX dropped 15 → 12, so a polite-but-not-empathetic
+        # transcript (raw 16/20 = 0.8) now lands at 0.8 × 12 = 9.6, not ≥10.
+        assert score >= 9.5
         assert details["polite_markers"] >= 2
 
     def test_empty_scores_zero(self):
@@ -31,50 +33,61 @@ class TestObjectionHandling:
     def test_no_objections_half_credit(self):
         """When the conversation has no objections at all the scorer
         awards half credit (the scenario was easy, not perfectly
-        handled). Pre-V3_RESCALE this branch returned full 25.0;
-        the V3_RESCALE = 0.75 + half-credit logic at scoring.py:349
-        sets the value to 9.375."""
+        handled). P3 reweight: L2_MAX=12, so half credit = 6.0
+        (was 9.375 under the old 18.75 cap)."""
+        from app.services.scoring import L2_MAX
         score, details = _score_objection_handling(
             user_messages=["Здравствуйте"],
             assistant_messages=["Добрый день"],
         )
-        assert score == 9.375
+        assert score == L2_MAX * 0.5
         assert details["objections_found"] == 0
 
     def test_acknowledged_objection(self):
         """``Я вас понимаю`` matches ACKNOWLEDGE_PATTERNS, setting
-        both ``heard`` and ``acknowledged``. Raw score = 10, after
-        V3_RESCALE = 0.75 → final 7.5."""
+        both ``heard`` and ``acknowledged``. Raw score = 10 of 25,
+        remapped to L2_MAX=12 → final 4.8 (was 7.5 under old cap)."""
+        from app.services.scoring import L2_MAX
         score, details = _score_objection_handling(
             user_messages=["Я вас понимаю, давайте разберёмся"],
             assistant_messages=["Зачем мне это, у меня уже есть кредит"],
         )
-        assert score == 7.5
+        assert score == pytest.approx(10.0 / 25.0 * L2_MAX)
         assert details["heard"] is True
 
 
 class TestResult:
-    def test_agreed_conversation(self):
-        """``Ладно, присылайте`` triggers ``consultation_agreed``.
-        Raw score 5 (agreed) × V3_RESCALE 0.75 = 3.75."""
-        assistant_msgs = [
-            "У меня строительная компания",
-            "Какие условия?",
-            "Ладно, присылайте предложение",
+    """L5 — P3: «Корректность рекомендации» (legal path), not a sales deal.
+
+    The layer grades the CONSULTANT's turns (``user_messages``) for a correct
+    procedural recommendation under ФЗ-127 and a concrete lawful next step.
+    """
+
+    def test_correct_path_recommended(self):
+        """A grounded реструктуризация recommendation earns path credit.
+        procedure + grounding = 4.0 raw × V3_RESCALE 0.75 = 3.0."""
+        user_msgs = [
+            "Расскажите про ваши долги и доход.",
+            "Исходя из вашей ситуации, подойдёт реструктуризация долгов "
+            "с планом погашения.",
         ]
-        score, details = _score_result(assistant_msgs, [])
-        assert score >= 3.75
-        assert details["consultation_agreed"] is True
+        score, details = _score_result(user_msgs, [])
+        assert score >= 3.0
+        assert details["path_recommended"] is True
+        assert details["path_grounded_in_situation"] is True
 
     def test_empty_scores_zero(self):
         score, _ = _score_result([], [])
         assert score == 0.0
 
-    def test_deal_emotion_tracked(self):
-        timeline = [{"state": "cold"}, {"state": "curious"}, {"state": "deal"}]
-        score, details = _score_result(["Ладно, давайте"], timeline)
-        assert details.get("ended_positive") is True
-        assert details.get("final_emotion") == "deal"
+    def test_debtor_assent_is_not_scored(self):
+        # The AI debtor's "ладно, давайте" used to trigger a deal outcome.
+        # P3: L5 reads the consultant's turns, so a bare debtor assent with
+        # no procedural recommendation earns nothing.
+        score, details = _score_result(["Ладно, давайте"], [])
+        assert details["path_recommended"] is False
+        assert details["next_step_given"] is False
+        assert score == 0.0
 
 
 class TestHasPattern:

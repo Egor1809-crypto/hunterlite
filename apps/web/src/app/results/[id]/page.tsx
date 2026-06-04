@@ -7,8 +7,6 @@ import { motion } from "framer-motion";
 import {
   ArrowRight,
   Home,
-  Users,
-  Zap,
   MessageSquare,
   TrendingUp,
   Loader2,
@@ -20,17 +18,11 @@ import {
   Repeat,
     Share2,
     Check,
-    Trophy,
     Download,
     Copy,
     ClipboardCheck,
-    Swords,
-    Crown,
-    Medal,
-    Layers3,
     Sparkles,
     BookOpen,
-    Handshake,
   } from "lucide-react";
 import { api } from "@/lib/api";
 import { downloadTranscript, copyTranscript, copyToClipboard } from "@/lib/exportTranscript";
@@ -45,20 +37,15 @@ const PentagramChart = dynamic(() => import("@/components/results/PentagramChart
 const EmotionTimeline = dynamic(() => import("@/components/results/EmotionTimeline"), {
   loading: () => <Skeleton height={200} width="100%" rounded="12px" />, ssr: false,
 });
-import TrapResults from "@/components/results/TrapResults";
 import SoftSkillsCard from "@/components/results/SoftSkillsCard";
-import ClientReveal from "@/components/results/ClientReveal";
-import { LinkClientButton } from "@/components/training/LinkClientButton";
 import AIRecommendations from "@/components/results/AIRecommendations";
 import CheckpointProgress from "@/components/results/CheckpointProgress";
 import StageBreakdown from "@/components/results/StageBreakdown";
-import ScriptProgressReport from "@/components/results/ScriptProgressReport";
 import AICoachSection from "@/components/results/AICoachSection";
 import ScoreLayersBreakdown from "@/components/results/ScoreLayersBreakdown";
 import JudgeVerdictCard from "@/components/results/JudgeVerdictCard";
 import MistakesBreakdown from "@/components/results/MistakesBreakdown";
 import ReplayModal from "@/components/results/ReplayModal";
-import { PostSessionVerdict } from "@/components/results/PostSessionVerdict";
 import CallDroppedCard, { type CallDroppedReason } from "@/components/results/CallDroppedCard";
 import { BackButton } from "@/components/ui/BackButton";
 import { Button } from "@/components/ui/Button";
@@ -85,7 +72,7 @@ function emotionLabelRu(state: string): string {
 }
 
 function getScoreColor(score: number): string {
-  return score >= 70 ? "var(--success)" : score >= 40 ? "var(--gf-xp)" : "var(--danger)";
+  return score >= 70 ? "var(--success)" : score >= 40 ? "var(--warning)" : "var(--danger)";
 }
 
 export default function ResultsPage() {
@@ -94,13 +81,9 @@ export default function ResultsPage() {
   const [result, setResult] = useState<SessionResultResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [repeating, setRepeating] = useState(false);
-  const [showVerdict, setShowVerdict] = useState(true);
   const [copied, setCopied] = useState(false);
   const [transcriptCopied, setTranscriptCopied] = useState(false);
-  const [, setAchievement] = useState<{ id: string; title: string; description: string; icon?: string } | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [addedToCRM, setAddedToCRM] = useState(false);
-  const [createdClientId, setCreatedClientId] = useState<string | null>(null);
 
   // Replay Mode state
   const [replayMessage, setReplayMessage] = useState<{ msg: ChatMessage; index: number } | null>(null);
@@ -159,19 +142,10 @@ export default function ResultsPage() {
           if (isFirst) setLoading(false);
           if (isFullyScored(data) || attempts >= MAX_ATTEMPTS - 1) {
             setProcessing(false);
-            // Trigger achievement toast based on score (only once, when
-            // we know the score is final).
-            const score = data?.session?.score_total;
-            if (score !== null && score !== undefined) {
-              if (score >= 90) {
-                setTimeout(() => setAchievement({ id: "ace", title: "Ас переговоров", description: "Набрано 90+ баллов за сессию", icon: "🏆" }), 1500);
-                setTimeout(() => {
-                  window.dispatchEvent(new CustomEvent("gamification", { detail: { type: "perfect-score", score } }));
-                }, 800);
-              } else if (score >= 70) {
-                setTimeout(() => setAchievement({ id: "good", title: "Уверенный старт", description: "Набрано 70+ баллов за сессию", icon: "⭐" }), 1500);
-              }
-            }
+            // P1 (training-rework): score-based achievement toasts +
+            // the "gamification" perfect-score event were removed —
+            // дегеймификация. Результат показывается спокойной сводкой,
+            // без ачивок/тостов/конфетти.
             return;
           }
           attempts += 1;
@@ -249,7 +223,6 @@ export default function ResultsPage() {
   }
 
   const { session, messages } = result;
-  const story = result.story;
   const totalScore = session.score_total ?? 0;
   const hasScores = session.score_total !== null;
   const totalScoreColor = getScoreColor(totalScore);
@@ -282,11 +255,11 @@ export default function ResultsPage() {
   // Product owner approved consolidation to the 5-axis canonical set;
   // the 10-axis `_skill_radar` is no longer rendered as a pentagram.
   const scoreItems = [
-    { label: "Скрипт", value: session.score_script_adherence ?? 0, max: 30 },
-    { label: "Возражения", value: session.score_objection_handling ?? 0, max: 25 },
-    { label: "Коммуникация", value: session.score_communication ?? 0, max: 20 },
-    { label: "Антипаттерны", value: Math.max(0, 15 + (session.score_anti_patterns ?? 0)), max: 15 },
-    { label: "Результат", value: session.score_result ?? 0, max: 10 },
+    { label: "Полнота выяснения обстоятельств", value: session.score_script_adherence ?? 0, max: 18 },
+    { label: "Правовая точность ФЗ-127", value: session.score_legal ?? 0, max: 25 },
+    { label: "Корректность рекомендации", value: session.score_result ?? 0, max: 18 },
+    { label: "Отработка сомнений и страхов", value: session.score_objection_handling ?? 0, max: 12 },
+    { label: "Этические нарушения", value: Math.max(0, 15 + (session.score_anti_patterns ?? 0)), max: 15 },
   ];
 
   // Phase C: previous-session overlay extracted from `score_breakdown`
@@ -296,12 +269,13 @@ export default function ResultsPage() {
     ? [
         // _skill_radar from history may still carry older wider sets;
         // we map the 5 canonical axes from whatever's present, falling
-        // back to 0 silently.
+        // back to 0 silently. Order must match `scoreItems` above:
+        // Полнота / Правовая точность / Корректность / Сомнения / Этич.нарушения.
         Math.min(100, Math.max(0, (previousSkillRadar.script_adherence ?? 0))),
-        Math.min(100, Math.max(0, (previousSkillRadar.objection_handling ?? 0))),
-        Math.min(100, Math.max(0, (previousSkillRadar.communication ?? 0))),
-        Math.min(100, Math.max(0, (previousSkillRadar.anti_patterns ?? 0))),
+        Math.min(100, Math.max(0, (previousSkillRadar.legal ?? 0))),
         Math.min(100, Math.max(0, (previousSkillRadar.result ?? 0))),
+        Math.min(100, Math.max(0, (previousSkillRadar.objection_handling ?? 0))),
+        Math.min(100, Math.max(0, (previousSkillRadar.anti_patterns ?? 0))),
       ]
     : undefined;
 
@@ -377,17 +351,37 @@ export default function ResultsPage() {
         </div>
       )}
 
-      {/* Score verdict overlay — shows first, then fades into full report.
-          Skipped for error outcomes (CallDroppedCard owns the screen). */}
-      {!isCallDropped && showVerdict && hasScores && (
-        <PostSessionVerdict
-          score={totalScore}
-          xpGained={result.xp_breakdown?.grand_total ?? result.xp_breakdown?.session_total ?? 0}
-          onContinue={() => setShowVerdict(false)}
-        />
-      )}
+      <div className="app-page flex flex-col min-h-screen" style={{ display: isCallDropped ? "none" : undefined }}>
+        {/* Спокойная сводка вместо драматичного полноэкранного оверлея.
+            Тон — нейтральный редакторский (как CallDroppedCard): итог
+            одной-двумя строками, без капса/конфетти/звука/glitch.
+            Показывается только когда есть итоговый балл. */}
+        {!isCallDropped && hasScores && (
+          <div
+            className="mt-3 mb-2 rounded-2xl border px-5 py-4"
+            style={{
+              background: "var(--bg-secondary)",
+              borderColor: "var(--border-color)",
+            }}
+          >
+            <div className="font-mono text-xs tracking-widest" style={{ color: "var(--text-muted)" }}>
+              Сессия завершена
+            </div>
+            <div className="mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+              <span className="text-lg" style={{ color: "var(--text-primary)" }}>
+                Итог: {Math.round(totalScore)} из 100
+              </span>
+              <span className="text-sm" style={{ color: "var(--text-secondary)" }}>
+                {totalScore >= 70
+                  ? "Разговор проведён уверенно. Ниже — разбор по навыкам и динамика клиента."
+                  : totalScore >= 40
+                  ? "Есть над чем поработать. Ниже — разбор сильных и слабых мест."
+                  : "Разговор дался непросто. Ниже — разбор ошибок и рекомендации, что подтянуть."}
+              </span>
+            </div>
+          </div>
+        )}
 
-      <div className="app-page flex flex-col min-h-screen" style={{ display: isCallDropped || (showVerdict && hasScores) ? "none" : undefined }}>
         <Breadcrumb items={[{ label: "История", href: "/history" }, { label: "Результат" }]} />
         <BackButton href="/training" label="К тренировкам" />
 
@@ -474,14 +468,6 @@ export default function ResultsPage() {
                   </div>
                 </div>
               )}
-              {story && (
-                <span
-                  className="flex items-center gap-2 rounded-lg px-4 py-3 font-mono text-xs tracking-widest backdrop-blur"
-                  style={{ background: "var(--accent-muted)", border: "1px solid var(--accent-glow)", color: "var(--accent)" }}
-                >
-                  <Layers3 size={14} /> ИСТОРИЯ CRM
-                </span>
-              )}
               <Link href="/training">
                 <motion.span
                   className="flex items-center gap-2 rounded-lg px-6 py-3 font-mono text-xs tracking-widest transition-colors backdrop-blur"
@@ -494,81 +480,6 @@ export default function ResultsPage() {
               </Link>
             </div>
           </div>
-
-          {/* CRM CTA row — независимая от score, видна всегда. */}
-          {(() => {
-            const realClientId = (session as unknown as { real_client_id?: string | null }).real_client_id;
-            // Если сессия уже привязана к существующему клиенту в CRM —
-            // показываем «Перейти к клиенту». Иначе — «Добавить в CRM»
-            // создаёт новую CRM-карточку из данных тренировки.
-            const linkedClientId = realClientId || createdClientId;
-            return (
-              <div className="flex flex-wrap items-center gap-3 rounded-2xl border p-4"
-                style={{
-                  background: linkedClientId || addedToCRM
-                    ? "rgba(61,220,132,0.06)"
-                    : "var(--accent-muted)",
-                  borderColor: linkedClientId || addedToCRM
-                    ? "rgba(61,220,132,0.3)"
-                    : "var(--accent)",
-                }}
-              >
-                <Users size={18} style={{
-                  color: linkedClientId || addedToCRM ? "var(--success)" : "var(--accent)",
-                  flexShrink: 0,
-                }} />
-                <div className="flex-1 min-w-[200px]">
-                  <div className="font-mono text-xs uppercase tracking-widest mb-1"
-                    style={{ color: linkedClientId || addedToCRM ? "var(--success)" : "var(--accent)" }}
-                  >
-                    {linkedClientId || addedToCRM ? "Клиент в CRM" : "CRM-карточка"}
-                  </div>
-                  <div className="text-sm" style={{ color: "var(--text-secondary)" }}>
-                    {linkedClientId || addedToCRM
-                      ? "Этот разговор записан в карточку клиента — история звонков, обещания, факты подтянутся."
-                      : "Сохраните клиента из этой тренировки в CRM с реальными данными (долг, кредиторы, архетип)."}
-                  </div>
-                </div>
-                {!linkedClientId && !addedToCRM && (
-                  <motion.button
-                    onClick={async () => {
-                      if (addedToCRM) return;
-                      try {
-                        const res = await api.post<{ id: string }>(
-                          `/clients/from-session/${session.id}`,
-                          {},
-                        );
-                        setAddedToCRM(true);
-                        setCreatedClientId(res.id);
-                      } catch {
-                        // Idempotent on backend — silently ignore.
-                      }
-                    }}
-                    className="inline-flex items-center justify-center gap-2 font-bold tracking-wide uppercase rounded-xl px-4 py-2.5 text-xs transition-all"
-                    style={{
-                      background: "var(--accent)",
-                      color: "white",
-                      border: "1px solid var(--accent)",
-                    }}
-                    whileTap={{ scale: 0.97 }}
-                    whileHover={{ background: "var(--accent-glow)" }}
-                  >
-                    <Users size={14} />
-                    Добавить в CRM
-                  </motion.button>
-                )}
-                {(linkedClientId || addedToCRM) && (
-                  <Button
-                    href={linkedClientId ? `/clients/${linkedClientId}` : "/clients"}
-                    size="sm"
-                    iconRight={<ArrowRight size={14} />}
-                  >
-                    {linkedClientId ? "Открыть карточку" : "Открыть CRM"}
-                  </Button>
-                )}
-              </div>
-            );
-          })()}
         </motion.header>
 
         {/*
@@ -586,38 +497,10 @@ export default function ResultsPage() {
           L1-L10 / weak-legal sections).
         */}
 
-        {/* XP Rewards banner */}
-        {result.xp_breakdown && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ delay: 0.15 }}
-            className="mb-8 glass-panel rounded-2xl p-5 flex flex-wrap items-center justify-between gap-4"
-          >
-            <div className="flex items-center gap-6">
-              <div className="flex items-center gap-2">
-                <Zap size={20} style={{ color: "var(--warning)" }} />
-                <span className="font-display font-bold text-xl" style={{ color: "var(--warning)" }}>
-                  +{result.xp_breakdown.grand_total ?? result.xp_breakdown.session_total ?? 0} XP
-                </span>
-              </div>
-              {result.level_up && (
-                <div className="flex items-center gap-2 rounded-xl px-3 py-1.5" style={{ background: "rgba(61,220,132,0.1)", border: "1px solid rgba(61,220,132,0.3)" }}>
-                  <Trophy size={16} style={{ color: "var(--success)" }} />
-                  <span className="font-display font-bold text-sm" style={{ color: "var(--success)" }}>
-                    Уровень {result.new_level}!
-                  </span>
-                </div>
-              )}
-            </div>
-            <div className="flex items-center gap-4 text-sm font-mono" style={{ color: "var(--text-muted)" }}>
-              {result.xp_breakdown.base && <span>База: +{result.xp_breakdown.base}</span>}
-              {result.xp_breakdown.score_bonus > 0 && <span>За баллы: +{result.xp_breakdown.score_bonus}</span>}
-              {result.xp_breakdown.streak_bonus > 0 && <span>Стрик: +{result.xp_breakdown.streak_bonus}</span>}
-              {result.xp_breakdown.achievements > 0 && <span>Ачивки: +{result.xp_breakdown.achievements}</span>}
-            </div>
-          </motion.div>
-        )}
+        {/* P1 (training-rework): XP Rewards banner (+N XP, level_up,
+            base/score/streak/achievements breakdown) удалён —
+            дегеймификация по решению заказчика. XP больше не
+            начисляется/показывается; таблицы xp_* остаются спящими. */}
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 flex-1">
           {/* LEFT: Pentagram */}
@@ -868,78 +751,9 @@ export default function ResultsPage() {
           </div>
         </motion.div>
 
-        {story && (
-          <motion.div
-            initial={{ opacity: 0, y: 14 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.15 }}
-            className="glass-panel mt-2 p-6 rounded-2xl"
-          >
-            <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-              <div>
-                <div className="flex items-center gap-2">
-                  <Sparkles size={16} style={{ color: "var(--accent)" }} />
-                  <span className="font-mono text-sm uppercase tracking-widest" style={{ color: "var(--accent)" }}>
-                    История клиента
-                  </span>
-                </div>
-                <h2 className="mt-2 font-display text-2xl font-bold" style={{ color: "var(--text-primary)" }}>
-                  {story.story_name}
-                </h2>
-                <p className="mt-2 text-sm" style={{ color: "var(--text-secondary)" }}>
-                  Звонок {session.call_number_in_story ?? story.current_call_number} из {story.total_calls_planned}. Эта сессия входит в одну общую историю клиента, а не является изолированным разговором.
-                </p>
-              </div>
-              <div className="grid grid-cols-2 gap-3 md:min-w-[320px]">
-                {[
-                  { label: "Средний балл story", value: story.avg_score !== null ? Math.round(story.avg_score) : "—" },
-                  { label: "Статус клиента", value: story.game_status },
-                  { label: "Факторы", value: story.active_factors.length },
-                  { label: "Последствия", value: story.consequences.length },
-                ].map((item) => (
-                  <div key={item.label} className="rounded-xl p-3" style={{ background: "var(--input-bg)" }}>
-                    <div className="font-mono text-xs uppercase tracking-widest" style={{ color: "var(--text-muted)" }}>
-                      {item.label}
-                    </div>
-                    <div className="mt-1 text-lg font-semibold" style={{ color: "var(--text-primary)" }}>
-                      {item.value}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {result.story_calls.length > 0 && (
-              <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-                {result.story_calls.map((call) => (
-                  <div key={call.session_id} className="rounded-xl p-4" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid var(--border-color)" }}>
-                    <div className="flex items-center justify-between">
-                      <span className="font-mono text-xs uppercase tracking-widest" style={{ color: "var(--accent)" }}>
-                        Call {call.call_number}
-                      </span>
-                      <span className="text-xs" style={{ color: "var(--text-muted)" }}>
-                        {call.status}
-                      </span>
-                    </div>
-                      <div className="mt-3 text-2xl font-bold" style={{ color: call.score_total !== null ? getScoreColor(call.score_total) : "var(--text-muted)" }}>
-                      {call.score_total !== null ? Math.round(call.score_total) : "—"}
-                    </div>
-                    <div className="mt-2 text-xs" style={{ color: "var(--text-muted)" }}>
-                      {formatDuration(call.duration_seconds)}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </motion.div>
-        )}
-
-        {/* Trap Results */}
-        {result.trap_results && result.trap_results.length > 0 && (
-          <div className="mt-8">
-            <TrapResults traps={result.trap_results} />
-          </div>
-        )}
+        {/* Story-mode panel removed (customer decision #3, 2026-06-04):
+            «История клиента / Звонок N из M / последствия» surface is cut
+            front-and-back. The backend no longer projects story/story_calls. */}
 
         {/* Soft Skills */}
         {result.soft_skills && (
@@ -1008,50 +822,9 @@ export default function ResultsPage() {
           </motion.div>
         )}
 
-        {/* 3.2: Promise fulfillment from CRM story */}
-        {result.promise_fulfillment && result.promise_fulfillment.length > 0 && (
-          <motion.div
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.38 }}
-            className="glass-panel mt-6 p-5"
-          >
-            <div className="flex items-center gap-2 mb-3">
-              <Handshake size={14} style={{ color: "var(--accent)" }} />
-              <span className="font-mono text-xs uppercase tracking-widest" style={{ color: "var(--accent)" }}>ВЫПОЛНЕНИЕ ОБЕЩАНИЙ</span>
-            </div>
-            <div className="space-y-2">
-              {result.promise_fulfillment.map((p: { text: string; call_number: number; fulfilled: boolean; impact: string }, i: number) => (
-                <div
-                  key={i}
-                  className="flex items-center gap-3 rounded-lg p-2.5"
-                  style={{
-                    background: p.fulfilled ? "var(--success-muted)" : "var(--danger-muted)",
-                    border: `1px solid ${p.fulfilled ? "var(--success-muted)" : "var(--danger-muted)"}`,
-                  }}
-                >
-                  {p.fulfilled ? (
-                    <CheckCircle size={14} style={{ color: "var(--success)" }} />
-                  ) : (
-                    <AlertCircle size={14} style={{ color: "var(--danger)" }} />
-                  )}
-                  <div className="flex-1">
-                    <span className="text-xs" style={{ color: "var(--text-primary)" }}>{p.text}</span>
-                    <span className="ml-2 font-mono text-xs" style={{ color: "var(--text-muted)" }}>
-                      Звонок #{p.call_number}
-                    </span>
-                  </div>
-                  <span className={`stat-chip ${p.fulfilled ? "" : "neon-pulse"}`} style={{
-                    color: p.fulfilled ? "var(--success)" : "var(--danger)",
-                    fontSize: "14px",
-                  }}>
-                    {p.fulfilled ? "+0.5" : "−1.0"}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </motion.div>
-        )}
+        {/* Promise-fulfillment panel removed (customer decision #3,
+            2026-06-04): it was a CRM-story «выполнение обещаний» surface tied
+            to story-mode. Cut front-and-back; backend no longer projects it. */}
 
         {/* Score bars */}
         {hasScores && (
@@ -1067,7 +840,7 @@ export default function ResultsPage() {
             <div className="space-y-4">
               {scoreItems.map((item, i) => {
                 const pct = item.max > 0 ? (item.value / item.max) * 100 : 0;
-                const barColor = pct >= 70 ? "var(--success)" : pct >= 40 ? "var(--gf-xp)" : "var(--danger)";
+                const barColor = pct >= 70 ? "var(--success)" : pct >= 40 ? "var(--warning)" : "var(--danger)";
                 return (
                   <motion.div key={item.label} initial={{ opacity: 0, x: -16 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.5 + i * 0.1 }}>
                     <div className="flex items-center justify-between mb-1.5">
@@ -1112,13 +885,6 @@ export default function ResultsPage() {
           </div>
         )}
 
-        {/* Educational script progress report (Sprint 4) */}
-        {stageProgress && (
-          <div className="mt-6">
-            <ScriptProgressReport stageProgress={stageProgress} />
-          </div>
-        )}
-
         {/* AI-Coach Section (expanded analysis with citations) */}
         <div className="mt-6">
           <AICoachSection
@@ -1144,43 +910,6 @@ export default function ResultsPage() {
           </div>
         )}
 
-
-        {/* Client Reveal — hidden data revealed post-session */}
-        {result.client_card && (
-          <div className="mt-6">
-            <ClientReveal clientCard={result.client_card} />
-          </div>
-        )}
-
-        {/* BUG-FIX 2026-05-05 (CRM-binding): post-hoc link UI for orphan
-            sessions. User feedback: «зашёл на результаты — нет «привязать
-            к CRM», тренировка остаётся вне CRM-карточки и не подтягивает
-            cross-session память на следующих звонках». LinkClientButton
-            already exists for the in-training UI (chat page); reusing it
-            here gives /results parity. Self-hides when the session is
-            already linked to a CRM client (LinkClientButton renders the
-            chip-only view in that case). */}
-        {(() => {
-          const sessLoose = session as unknown as {
-            id: string;
-            real_client_id?: string | null;
-          };
-          const initial = sessLoose.real_client_id && result.client_card
-            ? {
-                id: sessLoose.real_client_id,
-                full_name: (result.client_card as { name?: string }).name || "Клиент CRM",
-              }
-            : null;
-          return (
-            <div className="mt-4 flex items-center justify-end">
-              <LinkClientButton
-                sessionId={sessLoose.id}
-                initialLinkedClient={initial}
-                variant="chat"
-              />
-            </div>
-          );
-        })()}
 
         {/* Transcript moved up (after MistakesBreakdown) per 2026-05-11
             redesign-B — это центральный артефакт сессии, должен быть на
@@ -1304,7 +1033,7 @@ export default function ResultsPage() {
                 {isLegacySession && canRetrain && (
                   <span
                     className="text-[10px] flex items-center gap-1"
-                    style={{ color: "var(--gf-xp)" }}
+                    style={{ color: "var(--warning)" }}
                     title="Это старая сессия из времён до обновления CRM-привязки — клиент сгенерируется случайно и может отличаться от оригинального."
                   >
                     <AlertTriangle size={10} />

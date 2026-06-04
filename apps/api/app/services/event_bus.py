@@ -572,8 +572,16 @@ async def _handle_notification(event: GameEvent) -> None:
 async def _handle_home_session_to_crm(event: GameEvent) -> None:
     """Auto-create a ClientStory for single-call sessions from /home.
 
-    This makes home sessions appear in the Game CRM kanban board.
+    DISABLED (2026-06-04 training-flow rework). Story-mode is removed: this
+    handler is no longer registered in ``setup_default_handlers`` and this
+    early return makes any stray direct call a no-op. Kept (not deleted)
+    because the ``client_stories`` table it writes to has a high inbound-FK
+    fan-out (training_session, story_calls, story_reports, game_crm_*,
+    persona_snapshots) — dropping the table is out of scope and risky, so we
+    cut the write path and leave the schema dormant. Body preserved below
+    for audit / potential revival.
     """
+    return
     try:
         db = event.db
         session_id = event.payload.get("session_id")
@@ -708,9 +716,13 @@ def setup_default_handlers() -> None:
     event_bus.on(EVENT_LEVEL_UP, _handle_notification)
     event_bus.on(EVENT_STREAK_UPDATED, _handle_notification)
 
-
-    # Home sessions → auto-create ClientStory for CRM kanban
-    event_bus.on(EVENT_TRAINING_COMPLETED, _handle_home_session_to_crm)
+    # Story-mode disabled by the 2026-06-04 training-flow rework. The
+    # auto-spawner that turned every /home session into a multi-call
+    # ``ClientStory`` (CRM kanban game) is no longer registered, so no new
+    # story arcs are created. The ``client_stories`` table and its readers
+    # stay in place (high FK fan-out — see _handle_home_session_to_crm) but
+    # the write path is cut. Re-enable here only if story-mode returns.
+    #   event_bus.on(EVENT_TRAINING_COMPLETED, _handle_home_session_to_crm)
 
     logger.info("EventBus: registered %d default handlers", sum(
         len(h) for h in event_bus._handlers.values()

@@ -258,50 +258,16 @@ class ManagerProgressService:
         # 3. Проверить достижения
         new_achievements = await self._check_achievements(profile, session_result, adaptive_data)
 
-        # Добавить XP за достижения
-        achievement_xp = sum(a.xp_bonus for a in new_achievements)
-        xp_breakdown.achievements = achievement_xp
-        xp_breakdown.grand_total = xp_breakdown.session_total + achievement_xp
+        # XP — disabled by the 2026-06-04 training-flow rework. Achievements
+        # are still recorded (they are not XP), but they no longer grant XP,
+        # and we no longer write XPLog audit rows, run the daily cap, or
+        # increment ``profile.total_xp`` / ``profile.current_xp``. The xp_*
+        # tables stay dormant (no migration). ``xp_breakdown`` stays the
+        # all-zero shape from ``calculate_xp`` so the response schema and the
+        # frontend keep their expected fields.
+        xp_breakdown.achievements = 0
+        xp_breakdown.grand_total = 0
 
-        # 3b. Write XPLog entry for audit trail
-        try:
-            from app.models.xp_log import XPLog, SP_RATES
-            xp_log = XPLog(
-                user_id=user_id,
-                source="training_session",
-                amount=xp_breakdown.session_total,
-                multiplier=1.0,
-                season_points=SP_RATES.get("training_session", 10),
-            )
-            self._db.add(xp_log)
-            if achievement_xp > 0:
-                ach_xp_log = XPLog(
-                    user_id=user_id,
-                    source="achievement",
-                    amount=achievement_xp,
-                    multiplier=1.0,
-                    season_points=SP_RATES.get("achievement", 10),
-                )
-                self._db.add(ach_xp_log)
-        except Exception:
-            logger.warning("Failed to write XPLog for user %s", user_id, exc_info=True)
-
-        # 4. Apply daily soft cap (S3-02) then update profile
-        try:
-            from app.services.xp_daily_cap import apply_daily_cap
-            # Session XP goes through cap; achievement XP is exempt
-            capped_session_xp = await apply_daily_cap(
-                user_id, xp_breakdown.session_total, source="training_session",
-            )
-            capped_achievement_xp = await apply_daily_cap(
-                user_id, achievement_xp, source="achievement",
-            )
-            xp_breakdown.grand_total = capped_session_xp + capped_achievement_xp
-        except Exception:
-            logger.warning("Daily XP cap unavailable, using full XP", exc_info=True)
-
-        profile.total_xp += xp_breakdown.grand_total
-        profile.current_xp += xp_breakdown.grand_total
         profile.total_sessions += 1
         profile.total_hours = float(profile.total_hours) + session_result.duration_seconds / 3600.0
 
@@ -359,45 +325,29 @@ class ManagerProgressService:
         result: SessionHistory,
         adaptive_data: dict[str, Any] | None = None,
     ) -> XPBreakdown:
-        """Рассчитывает XP за сессию (cap: 200 без достижений)."""
-        xp = XPBreakdown()
+        """XP award — disabled by the 2026-06-04 training-flow rework.
 
-        # Базовый XP = score
-        xp.base = result.score_total
+        The product is a calm legal-consultation trainer, not a gamified
+        sales simulator: XP / levels / streaks are no longer accrued, sent,
+        or displayed. We return an all-zero ``XPBreakdown`` so the shape the
+        schema and frontend expect stays intact (no KeyError / None blow-ups
+        downstream — callers read ``xp_breakdown.grand_total`` etc.), but no
+        XP is ever earned. The ``xp_*`` tables are intentionally left
+        dormant (no migration); this just stops feeding them.
 
-        # Бонус за сложность
-        xp.difficulty = result.difficulty * 5
-
-        # Бонус за результат
-        outcome_bonuses = {"deal": 30, "callback": 15, "hangup": 0, "hostile": 0, "timeout": 0}
-        xp.outcome = outcome_bonuses.get(result.outcome, 0)
-
-        # Бонус за ловушки
-        trap_bonus = result.traps_dodged * 5
-        trap_penalty = result.traps_fell * 2
-        xp.traps = max(0, trap_bonus - trap_penalty)
-
-        # Бонус за цепочку
-        xp.chain = 20 if result.chain_completed else 0
-
-        # Бонус за камбэк
-        had_comeback = adaptive_data.get("had_comeback", False) if adaptive_data else result.had_comeback
-        xp.comeback = 15 if had_comeback else 0
-
-        # Бонус за время
-        duration_min = result.duration_seconds / 60.0
-        if 5 <= duration_min <= 12:
-            xp.time = 10
-        elif 3 <= duration_min < 5:
-            xp.time = 5
-        else:
-            xp.time = 0
-
-        raw = xp.base + xp.difficulty + xp.outcome + xp.traps + xp.chain + xp.comeback + xp.time
-        xp.session_total = min(XP_CAP_PER_SESSION, raw)
-        xp.grand_total = xp.session_total  # achievements added later
-
-        return xp
+        The historical scoring formula is preserved in the comment below for
+        audit / potential revival, but is no longer executed.
+        """
+        # Historical formula (disabled — kept for reference):
+        #   xp.base       = result.score_total
+        #   xp.difficulty = result.difficulty * 5
+        #   xp.outcome    = {"deal":30,"callback":15,...}.get(result.outcome,0)
+        #   xp.traps      = max(0, traps_dodged*5 - traps_fell*2)
+        #   xp.chain      = 20 if chain_completed else 0
+        #   xp.comeback   = 15 if had_comeback else 0
+        #   xp.time       = duration-bucket bonus
+        #   xp.session_total = min(XP_CAP_PER_SESSION, sum(...))
+        return XPBreakdown()
 
     # ── Расчёт навыков ──
 
@@ -849,7 +799,17 @@ class ManagerProgressService:
             "qualification": self._calc_qualification(sessions),
             # 4 additional v5 skills — derived from per-session skill_radar
             "time_management": self._calc_from_radar(sessions, "time_management"),
-            "adaptation": self._calc_from_radar(sessions, "adaptation"),
+            # P3 (training-rework): the L11 "adaptation" axis (sales archetypes)
+            # is dead after de-gamification — scoring.skill_radar no longer emits
+            # the key, so _calc_from_radar(sessions, "adaptation") would return
+            # None for every session and freeze skill_adaptation at its default
+            # 50, surfacing a fictitious skill in weekly_report / rop_export.
+            # We keep the SKILL_NAMES key (storage/migration invariant — do NOT
+            # drop the column) but feed it a LIVE neutral signal: mirror the
+            # "rapport_building" radar axis («Гибкость подхода / Контакт»), which
+            # is the closest surviving behavioural axis. This keeps the skill
+            # tracking reality instead of pinning it to a stale default.
+            "adaptation": self._calc_from_radar(sessions, "rapport_building"),
             "legal_knowledge": self._calc_from_radar(sessions, "legal_knowledge"),
             "rapport_building": self._calc_from_radar(sessions, "rapport_building"),
         }

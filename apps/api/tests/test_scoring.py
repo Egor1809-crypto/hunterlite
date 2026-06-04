@@ -126,13 +126,21 @@ class TestScoreBreakdown:
         )
         assert bd.total == 100.0
 
-    def test_skill_radar_returns_six_skills(self, breakdown):
+    def test_skill_radar_returns_legal_axes(self, breakdown):
+        # P3 (training-rework): the radar moved from the sales pentagram to
+        # the legal-consultation axes. L7 (traps) and L9 (narrative) are dead
+        # after de-gamification, so their weight was folded into the live
+        # axes; the L11 "adaptation" axis (sales archetypes) was dropped
+        # entirely (a 0-pinned axis misreads as a real weakness).
         radar = breakdown.skill_radar
         expected_keys = {
             "empathy", "knowledge", "objection_handling",
             "stress_resistance", "closing", "qualification",
+            "time_management", "legal_knowledge", "rapport_building",
         }
         assert set(radar.keys()) == expected_keys
+        # "adaptation" (L11 sales archetypes) must be gone.
+        assert "adaptation" not in radar
 
     def test_skill_radar_values_in_range(self, breakdown):
         for skill, value in breakdown.skill_radar.items():
@@ -147,12 +155,14 @@ class TestObjectionHandling:
     """L2: Objection handling scoring."""
 
     def test_no_objections_full_score(self):
-        """If no objections raised, user gets full marks."""
+        """If no objections raised, user gets half credit (easy scenario)."""
+        from app.services.scoring import L2_MAX
         score, details = _score_objection_handling(
             user_messages=["Здравствуйте, расскажу о нашем предложении"],
             assistant_messages=["Здравствуйте, слушаю вас"],
         )
-        assert score == pytest.approx(18.75)
+        # P3 reweight: L2_MAX=12; "no objections" → half credit = 6.0.
+        assert score == pytest.approx(L2_MAX * 0.5)
 
     def test_objection_with_full_handling(self):
         """User acknowledges, clarifies, argues, and checks."""
@@ -171,12 +181,17 @@ class TestObjectionHandling:
         assert details["checked"] is True
 
     def test_objection_no_handling(self):
-        """Objection raised but user doesn't handle it properly."""
+        """Objection raised but user doesn't handle it properly.
+
+        BUG-10 semantics: ``heard`` now requires an ACKNOWLEDGE pattern (not a
+        mere clarifying question). A bare brush-off acknowledges nothing, so
+        both ``heard`` and ``acknowledged`` are False.
+        """
         assistant_msgs = ["Не уверен, что мне это нужно"]
         user_msgs = ["Ну ладно, до свидания"]
         score, details = _score_objection_handling(user_msgs, assistant_msgs)
-        # Only "heard" should be true
-        assert details["heard"] is True
+        # No acknowledgement → neither heard nor acknowledged.
+        assert details["heard"] is False
         assert details["acknowledged"] is False
 
 
@@ -220,28 +235,57 @@ class TestCommunication:
 # ---------------------------------------------------------------------------
 
 class TestResultScoring:
-    """L5: Result/outcome scoring."""
+    """L5: «Корректность рекомендации» — graded from the CONSULTANT's turns.
+
+    P3 (training-rework): L5 no longer rewards a cold-sales "client agreed /
+    meeting scheduled" outcome. It grades whether the trainee recommended the
+    correct procedural path under ФЗ-127 (реструктуризация / реализация,
+    grounded in income/assets, with a good-faith caveat) and gave a concrete
+    lawful next step. The layer reads ``user_messages`` (the consultant), not
+    the AI debtor's replies.
+    """
 
     def test_no_messages(self):
         score, details = _score_result([], [])
         assert score == 0.0
 
-    def test_agreement_detected(self):
-        assistant_msgs = ["Ладно, давайте попробуем"]
-        score, details = _score_result(assistant_msgs, [])
-        assert details["consultation_agreed"] is True
+    def test_path_recommended_and_grounded(self):
+        # Consultant names a procedure AND grounds it in the debtor's situation.
+        user_msgs = [
+            "Исходя из вашей ситуации подойдёт реструктуризация долгов — "
+            "составим план погашения на три года.",
+        ]
+        score, details = _score_result(user_msgs, [])
+        assert details["path_recommended"] is True
+        assert details["path_grounded_in_situation"] is True
         assert score > 0
 
-    def test_meeting_scheduled(self):
-        assistant_msgs = ["Давайте в понедельник в 10:00"]
-        score, details = _score_result(assistant_msgs, [])
-        assert details["meeting_scheduled"] is True
+    def test_good_faith_caveat_adds_credit(self):
+        user_msgs = [
+            "Подойдёт реструктуризация долгов, исходя из вашей ситуации, "
+            "но только при условии добросовестности — нельзя скрывать сделки.",
+        ]
+        score, details = _score_result(user_msgs, [])
+        assert details["good_faith_caveat"] is True
+        # procedure + grounding (4.0) + good_faith (+1.0) = 5.0 raw before rescale
+        assert details["path_score"] == pytest.approx(5.0)
 
-    def test_positive_final_emotion(self):
-        assistant_msgs = ["Согласен, интересно"]
-        timeline = [{"state": "cold"}, {"state": "curious"}, {"state": "deal"}]
-        score, details = _score_result(assistant_msgs, timeline)
-        assert details.get("ended_positive") is True
+    def test_next_step_given(self):
+        user_msgs = [
+            "Следующий шаг — подготовить документы и подать заявление в суд.",
+        ]
+        score, details = _score_result(user_msgs, [])
+        assert details["next_step_given"] is True
+        assert score > 0
+
+    def test_no_recommendation_no_credit(self):
+        # The debtor's "ладно, давайте" must NOT earn L5 credit any more —
+        # the layer reads the consultant's turns, and there is no path here.
+        user_msgs = ["Ну ладно, давайте попробуем что-нибудь"]
+        score, details = _score_result(user_msgs, [])
+        assert details["path_recommended"] is False
+        assert details["next_step_given"] is False
+        assert score == 0.0
 
 
 # ---------------------------------------------------------------------------
@@ -271,7 +315,8 @@ class TestHumanFactor:
             {"state": "hostile"},
         ]
         score, details = _score_human_factor(user_msgs, assistant_msgs, timeline)
-        assert details["patience_score"] >= 4.0
+        # S3-07: sub-scores are stored normalized to [0, 1] (raw 5.0 → 1.0).
+        assert details["patience_score"] >= 0.8
 
     def test_aggressive_response_penalized(self):
         user_msgs = ["Да вы что, хватит кричать!"]

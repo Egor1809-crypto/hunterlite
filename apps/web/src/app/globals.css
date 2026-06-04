@@ -1428,6 +1428,40 @@ html.light main [role="button"] {
   .glow-text-purple { color: var(--ocean); }
   .glow-text-green  { color: var(--success); }
   .glow-text-magenta { color: var(--primary); }
+
+  /* ── btn-neon (calm, token-based) ───────────────────────────
+     Legacy class name kept for back-compat (still referenced by a
+     handful of training/results buttons). No neon, no hard pixel
+     shadow — recoloured to the same calm editorial token palette as
+     .vh-btn-primary. Single accent (--primary), soft token shadow. */
+  .btn-neon {
+    display: inline-flex; align-items: center; justify-content: center;
+    font-weight: 600; color: #fff;
+    padding: 12px 24px;
+    border: 1px solid transparent;
+    border-radius: var(--radius-md);
+    background: var(--primary);
+    box-shadow: var(--shadow-sm);
+    transition: background 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
+    font-size: var(--fs-sm);
+    cursor: pointer;
+  }
+  .btn-neon:hover:not(:disabled) {
+    background: var(--primary-hover);
+    box-shadow: var(--shadow-md);
+    transform: translateY(-1px);
+  }
+  .btn-neon:active:not(:disabled) {
+    transform: translateY(0) scale(0.98);
+    transition-duration: 0.1s;
+  }
+  .btn-neon:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .btn-neon--danger { background: var(--danger); }
+  .btn-neon--danger:hover:not(:disabled) { background: var(--danger); filter: brightness(0.94); }
+
+  .btn-neon--green { background: var(--success); }
+  .btn-neon--green:hover:not(:disabled) { background: var(--success); filter: brightness(0.94); }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════

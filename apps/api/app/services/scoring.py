@@ -1,32 +1,43 @@
-"""10-layer scoring engine v5.0.
+"""10-layer scoring engine v6 (P3 training-rework — ФЗ-127 legal consultation).
 
-Weight distribution:
-  Layers 1-7 (rescaled from v3): 75 pts total
-    L1. Script adherence     (22.5 pts)  — was 30, ×0.75
-    L2. Objection handling   (18.75 pts) — was 25, ×0.75
-    L3. Communication        (15 pts)    — was 20, ×0.75
-    L4. Anti-patterns        (-11.25 penalty) — was -15, ×0.75
-    L5. Result               (7.5 pts)   — was 10, ×0.75
-    L6. Chain traversal      (0-7.5 pts) — was 0-10, ×0.75
-    L7. Trap handling        (-7.5 to +7.5) — was -10 to +10, ×0.75
+Weight distribution (constants L*_MAX / L*_MIN at module top — single source
+of truth; positive maxima sum to EXACTLY 100):
+    L1.  Script adherence    «Полнота выяснения обстоятельств»   max 18  (L1_MAX)
+    L2.  Objection handling  «Отработка сомнений и страхов»       max 12  (L2_MAX)
+    L3.  Communication       «Ясность и эмпатия»                  max 12  (L3_MAX)
+    L4.  Anti-patterns       «Этические нарушения»          0..-15 penalty (L4_MIN)
+    L5.  Result              «Корректность рекомендации»          max 18  (L5_MAX)
+    L6.  Chain traversal     «Глубина разбора»                    max  5  (L6_MAX)
+    L7.  Trap handling       DEAD — excluded from total                    (L7_MAX=0)
+    L8.  Human Factor        «Поддержка должника»                 max 10  (L8_MAX)
+    L9.  Narrative           DEAD — excluded from total                    (L9_MAX=0)
+    L10. Legal Accuracy      «Правовая точность ФЗ-127»     -10..+25 weighty (L10_MIN/MAX)
 
-  New layers:
-    L8. Human Factor Handling (0-15 pts) — real-time
-    L9. Narrative Progression (0-10 pts) — post-session only
-    L10. Legal Accuracy       (±5 modifier) — post-session only
+  Σ positive = 18+12+12+18+5+10+25 = 100.
+  total = clamp(0, 100, ΣLayers + L4(-) + L10(±) + α-judge[-8,+5]).
 
-  Total: 0-100 (base 75 + L8 15 + L9 10 ± L10 5)
+  The legacy v5 caps (22.5 / 18.75 / 15 / 11.25 / 7.5 / ±5) are RETIRED; this
+  rebalance deliberately makes L5 (correct recommendation) and L10 (legal
+  accuracy) the dominant signals of a *consultation*, not a sale.
 
 Real-time layers: 1-8 (sent via WS hints)
 Post-session layers: 9-10 (computed after session end)
 
-Skill radar mapping (6 skills):
+Skill radar mapping (P3 — legal consultation rubric):
   empathy           → L3.empathy(40%) + L8.patience(30%) + L8.empathy_check(30%)
-  knowledge         → L1(30%) + L10(40%) + L7(30%)
-  objection_handling → L2(50%) + L6(30%) + L7(20%)
+  knowledge         → L1(40%) + L10(60%)            [L7 dead → weight folded in]
+  objection_handling → L2(60%) + L6(40%)            [L7 dead → weight folded in]
   stress_resistance → L4(40%) + L8.composure(30%) + L3.pace(30%)
-  closing           → L5(50%) + L9(30%) + L2.check(20%)
+  closing («Рекомендация») → L5(70%) + L2.check(30%) [L9 dead → weight folded in]
   qualification     → L1.discovery(40%) + L3.control(30%) + L3.listening(30%)
+  time_management («Темп консультации») → L12(100%)
+  legal_knowledge («Правовая точность ФЗ-127») → L10(100%) [L7 legal-trap dead]
+  rapport_building  → L3.empathy(40%) + L8.warmth(30%) + L8.patience(30%)
+
+  L7 (trap_handling) and L9 (narrative) are dead after P1 de-gamification:
+  hidden from results and their radar weight redistributed above. The
+  "adaptation" axis (L11 sales archetypes) is removed from the radar dict
+  entirely — a 0-pinned axis misreads as a real weakness.
 """
 
 import asyncio
@@ -39,6 +50,7 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import settings
 from app.models.scenario import Scenario
 from app.models.training import Message, MessageRole, TrainingSession
 
@@ -46,6 +58,56 @@ logger = logging.getLogger(__name__)
 
 # v3→v5 rescale factor: old 100pts → new 75pts
 V3_RESCALE = 0.75
+
+# ---------------------------------------------------------------------------
+# P3 (training-rework) weight model — legal consultation (ФЗ-127).
+#
+# Single source of truth for every layer cap / floor. These constants are
+# used EVERYWHERE a weight appears: layer-function caps, the `total` formula,
+# the skill_radar normalizers, and the rule-based recommendation thresholds.
+# Changing a weight here propagates with no risk of a desynced hardcoded
+# denominator. Storage field names (ScoreBreakdown attrs, session.score_*,
+# SKILL_NAMES / RUBRIC_METRICS keys) are NOT touched — only the numeric
+# weights / caps / normalizers behind them.
+#
+# Positive maxima sum to EXACTLY 100:
+#   L1 18 + L2 12 + L3 12 + L5 18 + L6 5 + L8 10 + L10 25 = 100
+# L4 is a pure penalty (0..L4_MIN), L10 spans L10_MIN..L10_MAX. L7 and L9
+# are dead after de-gamification (max = 0, excluded from `total`). The
+# α-judge nudge ([JUDGE_MIN, JUDGE_MAX]) and L4/L10 negatives are applied
+# on top, then `total` is clamped to [0, 100].
+# ---------------------------------------------------------------------------
+L1_MAX = 18.0    # script_adherence — «Полнота выяснения обстоятельств»
+L2_MAX = 12.0    # objection_handling — «Отработка сомнений и страхов»
+L3_MAX = 12.0    # communication — «Ясность и эмпатия»
+L4_MIN = -15.0   # anti_patterns — «Этические нарушения» (penalty floor)
+L5_MAX = 18.0    # result — «Корректность рекомендации»
+L6_MAX = 5.0     # chain_traversal — «Глубина разбора»
+L7_MAX = 0.0     # trap_handling — DEAD (excluded from total)
+L8_MAX = 10.0    # human_factor — «Поддержка должника»
+L9_MAX = 0.0     # narrative_progression — DEAD (excluded from total)
+L10_MAX = 25.0   # legal_accuracy — «Правовая точность ФЗ-127» (positive cap)
+L10_MIN = -10.0  # legal_accuracy — gross-error floor
+
+# α LLM-judge nudge bounds (unchanged from prior model).
+JUDGE_MIN = -8.0
+JUDGE_MAX = 5.0
+
+# Internal raw maxima of the legacy layer scorers, BEFORE rescale to the
+# L*_MAX targets above. Each layer function builds a raw sub-score sum on
+# these scales; we then linearly remap raw → [0, L*_MAX]. Keeping the raw
+# math intact preserves the proven sub-score logic; only the final scale
+# changes. (Legacy values: raw L1/L5 came in on a 0-10 *checkpoint/result*
+# scale already multiplied by 0.225 / V3_RESCALE; see each function.)
+_RAW_L2_MAX = 25.0   # 5 sub-scores × 5
+_RAW_L3_MAX = 20.0   # 4 sub-scores × 5
+_RAW_L5_MAX = 10.0   # path(5) + next_step(5)
+_RAW_L8_MAX = 15.0   # patience(5) + empathy_check(5) + composure(5)
+_RAW_L4_MIN = -15.0  # legacy penalty floor (false/intimidation/incorrect, etc.)
+# legal_checker + vector both return a combined value on a [-5, +5] scale;
+# we remap it asymmetrically to [L10_MIN, L10_MAX] so correctness is heavily
+# rewarded and gross errors bite. See _score_legal_accuracy.
+_RAW_L10_SPAN = 5.0  # combined ∈ [-5, +5]
 
 
 # ---------------------------------------------------------------------------
@@ -55,19 +117,19 @@ V3_RESCALE = 0.75
 @dataclass
 class ScoreBreakdown:
     """Full 12-layer score breakdown (v6: DOC_06)."""
-    # Rescaled v3 layers (L1-L7)
-    script_adherence: float       # L1: 0-22.5
-    objection_handling: float     # L2: 0-18.75
-    communication: float          # L3: 0-15
-    anti_patterns: float          # L4: 0 to -11.25
-    result: float                 # L5: 0-7.5
-    chain_traversal: float        # L6: 0-7.5
-    trap_handling: float          # L7: -7.5 to +7.5
+    # P3 weight model (caps = module constants L*_MAX / L*_MIN)
+    script_adherence: float       # L1: 0..L1_MAX (18)
+    objection_handling: float     # L2: 0..L2_MAX (12)
+    communication: float          # L3: 0..L3_MAX (12)
+    anti_patterns: float          # L4: L4_MIN..0 (-15..0)
+    result: float                 # L5: 0..L5_MAX (18)
+    chain_traversal: float        # L6: 0..L6_MAX (5)
+    trap_handling: float          # L7: DEAD (0)
 
     # v5 layers
-    human_factor: float           # L8: 0-15
-    narrative_progression: float  # L9: 0-10
-    legal_accuracy: float         # L10: -5 to +5
+    human_factor: float           # L8: 0..L8_MAX (10)
+    narrative_progression: float  # L9: DEAD (0)
+    legal_accuracy: float         # L10: L10_MIN..L10_MAX (-10..+25)
 
     total: float                  # 0-100 clamped
 
@@ -104,8 +166,15 @@ class ScoreBreakdown:
         """
         details = self.details
 
-        # L2.check_score is still stored after V3_RESCALE (0-3.75)
-        _L2_CHECK_MAX = 5 * V3_RESCALE  # 3.75
+        # check_score sub-score is stored on the raw 0-5 scale (see
+        # _score_objection_handling); normalize against that, not a layer cap.
+        _L2_CHECK_MAX = 5.0
+
+        # L10 spans [L10_MIN, L10_MAX]; normalize to [0,1] across the full
+        # span so a 0 legal_accuracy lands at the neutral midpoint, not 0.
+        def _norm_l10(v: float) -> float:
+            span = L10_MAX - L10_MIN
+            return _normalize(v - L10_MIN, span)
 
         # ── empathy (L3 empathy + L8 patience + L8 empathy_check) ──
         # S3-07: sub-scores are already [0,1] — use directly as weights
@@ -118,31 +187,36 @@ class ScoreBreakdown:
             + empathy_l8_empathy * 0.3
         ) * 100
 
-        # ── knowledge (L1 + L10 + L7) ──
-        knowledge_l1 = _normalize(self.script_adherence, 22.5) * 0.3
-        knowledge_l10 = _normalize(self.legal_accuracy + 5, 10) * 0.4
-        knowledge_l7 = _normalize(self.trap_handling + 7.5, 15) * 0.3
-        knowledge = (knowledge_l1 + knowledge_l10 + knowledge_l7) * 100
+        # ── knowledge (L1·0.4 + L10·0.6) ──
+        # P3: L7 (trap_handling) is dead after de-gamification — its 0.3
+        # weight is folded into L1/L10 (L1 0.3→0.4, L10 0.4→0.6) so the
+        # axis keeps a full [0,1] span instead of collapsing on a zeroed L7.
+        knowledge_l1 = _normalize(self.script_adherence, L1_MAX) * 0.4
+        knowledge_l10 = _norm_l10(self.legal_accuracy) * 0.6
+        knowledge = (knowledge_l1 + knowledge_l10) * 100
 
-        # ── objection_handling (L2 + L6 + L7) ──
-        oh_l2 = _normalize(self.objection_handling, 18.75) * 0.5
-        oh_l6 = _normalize(self.chain_traversal, 7.5) * 0.3
-        oh_l7 = _normalize(self.trap_handling + 7.5, 15) * 0.2
-        objection_handling_val = (oh_l2 + oh_l6 + oh_l7) * 100
+        # ── objection_handling (L2·0.6 + L6·0.4) ──
+        # P3: L7's 0.2 weight removed (dead); redistributed to L2/L6.
+        oh_l2 = _normalize(self.objection_handling, L2_MAX) * 0.6
+        oh_l6 = _normalize(self.chain_traversal, L6_MAX) * 0.4
+        objection_handling_val = (oh_l2 + oh_l6) * 100
 
         # ── stress_resistance (L4 + L8 composure + L3 pace) ──
-        sr_l4 = _normalize(self.anti_patterns + 11.25, 11.25) * 0.4
+        # L4 ∈ [L4_MIN, 0]; shift by -L4_MIN so 0-penalty → 1.0, full → 0.0.
+        sr_l4 = _normalize(self.anti_patterns - L4_MIN, -L4_MIN) * 0.4
         sr_l8_composure = details.get("human_factor", {}).get("composure_score", 0) * 0.3
         sr_l3_pace = details.get("communication", {}).get("pace_score", 0) * 0.3
         stress_resistance = (sr_l4 + sr_l8_composure + sr_l3_pace) * 100
 
-        # ── closing (L5 + L9 + L2 check) ──
-        closing_l5 = _normalize(self.result, 7.5) * 0.5
-        closing_l9 = _normalize(self.narrative_progression, 10) * 0.3
+        # ── closing → «Рекомендация» (L5·0.7 + L2check·0.3) ──
+        # P3: L9 (narrative_progression) is dead after de-gamification —
+        # its 0.3 weight folds into L5 (0.5→0.7). The FE relabels this axis
+        # «Рекомендация» (correctness of the recommended path), not «Закрытие».
+        closing_l5 = _normalize(self.result, L5_MAX) * 0.7
         closing_l2_check = _normalize(
             details.get("objection_handling", {}).get("check_score", 0), _L2_CHECK_MAX
-        ) * 0.2
-        closing = (closing_l5 + closing_l9 + closing_l2_check) * 100
+        ) * 0.3
+        closing = (closing_l5 + closing_l2_check) * 100
 
         # ── qualification (L1 discovery + L3 control + L3 listening) ──
         qual_l1_disc = _normalize(
@@ -152,20 +226,14 @@ class ScoreBreakdown:
         qual_l3_listen = details.get("communication", {}).get("listening_score", 0) * 0.3
         qualification = (qual_l1_disc + qual_l3_ctrl + qual_l3_listen) * 100
 
-        # ── NEW: time_management (100% from L12) ──
+        # ── time_management → «Темп консультации» (100% from L12) ──
         time_management = _normalize(self.time_management, 5.0) * 100
 
-        # ── NEW: adaptation (100% from L11) ──
-        adaptation_val = _normalize(self.adaptation, 7.5) * 100
-
-        # ── NEW: legal_knowledge (60% L10 + 40% legal traps from L7) ──
-        legal_l10 = _normalize(self.legal_accuracy + 5, 10) * 0.6
-        legal_trap_score = sum(
-            t.get("delta", 0) for t in details.get("trap_handling", {}).get("traps", [])
-            if t.get("category") in ("legal", "factual", "expert_reference")
-        )
-        legal_l7 = _normalize(legal_trap_score + 3.75, 7.5) * 0.4
-        legal_knowledge = (legal_l10 + legal_l7) * 100
+        # ── legal_knowledge → «Правовая точность ФЗ-127» (L10·1.0) ──
+        # P3: L7 legal-trap component removed (L7 dead). L10 is now the sole
+        # legal signal and carries the full weight, normalized across its
+        # full [L10_MIN, L10_MAX] span.
+        legal_knowledge = _norm_l10(self.legal_accuracy) * 100
 
         # ── NEW: rapport_building (40% L3 empathy + 30% L8 warmth + 30% L8 patience) ──
         warmth_l8 = details.get("human_factor", {}).get("warmth_score", 0)
@@ -186,10 +254,52 @@ class ScoreBreakdown:
             "closing": _clamp(closing),
             "qualification": _clamp(qualification),
             "time_management": _clamp(time_management),
-            "adaptation": _clamp(adaptation_val),
+            # P3: "adaptation" axis (L11 — sales archetypes) removed. L11 is
+            # dead after de-gamification; an axis pinned at 0 misreads as a
+            # real weakness. Dropped coherently here, in analytics.py, and
+            # in the FE SKILL_LABELS so no consumer expects the key.
             "legal_knowledge": _clamp(legal_knowledge),
             "rapport_building": _clamp(rapport),
         }
+
+
+def compose_total_from_layers(
+    *,
+    script_adherence: float,   # L1: 0..L1_MAX
+    objection_handling: float, # L2: 0..L2_MAX
+    communication: float,      # L3: 0..L3_MAX
+    anti_patterns: float,      # L4: L4_MIN..0
+    result: float,             # L5: 0..L5_MAX
+    chain_traversal: float,    # L6: 0..L6_MAX
+    human_factor: float,       # L8: 0..L8_MAX
+    legal_accuracy: float,     # L10: L10_MIN..L10_MAX
+    judge_score: float = 0.0,  # α: [JUDGE_MIN, JUDGE_MAX]
+) -> float:
+    """Compose the clamped 0-100 ``total`` from the live weighted layers.
+
+    Single source of truth for the P3 weight model behind ``total``. L7 (trap)
+    and L9 (narrative) are DEAD (L7_MAX=L9_MAX=0) and excluded. The positive
+    maxima sum to EXACTLY 100 (L1+L2+L3+L5+L6+L8+L10 = 18+12+12+18+5+10+25);
+    L4 and L10 may be negative, the α-judge adds [JUDGE_MIN, JUDGE_MAX], and
+    the result is clamped to [0, 100].
+
+    ``calculate_scores`` calls this so the runtime total and the regression
+    tests assert on the same formula — no risk of a desynced inline sum.
+    """
+    total = (
+        float(script_adherence or 0)
+        + float(objection_handling or 0)
+        + float(communication or 0)
+        + float(anti_patterns or 0)
+        + float(result or 0)
+        + float(chain_traversal or 0)
+        # L7 (trap) EXCLUDED — dead layer
+        + float(human_factor or 0)
+        # L9 (narrative) EXCLUDED — dead layer
+        + float(legal_accuracy or 0)
+        + float(judge_score or 0)
+    )
+    return max(0.0, min(100.0, total))
 
 
 def _normalize(value: float, max_value: float) -> float:
@@ -329,11 +439,15 @@ def _score_objection_handling(
     user_messages: list[str],
     assistant_messages: list[str],
 ) -> tuple[float, dict]:
-    """L2: Objection handling (0-18.75 pts after rescale).
+    """L2: «Отработка сомнений и страхов» (0..L2_MAX pts).
 
-    Sub-scores (each 0-5 before rescale):
-    recognized(5) + acknowledged(5) + clarified(5) + argued(5) + checked(5) = 25 → ×0.75 = 18.75
+    Sub-scores (each 0-5, raw sum 0.._RAW_L2_MAX=25):
+    recognized(5) + acknowledged(5) + clarified(5) + argued(5) + checked(5) = 25
+    Raw is then linearly remapped to [0, L2_MAX] via _rescale_l2.
+    The ``check_score`` sub-score is stored on the raw 0-5 scale.
     """
+    def _rescale_l2(raw: float) -> float:
+        return _normalize(raw, _RAW_L2_MAX) * L2_MAX
     objections_found = 0
     for msg in assistant_messages:
         if _has_pattern(msg, OBJECTION_PATTERNS):
@@ -348,11 +462,11 @@ def _score_objection_handling(
                 "check_score": 0.0,
             }
         # No objections means easy conversation — award HALF credit, not full.
-        _half_score = 9.375  # 50% of max L2
+        _half_score = L2_MAX * 0.5  # 50% of max L2
         return _half_score, {
             "objections_found": 0,
             "note": "no objections raised — partial credit (easy scenario)",
-            "check_score": 2.5 * V3_RESCALE,
+            "check_score": 2.5,  # raw 0-5 scale
         }
 
     heard = False
@@ -388,22 +502,22 @@ def _score_objection_handling(
 
     check_raw = 5.0 if checked else 0.0
 
-    return raw_score * V3_RESCALE, {
+    return _rescale_l2(raw_score), {
         "objections_found": objections_found,
         "heard": heard,
         "acknowledged": acknowledged,
         "clarified": clarified,
         "argued": argued,
         "checked": checked,
-        "check_score": check_raw * V3_RESCALE,
+        "check_score": check_raw,  # raw 0-5 scale
     }
 
 
 def _score_communication(user_messages: list[str]) -> tuple[float, dict]:
-    """L3: Communication skills (0-15 pts after rescale).
+    """L3: «Ясность и эмпатия» (0..L3_MAX pts).
 
-    Sub-scores (each 0-5 before rescale):
-    empathy(5) + listening(5) + pace(5) + control(5) = 20 → ×0.75 = 15
+    Sub-scores (each 0-5, raw sum 0.._RAW_L3_MAX=20):
+    empathy(5) + listening(5) + pace(5) + control(5) = 20 → remap to [0, L3_MAX].
     """
     if not user_messages:
         return 0.0, {"note": "no user messages"}
@@ -467,7 +581,7 @@ def _score_communication(user_messages: list[str]) -> tuple[float, dict]:
     details["control_score"] = round(control_raw / 5.0, 3)
     score += control_raw
 
-    return min(20.0, score) * V3_RESCALE, details
+    return _normalize(min(_RAW_L3_MAX, score), _RAW_L3_MAX) * L3_MAX, details
 
 
 async def _score_anti_patterns(
@@ -475,9 +589,12 @@ async def _score_anti_patterns(
     *,
     mistake_counts: dict[str, int] | None = None,
 ) -> tuple[float, dict]:
-    """L4: Anti-patterns (0 to -11.25 penalty after rescale).
+    """L4: «Этические нарушения» (0 to L4_MIN=-15 penalty).
 
-    false promises(-5) + intimidation(-5) + incorrect info(-5) = -15 → ×0.75 = -11.25
+    false promises(-5) + intimidation(-5) + incorrect info(-5) = -15 floor.
+    The raw penalty scale already matches L4_MIN, so no rescale is applied —
+    the per-category and aggregate penalties below are summed and floored
+    at L4_MIN directly.
 
     Parameters
     ----------
@@ -534,7 +651,7 @@ async def _score_anti_patterns(
         details["detected"].append({
             "category": cat,
             "score": item["score"],
-            "penalty": pen * V3_RESCALE,
+            "penalty": pen,
         })
 
     # 2026-05-04 (BUG B3 fix): zero-open-questions penalty.
@@ -561,7 +678,7 @@ async def _score_anti_patterns(
             details["detected"].append({
                 "category": "zero_open_questions",
                 "score": 1.0,
-                "penalty": zero_oq_penalty * V3_RESCALE,
+                "penalty": zero_oq_penalty,
                 "note": "За весь разговор не задано ни одного открытого вопроса",
             })
 
@@ -594,61 +711,171 @@ async def _score_anti_patterns(
             details["detected"].append({
                 "category": f"mistake_{mtype}",
                 "score": float(n),
-                "penalty": applied * V3_RESCALE,
+                "penalty": applied,
                 "note": f"{mtype} сработало {n} раз(а) за разговор",
             })
 
-    penalty = max(-15.0, penalty) * V3_RESCALE
+    penalty = max(L4_MIN, penalty)
     return penalty, details
 
 
 def _score_result(
-    assistant_messages: list[str],
-    emotion_timeline: list[dict],
+    user_messages: list[str],
+    emotion_timeline: list[dict] | None = None,
+    *,
+    rubric: dict | None = None,
 ) -> tuple[float, dict]:
-    """L5: Result/outcome (0-7.5 pts after rescale).
+    """L5: «Корректность рекомендации» (0..L5_MAX pts).
 
-    consultation agreed(5) + callback/meeting scheduled(5) = 10 → ×0.75 = 7.5
+    P3 rework — this layer is FULLY DECOUPLED from any sale/deal/emotion
+    outcome. It no longer reads ``call_outcome``, ``'agreed'``, acceptance,
+    or the deal-emotion. It grades ONLY whether the consultant pointed the
+    debtor to the *correct procedural path* under ФЗ-127 and closed with a
+    concrete next step:
+
+      path_recommended(0-5) — names a procedure (реструктуризация при
+                              стабильном доходе / реализация имущества /
+                              внесудебное банкротство через МФЦ) GROUNDED in
+                              the debtor's situation, plus a добросовестность
+                              (good-faith) caveat, not a false guarantee
+      next_step(0-5)        — a concrete, lawful next step (документы /
+                              заявление / подбор управляющего / запись на
+                              разбор)
+    Raw sum 0.._RAW_L5_MAX=10 is then remapped to [0, L5_MAX].
+
+    PERSONA MODE: when ``rubric`` is supplied (persona.scoring_rubric), the
+    "correct path" is judged against the persona's expected route. The rubric
+    names the right procedure as free text inside ``metrics.result.criteria``
+    (the validated schema location) — we extract procedure keywords from it and
+    require the consultant to have recommended THAT route, not merely *a*
+    procedure. (Legacy top-level ``correct_path`` / ``recommended_path`` keys
+    are still read as a fallback but are not part of the seeded schema.) A
+    consultant who proposes the wrong route for this debtor gets the
+    "named a procedure" partial credit only, not the grounded full credit.
+
+    ``emotion_timeline`` is accepted for signature compatibility but
+    deliberately UNUSED — the prior version's emotion→deal coupling is gone.
     """
     score = 0.0
     details: dict = {}
 
-    if not assistant_messages:
+    if not user_messages:
         return 0.0, {"note": "no messages"}
 
-    agree_patterns = [
-        r"(ладно|хорошо|давайте)",
-        r"присылайте",
-        r"можно\s+попробовать",
-        r"согласен|согласна",
-        r"расскажите\s+подробнее",
-        r"интересно",
+    # ── path_recommended (0-5) ──
+    # A correct recommendation names a procedure (реструктуризация долгов or
+    # реализация имущества) AND grounds it in the debtor's situation
+    # (доход / имущество / план погашения). A bare mention of "банкротство"
+    # with no path choice is partial credit.
+    procedure_patterns = [
+        r"реструктуризац",
+        r"реализац(и|ии|ию)\s+имуществ",
+        r"план\s+(погашен|реструктуриз)",
+        r"процедур[аеуы]\s+(банкротств|реализац|реструктуриз)",
+        r"внесудебн\w*\s+банкротств",
+        r"упрощённ\w*\s+(порядок|банкротств)",
     ]
-    agreed = any(_has_pattern(msg, agree_patterns) for msg in assistant_messages)
-    if agreed:
-        score += 5.0
-    details["consultation_agreed"] = agreed
-
-    schedule_patterns = [
-        r"(в\s+)?(понедельник|вторник|сред[уы]|четверг|пятниц[уы]|суббот[уы]|воскресенье)",
-        r"\d{1,2}[:.]\d{2}",
-        r"(завтра|послезавтра|на\s+следующей)",
-        r"перезвоните",
-        r"назнач(им|ить|ьте)",
-        r"когда\s+можем\s+встретиться",
+    grounding_patterns = [
+        r"(?:ваш|при\s+таком)\s+доход",
+        r"если\s+есть\s+(?:имуществ|доход|ипотек)",
+        r"в\s+зависимости\s+от\s+(?:дохода|имущества|долга)",
+        r"исходя\s+из\s+(?:вашей\s+ситуации|дохода|долга)",
+        r"учитыва[яем].*(?:доход|имуществ|иждивен)",
     ]
-    scheduled = any(_has_pattern(msg, schedule_patterns) for msg in assistant_messages)
-    if scheduled:
+    # A good-faith caveat — the lawful counterweight to a "всё спишут" promise.
+    good_faith_patterns = [
+        r"добросовестн",
+        r"не\s+скрыва(?:ть|йте)\s+(?:имуществ|доход|сделк)",
+        r"суд\s+(?:может\s+)?(?:не\s+освобод|откаж)",
+        r"при\s+условии\s+добросовестн",
+        r"если\s+(?:не\s+было|нет)\s+(?:фиктивн|преднамеренн)",
+    ]
+
+    procedure_named = any(_has_pattern(m, procedure_patterns) for m in user_messages)
+    grounded = any(_has_pattern(m, grounding_patterns) for m in user_messages)
+    good_faith = any(_has_pattern(m, good_faith_patterns) for m in user_messages)
+
+    # ── PERSONA MODE: judge against the persona's expected correct path ──
+    # The rubric's free-text correct-path hint is reduced to procedure
+    # keyword-classes; we then check the consultant actually recommended
+    # the RIGHT class for this debtor (not merely *some* procedure).
+    _PATH_CLASSES = {
+        "restructuring": [r"реструктуризац", r"план\s+погашен", r"стабильн\w*\s+доход"],
+        "realization": [r"реализац(и|ии|ию)\s+имуществ", r"реализац\w*\s+имущества"],
+        "mfc": [r"внесудебн", r"\bмфц\b", r"упрощённ\w*\s+(порядок|банкротств)"],
+    }
+    expected_class: str | None = None
+    correct_path_match: bool | None = None
+    if isinstance(rubric, dict):
+        # The validated rubric schema (validate_personas.py) carries the
+        # expected correct path as FREE TEXT inside metrics.result.criteria
+        # (e.g. «Дал верную рекомендацию пути (реструктуризация при доходе…»).
+        # The legacy top-level keys correct_path / recommended_path /
+        # correct_recommendation are NOT part of the schema and are never
+        # populated — reading them left this whole block inert. We read the
+        # real location first and keep the legacy keys only as a fallback for
+        # any hand-written rubric that happens to carry them.
+        _cp_parts: list[str] = []
+        _metrics = rubric.get("metrics")
+        if isinstance(_metrics, dict):
+            _result_metric = _metrics.get("result")
+            if isinstance(_result_metric, dict):
+                _cp_parts.append(str(_result_metric.get("criteria") or ""))
+        for k in ("correct_path", "recommended_path", "correct_recommendation"):
+            _cp_parts.append(str(rubric.get(k) or ""))
+        _cp_text = " ".join(_cp_parts).lower()
+        for _cls, _pats in _PATH_CLASSES.items():
+            if any(re.search(p, _cp_text) for p in _pats):
+                expected_class = _cls
+                break
+        if expected_class:
+            consultant_text = " ".join(m.lower() for m in user_messages)
+            correct_path_match = any(
+                re.search(p, consultant_text) for p in _PATH_CLASSES[expected_class]
+            )
+
+    path_score = 0.0
+    if procedure_named and grounded:
+        path_score = 4.0
+    elif procedure_named:
+        path_score = 2.5
+    if good_faith:
+        path_score = min(5.0, path_score + 1.0)
+    # Persona penalty: a procedure was named but it's the WRONG route for
+    # this debtor → cap at partial credit (no grounded-full reward).
+    if correct_path_match is False and path_score > 2.5:
+        path_score = 2.5
+        details["wrong_path_for_persona"] = True
+    score += path_score
+
+    details["path_recommended"] = procedure_named
+    details["path_grounded_in_situation"] = grounded
+    details["good_faith_caveat"] = good_faith
+    details["path_score"] = round(path_score, 2)
+    if expected_class is not None:
+        details["expected_path_class"] = expected_class
+        details["correct_path_match"] = correct_path_match
+
+    # ── next_step (0-5) ──
+    # A lawful, concrete next step — not a sales "meeting". Documents,
+    # the заявление, choosing an arbitration manager, or booking a detailed
+    # разбор all count.
+    next_step_patterns = [
+        r"подготов(?:им|ить|ьте)\s+(?:документ|заявлен)",
+        r"собрать\s+(?:документ|справк|выписк)",
+        r"подать\s+заявлен",
+        r"список\s+кредитор",
+        r"финансов\w*\s+управляющ",
+        r"запиш[еи]\w*\s+на\s+(?:разбор|консультац)",
+        r"следующ(?:ий|им)\s+шаг",
+        r"что\s+(?:нужно|потребуется)\s+(?:сделать|подготовить)",
+    ]
+    next_step = any(_has_pattern(m, next_step_patterns) for m in user_messages)
+    if next_step:
         score += 5.0
-    details["meeting_scheduled"] = scheduled
+    details["next_step_given"] = next_step
 
-    if emotion_timeline:
-        last_state = emotion_timeline[-1].get("state", "cold")
-        if last_state in ("considering", "deal"):
-            details["ended_positive"] = True
-            details["final_emotion"] = last_state
-
-    return score * V3_RESCALE, details
+    return _normalize(score, _RAW_L5_MAX) * L5_MAX, details
 
 
 # ---------------------------------------------------------------------------
@@ -661,7 +888,9 @@ def _score_human_factor(
     emotion_timeline: list[dict],
     custom_params: dict | None = None,
 ) -> tuple[float, dict]:
-    """L8: Human Factor Handling (0-15 pts).
+    """L8: «Поддержка должника» (0..L8_MAX pts).
+
+    Raw sub-layer sum is on _RAW_L8_MAX=15 scale, remapped to [0, L8_MAX].
 
     Sub-layers:
     - Patience under aggression (0-5 pts): calm response to hostile/testing states
@@ -780,7 +1009,8 @@ def _score_human_factor(
     warmth_score = (empathy_check_score + composure_score) / 2.0
     details["warmth_score"] = round(warmth_score / 5.0, 3)
 
-    return min(15.0, score), details
+    # Raw sum is on _RAW_L8_MAX=15 scale → remap to [0, L8_MAX].
+    return _normalize(min(_RAW_L8_MAX, score), _RAW_L8_MAX) * L8_MAX, details
 
 
 # ---------------------------------------------------------------------------
@@ -1015,9 +1245,15 @@ async def _score_legal_accuracy(
     session_id: uuid.UUID,
     db: AsyncSession,
 ) -> tuple[float, dict]:
-    """L10: Legal Accuracy (±5 modifier, post-session).
+    """L10: «Правовая точность ФЗ-127» (weighty: L10_MIN..L10_MAX modifier).
 
-    Hybrid scoring: 0.6 × regex (legal_checker) + 0.4 × vector (rag_legal).
+    Hybrid scoring: 0.6 × regex (legal_checker) + 0.4 × vector (rag_legal),
+    each returning a value on the legacy [-5, +5] scale. The combined raw
+    value is then remapped ASYMMETRICALLY to [L10_MIN, L10_MAX]: correct
+    citations are rewarded heavily (up to +25) while gross legal errors bite
+    (down to -10). The underlying RAG retrieval / regex matching logic (the
+    L10 core) is unchanged — only the FINAL scale is widened.
+
     Falls back to 100% regex if vector search is unavailable.
     """
     REGEX_WEIGHT = 0.6
@@ -1059,15 +1295,26 @@ async def _score_legal_accuracy(
         combined = regex_score
         scoring_method = "regex_only"
 
-    clamped = max(-5.0, min(5.0, round(combined, 2)))
+    # Clamp combined to the legacy [-_RAW_L10_SPAN, +_RAW_L10_SPAN] band first,
+    # then remap ASYMMETRICALLY to [L10_MIN, L10_MAX]:
+    #   combined > 0 → 0..L10_MAX   (correctness rewarded, scale ×5)
+    #   combined < 0 → L10_MIN..0   (errors penalized, scale ×2)
+    raw = max(-_RAW_L10_SPAN, min(_RAW_L10_SPAN, combined))
+    if raw >= 0:
+        scaled = (raw / _RAW_L10_SPAN) * L10_MAX
+    else:
+        scaled = (raw / _RAW_L10_SPAN) * (-L10_MIN)
+    scaled = max(L10_MIN, min(L10_MAX, round(scaled, 2)))
 
-    return clamped, {
+    return scaled, {
         "scoring_method": scoring_method,
         "regex_weight": REGEX_WEIGHT if vector_available else 1.0,
         "vector_weight": VECTOR_WEIGHT if vector_available else 0.0,
         "regex_score": round(regex_score, 2),
         "vector_score": round(vector_score, 2),
-        "combined_score": round(clamped, 2),
+        "raw_combined": round(combined, 2),
+        "combined_score": round(scaled, 2),
+        "l10_range": [L10_MIN, L10_MAX],
         "regex": regex_details,
         "vector": vector_details,
     }
@@ -1345,7 +1592,7 @@ async def calculate_realtime_scores(
             from app.services.script_checker import get_session_checkpoint_progress
             message_history = [{"role": m.role.value, "content": m.content} for m in messages]
             progress = await get_session_checkpoint_progress(scenario.script_id, message_history)
-            l1_score = progress["total_score"] * 0.225
+            l1_score = progress["total_score"] / 100.0 * L1_MAX
     except Exception:
         logger.warning("Scoring layer L1 failed", exc_info=True)
 
@@ -1363,25 +1610,20 @@ async def calculate_realtime_scores(
         logger.warning("Scoring layer L4 failed", exc_info=True)
 
     # L5: Result (0-7.5)
-    l5_score, _ = _score_result(assistant_messages, emotion_timeline)
+    l5_score, _ = _score_result(user_messages, emotion_timeline)
 
-    # L6: Chain traversal (0-7.5)
+    # L6: «Глубина разбора» (0..L6_MAX) — chain_score is 0-10 → remap.
     l6_score = 0.0
     try:
         from app.services.objection_chain import calculate_chain_score
         chain_data = await calculate_chain_score(session_id)
-        l6_score = float(chain_data.get("chain_score", 0)) * V3_RESCALE
+        l6_score = _normalize(float(chain_data.get("chain_score", 0)), 10.0) * L6_MAX
     except Exception:
         logger.warning("Scoring layer L6 failed", exc_info=True)
 
-    # L7: Trap handling (-7.5 to +7.5)
+    # L7: Trap handling — DEAD (L7_MAX=0). Kept for payload shape only,
+    # excluded from realtime_total below.
     l7_score = 0.0
-    try:
-        from app.services.trap_detector import get_session_trap_state
-        trap_state = await get_session_trap_state(session_id)
-        l7_score = float(trap_state.net_score) * V3_RESCALE
-    except Exception:
-        logger.warning("Scoring layer L7 failed", exc_info=True)
 
     # L8: Human Factor (0-15)
     l8_score, _ = _score_human_factor(
@@ -1393,16 +1635,18 @@ async def calculate_realtime_scores(
     hm_count = count_human_moment_messages(user_messages)
     if hm_count > 0:
         total_user = len(user_messages)
-        l1_score = apply_human_moment_adjustment(l1_score, 22.5, hm_count, total_user)
-        l3_score = apply_human_moment_adjustment(l3_score, 15.0, hm_count, total_user)
+        l1_score = apply_human_moment_adjustment(l1_score, L1_MAX, hm_count, total_user)
+        l3_score = apply_human_moment_adjustment(l3_score, L3_MAX, hm_count, total_user)
         # Reduce anti-pattern penalty (human moments shouldn't count as anti-patterns)
         if l4_penalty < 0:
             forgiven = min(hm_count, int(total_user * 0.2))
             l4_penalty = l4_penalty * (1.0 - forgiven / max(total_user, 1) * 0.5)
 
-    # Total (L1-L8, excluding L9/L10 which are post-session)
-    realtime_total = l1_score + l2_score + l3_score + l4_penalty + l5_score + l6_score + l7_score + l8_score
-    max_possible = 22.5 + 18.75 + 15 + 0 + 7.5 + 7.5 + 7.5 + 15  # 93.75 (L4 is penalty only)
+    # Total (live L1-L8, excluding L7 dead + L9/L10 post-session).
+    realtime_total = l1_score + l2_score + l3_score + l4_penalty + l5_score + l6_score + l8_score
+    # Positive realtime maxima: L1+L2+L3+L5+L6+L8 = 18+12+12+18+5+10 = 75
+    # (L4 penalty only, L7 dead). L10's +25 lands only after session end.
+    max_possible = L1_MAX + L2_MAX + L3_MAX + L5_MAX + L6_MAX + L8_MAX  # 75
 
     return {
         "script_adherence": round(l1_score, 1),
@@ -1495,7 +1739,7 @@ async def calculate_scores(
             scenario.script_id, message_history
         )
         raw_score = progress["total_score"]  # 0-100
-        script_score = raw_score * 0.225  # Scale to 0-22.5
+        script_score = raw_score / 100.0 * L1_MAX  # Scale to [0, L1_MAX]
         script_details = {
             "raw_score": raw_score,
             "checkpoints": progress.get("checkpoints", []),
@@ -1504,6 +1748,89 @@ async def calculate_scores(
             "discovery_score": min(10.0, progress.get("reached_count", 0) * 2.5),
         }
     all_details["script_adherence"] = script_details
+
+    # ── P3: load persona.scoring_rubric EARLY (before L1/L5 scoring) ──
+    # The rubric is needed by:
+    #   • L1 must_clarify coverage override (below, replaces checkpoint L1),
+    #   • L5 _score_result(rubric=...) correct-path judging,
+    #   • the diagnostic rubric_eval overlay + α-judge (later in this fn).
+    # Loaded once here; downstream blocks reuse `_rubric`. fail-soft to {}.
+    _rubric: dict = {}
+    _persona_slug = (session.custom_params or {}).get("reference_persona_slug")
+    if _persona_slug:
+        try:
+            from app.models.reference_persona import ReferencePersona
+            _persona = (await db.execute(
+                select(ReferencePersona).where(
+                    ReferencePersona.slug == _persona_slug,
+                )
+            )).scalar_one_or_none()
+            _rubric = (_persona.scoring_rubric or {}) if _persona else {}
+        except Exception:
+            logger.warning(
+                "Persona rubric load failed for session %s", session_id,
+                exc_info=True,
+            )
+            _rubric = {}
+
+    # ── P3: L1 «Полнота выяснения обстоятельств» — persona must_clarify ──
+    # When the session has a persona rubric with a must_clarify list, L1 is
+    # measured by the FRACTION of must_clarify topics the consultant actually
+    # raised (состав/сумма долга, доход, иждивенцы, жильё/ипотека, сделки,
+    # стадия взыскания, …). Each rubric item carries topic keyword-classes;
+    # we scan the consultant's turns for coverage. For non-persona sessions
+    # the legacy checkpoint mechanic above stays as the fallback (script_score
+    # is left untouched).
+    _must_clarify = [str(x) for x in (_rubric.get("must_clarify") or [])]
+    if _must_clarify:
+        _TOPIC_PATTERNS = {
+            "debt": [r"долг", r"задолжен", r"сумм\w*\s+долг", r"кредит", r"займ"],
+            "income": [r"доход", r"зарплат", r"заработок", r"работа\w*", r"пенси"],
+            "dependents": [r"иждивен", r"дет(и|ей|ям)", r"супруг", r"семь"],
+            "housing": [r"жиль[её]", r"квартир", r"ипотек", r"дом\b", r"единствен\w*\s+жиль"],
+            "deals": [r"сделк", r"продал\w*", r"подарил\w*", r"переоформ", r"дарени"],
+            "collection_stage": [r"взыскан", r"пристав", r"суд\b", r"исполнительн", r"приказ"],
+            "property": [r"имуществ", r"машин\w*|авто", r"вклад\w*|счет"],
+        }
+        _consultant_text = " ".join(m.lower() for m in user_messages)
+
+        def _topic_classes(item_text: str) -> list[str]:
+            low = item_text.lower()
+            hit: list[str] = []
+            for cls, pats in _TOPIC_PATTERNS.items():
+                if any(re.search(p, low) for p in pats):
+                    hit.append(cls)
+            return hit
+
+        covered = 0
+        per_item: list[dict] = []
+        for _item in _must_clarify:
+            classes = _topic_classes(_item) or ["__generic__"]
+            if classes == ["__generic__"]:
+                # No recognizable topic-class in the rubric text — fall back
+                # to a literal token search so an unusual must_clarify item
+                # still has a chance to register as covered.
+                toks = [t for t in re.findall(r"[а-яё]{4,}", _item.lower())]
+                is_cov = any(t in _consultant_text for t in toks) if toks else False
+            else:
+                is_cov = any(
+                    any(re.search(p, _consultant_text) for p in _TOPIC_PATTERNS[c])
+                    for c in classes
+                )
+            if is_cov:
+                covered += 1
+            per_item.append({"item": _item, "covered": is_cov, "classes": classes})
+
+        coverage = covered / len(_must_clarify) if _must_clarify else 0.0
+        script_score = coverage * L1_MAX
+        script_details["persona_must_clarify"] = {
+            "covered": covered,
+            "total": len(_must_clarify),
+            "coverage": round(coverage, 3),
+            "items": per_item,
+        }
+        script_details["discovery_score"] = min(10.0, covered * 2.5)
+        all_details["script_adherence"] = script_details
 
     # ── P5 (2026-05-04): parallelise independent layers ──
     # Layers L2-L10 are independent given the immutable inputs above
@@ -1580,22 +1907,31 @@ async def calculate_scores(
     _call_outcome = _scoring_details.get("call_outcome")
     if _call_outcome == "hangup":
         result_score = 0.0
-        result_details = {"note": "hangup — client terminated the call", "consultation_agreed": False}
+        result_details = {
+            "note": "должник прервал разговор — рекомендация не дана",
+            "path_recommended": False,
+            "next_step_given": False,
+        }
     else:
-        result_score, result_details = _score_result(assistant_messages, emotion_timeline)
-        # Bonus for recovery after hangup in multi-call
+        result_score, result_details = _score_result(
+            user_messages, emotion_timeline, rubric=_rubric or None,
+        )
+        # Bonus for recovery after hangup in multi-call (scaled to L5_MAX).
         if _scoring_details.get("had_hangup_recovery"):
-            result_score = min(result_score + 2.5 * V3_RESCALE, 7.5)
+            result_score = min(result_score + L5_MAX * 0.25, L5_MAX)
             result_details["hangup_recovery_bonus"] = True
     all_details["result"] = result_details
 
-    # ── L6: Chain traversal (0-7.5 pts) ──
+    # ── L6: «Глубина разбора» (0..L6_MAX pts) ──
+    # calculate_chain_score returns chain_score on a 0-10 scale; remap to
+    # [0, L6_MAX]. (Legacy mapped 0-10 → 7.5 via V3_RESCALE.)
     chain_bonus = 0.0
     chain_details: dict = {"has_chain": False}
     try:
         from app.services.objection_chain import calculate_chain_score
         chain_data = await calculate_chain_score(session_id)
-        chain_bonus = float(chain_data.get("chain_score", 0)) * V3_RESCALE
+        _chain_raw = float(chain_data.get("chain_score", 0))
+        chain_bonus = _normalize(_chain_raw, 10.0) * L6_MAX
         chain_details = chain_data.get("chain_details", {})
     except Exception:
         logger.debug("Chain scoring unavailable for session %s", session_id)
@@ -1690,8 +2026,8 @@ async def calculate_scores(
     hm_count = count_human_moment_messages(user_messages)
     if hm_count > 0:
         total_user = len(user_messages)
-        script_score = apply_human_moment_adjustment(script_score, 22.5, hm_count, total_user)
-        comm_score = apply_human_moment_adjustment(comm_score, 15.0, hm_count, total_user)
+        script_score = apply_human_moment_adjustment(script_score, L1_MAX, hm_count, total_user)
+        comm_score = apply_human_moment_adjustment(comm_score, L3_MAX, hm_count, total_user)
         if anti_penalty < 0:
             forgiven = min(hm_count, int(total_user * 0.2))
             anti_penalty = anti_penalty * (1.0 - forgiven / max(total_user, 1) * 0.5)
@@ -1718,6 +2054,95 @@ async def calculate_scores(
             "Session %s: short conversation (%d msgs), completeness=%.1f",
             session_id, user_msg_count, completeness,
         )
+
+    # ── P3 (training-rework): consume persona.scoring_rubric ──
+    # When the session was started from a ReferencePersona (slug lives in
+    # custom_params["reference_persona_slug"]), load the persona and apply its
+    # per-session scoring rubric:
+    #   • metrics{script_adherence,objection_handling,communication,result}
+    #     give per-session target/weight → we compute a normalized ATTAINMENT
+    #     ratio (actual / target) for each mapped layer (L1/L2/L3/L5) and store
+    #     it in details["rubric_eval"] for the results UI and analytics. This
+    #     is a DIAGNOSTIC overlay only — it deliberately does NOT mutate the
+    #     layer scores or the `total` math (per the cascade-normalization
+    #     invariant: layer weights / total summing stay untouched).
+    #   • must_clarify / red_flags are forwarded to the α-judge below so the
+    #     LLM cross-checks the transcript against the persona's expected
+    #     discovery items and known legal pitfalls.
+    # Metric keys are STABLE mapping ids (do not rename) → fixed layer mapping.
+    # NOTE: `_rubric` and `_persona_slug` were already loaded EARLY (before
+    # L1/L5 scoring) so the layer functions could consume them. We reuse them
+    # here for the diagnostic overlay + α-judge forwarding — no second DB read.
+    _rubric_must_clarify: list[str] = []
+    _rubric_red_flags: list[str] = []
+    if _persona_slug:
+        try:
+            if _rubric:
+                _metrics = _rubric.get("metrics", {}) or {}
+                # Stable metric-id → (actual layer points, layer max) mapping.
+                # Denominators are the P3 weight constants (no hardcoded caps).
+                _METRIC_LAYER_MAP = {
+                    "script_adherence": (script_score, L1_MAX),
+                    "objection_handling": (objection_score, L2_MAX),
+                    "communication": (comm_score, L3_MAX),
+                    "result": (result_score, L5_MAX),
+                }
+                _metric_eval: dict[str, dict] = {}
+                for _mkey, (_actual, _max) in _METRIC_LAYER_MAP.items():
+                    _spec = _metrics.get(_mkey)
+                    if not isinstance(_spec, dict):
+                        continue
+                    _target = float(_spec.get("target", 0) or 0)
+                    _weight = float(_spec.get("weight", 0) or 0)
+                    _norm_actual = _normalize(float(_actual or 0), _max)
+                    # attainment: how close to the persona-specific target the
+                    # manager got (1.0 = hit target; >1.0 = exceeded). Guard
+                    # against target=0 to avoid div-by-zero.
+                    _attainment = (
+                        round(min(1.5, _norm_actual / _target), 3)
+                        if _target > 0 else None
+                    )
+                    _metric_eval[_mkey] = {
+                        "target": _target,
+                        "weight": _weight,
+                        "normalized_actual": round(_norm_actual, 3),
+                        "attainment": _attainment,
+                        "met": (_attainment is not None and _attainment >= 1.0),
+                    }
+                # weighted attainment across rubric metrics (diagnostic scalar).
+                _wsum = sum(
+                    e["weight"] for e in _metric_eval.values()
+                    if e.get("attainment") is not None
+                )
+                _weighted = (
+                    round(
+                        sum(
+                            min(1.0, e["attainment"]) * e["weight"]
+                            for e in _metric_eval.values()
+                            if e.get("attainment") is not None
+                        ) / _wsum,
+                        3,
+                    )
+                    if _wsum > 0 else None
+                )
+                _rubric_must_clarify = [
+                    str(x) for x in (_rubric.get("must_clarify") or [])
+                ]
+                _rubric_red_flags = [
+                    str(x) for x in (_rubric.get("red_flags") or [])
+                ]
+                all_details["rubric_eval"] = {
+                    "persona_slug": _persona_slug,
+                    "metrics": _metric_eval,
+                    "weighted_attainment": _weighted,
+                    "must_clarify": _rubric_must_clarify,
+                    "red_flags": _rubric_red_flags,
+                }
+        except Exception:
+            logger.warning(
+                "Persona rubric consumption failed for session %s", session_id,
+                exc_info=True,
+            )
 
     # ── α (BUG B3 v3): LLM-as-judge nudge over the full transcript ──
     # Single shot at finalize time, range [-8, +5], fail-soft to 0.
@@ -1756,6 +2181,8 @@ async def calculate_scores(
                 emotion_arc=_emotion_arc,
                 call_outcome=_call_outcome,
                 redis_client=_redis,
+                must_clarify=_rubric_must_clarify,
+                red_flags_checklist=_rubric_red_flags,
             )
             judge_score = float(judge_verdict.score_adjust)
         except Exception:
@@ -1768,21 +2195,26 @@ async def calculate_scores(
         judge_verdict.model_dump() if judge_verdict is not None else None
     )
 
-    # ── Total: sum all layers, clamp to 0-100 ──
-    total = (
-        float(script_score or 0)       # L1: 0-22.5
-        + float(objection_score or 0)  # L2: 0-18.75
-        + float(comm_score or 0)       # L3: 0-15
-        + float(anti_penalty or 0)     # L4: 0 to -11.25
-        + float(result_score or 0)     # L5: 0-7.5
-        + float(chain_bonus or 0)      # L6: 0-7.5
-        + float(trap_score or 0)       # L7: -7.5 to +7.5
-        + float(human_score or 0)      # L8: 0-15
-        + float(narrative_score or 0)  # L9: 0-10
-        + float(legal_score or 0)      # L10: -5 to +5
-        + float(judge_score or 0)      # α: LLM judge nudge, [-8, +5]
+    # ── Total: sum live layers, clamp to [0, 100] ──
+    # Positive maxima sum to EXACTLY 100 (L1_MAX+L2_MAX+L3_MAX+L5_MAX+L6_MAX
+    # +L8_MAX+L10_MAX = 18+12+12+18+5+10+25 = 100). L4 and L10 may go
+    # negative; the α-judge adds [JUDGE_MIN, JUDGE_MAX]. L7 (trap) and L9
+    # (narrative) are DEAD (L7_MAX=L9_MAX=0) and are EXCLUDED from the sum —
+    # their scores are still computed/stored for the details payload but
+    # contribute zero weight.
+    total = compose_total_from_layers(
+        script_adherence=script_score,   # L1: 0..L1_MAX (18)
+        objection_handling=objection_score,  # L2: 0..L2_MAX (12)
+        communication=comm_score,        # L3: 0..L3_MAX (12)
+        anti_patterns=anti_penalty,      # L4: L4_MIN..0 (-15..0)
+        result=result_score,             # L5: 0..L5_MAX (18)
+        chain_traversal=chain_bonus,     # L6: 0..L6_MAX (5)
+        # L7 (trap_score) EXCLUDED — dead layer (L7_MAX=0)
+        human_factor=human_score,        # L8: 0..L8_MAX (10)
+        # L9 (narrative_score) EXCLUDED — dead layer (L9_MAX=0)
+        legal_accuracy=legal_score,      # L10: L10_MIN..L10_MAX (-10..+25)
+        judge_score=judge_score,         # α: LLM judge nudge, [JUDGE_MIN, JUDGE_MAX]
     )
-    total = max(0.0, min(100.0, total))
 
     breakdown = ScoreBreakdown(
         script_adherence=round(script_score, 2),
@@ -1810,23 +2242,72 @@ def _generate_rule_based_recommendations(scores: ScoreBreakdown) -> str:
     """Generate recommendations from 10-layer scores without LLM.
 
     Always works, instant. Returns markdown-formatted numbered list.
+
+    P3: when the session had a persona rubric, this function ALSO consumes
+    ``scores.details`` to ground its advice in the persona's expectations —
+    NOT just the LLM-judge:
+      • uncovered ``must_clarify`` topics → a targeted "выясните …" line
+        (from ``details.script_adherence.persona_must_clarify.items``),
+      • triggered ``red_flags`` / wrong-path-for-persona → a corrective line
+        (from ``details.rubric_eval.red_flags`` and the L5 path-match flag).
     """
+    # Thresholds = 2/3 of the new caps (constants — keep in sync via L*_MAX).
     LAYER_RULES = [
-        ("script_adherence", 15.0, 22.5,
-         "**Следование скрипту:** Придерживайтесь этапов: представление → квалификация → презентация → возражения → закрытие. Задавайте квалифицирующие вопросы: сумма долга, кредиторы, наличие имущества."),
-        ("objection_handling", 12.0, 18.75,
-         "**Работа с возражениями:** Используйте схему: услышать → подтвердить → уточнить → аргументировать → проверить. Каждое возражение — это сигнал о страхе клиента, не игнорируйте."),
-        ("communication", 10.0, 15.0,
-         "**Коммуникация:** Больше эмпатии: «Я понимаю вашу ситуацию», «Это непростое решение». Слушайте активно, перефразируйте слова клиента."),
-        ("human_factor", 10.0, 15.0,
-         "**Человеческий фактор:** Сохраняйте спокойствие и терпение. Если клиент агрессивен — не реагируйте в ответ, покажите понимание."),
-        ("result", 4.0, 7.5,
-         "**Закрытие:** Предлагайте 2-3 конкретных слота для встречи, объясните что будет на встрече, подчеркните что консультация бесплатна."),
-        ("chain_traversal", 4.0, 7.5,
-         "**Цепочки возражений:** Используйте разные аргументы для разных возражений. Если один аргумент не сработал — попробуйте другой подход."),
+        ("script_adherence", L1_MAX * 2 / 3, L1_MAX,
+         "**Полнота выяснения обстоятельств:** Соберите всю картину должника: сумма и состав долгов, доход, иждивенцы, жильё и ипотека, сделки за последние 3 года, стадия взыскания. Без этих фактов рекомендация по ФЗ-127 не может быть корректной."),
+        ("objection_handling", L2_MAX * 2 / 3, L2_MAX,
+         "**Отработка сомнений и страхов:** Используйте схему: услышать → признать → уточнить → объяснить → проверить. Самый частый страх — «отнимут квартиру»; снимайте его фактами закона, а не ложными гарантиями."),
+        ("communication", L3_MAX * 2 / 3, L3_MAX,
+         "**Ясность и эмпатия:** Объясняйте простыми словами, без канцелярита. Признавайте тяжесть ситуации: «Понимаю, это непростое решение». Слушайте и перефразируйте сказанное должником."),
+        ("human_factor", L8_MAX * 2 / 3, L8_MAX,
+         "**Поддержка должника:** Сохраняйте спокойствие и терпение. Если должник раздражён или напуган — не отвечайте резко, покажите, что вы на его стороне в рамках закона."),
+        ("result", L5_MAX * 2 / 3, L5_MAX,
+         "**Корректность рекомендации:** Назовите верный путь — реструктуризация долгов или реализация имущества — исходя из дохода и имущества должника. Предупредите о требовании добросовестности и дайте конкретный следующий шаг (документы, заявление, разбор)."),
+        ("chain_traversal", L6_MAX * 2 / 3, L6_MAX,
+         "**Глубина разбора:** На разные сомнения приводите разные доводы. Если довод не убедил — зайдите с другой стороны, а не повторяйте тот же аргумент."),
     ]
 
     recs: list[str] = []
+    _details = scores.details or {}
+
+    # ── P3: persona-rubric–driven recommendations (highest priority) ──
+    # 1) Uncovered must_clarify topics → name them explicitly.
+    _mc = (_details.get("script_adherence") or {}).get("persona_must_clarify")
+    if isinstance(_mc, dict):
+        _uncovered = [
+            str(i.get("item"))
+            for i in (_mc.get("items") or [])
+            if isinstance(i, dict) and not i.get("covered")
+        ]
+        if _uncovered:
+            _shown = "; ".join(_uncovered[:5])
+            recs.append(
+                "**Не выяснены ключевые обстоятельства:** по эталону этого должника "
+                f"вы не уточнили: {_shown}. Без этих фактов рекомендация по ФЗ-127 "
+                "не может быть корректной — задайте эти вопросы в начале консультации."
+            )
+
+    # 2) Persona red_flags / wrong path for this debtor → corrective line.
+    _rubric_eval = _details.get("rubric_eval")
+    _red_flags: list[str] = []
+    if isinstance(_rubric_eval, dict):
+        _red_flags = [str(x) for x in (_rubric_eval.get("red_flags") or [])]
+    _wrong_path = bool((_details.get("result") or {}).get("wrong_path_for_persona"))
+    if _wrong_path or _red_flags:
+        _parts: list[str] = []
+        if _wrong_path:
+            _parts.append(
+                "вы предложили путь, не подходящий этому должнику — сверьте процедуру "
+                "(реструктуризация при стабильном доходе / реализация / внесудебное МФЦ) "
+                "с его доходом и имуществом"
+            )
+        if _red_flags:
+            _parts.append(
+                "избегайте недопустимых формулировок по эталону: "
+                + "; ".join(_red_flags[:4])
+            )
+        recs.append("**Корректность пути по ФЗ-127:** " + ". ".join(_parts) + ".")
+
     for attr, threshold, max_val, text in LAYER_RULES:
         val = getattr(scores, attr, 0) or 0
         pct = val / max_val if max_val > 0 else 0
@@ -1836,15 +2317,17 @@ def _generate_rule_based_recommendations(scores: ScoreBreakdown) -> str:
     # Anti-patterns (negative score = bad)
     if (scores.anti_patterns or 0) < -3:
         recs.append(
-            "**Антипаттерны:** Обнаружены негативные паттерны (давление, обесценивание, перебивание). "
-            "Избегайте фраз-манипуляций. Фокусируйтесь на фактах и выгоде для клиента."
+            "**Этические нарушения:** Обнаружены недопустимые приёмы (ложные гарантии «спишем всё», "
+            "запугивание, давление). Никогда не обещайте гарантированное списание и не пугайте должника — "
+            "опирайтесь только на нормы ФЗ-127 и реальные последствия процедуры."
         )
 
     # Legal accuracy
     if (scores.legal_accuracy or 0) < -1:
         recs.append(
-            "**Юридическая точность:** Были допущены неточности в юридической информации. "
-            "Перечитайте ключевые положения 127-ФЗ: сроки, условия, последствия процедуры."
+            "**Правовая точность ФЗ-127:** Были допущены неточности в правовой информации. "
+            "Перечитайте ключевые положения 127-ФЗ: основания, сроки, условия добросовестности, "
+            "последствия реструктуризации и реализации имущества."
         )
 
     # Completeness
@@ -1897,43 +2380,45 @@ async def generate_recommendations(
 
         from app.services.scenario_engine import _sanitize_db_prompt
         dialog_summary = "\n".join(
-            f"{'Менеджер' if m.role == MessageRole.user else 'Клиент'}: {_sanitize_db_prompt(m.content or '', 'dialog_msg')}"
+            f"{'Консультант' if m.role == MessageRole.user else 'Должник'}: {_sanitize_db_prompt(m.content or '', 'dialog_msg')}"
             for m in messages[:30]
             if m.role in (MessageRole.user, MessageRole.assistant)
         )
 
         score_info = ""
         if scores:
+            # P3: L7 (ловушки) и L9 (нарратив) скрыты — мёртвые слои.
             score_info = (
-                f"\nОценки (v5, 10 слоёв):\n"
-                f"  L1 Следование скрипту: {scores.script_adherence}/22.5\n"
-                f"  L2 Работа с возражениями: {scores.objection_handling}/18.75\n"
-                f"  L3 Коммуникация: {scores.communication}/15\n"
-                f"  L4 Антипаттерны: {scores.anti_patterns}\n"
-                f"  L5 Результат: {scores.result}/7.5\n"
-                f"  L6 Цепочки возражений: {scores.chain_traversal}/7.5\n"
-                f"  L7 Ловушки: {scores.trap_handling}\n"
-                f"  L8 Человеческий фактор: {scores.human_factor}/15\n"
-                f"  L9 Нарратив: {scores.narrative_progression}/10\n"
-                f"  L10 Юр. точность: {scores.legal_accuracy} (±5)\n"
+                f"\nОценки консультации (рубрика ФЗ-127):\n"
+                f"  L1 Полнота выяснения обстоятельств: {scores.script_adherence}/{L1_MAX:g}\n"
+                f"  L2 Отработка сомнений и страхов: {scores.objection_handling}/{L2_MAX:g}\n"
+                f"  L3 Ясность и эмпатия: {scores.communication}/{L3_MAX:g}\n"
+                f"  L4 Этические нарушения: {scores.anti_patterns} (0..{L4_MIN:g})\n"
+                f"  L5 Корректность рекомендации: {scores.result}/{L5_MAX:g}\n"
+                f"  L6 Глубина разбора: {scores.chain_traversal}/{L6_MAX:g}\n"
+                f"  L8 Поддержка должника: {scores.human_factor}/{L8_MAX:g}\n"
+                f"  L10 Правовая точность ФЗ-127: {scores.legal_accuracy} ({L10_MIN:g}..+{L10_MAX:g})\n"
                 f"  ИТОГО: {scores.total}/100\n"
             )
 
         system_prompt = (
-            "Ты — опытный тренер по продажам услуги банкротства физических лиц (БФЛ). "
-            "Проанализируй диалог менеджера с клиентом и дай 3-5 конкретных рекомендаций. "
-            "Учитывай все 10 слоёв оценки. "
+            "Ты — опытный наставник юриста-консультанта по банкротству физических лиц "
+            "(127-ФЗ). Проанализируй диалог консультанта с должником и дай 3-5 конкретных "
+            "рекомендаций. Оценивай: полноту выяснения обстоятельств, отработку сомнений и "
+            "страхов (особенно «отнимут квартиру») без ложных гарантий, ясность и эмпатию, "
+            "корректность рекомендованного пути (реструктуризация/реализация) и правовую "
+            "точность по ФЗ-127. "
             "Формат: нумерованный список. Каждая рекомендация — 1-2 предложения. "
-            "Фокусируйся на самых слабых навыках. Будь конкретен, избегай общих фраз. "
-            "Если были юридические ошибки (L10) — укажи правильную информацию со ссылкой на 127-ФЗ. "
-            "Пиши на русском."
+            "Фокусируйся на самых слабых местах. Будь конкретен, избегай общих фраз. "
+            "Если были правовые ошибки (L10) — укажи верную информацию со ссылкой на 127-ФЗ. "
+            "Тон спокойный, без продажного жаргона. Пиши на русском."
         )
 
         result = await generate_response(
             system_prompt=system_prompt,
             messages=[{
                 "role": "user",
-                "content": f"Диалог:\n{dialog_summary}\n{score_info}\n\nДай рекомендации менеджеру.",
+                "content": f"Диалог:\n{dialog_summary}\n{score_info}\n\nДай рекомендации консультанту.",
             }],
             emotion_state="cold",
             task_type="coach",
@@ -1969,14 +2454,18 @@ def generate_layer_explanations(
     breakdown: ScoreBreakdown,
     messages: list[dict],
 ) -> list[LayerExplanation]:
-    """Generate human-readable explanations for all 10 layers.
+    """Generate human-readable explanations for the user-facing layers.
+
+    P3: layers are relabelled to the legal-consultation rubric. L7
+    (trap_handling) and L9 (narrative) are DEAD after de-gamification and
+    are NOT emitted here — they must not appear in any user-facing list.
 
     Args:
         breakdown: Full ScoreBreakdown from calculate_scores()
         messages: List of {"role": "user"|"assistant", "content": str, "index": int}
 
     Returns:
-        List of LayerExplanation for each L1-L10
+        List of LayerExplanation for L1-L6, L8, L10 (L7/L9 hidden).
     """
     details = breakdown.details
     explanations: list[LayerExplanation] = []
@@ -2000,10 +2489,14 @@ def generate_layer_explanations(
             "delta": 0,
         })
     explanations.append(LayerExplanation(
-        layer="L1", label="Следование скрипту",
-        score=breakdown.script_adherence, max_score=22.5,
-        percentage=round(_normalize(breakdown.script_adherence, 22.5) * 100, 1),
-        summary=f"Пройдено {reached}/{total} этапов скрипта." if total > 0 else "Скрипт не назначен.",
+        layer="L1", label="Полнота выяснения обстоятельств",
+        score=breakdown.script_adherence, max_score=L1_MAX,
+        percentage=round(_normalize(breakdown.script_adherence, L1_MAX) * 100, 1),
+        summary=(
+            f"Выяснено {reached}/{total} ключевых обстоятельств "
+            "(долги, доход, иждивенцы, жильё/ипотека, сделки, стадия взыскания)."
+            if total > 0 else "Чек-лист обстоятельств не задан сценарием."
+        ),
         highlights=l1_highlights,
     ))
 
@@ -2017,27 +2510,27 @@ def generate_layer_explanations(
     }
     done_steps = [s for s in steps if l2.get(s)]
     missed_steps = [s for s in steps if not l2.get(s)]
-    l2_summary = f"{obj_count} возражений обнаружено. "
+    l2_summary = f"Сомнений/страхов отмечено: {obj_count}. "
     if missed_steps:
-        l2_summary += f"Пропущены: {', '.join(step_labels[s] for s in missed_steps)}."
+        l2_summary += f"Пропущены шаги: {', '.join(step_labels[s] for s in missed_steps)}."
     else:
-        l2_summary += "Все шаги обработки выполнены."
+        l2_summary += "Все шаги отработки пройдены."
 
     l2_highlights = []
-    # Find messages with objection patterns
+    # Find messages where the debtor voiced a doubt / fear
     for idx, msg in asst_msgs:
         if _has_pattern(msg, OBJECTION_PATTERNS):
             l2_highlights.append({
                 "message_index": idx, "role": "assistant",
                 "excerpt": msg[:80] + ("..." if len(msg) > 80 else ""),
-                "impact": "Возражение клиента", "delta": 0,
+                "impact": "Сомнение/страх должника", "delta": 0,
             })
             if len(l2_highlights) >= 3:
                 break
     explanations.append(LayerExplanation(
-        layer="L2", label="Работа с возражениями",
-        score=breakdown.objection_handling, max_score=18.75,
-        percentage=round(_normalize(breakdown.objection_handling, 18.75) * 100, 1),
+        layer="L2", label="Отработка сомнений и страхов",
+        score=breakdown.objection_handling, max_score=L2_MAX,
+        percentage=round(_normalize(breakdown.objection_handling, L2_MAX) * 100, 1),
         summary=l2_summary, highlights=l2_highlights,
     ))
 
@@ -2053,11 +2546,11 @@ def generate_layer_explanations(
     polite = l3.get("polite_markers", 0)
     if polite == 0:
         l3_notes.append("Нет вежливых маркеров (здравствуйте, спасибо)")
-    l3_summary = "; ".join(l3_notes) if l3_notes else "Хорошая коммуникация."
+    l3_summary = "; ".join(l3_notes) if l3_notes else "Ясное и эмпатичное объяснение."
     explanations.append(LayerExplanation(
-        layer="L3", label="Коммуникация",
-        score=breakdown.communication, max_score=15.0,
-        percentage=round(_normalize(breakdown.communication, 15.0) * 100, 1),
+        layer="L3", label="Ясность и эмпатия",
+        score=breakdown.communication, max_score=L3_MAX,
+        percentage=round(_normalize(breakdown.communication, L3_MAX) * 100, 1),
         summary=l3_summary, highlights=[],
     ))
 
@@ -2069,67 +2562,68 @@ def generate_layer_explanations(
         l4_highlights.append({
             "message_index": -1, "role": "user",
             "excerpt": ap.get("category", ""),
-            "impact": f"Антипаттерн: {ap.get('category', 'N/A')} ({ap.get('penalty', 0):+.1f})",
+            "impact": f"Этическое нарушение: {ap.get('category', 'N/A')} ({ap.get('penalty', 0):+.1f})",
             "delta": ap.get("penalty", 0),
         })
-    l4_summary = f"{len(detected_patterns)} антипаттернов обнаружено." if detected_patterns else "Антипаттерны не обнаружены."
+    l4_summary = (
+        f"Этических нарушений отмечено: {len(detected_patterns)}."
+        if detected_patterns else "Этических нарушений не обнаружено."
+    )
     explanations.append(LayerExplanation(
-        layer="L4", label="Антипаттерны",
+        layer="L4", label="Этические нарушения",
         score=breakdown.anti_patterns, max_score=0,
-        percentage=round(max(0, _normalize(breakdown.anti_patterns + 11.25, 11.25)) * 100, 1),
+        percentage=round(max(0, _normalize(breakdown.anti_patterns - L4_MIN, -L4_MIN)) * 100, 1),
         summary=l4_summary, highlights=l4_highlights,
     ))
 
-    # ── L5: Result ──
+    # ── L5: Корректность рекомендации ──
     l5 = details.get("result", {})
-    agreed = l5.get("consultation_agreed", False)
-    scheduled = l5.get("meeting_scheduled", False)
+    path = l5.get("path_recommended", False)
+    grounded = l5.get("path_grounded_in_situation", False)
+    good_faith = l5.get("good_faith_caveat", False)
+    next_step = l5.get("next_step_given", False)
     l5_parts = []
-    if agreed:
-        l5_parts.append("клиент согласился на консультацию")
-    if scheduled:
-        l5_parts.append("встреча/звонок назначен")
-    if not agreed and not scheduled:
-        l5_parts.append("не удалось продвинуть клиента к действию")
-    l5_summary = "Результат: " + ", ".join(l5_parts) + "."
+    if path:
+        l5_parts.append(
+            "назван путь (реструктуризация/реализация)"
+            + (", с опорой на ситуацию должника" if grounded else "")
+        )
+    else:
+        l5_parts.append("корректный путь по ФЗ-127 не предложен")
+    if good_faith:
+        l5_parts.append("дано предупреждение о добросовестности")
+    if next_step:
+        l5_parts.append("обозначен конкретный следующий шаг")
+    else:
+        l5_parts.append("следующий шаг не обозначен")
+    l5_summary = "Рекомендация: " + "; ".join(l5_parts) + "."
     explanations.append(LayerExplanation(
-        layer="L5", label="Результат",
-        score=breakdown.result, max_score=7.5,
-        percentage=round(_normalize(breakdown.result, 7.5) * 100, 1),
+        layer="L5", label="Корректность рекомендации",
+        score=breakdown.result, max_score=L5_MAX,
+        percentage=round(_normalize(breakdown.result, L5_MAX) * 100, 1),
         summary=l5_summary, highlights=[],
     ))
 
-    # ── L6: Chain Traversal ──
+    # ── L6: Chain Traversal → отработка цепочек сомнений ──
     l6 = details.get("chain_traversal", {})
     has_chain = l6.get("has_chain", False)
-    l6_summary = "Цепочки возражений обработаны." if has_chain else "Цепочки возражений не обнаружены или не обработаны."
+    l6_summary = (
+        "Цепочки сомнений отработаны разными аргументами."
+        if has_chain else "Цепочек сомнений не возникло либо они не отработаны."
+    )
     explanations.append(LayerExplanation(
-        layer="L6", label="Цепочки возражений",
-        score=breakdown.chain_traversal, max_score=7.5,
-        percentage=round(_normalize(breakdown.chain_traversal, 7.5) * 100, 1),
+        layer="L6", label="Глубина разбора",
+        score=breakdown.chain_traversal, max_score=L6_MAX,
+        percentage=round(_normalize(breakdown.chain_traversal, L6_MAX) * 100, 1),
         summary=l6_summary, highlights=[],
     ))
 
-    # ── L7: Trap Handling ──
-    l7 = details.get("trap_handling", {})
-    traps = l7.get("traps", [])
-    caught = [t for t in traps if t.get("status") == "caught"]
-    missed_traps = [t for t in traps if t.get("status") != "caught"]
-    l7_highlights = []
-    for t in missed_traps[:3]:
-        l7_highlights.append({
-            "message_index": -1, "role": "system",
-            "excerpt": t.get("name", ""),
-            "impact": f"Ловушка пропущена: {t.get('name', 'N/A')} ({t.get('delta', 0):+.1f})",
-            "delta": t.get("delta", 0),
-        })
-    l7_summary = f"Поймано {len(caught)}/{len(traps)} ловушек." if traps else "Ловушки не активировались."
-    explanations.append(LayerExplanation(
-        layer="L7", label="Ловушки",
-        score=breakdown.trap_handling, max_score=7.5,
-        percentage=round(_normalize(breakdown.trap_handling + 7.5, 15) * 100, 1),
-        summary=l7_summary, highlights=l7_highlights,
-    ))
+    # ── L7: Trap Handling — HIDDEN (P3) ──
+    # L7 is a dead sales-trap layer after de-gamification. It is intentionally
+    # NOT emitted as a user-facing explanation and its radar weight was
+    # redistributed (knowledge/objection_handling/legal_knowledge). The
+    # stored `breakdown.trap_handling` field is kept (migration cascade) but
+    # never surfaced here.
 
     # ── L8: Human Factor ──
     l8 = details.get("human_factor", {})
@@ -2163,30 +2657,22 @@ def generate_layer_explanations(
             l8_highlights.append({
                 "message_index": idx, "role": "user",
                 "excerpt": msg[:80] + ("..." if len(msg) > 80 else ""),
-                "impact": "Агрессивный ответ менеджера (-2 самообладание)",
+                "impact": "Резкий ответ консультанта (-2 самообладание)",
                 "delta": -2.0,
             })
     explanations.append(LayerExplanation(
-        layer="L8", label="Человеческий фактор",
-        score=breakdown.human_factor, max_score=15.0,
-        percentage=round(_normalize(breakdown.human_factor, 15.0) * 100, 1),
+        layer="L8", label="Поддержка должника",
+        score=breakdown.human_factor, max_score=L8_MAX,
+        percentage=round(_normalize(breakdown.human_factor, L8_MAX) * 100, 1),
         summary=l8_summary, highlights=l8_highlights[:3],
     ))
 
-    # ── L9: Narrative Progression ──
-    l9 = details.get("narrative_progression", {})
-    peak = l9.get("peak_state", "cold")
-    final = l9.get("final_state", "cold")
-    arc = l9.get("arc_score", 0)
-    l9_summary = f"Пик: {peak}, финал: {final}. Арка: {arc:.0f}/4."
-    if l9.get("hangup_recovery_bonus"):
-        l9_summary += " Бонус за восстановление после hangup."
-    explanations.append(LayerExplanation(
-        layer="L9", label="Нарративная прогрессия",
-        score=breakdown.narrative_progression, max_score=10.0,
-        percentage=round(_normalize(breakdown.narrative_progression, 10.0) * 100, 1),
-        summary=l9_summary, highlights=[],
-    ))
+    # ── L9: Narrative Progression — HIDDEN (P3) ──
+    # L9 is a dead story/emotion-arc sales layer after de-gamification. It is
+    # intentionally NOT emitted as a user-facing explanation; its radar weight
+    # folded into the «Рекомендация» (closing) axis. The stored
+    # `breakdown.narrative_progression` field is kept (migration cascade) but
+    # never surfaced here.
 
     # ── L10: Legal Accuracy ──
     l10 = details.get("legal_accuracy", {})
@@ -2206,9 +2692,9 @@ def generate_layer_explanations(
             })
     l10_summary = f"{correct} верных, {incorrect} ошибок из {checks} проверок ({method})."
     explanations.append(LayerExplanation(
-        layer="L10", label="Юридическая точность",
-        score=breakdown.legal_accuracy, max_score=5.0,
-        percentage=round(_normalize(breakdown.legal_accuracy + 5, 10) * 100, 1),
+        layer="L10", label="Правовая точность ФЗ-127",
+        score=breakdown.legal_accuracy, max_score=L10_MAX,
+        percentage=round(_normalize(breakdown.legal_accuracy - L10_MIN, L10_MAX - L10_MIN) * 100, 1),
         summary=l10_summary, highlights=l10_highlights,
     ))
 

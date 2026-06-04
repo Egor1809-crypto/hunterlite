@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
+import { useParams, useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import dynamic from "next/dynamic";
 import {
@@ -11,12 +11,9 @@ import {
   Send,
   Volume2,
   VolumeX,
-  Radio,
-  MessageSquare,
   Mic,
   Loader2,
   Target,
-  ListChecks,
   Activity,
 } from "lucide-react";
 import { useWebSocket } from "@/hooks/useWebSocket";
@@ -24,28 +21,19 @@ import { useAuthBootstrap } from "@/hooks/useAuthBootstrap";
 import { useMicrophone } from "@/hooks/useMicrophone";
 import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
 import { useTTS } from "@/hooks/useTTS";
-import { MicCheck } from "@/components/training/MicCheck";
 import ChatMessage from "@/components/training/ChatMessage";
 import { PinnedMessagesBar } from "@/components/training/PinnedMessagesBar";
 import { QuoteReplyBadge } from "@/components/training/QuoteReplyBadge";
-import { LinkClientButton } from "@/components/training/LinkClientButton";
-// NEW-6/7 (2026-05-04): SessionAttachmentButton moved into a kebab menu
-// so the textarea regains ~70%+ of the input row. Direct import kept for
-// the call view where we apply the same kebab pattern.
-import { SessionAttachmentButton } from "@/components/training/SessionAttachmentButton";
 // 2026-04-20: CallButton убран из chat-header. Переключение в голосовой
 // режим теперь происходит на CRM-карточке клиента (/clients/[id]),
 // через отдельные кнопки «Написать / Позвонить» — до входа в сессию,
 // а не в середине чата. См. apps/web/src/app/clients/[id]/page.tsx.
 // Компонент CallButton.tsx сохранён в /components/training/ на случай
 // возврата к inline-переключению в будущем.
-import ScriptHints from "@/components/training/ScriptHints";
 import { Scale } from "lucide-react";
 import { CrystalMic } from "@/components/training/CrystalMic";
 import VibeMeter from "@/components/training/VibeMeter";
 import { type CheckpointInfo } from "@/components/training/ScriptAdherence";
-import ScriptPanel from "@/components/training/ScriptPanel";
-import ScriptDrawer from "@/components/training/ScriptDrawer";
 import WhisperPanel from "@/components/training/WhisperPanel";
 import { HangupModal } from "@/components/training/HangupModal";
 import SessionEndingOverlay from "@/components/training/SessionEndingOverlay";
@@ -58,26 +46,15 @@ import {
   resetForNewSession as resetHangupCoordinator,
   type HangupCoordinatorState,
 } from "@/lib/hangupCoordinator";
-import { TrapNotification, type TrapEvent } from "@/components/training/TrapNotification";
 import { type ClientCardData } from "@/components/training/ClientCard";
-import { HumanFactorIcons } from "@/components/training/HumanFactorIcons";
-import { StoryProgress } from "@/components/training/StoryProgress";
-import { ConsequenceToast } from "@/components/training/ConsequenceToast";
-import { PreCallBriefOverlay } from "@/components/training/PreCallBriefOverlay";
-import TrapLog from "@/components/training/TrapLog";
 import TalkListenRatio from "@/components/training/TalkListenRatio";
 import LiveEmotionTimeline from "@/components/training/LiveEmotionTimeline";
-import DifficultyIndicator from "@/components/training/DifficultyIndicator";
-import { StoryCallReportOverlay } from "@/components/training/StoryCallReportOverlay";
-import { BetweenCallsOverlay } from "@/components/training/BetweenCallsOverlay";
 import { useSessionStore } from "@/stores/useSessionStore";
 import { TrainingErrorBoundary } from "@/components/training/TrainingErrorBoundary";
 import { TTSUnlockOverlay } from "@/components/training/TTSUnlockOverlay";
 import { toast } from "sonner";
 import { TrainingToasts } from "@/components/training/TrainingToasts";
-import { BootSequence } from "@/components/training/BootSequence";
 import { useHotkeys } from "@/hooks/useHotkeys";
-import { useSound } from "@/hooks/useSound";
 import {
   type EmotionState,
   type ObjectionHint,
@@ -86,7 +63,6 @@ import {
   EMOTION_MAP,
 } from "@/types";
 import { logger } from "@/lib/logger";
-import { api } from "@/lib/api";
 
 /** Type-safe accessor for untyped WebSocket message data payloads. */
 function wsPayload<T>(data: Record<string, unknown>): T {
@@ -109,10 +85,6 @@ function stripStageDirections(text: string): string {
     .replace(/  +/g, ' ')
     .replace(/\n\s*\n/g, '\n')
     .trim();
-}
-
-function clamp(value: number, min: number, max: number): number {
-  return Math.min(max, Math.max(min, value));
 }
 
 async function blobToBase64(blob: Blob): Promise<string> {
@@ -151,49 +123,7 @@ export default function TrainingSessionPage() {
   const { ready: authReady } = useAuthBootstrap();
   const params = useParams();
   const router = useRouter();
-  const searchParams = useSearchParams();
   const routeId = params.id as string;
-  const isStoryMode = searchParams.get("mode") === "story";
-  const storyScenarioId = isStoryMode ? routeId : null;
-  const storyCalls = Math.min(5, Math.max(2, Number(searchParams.get("calls") || "3") || 3));
-  const storyArchetype = searchParams.get("custom_archetype") || undefined;
-  const storyProfession = searchParams.get("custom_profession") || undefined;
-  const storyLeadSource = searchParams.get("custom_lead_source") || undefined;
-  const storyDifficulty = searchParams.get("custom_difficulty") ? Number(searchParams.get("custom_difficulty")) : undefined;
-  // 2026-04-21: forward the 7 extended builder fields that the old
-  // buildStoryQuery was dropping. Keys match what the backend reads off
-  // session.custom_params (see app/api/training.py:~325 and
-  // app/services/client_generator.generate_client_profile). "random" is a
-  // valid sentinel for the 4 context presets — the server unwraps it.
-  const storyFamilyPreset = searchParams.get("custom_family_preset") || undefined;
-  const storyCreditorsPreset = searchParams.get("custom_creditors_preset") || undefined;
-  const storyDebtStage = searchParams.get("custom_debt_stage") || undefined;
-  const storyDebtRange = searchParams.get("custom_debt_range") || undefined;
-  const storyEmotionPreset = searchParams.get("custom_emotion_preset") || undefined;
-  const storyBgNoise = searchParams.get("custom_bg_noise") || undefined;
-  const storyTimeOfDay = searchParams.get("custom_time_of_day") || undefined;
-  const storyFatigue = searchParams.get("custom_fatigue") || undefined;
-  // Constructor v2 tone (2026-04-21): harsh/neutral/lively/friendly.
-  const storyTone = searchParams.get("custom_tone") || undefined;
-  const storyCustomParams = useMemo(() => ({
-    archetype: storyArchetype,
-    profession: storyProfession,
-    lead_source: storyLeadSource,
-    difficulty: storyDifficulty,
-    family_preset: storyFamilyPreset,
-    creditors_preset: storyCreditorsPreset,
-    debt_stage: storyDebtStage,
-    debt_range: storyDebtRange,
-    emotion_preset: storyEmotionPreset,
-    bg_noise: storyBgNoise,
-    time_of_day: storyTimeOfDay,
-    client_fatigue: storyFatigue,
-    tone: storyTone,
-  }), [
-    storyArchetype, storyProfession, storyLeadSource, storyDifficulty,
-    storyFamilyPreset, storyCreditorsPreset, storyDebtStage, storyDebtRange,
-    storyEmotionPreset, storyBgNoise, storyTimeOfDay, storyFatigue, storyTone,
-  ]);
 
   // ── Zustand store (replaces 30+ useState) ──
   // Full subscription for render — but NEVER put `s` in useEffect deps!
@@ -224,36 +154,21 @@ export default function TrainingSessionPage() {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const wsTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
-  const sessionEndedRef = useRef<{ score: number | null; xp: number | null; levelUp: boolean }>({ score: null, xp: null, levelUp: false });
+  const sessionEndedRef = useRef<{ score: number | null }>({ score: null });
   // 2026-05-04 (v2): hangup coordinator — owns the dedupe slate +
   // fallback timer for the post-hangup race. See @/lib/hangupCoordinator
   // for the contract; the page uses it through the four wrappers below.
   // Extracted to a pure module so it can be unit-tested without booting
   // the whole page (see __tests__/hangup-flow.test.tsx).
   const hangupRef = useRef<HangupCoordinatorState>(createHangupCoordinatorState());
-  const storyBootstrappedRef = useRef(false);
-  // 2026-04-18 audit fix: in story-mode, each new call spawns a NEW
-  // TrainingSession backend-side. The URL's `routeId` stays the initial
-  // session id forever. We track the LIVE session id here so REST calls
-  // (end, results redirect, session_hijacked recovery) hit the right row.
+  // 2026-04-18 audit fix: track the LIVE session id so REST calls
+  // (end, results redirect, session_hijacked recovery) hit the right row
+  // even if the session was resumed under a different id.
   const currentSessionIdRef = useRef<string>(routeId);
-  const [storyTransitionText, setStoryTransitionText] = useState(
-    isStoryMode ? "ИНИЦИАЛИЗАЦИЯ AI-ИСТОРИИ..." : "ПОДКЛЮЧЕНИЕ К СЕССИИ..."
-  );
   // 2026-04-23: full-screen "Завершаем тренировку" overlay shown between
   // handleEnd() click and router.replace → /results. Prevents the 5-15s
   // dead-air window while backend is scoring.
   const [ending, setEnding] = useState(false);
-  const [storyCallReport, setStoryCallReport] = useState<{
-    callNumber: number;
-    score: number;
-    keyMoments: string[];
-    consequences: Array<{ call: number; type: string; severity: number; detail: string }>;
-    memoriesCreated: number;
-    isFinal: boolean;
-  } | null>(null);
-  const [activeConsequence, setActiveConsequence] = useState<import("@/types/story").ConsequenceEvent | null>(null);
-  const [personalChallenge, setPersonalChallenge] = useState<string | null>(null);
   const [scoreHint, setScoreHint] = useState<{
     script_adherence: number;
     objection_handling: number;
@@ -263,6 +178,7 @@ export default function TrainingSessionPage() {
     chain_traversal: number;
     trap_handling: number;
     human_factor: number;
+    legal: number;
     realtime_estimate: number;
     max_possible_realtime: number;
   } | null>(null);
@@ -271,7 +187,7 @@ export default function TrainingSessionPage() {
   // 2026-05-03 redesign: right-sidebar tab state. Replaces the 9-panel
   // always-on stack that pushed "Баллы" off-screen on most viewports.
   // Mirrors the 3-pill switcher used on /pvp ("arena|knowledge|history").
-  type SidebarTab = "score" | "script" | "reactions";
+  type SidebarTab = "score" | "reactions";
   const [sidebarTab, setSidebarTab] = useState<SidebarTab>("score");
 
   // Auto-dismiss STT warning after 5 seconds
@@ -282,23 +198,11 @@ export default function TrainingSessionPage() {
     }
   }, [s.sttAvailable, s.sessionState, sttWarningDismissed]);
 
-  // ── Micro-animation states ──
-  const [scorePulse, setScorePulse] = useState(false);
+  // ── Micro-animation state — checkpoint hit pulse on the score card ──
   const [checkpointFlash, setCheckpointFlash] = useState(false);
-  const prevScriptScoreRef = useRef(s.scriptScore);
   const prevCheckpointsRef = useRef(s.checkpointsHit);
 
-  // ── Score change pulse animation ──
-  useEffect(() => {
-    if (s.scriptScore !== prevScriptScoreRef.current && s.scriptScore > 0) {
-      setScorePulse(true);
-      const t = setTimeout(() => setScorePulse(false), 600);
-      prevScriptScoreRef.current = s.scriptScore;
-      return () => clearTimeout(t);
-    }
-  }, [s.scriptScore]);
-
-  // ── Checkpoint hit celebration ──
+  // ── Checkpoint hit pulse ──
   useEffect(() => {
     if (s.checkpointsHit > prevCheckpointsRef.current) {
       setCheckpointFlash(true);
@@ -307,18 +211,6 @@ export default function TrainingSessionPage() {
       return () => clearTimeout(t);
     }
   }, [s.checkpointsHit]);
-
-  // Sound effect for difficulty mode changes (boss/safe)
-  const { playSound } = useSound();
-  const difficultyMode = useSessionStore((st) => st.difficultyMode);
-  const prevDifficultyModeRef = useRef(difficultyMode);
-  useEffect(() => {
-    if (prevDifficultyModeRef.current !== difficultyMode) {
-      if (difficultyMode === "boss") playSound("epic", 0.4);
-      else if (difficultyMode === "safe") playSound("fail", 0.3);
-      prevDifficultyModeRef.current = difficultyMode;
-    }
-  }, [difficultyMode, playSound]);
 
   // TTS — ElevenLabs (primary) + browser speechSynthesis (fallback)
   const tts = useTTS({ lang: "ru-RU", rate: 0.95, pitch: 1.0 });
@@ -363,11 +255,8 @@ export default function TrainingSessionPage() {
           break;
 
         case "session.started":
-          setStoryTransitionText("ЗВОНОК АКТИВЕН");
-          // 2026-04-18 audit fix: track the LIVE session_id. In story mode
-          // each call creates a new TrainingSession row; without this the
-          // URL's routeId would drift and all REST calls (end, results
-          // redirect) would target the first call forever.
+          // 2026-04-18 audit fix: track the LIVE session_id so REST calls
+          // (end, results redirect) target the right row even after a resume.
           if (data.data.session_id) {
             currentSessionIdRef.current = data.data.session_id as string;
           }
@@ -540,66 +429,26 @@ export default function TrainingSessionPage() {
           tts.stop();
           if (timerRef.current) clearInterval(timerRef.current);
           {
-            // H2 fix: both story mode and single-call get immediate results
-            // NOTE: don't flip sessionState="completed" for story-mode mid-call
-            // endings — StoryCallReportOverlay needs to be rendered, which
-            // requires sessionState to stay non-terminal until final call.
             const ended = data.data as Record<string, unknown> | undefined;
             const endedScores = ended?.scores as Record<string, number> | undefined;
             sessionEndedRef.current = {
               score: (endedScores?.total as number) ?? null,
-              xp: null, // XP arrives later via session.xp_update (C4 fix)
-              levelUp: false,
             };
-            if (isStoryMode) {
-              setStoryTransitionText("ЗВОНОК ЗАВЕРШЁН. ФОРМИРУЕМ ОТЧЁТ...");
-              // 2026-04-18 audit fix: use currentSessionIdRef (live id) not
-              // routeId (stale URL id). Also: only fallback-redirect if we
-              // haven't received story.call_report after 15s — which would
-              // indicate a backend hang.
-              setTimeout(() => {
-                const st = useSessionStore.getState();
-                if (st.sessionState === "completed" && !storyCallReport) {
-                  // Story fallback: go to story summary if we have story id,
-                  // otherwise single-call results.
-                  if (st.storyMode && st.storyId) {
-                    router.push(`/results/${st.storyId}`);
-                  } else {
-                    router.push(`/results/${currentSessionIdRef.current || routeId}`);
-                  }
-                }
-              }, 15000);
-            } else {
-              // 2026-04-23: instant redirect (0ms). Session-ending overlay
-              // (set via handleEnd → ending=true) covered the whole
-              // scoring window; session.ended is the signal to land on
-              // /results. router.replace so back-button doesn't re-open
-              // the dead chat. Also ensure overlay state is set in case
-              // backend auto-ended via silence/hangup (user didn't click).
-              s.setSessionState("completed");
-              setEnding(true);
-              // 2026-05-04: success path — cancel the 5s fallback so we
-              // don't double-navigate (success replace already lands).
-              // 2026-05-04 (v2): emits a console.info so the
-              // fallback-fire-rate dashboard has a denominator.
-              cancelFallbackImpl(hangupRef.current, {
-                reason: "ack",
-                sessionId: currentSessionIdRef.current || routeId,
-              });
-              router.replace(`/results/${currentSessionIdRef.current || routeId}`);
-            }
-          }
-          break;
-
-        case "session.xp_update":
-          // C4 fix: XP/level arrives after background processing
-          {
-            const xpData = data.data as Record<string, unknown> | undefined;
-            const xpBreakdown = xpData?.xp_breakdown as Record<string, number> | undefined;
-            if (sessionEndedRef.current) {
-              sessionEndedRef.current.xp = (xpBreakdown?.grand_total as number) ?? null;
-              sessionEndedRef.current.levelUp = Boolean(xpData?.level_up);
-            }
+            // 2026-04-23: instant redirect (0ms). Session-ending overlay
+            // (set via handleEnd → ending=true) covered the whole
+            // scoring window; session.ended is the signal to land on
+            // /results. router.replace so back-button doesn't re-open
+            // the dead chat. Also ensure overlay state is set in case
+            // backend auto-ended via silence/hangup (user didn't click).
+            s.setSessionState("completed");
+            setEnding(true);
+            // 2026-05-04: success path — cancel the 5s fallback so we
+            // don't double-navigate (success replace already lands).
+            cancelFallbackImpl(hangupRef.current, {
+              reason: "ack",
+              sessionId: currentSessionIdRef.current || routeId,
+            });
+            router.replace(`/results/${currentSessionIdRef.current || routeId}`);
           }
           break;
 
@@ -722,6 +571,7 @@ export default function TrainingSessionPage() {
             chain_traversal: Number(data.data.chain_traversal || 0),
             trap_handling: Number(data.data.trap_handling || 0),
             human_factor: Number(data.data.human_factor || 0),
+            legal: Number(data.data.legal || 0),
             realtime_estimate: Number(data.data.realtime_estimate || 0),
             max_possible_realtime: Number(data.data.max_possible_realtime || 0),
           });
@@ -813,36 +663,6 @@ export default function TrainingSessionPage() {
           break;
         }
 
-        case "trap.triggered": {
-          const trapEvent: TrapEvent = {
-            trap_name: data.data.trap_name as string,
-            category: data.data.category as TrapEvent["category"],
-            status: data.data.status as TrapEvent["status"],
-            score_delta: data.data.score_delta as number,
-            wrong_keywords: (data.data.wrong_keywords as string[]) || [],
-            correct_keywords: (data.data.correct_keywords as string[]) || [],
-            client_phrase: (data.data.client_phrase as string) || "",
-            correct_example: (data.data.correct_example as string) || "",
-          };
-          s.setActiveTrap(trapEvent);
-          s.addTrapToHistory(trapEvent);
-          s.adjustTrapNetScore(trapEvent.score_delta);
-          if (trapEvent.status === "fell" || trapEvent.status === "partial") {
-            s.addTrapFell();
-          } else if (trapEvent.status === "dodged") {
-            s.addTrapDodged();
-          }
-          break;
-        }
-
-        case "trap.personal_challenge": {
-          // Personal Challenge Toast: "Ловушка X победила тебя N раз. Попробуешь ещё?"
-          const challengeMsg = (data.data.message as string) || `Ловушка «${data.data.trap_name}» бросает вызов!`;
-          setPersonalChallenge(challengeMsg);
-          wsTimersRef.current.push(setTimeout(() => setPersonalChallenge(null), 5000));
-          break;
-        }
-
         case "hint.objection": {
           const hint: ObjectionHint = {
             category: data.data.category as ObjectionHint["category"],
@@ -919,25 +739,6 @@ export default function TrainingSessionPage() {
           break;
         }
 
-        case "difficulty.update": {
-          const diffUpdate = wsPayload<import("@/stores/useSessionStore").DifficultyUpdate>(data.data);
-          s.setDifficultyUpdate(diffUpdate);
-          // Generate difficulty change reason
-          const reason = diffUpdate.had_comeback
-            ? "Восстановление после серии ошибок"
-            : diffUpdate.good_streak >= 3
-              ? `Серия верных ответов (${diffUpdate.good_streak}) — сложность растёт`
-              : diffUpdate.bad_streak >= 3
-                ? `Серия ошибок (${diffUpdate.bad_streak}) — сложность снижается`
-                : diffUpdate.mode === "boss"
-                  ? "Режим босса: максимальная сложность"
-                  : diffUpdate.mode === "safe"
-                    ? "Безопасный режим: пониженная сложность"
-                    : null;
-          s.setDifficultyReason(reason);
-          break;
-        }
-
         case "tts.couple_audio":
           tts.cancelFallback();
           if (data.data?.utterances) {
@@ -949,107 +750,6 @@ export default function TrainingSessionPage() {
             });
           }
           break;
-
-        // ── Story-mode messages ──
-        case "story.started":
-          storyBootstrappedRef.current = true;
-          setStoryTransitionText("ПОДГОТОВКА ПЕРВОГО ЗВОНКА...");
-          s.setStoryMode(data.data.story_id as string, data.data.total_calls as number);
-          s.setCharacterName(data.data.client_name as string || "Клиент");
-          break;
-
-        case "story.pre_call_brief":
-          s.setPreCallBrief(wsPayload<import("@/types/story").PreCallBrief>(data.data));
-          s.setHumanFactors(
-            ((data.data as { active_factors?: import("@/types/story").HumanFactor[] }).active_factors) || []
-          );
-          setStoryTransitionText(`БРИФИНГ ЗВОНКА #${String(data.data.call_number || "")}`);
-          s.setShowPreCallBrief(true);
-          break;
-
-        case "story.between_calls":
-          s.setBetweenCallsEvents(data.data.events as Array<{ event_type: string; title: string; content: string; severity: number | null }>);
-          s.setShowBetweenCalls(true);
-          break;
-
-        case "story.call_ready":
-          s.setCallNumber(data.data.call_number as number);
-          setStoryTransitionText(`ЗАПУСК ЗВОНКА #${String(data.data.call_number || "")}...`);
-          break;
-
-        case "story.state_delta":
-          if (Array.isArray(data.data.active_factors)) {
-            s.setHumanFactors(data.data.active_factors as import("@/types/story").HumanFactor[]);
-          }
-          if (data.data.new_consequence) {
-            const consequence = data.data.new_consequence as import("@/types/story").ConsequenceEvent;
-            s.addConsequence(consequence);
-            setActiveConsequence(consequence);
-            wsTimersRef.current.push(setTimeout(() => {
-              setActiveConsequence((current) => (
-                current && current.call === consequence.call && current.type === consequence.type ? null : current
-              ));
-            }, 4500));
-          }
-          break;
-
-        case "story.call_report": {
-          // 2026-04-18 audit fix: trust the backend's `is_final` flag
-          // rather than comparing callNumber >= totalCalls on the client,
-          // which could race with the store update from story.call_ready.
-          const _cn = Number(data.data.call_number || 1);
-          const _tc = Number(data.data.total_calls || s.totalCalls || 3);
-          const _isFinal = data.data.is_final === true || _cn >= _tc;
-          setStoryCallReport({
-            callNumber: _cn,
-            score: Number(data.data.score || 0),
-            keyMoments: Array.isArray(data.data.key_moments) ? (data.data.key_moments as string[]) : [],
-            consequences: Array.isArray(data.data.consequences)
-              ? (data.data.consequences as Array<{ call: number; type: string; severity: number; detail: string }>)
-              : [],
-            memoriesCreated: Number(data.data.memories_created || 0),
-            isFinal: _isFinal,
-          });
-          break;
-        }
-
-        case "story.progress":
-          s.setCallNumber(data.data.call_number as number);
-          setStoryTransitionText("ГОТОВИМ СЛЕДУЮЩИЙ ЗВОНОК...");
-          break;
-
-        case "story.completed": {
-          // 2026-04-18 audit fix: don't auto-navigate while the user is
-          // still reading StoryCallReportOverlay. The backend sends
-          // `story.completed` right after the final `story.call_report`
-          // (same function) — if we just router.push immediately, the
-          // user sees the report overlay for ~900ms and then gets yanked
-          // to the story summary without ever clicking "Open final".
-          //
-          // Instead: stop the TTS + timer so the "completed" state is
-          // clean, and let the user press the overlay's own button. The
-          // overlay's onContinue handler will then navigate.
-          //
-          // If for some reason no overlay is showing (e.g. forced end
-          // via `story.end`, or a race where the report never arrived),
-          // navigate immediately as a fallback.
-          tts.stop();
-          if (timerRef.current) clearInterval(timerRef.current);
-          const _storyId = data.data.story_id as string | undefined;
-          // Check if StoryCallReportOverlay will show (or already is).
-          // We peek state via getState() since `storyCallReport` closure
-          // may be stale in this handler callback.
-          if (!storyCallReport) {
-            s.setSessionState("completed");
-            if (_storyId) {
-              setTimeout(() => router.push(`/results/${_storyId}`), 900);
-            }
-          }
-          // If storyCallReport IS set, do nothing — the overlay's
-          // onContinue handler will take care of navigation with its
-          // own setTimeout, avoiding a double router.push race.
-          break;
-        }
 
         // ── v6: Session resume messages ──
         case "session.resumed":
@@ -1067,16 +767,6 @@ export default function TrainingSessionPage() {
           // ended — clear the dedupe ref so a subsequent hangup can
           // actually fire session.end.
           resetHangupCoordinator(hangupRef.current);
-          // 2026-04-18 audit fix: restore story HUD state on reconnect.
-          // Without this, a reconnect in the middle of a 5-call chain
-          // showed "call 0/0" and the story HUD bar disappeared.
-          if (data.data.story_id && data.data.total_calls) {
-            s.setStoryMode(data.data.story_id as string, data.data.total_calls as number);
-            if (data.data.call_number != null) {
-              s.setCallNumber(data.data.call_number as number);
-            }
-            storyBootstrappedRef.current = true;
-          }
           // C2 fix: restore full session state on reconnect
           if (data.data.character_name) s.setCharacterName(data.data.character_name as string);
           if (data.data.archetype_code) s.setArchetypeCode(data.data.archetype_code as string);
@@ -1133,16 +823,10 @@ export default function TrainingSessionPage() {
           if (errCode === "session_completed") {
             logger.log("[training] Session already completed → navigating to /results");
             s.setSessionState("completed");
-            // 2026-04-18 audit fix: for story-mode, redirect to the
-            // story summary page instead of the single-call results.
-            // For regular sessions, use the live session id (may have
-            // drifted from URL routeId if session was resumed).
+            // Use the live session id (may have drifted from URL routeId
+            // if the session was resumed).
             const _sid = currentSessionIdRef.current || routeId;
-            if (s.storyMode && s.storyId) {
-              setTimeout(() => router.push(`/results/${s.storyId}`), 400);
-            } else {
-              setTimeout(() => router.push(`/results/${_sid}`), 400);
-            }
+            setTimeout(() => router.push(`/results/${_sid}`), 400);
             break;
           }
           if (errCode === "session_not_found") {
@@ -1214,23 +898,9 @@ export default function TrainingSessionPage() {
   const sessionState = useSessionStore((st) => st.sessionState);
   useEffect(() => {
     if (connectionState === "connected" && sessionState === "connecting") {
-        if (isStoryMode) {
-          if (!storyBootstrappedRef.current && storyScenarioId) {
-            setStoryTransitionText("ЗАПУСК AI-ИСТОРИИ...");
-            sendMessage({
-              type: "story.start",
-              data: {
-                scenario_id: storyScenarioId,
-                total_calls: storyCalls,
-                custom_params: storyCustomParams,
-              },
-            });
-          }
-        } else {
-          sendMessage({ type: "session.start", data: { session_id: routeId } });
-      }
+      sendMessage({ type: "session.start", data: { session_id: routeId } });
     }
-  }, [connectionState, sessionState, routeId, sendMessage, isStoryMode, storyScenarioId, storyCalls, storyCustomParams]);
+  }, [connectionState, sessionState, routeId, sendMessage]);
 
   // Handle WS disconnect / reconnecting
   useEffect(() => {
@@ -1548,56 +1218,9 @@ export default function TrainingSessionPage() {
     return () => clearInterval(iv);
   }, [sessionState]);
 
-  const talkPercent = s.talkTime + s.listenTime > 0 ? Math.round((s.talkTime / (s.talkTime + s.listenTime)) * 100) : 50;
-  const emotionValue = EMOTION_MAP[s.emotion]?.value ?? 10;
-  const emotionLabel = EMOTION_MAP[s.emotion]?.labelRu ?? "Нейтральный";
-  const rawTrust = s.clientCard?.trust_level;
-  const rawResistance = s.clientCard?.resistance_level;
-  const negativeFactorPenalty = s.humanFactors.reduce((sum, factor) => {
-    if (["distrust", "fear", "anger", "stress", "fatigue", "sadness"].includes(factor.factor)) {
-      return sum + factor.intensity * 9;
-    }
-    return sum;
-  }, 0);
-  const positiveFactorBoost = s.humanFactors.reduce((sum, factor) => {
-    if (factor.factor === "empathy") {
-      return sum + factor.intensity * 8;
-    }
-    return sum;
-  }, 0);
-  const trustScore = rawTrust ?? Math.round(emotionValue / 10);
-  const resistanceScore = rawResistance ?? clamp(10 - Math.round(emotionValue / 12), 1, 10);
-  const consequencePenalty = s.consequences.reduce((sum, consequence) => sum + consequence.severity * 7, 0);
-  const acceptanceScore = clamp(
-    Math.round(
-      emotionValue * 0.45 +
-      trustScore * 3.2 +
-      (10 - resistanceScore) * 2.4 +
-      positiveFactorBoost -
-      negativeFactorPenalty -
-      consequencePenalty
-    ),
-    0,
-    100
-  );
-  const acceptanceLabel =
-    acceptanceScore >= 80 ? "Готов к сделке" :
-    acceptanceScore >= 60 ? "Сильный интерес" :
-    acceptanceScore >= 40 ? "Осторожный интерес" :
-    acceptanceScore >= 20 ? "Сомневается" :
-    "Закрыт";
-  const pressureScore = clamp(
-    Math.round(
-      s.consequences.reduce((sum, consequence) => sum + consequence.severity * 18, 0) +
-      s.humanFactors.reduce((sum, factor) => sum + factor.intensity * 12, 0)
-    ),
-    0,
-    100
-  );
-
-  // ── Connecting gate — pixel boot sequence ──
-  if (s.sessionState === "connecting" && !s.showPreCallBrief && !storyCallReport) {
-    // Minimal loader — replaces noisy "terminal boot" animation
+  // ── Connecting gate ──
+  if (s.sessionState === "connecting") {
+    // Minimal loader — calm, no boot animation.
     return (
       <div
         className="flex min-h-screen items-center justify-center"
@@ -1605,8 +1228,8 @@ export default function TrainingSessionPage() {
       >
         <div className="flex flex-col items-center gap-3">
           <Loader2 size={28} className="animate-spin" style={{ color: "var(--accent)" }} />
-          <span className="font-mono text-xs uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
-            Подключение к сессии...
+          <span className="text-xs tracking-wide" style={{ color: "var(--text-muted)" }}>
+            Подключение к сессии…
           </span>
         </div>
       </div>
@@ -1633,32 +1256,29 @@ export default function TrainingSessionPage() {
     <TrainingErrorBoundary sessionId={routeId}>
     <div className="flex h-screen flex-col overflow-hidden" style={{ background: "var(--bg-primary)" }}>
 
-      {/* Global mic glow */}
-      <div className={`fixed inset-0 global-mic-glow z-50 ${s.micActive ? "active" : ""}`} />
+      {/* Subtle mic-active indicator — softened from the old neon glow,
+          the global-mic-glow class is kept (shared) but only active while
+          the mic is held. */}
+      <div className={`fixed inset-0 global-mic-glow z-50 ${s.micActive ? "active" : ""}`} style={{ opacity: 0.35 }} />
 
-      {/* ── Top HUD Header — pixel game style ────────────── */}
+      {/* ── Top header ───────────────────────────────────── */}
       <header
         className="shrink-0 flex justify-between items-center px-5 lg:px-8 z-20"
-        style={{ height: 60, background: "rgba(3,3,6,0.92)", backdropFilter: "blur(20px)", borderBottom: "2px solid var(--accent)" }}
+        style={{ height: 60, background: "var(--bg-secondary)", backdropFilter: "blur(20px)", borderBottom: "1px solid var(--border-color)" }}
       >
-        {/* Left: XHUNTER logo (replaces scenario info which was noisy) */}
+        {/* Left: product mark */}
         <div className="flex items-center gap-3 min-w-0 flex-1">
-          <span className="font-display font-bold text-sm tracking-wider flex items-center gap-1.5" style={{ color: "var(--accent)" }}>
-            <Scale size={14} />
+          <span className="font-display font-semibold text-sm tracking-wide flex items-center gap-1.5" style={{ color: "var(--text-primary)" }}>
+            <Scale size={14} style={{ color: "var(--accent)" }} />
             LegalHunter
           </span>
-          {s.storyMode && (
-            <span className="text-[10px] font-medium hidden sm:inline" style={{ color: "var(--text-muted)" }}>
-              Звонок {s.callNumber}/{s.totalCalls}
-            </span>
-          )}
         </div>
 
-        {/* Center: timer — pixel game style */}
+        {/* Center: timer */}
         <div className="flex items-center gap-2">
           <div
-            className={`font-mono text-xl font-bold tabular-nums ${s.elapsed >= 1500 ? "animate-pulse" : ""}`}
-            style={{ color: s.elapsed >= 1500 ? "var(--warning)" : "var(--accent)" }}
+            className={`font-mono text-xl font-semibold tabular-nums ${s.elapsed >= 1500 ? "animate-pulse" : ""}`}
+            style={{ color: s.elapsed >= 1500 ? "var(--warning)" : "var(--text-secondary)" }}
           >
             {formatTime(s.elapsed)}
           </div>
@@ -1716,173 +1336,23 @@ export default function TrainingSessionPage() {
 
       {/* ── Client Card Mini REMOVED (2026-06-04) — no in-call CRM panel ── */}
 
-      {/* ── Story-mode HUD bar ──────────────────────────────── */}
-      {s.storyMode && s.sessionState === "ready" && (
-        <div className="flex items-center gap-4 px-6 py-2 z-20" style={{ borderBottom: "1px solid var(--border-color)" }}>
-          <StoryProgress callNumber={s.callNumber} totalCalls={s.totalCalls} />
-          {s.humanFactors.length > 0 && <HumanFactorIcons factors={s.humanFactors} />}
-        </div>
-      )}
-
-      {/* ── PreCallBrief overlay (story mode) ────────────── */}
-      {s.showBetweenCalls && s.betweenCallsEvents.length > 0 && (
-        <BetweenCallsOverlay
-          callNumber={s.callNumber || s.preCallBrief?.call_number || 1}
-          totalCalls={s.totalCalls}
-          events={s.betweenCallsEvents}
-          onContinue={() => s.setShowBetweenCalls(false)}
-        />
-      )}
-
-      {s.showPreCallBrief && s.preCallBrief && !s.showBetweenCalls && (
-        <PreCallBriefOverlay
-          brief={s.preCallBrief}
-          onStart={() => {
-            s.setShowPreCallBrief(false);
-            setStoryTransitionText(`ЗАПУСК ЗВОНКА #${s.preCallBrief?.call_number || s.callNumber}...`);
-            s.setSessionState("connecting");
-            sendMessage({ type: "session.start", data: { scenario_id: storyScenarioId, custom_params: storyCustomParams } });
-          }}
-        />
-      )}
-
-      {storyCallReport && (
-        <StoryCallReportOverlay
-          callNumber={storyCallReport.callNumber}
-          totalCalls={s.totalCalls}
-          score={storyCallReport.score}
-          keyMoments={storyCallReport.keyMoments}
-          consequences={storyCallReport.consequences}
-          memoriesCreated={storyCallReport.memoriesCreated}
-          isFinal={storyCallReport.isFinal}
-          onContinue={() => {
-            // 2026-04-18 audit fix: final call no longer dead-ends.
-            //   - Tell the backend to finalize the story via `story.end`
-            //     (the `story.completed` auto-emit will also fire, but
-            //     sending `story.end` guarantees DB state even if the
-            //     socket was flaky).
-            //   - Navigate to /stories/:id for the CRM summary page
-            //     (previously we just set sessionState="completed" and
-            //     the user stared at a blank screen).
-            const isFinal = storyCallReport.isFinal;
-            const storyId = s.storyId;
-            setStoryCallReport(null);
-            if (isFinal) {
-              if (storyId) {
-                sendMessage({ type: "story.end", data: { story_id: storyId } });
-                setStoryTransitionText("ЗАВЕРШАЕМ ИСТОРИЮ...");
-                // Stop the in-call timer so the "completed" view is clean
-                tts.stop();
-                if (timerRef.current) clearInterval(timerRef.current);
-                s.setSessionState("completed");
-                // Navigate. The backend will ALSO emit story.completed
-                // which navigates — whichever fires first wins. Both
-                // land on the same route, so it's idempotent.
-                setTimeout(() => router.push(`/results/${storyId}`), 900);
-              } else {
-                // No story id (shouldn't happen, but fallback safely):
-                s.setSessionState("completed");
-                setTimeout(() => router.push("/training"), 600);
-              }
-              return;
-            }
-            s.resetCallState();
-            setStoryTransitionText("ГОТОВИМ СЛЕДУЮЩИЙ ЗВОНОК...");
-            sendMessage({ type: "story.next_call", data: { story_id: s.storyId } });
-          }}
-        />
-      )}
-
-      {/* ── Consequence toast (story mode) ────────────────── */}
-      {activeConsequence && (
-        <ConsequenceToast
-          consequence={activeConsequence}
-          onDismiss={() => setActiveConsequence(null)}
-        />
-      )}
-
-      {/* ── Personal Challenge Toast (trap failed 2+ times) ── */}
-      {personalChallenge && (
-        <div
-          style={{
-            position: "fixed",
-            top: "5rem",
-            left: "50%",
-            transform: "translateX(-50%)",
-            zIndex: 999,
-            padding: "1rem 1.5rem",
-            borderRadius: 12,
-            background: "linear-gradient(135deg, rgba(245,158,11,0.15) 0%, rgba(239,68,68,0.12) 100%)",
-            border: "1px solid rgba(245,158,11,0.4)",
-            backdropFilter: "blur(12px)",
-            maxWidth: 420,
-            textAlign: "center",
-            animation: "shake 0.5s ease-in-out, fadeIn 0.3s ease-out",
-            boxShadow: "0 0 30px rgba(245,158,11,0.2)",
-          }}
-        >
-          <div style={{ fontSize: "1.5rem", marginBottom: "0.25rem" }}>⚔️</div>
-          <p style={{
-            margin: 0,
-            fontSize: "0.9rem",
-            fontWeight: 600,
-            color: "var(--warning)",
-            lineHeight: 1.4,
-          }}>
-            {personalChallenge}
-          </p>
-          <button
-            onClick={() => setPersonalChallenge(null)}
-            style={{
-              marginTop: "0.5rem",
-              padding: "0.3rem 0.8rem",
-              borderRadius: 6,
-              background: "rgba(245,158,11,0.2)",
-              border: "1px solid rgba(245,158,11,0.3)",
-              color: "var(--warning)",
-              fontSize: "0.8rem",
-              cursor: "pointer",
-              fontWeight: 600,
-            }}
-          >
-            Принимаю вызов!
-          </button>
-        </div>
-      )}
-
       {/* ── 3-Column Layout ─────────────────────────────────── */}
       <main className="flex-1 min-h-0 z-20 px-3 py-2 lg:px-4 lg:py-3" style={{ width: "min(100%, var(--app-shell-max))", marginInline: "auto" }}>
         <div className="training-session-grid">
-        {/* LEFT: Chat Panel — 2026-04-18:
-            • Stronger pixel-grid bg so panel isn't empty-looking
-            • Visible ACCENT border so user sees chat boundary (complained:
-              "нет границы, не видно где чат а где центр экрана") */}
+        {/* LEFT: Chat Panel — calm editorial surface, single soft border. */}
         <aside className="training-session-panel training-session-panel--chat hidden lg:flex flex-col rounded-2xl overflow-hidden relative"
           style={{
-            background: "var(--bg-primary)",
-            backgroundImage: `
-              radial-gradient(ellipse at 50% 15%, var(--accent-muted) 0%, transparent 55%),
-              repeating-linear-gradient(0deg, transparent 0, transparent 27px, rgba(107,77,199,0.045) 27px, rgba(107,77,199,0.045) 28px),
-              repeating-linear-gradient(90deg, transparent 0, transparent 27px, rgba(107,77,199,0.045) 27px, rgba(107,77,199,0.045) 28px)
-            `,
-            // Clear violet boundary so the panel stands out from the central chat.
-            border: "2px solid var(--accent)",
-            boxShadow: "0 0 0 1px rgba(107,77,199,0.25), 4px 4px 0 0 rgba(107,77,199,0.15)",
+            background: "var(--bg-secondary)",
+            border: "1px solid var(--border-color)",
           }}
         >
-          {/* Keep decorative pixel grid on top for extra depth */}
-          {/* PixelGridBackground removed */}
-
-          {/* Accent strip */}
-          <div className="h-[3px] shrink-0 relative z-10" style={{ background: "linear-gradient(90deg, transparent, var(--accent), transparent)" }} />
-
-          {/* Messages area (z-10 keeps messages above the grid background) */}
+          {/* Messages area */}
           {/* 2026-04-18 scroll fix: explicit min-h-0 on flex parent forces proper
               inner scrollbar, padding-bottom gives breathing room above input bar */}
           <div
             id="training-chat-scroll"
             className="flex-1 px-5 py-4 overflow-y-auto space-y-3 flex flex-col min-h-0 relative z-10"
-            style={{ paddingBottom: 24, scrollbarWidth: "auto", scrollbarColor: "rgba(107,77,199,0.45) transparent" }}
+            style={{ paddingBottom: 24, scrollbarWidth: "thin", scrollbarColor: "var(--border-color) transparent" }}
           >
             {/* 2026-04-18 pinning feature: bar appears when any message is pinned */}
             <PinnedMessagesBar
@@ -1988,21 +1458,9 @@ export default function TrainingSessionPage() {
                   preview={s.pendingQuotedPreview}
                   onCancel={() => s.clearPendingQuote()}
                 />
-                {/* 2026-05-04 (radical input redesign): textarea = main row,
-                    full width. CRM-link chip + paperclip moved to a small
-                    secondary toolbar ABOVE the textarea so they don't eat
-                    horizontal space. User feedback: «панель ввода главная,
-                    остальное как хочешь убирай». */}
-                <div className="mb-1.5 flex items-center gap-2 px-1">
-                  <LinkClientButton
-                    sessionId={routeId}
-                    disabled={s.sessionState !== "ready"}
-                  />
-                  <SessionAttachmentButton
-                    sessionId={routeId}
-                    disabled={s.sessionState !== "ready"}
-                  />
-                </div>
+                {/* P0 (training-rework): CRM-link chip + attachment removed —
+                    training is persona-driven, not CRM-linked. Input row is now
+                    just textarea + send/mic. */}
                 <div className="flex items-end gap-2">
                   <textarea
                     ref={textareaRef}
@@ -2048,37 +1506,14 @@ export default function TrainingSessionPage() {
             </div>
           )}
 
-          {/* 2026-04-20: floating ScriptHints FAB — renders as absolute
-              child of the chat aside, so it sits at the bottom-right of
-              the chat column independent of viewport size. The component
-              positions itself (absolute right/bottom) and handles its own
-              popover, so we just need to mount it here. */}
-          {s.scriptHintsEnabled && s.sessionState === "ready" && routeId && (
-            <ScriptHints
-              sessionId={routeId}
-              refreshKey={s.scriptHintsRefreshKey}
-              userTyping={s.input.trim().length > 0}
-              onSend={(text) => {
-                sendMessage({ type: "text.message", data: { content: text } });
-                s.addMessage({
-                  id: s.nextMsgId(),
-                  role: "user",
-                  content: text,
-                  timestamp: new Date().toISOString(),
-                });
-                s.setIsTyping(true);
-              }}
-            />
-          )}
         </aside>
 
-        {/* CENTER: Avatar + Mic — same violet border as chat for visual cohesion */}
+        {/* CENTER: Avatar + Mic */}
         <section
           className="training-session-panel training-session-center rounded-2xl relative flex flex-col items-center justify-center overflow-hidden"
           style={{
-            background: "radial-gradient(ellipse at center, rgba(107,77,199,0.06) 0%, transparent 70%)",
-            border: "2px solid var(--accent)",
-            boxShadow: "0 0 0 1px rgba(107,77,199,0.25), 4px 4px 0 0 rgba(107,77,199,0.15)",
+            background: "var(--bg-secondary)",
+            border: "1px solid var(--border-color)",
           }}
         >
           {/* Client name + emotion — top center */}
@@ -2183,19 +1618,8 @@ export default function TrainingSessionPage() {
             <div className="lg:hidden">
               {s.textMode ? (
                 <>
-                  {/* 2026-05-04: same redesign as desktop — chip+paperclip
-                      sit in a tiny toolbar ABOVE the textarea so the input
-                      itself can use the full row width. */}
-                  <div className="mb-1.5 flex items-center gap-2 px-1">
-                    <LinkClientButton
-                      sessionId={routeId}
-                      disabled={s.sessionState !== "ready"}
-                    />
-                    <SessionAttachmentButton
-                      sessionId={routeId}
-                      disabled={s.sessionState !== "ready"}
-                    />
-                  </div>
+                  {/* P0 (training-rework): CRM-link chip + attachment removed
+                      from the mobile input row too — textarea + mic only. */}
                   <div className="flex items-end gap-2">
                     <textarea
                       value={s.input}
@@ -2251,15 +1675,10 @@ export default function TrainingSessionPage() {
         </section>
 
         {/*
-          RIGHT: Stats panel — 2026-05-03 redesign.
-          Mirrors /pvp's 3-pill switcher pattern. Old version stacked
-          9 panels (VibeMeter, TalkListen, Script, Emotion, Whisper,
-          Difficulty, HumanFactor, TrapLog, Score) in one always-on
-          column that on most viewports pushed "Баллы" off-screen and
-          made the page feel like a wall of widgets. Now: compact pill
-          switcher → only one tab at a time. WhisperPanel hoisted out
-          to a floating dock (bottom of this file) so coaching hints
-          aren't gated behind the active tab.
+          RIGHT: Stats panel — two tabs (Балл / Реакции) behind a pill
+          switcher: live score breakdown and the emotion timeline.
+          WhisperPanel sits above the switcher so coaching hints are
+          visible regardless of the active tab.
 
           Hidden below `lg` because mobile gets the chat-only view —
           the same panels are reachable via /history / /results once
@@ -2268,28 +1687,23 @@ export default function TrainingSessionPage() {
         <aside
           className="training-session-panel training-session-panel--stats hidden lg:flex flex-col gap-3 overflow-y-auto rounded-2xl"
           style={{
-            border: "2px solid var(--accent)",
-            boxShadow: "0 0 0 1px rgba(107,77,199,0.25), 4px 4px 0 0 rgba(107,77,199,0.15)",
+            border: "1px solid var(--border-color)",
+            background: "var(--bg-secondary)",
             padding: "12px",
           }}
         >
           {/*
-            Coaching whisper — moved from a floating dock into the
-            sidebar header (2026-05-03 fix). The floating version
-            overlapped the third tab "Реакции" and visually felt
-            like a separate hovering panel. Now it lives at the top
-            of the sidebar so coaching hints are visible regardless
-            of which tab is active, without occluding anything.
+            Coaching whisper — lives at the top of the sidebar so coaching
+            hints are visible regardless of which tab is active.
           */}
-          <div className="rounded-xl" style={{ background: "rgba(107,77,199,0.08)", border: "1px solid rgba(107,77,199,0.25)", padding: "10px 12px" }}>
+          <div className="rounded-xl" style={{ background: "var(--bg-tertiary)", border: "1px solid var(--border-color)", padding: "10px 12px" }}>
             <WhisperPanel onToggle={(enabled) => sendMessage({ type: "whisper.toggle", data: { enabled } })} />
           </div>
 
-          {/* Pill switcher — same layoutId pattern as /pvp:482 */}
-          <div className="flex gap-1 rounded-xl p-1" style={{ background: "rgba(255,255,255,0.04)" }}>
+          {/* Pill switcher */}
+          <div className="flex gap-1 rounded-xl p-1" style={{ background: "var(--bg-tertiary)" }}>
             {([
               { key: "score", label: "Балл", Icon: Target },
-              { key: "script", label: "Скрипт", Icon: ListChecks },
               { key: "reactions", label: "Реакции", Icon: Activity },
             ] as const).map(({ key, label, Icon }) => {
               const active = sidebarTab === key;
@@ -2321,58 +1735,29 @@ export default function TrainingSessionPage() {
           </div>
 
           {/* ─────────────────────────────────────────────────────────
-              TAB: Балл — VibeMeter + Acceptance + TalkListen + total
-              + full 8-field breakdown from score.hint payload.
-              Old version showed only 3 of 8 sub-scores (schema drift
-              since the backend started emitting all 8 in PR #B9).
+              TAB: Балл — VibeMeter + TalkListen + total score with the
+              live 5-axis breakdown from the score.hint payload.
               ───────────────────────────────────────────────────── */}
           {sidebarTab === "score" && (
             <div className="flex flex-col gap-3">
-              <div className="rounded-2xl p-4" style={{ background: "rgba(255,255,255,0.04)" }}>
+              <div className="rounded-2xl p-4" style={{ background: "var(--bg-tertiary)" }}>
                 <VibeMeter emotion={s.emotion} />
-                <div className="mt-4 pt-4" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-semibold" style={{ color: "var(--text-secondary)" }}>Принятие сделки</span>
-                    <motion.span
-                      key={acceptanceScore}
-                      initial={{ scale: 1.2 }}
-                      animate={{ scale: 1 }}
-                      className="text-sm font-bold tabular-nums"
-                      style={{ color: acceptanceScore >= 60 ? "#00FF94" : "var(--accent)" }}
-                    >
-                      {s.messages.length === 0 ? "—" : `${acceptanceScore}%`}
-                    </motion.span>
-                  </div>
-                  <div className="h-2.5 overflow-hidden rounded-full" style={{ background: "rgba(255,255,255,0.06)" }}>
-                    <motion.div
-                      className="h-full rounded-full"
-                      animate={{ width: `${acceptanceScore}%` }}
-                      transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
-                      style={{
-                        background: acceptanceScore >= 60 ? "linear-gradient(90deg, #22c55e, #00FF94)" : "linear-gradient(90deg, #F59E0B, var(--accent))",
-                      }}
-                    />
-                  </div>
-                  <div className="mt-1.5 text-xs font-medium" style={{ color: acceptanceScore >= 60 ? "#00FF94" : "var(--text-muted)" }}>
-                    {acceptanceLabel}
-                  </div>
-                </div>
               </div>
 
-              <div className="rounded-xl p-3" style={{ background: "rgba(255,255,255,0.025)" }}>
+              <div className="rounded-xl p-3" style={{ background: "var(--bg-tertiary)" }}>
                 <TalkListenRatio talkPercent={s.talkTime + s.listenTime > 0 ? Math.round((s.talkTime / (s.talkTime + s.listenTime)) * 100) : 50} />
               </div>
 
-              <div className="rounded-xl p-4 relative overflow-hidden" style={{ background: "rgba(255,255,255,0.05)" }}>
+              <div className="rounded-xl p-4 relative overflow-hidden" style={{ background: "var(--bg-tertiary)" }}>
                 <AnimatePresence>
                   {checkpointFlash && (
                     <motion.div
                       className="absolute inset-0 rounded-xl pointer-events-none"
-                      initial={{ opacity: 0.4 }}
+                      initial={{ opacity: 0.3 }}
                       animate={{ opacity: 0 }}
                       exit={{ opacity: 0 }}
                       transition={{ duration: 0.8 }}
-                      style={{ background: "radial-gradient(circle at center, rgba(61,220,132,0.15) 0%, transparent 70%)" }}
+                      style={{ background: "radial-gradient(circle at center, var(--accent-muted) 0%, transparent 70%)" }}
                     />
                   )}
                 </AnimatePresence>
@@ -2390,35 +1775,50 @@ export default function TrainingSessionPage() {
                   </motion.div>
                 </div>
                 {scoreHint ? (
-                  // Phase C (2026-05-08): consolidated to the canonical
-                  // 5 axes (script/objections/communication/anti-patterns/
-                  // result) — same set the post-call /results page
-                  // renders, with the SAME max caps (30/25/20/15/10).
-                  // Previously this rendered 8 layers with `value/12.5*100`
-                  // assuming equal weights, which under-rendered Скрипт
-                  // (cap 30 → bar would max at ~42% even when the user
-                  // scored full marks) and over-rendered Результат (cap
-                  // 10 → bar showed 80% for a perfect 10).
+                  // P3 (training-rework): relabelled to the legal-consultation
+                  // rubric. Caps match the new weighting model (L1=18, L5=18,
+                  // L2=12, L4 penalty offset 15) and the post-call /results
+                  // pentagram + ScoreLayersBreakdown, so the in-call mirror
+                  // matches the final card.
+                  //
+                  // P3.1: the «Правовая точность ФЗ-127» (L10, max 25) axis is
+                  // POST-SESSION only — calculate_realtime_scores does NOT emit
+                  // `legal` (it is computed after the call ends, see scoring.py
+                  // realtime note). Rendering it as a live 0/25 bar made the
+                  // heaviest axis read as a hard failure for the whole call. We
+                  // render it as a "после завершения" placeholder instead of a
+                  // false zero.
                   <div className="mt-3 space-y-2">
                     {([
-                      ["Скрипт", scoreHint.script_adherence, 30, "var(--accent)"],
-                      ["Возражения", scoreHint.objection_handling, 25, "var(--warning)"],
-                      ["Коммуникация", scoreHint.communication, 20, "var(--info)"],
-                      ["Анти-паттерны", Math.max(0, 15 + (scoreHint.anti_patterns ?? 0)), 15, "var(--danger)"],
-                      ["Результат", scoreHint.result, 10, "#00FF94"],
-                    ] as const).map(([label, value, max, color]) => (
+                      ["Полнота выяснения обстоятельств", scoreHint.script_adherence, 18, "var(--accent)", false],
+                      ["Правовая точность ФЗ-127", 0, 25, "var(--info)", true],
+                      ["Корректность рекомендации", scoreHint.result, 18, "var(--success)", false],
+                      ["Отработка сомнений и страхов", scoreHint.objection_handling, 12, "var(--warning)", false],
+                      ["Этические нарушения", Math.max(0, 15 + (scoreHint.anti_patterns ?? 0)), 15, "var(--danger)", false],
+                    ] as const).map(([label, value, max, color, pending]) => (
                       <div key={label}>
                         <div className="mb-0.5 flex items-center justify-between text-[11px]" style={{ color: "var(--text-muted)" }}>
                           <span>{label}</span>
-                          <span className="tabular-nums font-mono" style={{ color }}>{Math.round(value)}<span className="opacity-50">/{max}</span></span>
+                          {pending ? (
+                            <span className="italic opacity-60">после завершения</span>
+                          ) : (
+                            <span className="tabular-nums font-mono" style={{ color }}>{Math.round(value)}<span className="opacity-50">/{max}</span></span>
+                          )}
                         </div>
-                        <div className="h-1.5 w-full rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.06)" }}>
-                          <motion.div
-                            className="h-full rounded-full"
-                            animate={{ width: `${Math.min(100, (value / max) * 100)}%` }}
-                            transition={{ duration: 0.5, ease: "easeOut" }}
-                            style={{ background: color }}
-                          />
+                        <div className="h-1.5 w-full rounded-full overflow-hidden" style={{ background: "var(--bg-secondary)" }}>
+                          {pending ? (
+                            <div
+                              className="h-full w-full rounded-full opacity-30"
+                              style={{ background: `repeating-linear-gradient(90deg, ${"var(--text-muted)"} 0 4px, transparent 4px 8px)` }}
+                            />
+                          ) : (
+                            <motion.div
+                              className="h-full rounded-full"
+                              animate={{ width: `${Math.min(100, (value / max) * 100)}%` }}
+                              transition={{ duration: 0.5, ease: "easeOut" }}
+                              style={{ background: color }}
+                            />
+                          )}
                         </div>
                       </div>
                     ))}
@@ -2433,85 +1833,18 @@ export default function TrainingSessionPage() {
           )}
 
           {/* ─────────────────────────────────────────────────────────
-              TAB: Скрипт — ScriptPanel + DifficultyIndicator
-              ───────────────────────────────────────────────────── */}
-          {sidebarTab === "script" && (
-            <div className="flex flex-col gap-3">
-              <div className="rounded-xl p-4" style={{ background: "rgba(255,255,255,0.04)" }}>
-                <ScriptPanel
-                  compactHeader
-                  onCopyExample={(text) => {
-                    // B6 (2026-05-03): APPEND to existing input instead of REPLACE
-                    // so users don't lose what they've already typed when tapping
-                    // an example phrase from the script panel.
-                    const cur = useSessionStore.getState().input ?? "";
-                    const next = cur.trim() ? cur + (cur.endsWith(" ") ? "" : " ") + text : text;
-                    useSessionStore.getState().setInput(next);
-                    if (textareaRef.current) {
-                      textareaRef.current.focus();
-                      setTimeout(() => {
-                        if (textareaRef.current) {
-                          textareaRef.current.setSelectionRange(next.length, next.length);
-                        }
-                      }, 0);
-                    }
-                  }}
-                />
-              </div>
-              <div className="rounded-xl p-4" style={{ background: "rgba(255,255,255,0.025)" }}>
-                <DifficultyIndicator
-                  effectiveDifficulty={s.effectiveDifficulty}
-                  modifier={0}
-                  mode={s.difficultyMode}
-                  trend={s.difficultyTrend}
-                  goodStreak={s.goodStreak}
-                  badStreak={s.badStreak}
-                  hadComeback={false}
-                />
-              </div>
-            </div>
-          )}
-
-          {/* ─────────────────────────────────────────────────────────
-              TAB: Реакции — Emotion timeline + HumanFactors + TrapLog
-              + Consequences. Empty-state banner so the tab doesn't
-              render an empty card on session start.
+              TAB: Реакции — Emotion timeline. Empty-state banner so the
+              tab doesn't render an empty card on session start.
               ───────────────────────────────────────────────────── */}
           {sidebarTab === "reactions" && (
             <div className="flex flex-col gap-3">
               {s.emotionHistory.length >= 2 ? (
-                <div className="rounded-xl p-4" style={{ background: "rgba(255,255,255,0.04)" }}>
+                <div className="rounded-xl p-4" style={{ background: "var(--bg-tertiary)" }}>
                   <LiveEmotionTimeline />
                 </div>
               ) : (
-                <div className="rounded-xl p-4 text-xs" style={{ background: "rgba(255,255,255,0.02)", color: "var(--text-muted)" }}>
+                <div className="rounded-xl p-4 text-xs" style={{ background: "var(--bg-tertiary)", color: "var(--text-muted)" }}>
                   Карта эмоций появится после нескольких реплик
-                </div>
-              )}
-              {s.humanFactors.length > 0 && (
-                <div className="rounded-xl p-3" style={{ background: "rgba(255,255,255,0.025)" }}>
-                  <div className="mb-1.5 text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>Факторы</div>
-                  <HumanFactorIcons factors={s.humanFactors} />
-                </div>
-              )}
-              {s.consequences.length > 0 && (
-                <div className="rounded-xl p-3 space-y-1.5">
-                  <div className="text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>Последствия</div>
-                  {s.consequences.slice(-3).reverse().map((consequence, index) => (
-                    <div
-                      key={`${consequence.call}-${consequence.type}-${index}`}
-                      className="rounded-lg px-3 py-2.5 text-sm"
-                      style={{ background: "var(--danger-muted)", color: "var(--text-secondary)" }}
-                    >
-                      <span className="font-semibold" style={{ color: "var(--danger)" }}>{(consequence.type || "event").replace(/_/g, " ")}</span>
-                      <span className="ml-2 line-clamp-1">{consequence.detail}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-              {s.trapHistory.length > 0 && (
-                <div className="rounded-xl p-3" style={{ background: "rgba(255,255,255,0.015)" }}>
-                  <TrapLog />
                 </div>
               )}
             </div>
@@ -2519,9 +1852,6 @@ export default function TrainingSessionPage() {
         </aside>
         </div>
       </main>
-
-      {/* ── Trap Notification ──────────────────────────────── */}
-      <TrapNotification event={s.activeTrap} onDismiss={() => s.setActiveTrap(null)} />
 
       {/* ── Training Toasts (hangup, hints, silence, timer) ── */}
       <TrainingToasts
@@ -2543,36 +1873,16 @@ export default function TrainingSessionPage() {
         subtitle={s.characterName || undefined}
       />
 
-      {/* 2026-04-23 Sprint 3: ScriptDrawer — mobile-only bottom-sheet for
-          the script panel. Sidebar holds it on desktop (lg+); on smaller
-          screens this drawer auto-opens on stage.update + stage.skipped. */}
-      <ScriptDrawer
-        onCopyExample={(text) => {
-          // B6 (2026-05-03): APPEND to existing input instead of REPLACE.
-          const cur = useSessionStore.getState().input ?? "";
-          const next = cur.trim() ? cur + (cur.endsWith(" ") ? "" : " ") + text : text;
-          useSessionStore.getState().setInput(next);
-          if (textareaRef.current) {
-            textareaRef.current.focus();
-            setTimeout(() => {
-              if (textareaRef.current) {
-                textareaRef.current.setSelectionRange(next.length, next.length);
-              }
-            }, 0);
-          }
-        }}
-      />
-
       {/* ── Modals ──────────────────────────────────────────── */}
       <AnimatePresence>
         {s.sessionState === "completed" && (
-          <motion.div key="modal-completed" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[150] flex items-center justify-center" style={{ background: "rgba(0,0,0,0.8)", backdropFilter: "blur(8px)" }}>
-            <motion.div initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ type: "spring", stiffness: 300, damping: 20 }} className="glass-panel px-8 sm:px-12 py-8 text-center max-w-md rounded-3xl">
-              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full" style={{ background: "rgba(61,220,132,0.1)", boxShadow: "0 0 40px rgba(61,220,132,0.15)" }}>
-                <CheckCircle2 size={32} style={{ color: "var(--success)" }} />
+          <motion.div key="modal-completed" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[150] flex items-center justify-center" style={{ background: "var(--overlay-bg)", backdropFilter: "blur(8px)" }}>
+            <motion.div initial={{ scale: 0.96, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ type: "spring", stiffness: 300, damping: 24 }} className="glass-panel px-8 sm:px-12 py-8 text-center max-w-md rounded-3xl">
+              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full" style={{ background: "var(--accent-muted)" }}>
+                <CheckCircle2 size={32} style={{ color: "var(--accent)" }} />
               </div>
-              <h2 className="mt-4 font-display text-2xl font-bold" style={{ color: "var(--text-primary)" }}>
-                ТРЕНИРОВКА ЗАВЕРШЕНА
+              <h2 className="mt-4 font-display text-2xl font-semibold" style={{ color: "var(--text-primary)" }}>
+                Тренировка завершена
               </h2>
               {sessionEndedRef.current.score !== null && (
                 <motion.div
@@ -2581,42 +1891,20 @@ export default function TrainingSessionPage() {
                   transition={{ delay: 0.3 }}
                   className="mt-4"
                 >
-                  <div className="font-display text-5xl font-black" style={{ color: sessionEndedRef.current.score >= 70 ? "var(--success)" : sessionEndedRef.current.score >= 40 ? "var(--warning)" : "var(--danger)" }}>
+                  <div className="font-display text-5xl font-semibold" style={{ color: "var(--text-primary)" }}>
                     {Math.round(sessionEndedRef.current.score)}
                   </div>
                   <div className="text-sm mt-1" style={{ color: "var(--text-muted)" }}>баллов</div>
                 </motion.div>
               )}
-              {sessionEndedRef.current.xp !== null && (
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ delay: 0.6 }}
-                  className="mt-3 inline-flex items-center gap-2 rounded-xl px-4 py-2"
-                  style={{ background: "rgba(255,180,0,0.1)", border: "1px solid rgba(255,180,0,0.2)" }}
-                >
-                  <span className="font-display font-bold text-lg" style={{ color: "var(--warning)" }}>+{sessionEndedRef.current.xp} XP</span>
-                </motion.div>
-              )}
-              {sessionEndedRef.current.levelUp && (
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.8 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{ delay: 0.9, type: "spring" }}
-                  className="mt-3 inline-flex items-center gap-2 rounded-xl px-4 py-2"
-                  style={{ background: "rgba(61,220,132,0.1)", border: "1px solid rgba(61,220,132,0.3)" }}
-                >
-                  <span className="font-display font-bold text-lg" style={{ color: "var(--success)" }}>УРОВЕНЬ ПОВЫШЕН!</span>
-                </motion.div>
-              )}
               <motion.p
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
-                transition={{ delay: 1.2 }}
+                transition={{ delay: 0.6 }}
                 className="mt-4 text-sm"
                 style={{ color: "var(--text-muted)" }}
               >
-                Переход к результатам...
+                Переход к результатам…
               </motion.p>
             </motion.div>
           </motion.div>
@@ -2637,10 +1925,20 @@ export default function TrainingSessionPage() {
                 Прогресс будет сохранён, но сессия завершится досрочно.
               </p>
               <div className="mt-6 grid grid-cols-2 gap-3">
-                <motion.button onClick={() => s.setShowAbortModal(false)} className="btn-neon w-full py-3 text-sm" whileTap={{ scale: 0.97 }}>
+                <motion.button
+                  onClick={() => s.setShowAbortModal(false)}
+                  className="w-full py-3 text-sm font-medium rounded-xl transition-colors"
+                  style={{ background: "var(--bg-tertiary)", color: "var(--text-secondary)", border: "1px solid var(--border-color)" }}
+                  whileTap={{ scale: 0.97 }}
+                >
                   Продолжить
                 </motion.button>
-                <motion.button onClick={() => { s.setShowAbortModal(false); handleEnd(); }} className="btn-neon btn-neon--danger w-full py-3 text-sm flex items-center justify-center gap-2" whileTap={{ scale: 0.97 }}>
+                <motion.button
+                  onClick={() => { s.setShowAbortModal(false); handleEnd(); }}
+                  className="w-full py-3 text-sm font-medium rounded-xl flex items-center justify-center gap-2 transition-colors"
+                  style={{ background: "var(--danger-muted)", color: "var(--danger)", border: "1px solid rgba(229,72,77,0.25)" }}
+                  whileTap={{ scale: 0.97 }}
+                >
                   <XCircle size={14} /> Завершить
                 </motion.button>
               </div>
@@ -2663,10 +1961,20 @@ export default function TrainingSessionPage() {
                 Вы давно молчите. Продолжить тренировку?
               </p>
               <div className="mt-6 grid grid-cols-2 gap-3">
-                <motion.button onClick={handleContinueSession} className="btn-neon w-full py-3 text-sm" whileTap={{ scale: 0.97 }}>
+                <motion.button
+                  onClick={handleContinueSession}
+                  className="w-full py-3 text-sm font-medium rounded-xl transition-colors"
+                  style={{ background: "var(--accent)", color: "white" }}
+                  whileTap={{ scale: 0.97 }}
+                >
                   Продолжить
                 </motion.button>
-                <motion.button onClick={handleEnd} className="btn-neon w-full py-3 text-sm" whileTap={{ scale: 0.97 }}>
+                <motion.button
+                  onClick={handleEnd}
+                  className="w-full py-3 text-sm font-medium rounded-xl transition-colors"
+                  style={{ background: "var(--bg-tertiary)", color: "var(--text-secondary)", border: "1px solid var(--border-color)" }}
+                  whileTap={{ scale: 0.97 }}
+                >
                   Завершить
                 </motion.button>
               </div>
@@ -2695,21 +2003,6 @@ export default function TrainingSessionPage() {
           try { tts.stop(); } catch { /* noop */ }
           s.setShowHangupModal(false);
           s.setHangupData(null);
-          // 2026-04-18 audit fix: if we're on the last call of the story,
-          // "redial" doesn't make sense — story.next_call would error. In
-          // that case, finalize the story instead.
-          if (s.storyMode && s.storyId) {
-            if (s.callNumber >= s.totalCalls) {
-              sendMessage({ type: "story.end", data: { story_id: s.storyId } });
-              setStoryTransitionText("ЗАВЕРШАЕМ ИСТОРИЮ...");
-              s.setSessionState("completed");
-              setTimeout(() => router.push(`/results/${s.storyId}`), 900);
-            } else {
-              s.resetCallState();
-              setStoryTransitionText("ПЕРЕЗВАНИВАЕМ...");
-              sendMessage({ type: "story.next_call", data: { story_id: s.storyId } });
-            }
-          }
         }}
         onResults={() => {
           // 2026-05-04 prod bug fix: previously this handler closed the
@@ -2723,8 +2016,8 @@ export default function TrainingSessionPage() {
           //      C3 auto-fire can't double-fire),
           //   3. arm the 5s fallback navigation so the user is never
           //      stuck if session.ended is delayed/dropped.
-          // The success path remains: session.ended → router.replace at
-          // line ~556 fires <100ms after backend finishes scoring.
+          // The success path remains: session.ended → router.replace
+          // fires <100ms after backend finishes scoring.
           //
           // Phase H (2026-05-08): also stop TTS — if backend's farewell
           // audio is still mid-play (or a chunk is queued), the user
@@ -2733,21 +2026,11 @@ export default function TrainingSessionPage() {
           try { tts.stop(); } catch { /* noop */ }
           s.setShowHangupModal(false);
           s.setHangupData(null);
-          if (s.storyMode && s.storyId) {
-            // 2026-04-18 audit fix: explicit navigation after story.end
-            // — previously we fired the message and hoped story.completed
-            // event would redirect. If the socket was slow, user saw a
-            // blank "completed" screen indefinitely.
-            sendMessage({ type: "story.end", data: { story_id: s.storyId } });
-            s.setSessionState("completed");
-            setTimeout(() => router.push(`/results/${s.storyId}`), 900);
-          } else {
-            setEnding(true);
-            if (markEndSent(hangupRef.current)) {
-              sendMessage({ type: "session.end", data: {} });
-            }
-            armHangupFallback();
+          setEnding(true);
+          if (markEndSent(hangupRef.current)) {
+            sendMessage({ type: "session.end", data: {} });
           }
+          armHangupFallback();
         }}
       />
     </div>

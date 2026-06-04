@@ -10,9 +10,7 @@ import type {
   StageUpdate,
   HangupData,
 } from "@/types";
-import type { HumanFactor, ConsequenceEvent, PreCallBrief } from "@/types/story";
 import type { CheckpointInfo } from "@/components/training/ScriptAdherence";
-import type { TrapEvent } from "@/components/training/TrapNotification";
 import type { ClientCardData } from "@/components/training/ClientCard";
 
 export type DifficultyMode = "normal" | "boss" | "safe" | "coaching" | "challenge" | "onboarding";
@@ -97,12 +95,6 @@ interface SessionStore {
   talkTime: number;
   listenTime: number;
 
-  // Traps
-  activeTrap: TrapEvent | null;
-  trapsFell: number;
-  trapsDodged: number;
-  trapNetScore: number;
-
   // Stage tracking
   currentStage: number;
   currentStageName: string;
@@ -138,9 +130,6 @@ interface SessionStore {
   // redesign. Sub-scores now live in local component state on
   // /training/[id] (and the call page no longer needs them).
 
-  // Trap history (persistent log)
-  trapHistory: TrapEvent[];
-
   // Emotion history (for live sparkline)
   emotionHistory: { state: EmotionState; timestamp: number }[];
 
@@ -167,18 +156,6 @@ interface SessionStore {
   goodStreak: number;
   badStreak: number;
   hadComeback: boolean;
-
-  // Story mode
-  storyId: string | null;
-  storyMode: boolean;
-  preCallBrief: PreCallBrief | null;
-  humanFactors: HumanFactor[];
-  consequences: ConsequenceEvent[];
-  callNumber: number;
-  totalCalls: number;
-  showPreCallBrief: boolean;
-  showBetweenCalls: boolean;
-  betweenCallsEvents: Array<{ event_type: string; title: string; content: string; severity: number | null }>;
 
   // Actions
   init: (sessionId: string) => void;
@@ -220,10 +197,6 @@ interface SessionStore {
   setIsPreliminaryScore: (preliminary: boolean) => void;
   setTalkTime: (time: number) => void;
   setListenTime: (time: number) => void;
-  setActiveTrap: (trap: TrapEvent | null) => void;
-  addTrapFell: () => void;
-  addTrapDodged: () => void;
-  adjustTrapNetScore: (delta: number) => void;
   setStageUpdate: (data: StageUpdate) => void;
   setSkippedHint: (hint: SkippedHint | null) => void;
   clearSkippedHint: () => void;
@@ -233,7 +206,6 @@ interface SessionStore {
   setWhispersEnabled: (enabled: boolean) => void;
   setScriptHintsEnabled: (enabled: boolean) => void;
   refreshScriptHints: () => void;
-  addTrapToHistory: (trap: TrapEvent) => void;
   addEmotionToHistory: (state: EmotionState) => void;
   setDifficultyReason: (reason: string | null) => void;
   setTranscription: (t: TranscriptionState) => void;
@@ -243,15 +215,6 @@ interface SessionStore {
   clearPendingQuote: () => void;
   // Difficulty actions
   setDifficultyUpdate: (data: DifficultyUpdate) => void;
-  // Story actions
-  setStoryMode: (storyId: string, totalCalls: number) => void;
-  setPreCallBrief: (brief: PreCallBrief | null) => void;
-  setHumanFactors: (factors: HumanFactor[]) => void;
-  addConsequence: (c: ConsequenceEvent) => void;
-  setCallNumber: (n: number) => void;
-  setShowPreCallBrief: (show: boolean) => void;
-  setShowBetweenCalls: (show: boolean) => void;
-  setBetweenCallsEvents: (events: Array<{ event_type: string; title: string; content: string; severity: number | null }>) => void;
   resetCallState: () => void;
 }
 
@@ -288,10 +251,6 @@ const INITIAL_STATE = {
   isPreliminaryScore: true,
   talkTime: 0,
   listenTime: 0,
-  activeTrap: null as TrapEvent | null,
-  trapsFell: 0,
-  trapsDodged: 0,
-  trapNetScore: 0,
   currentStage: 1,
   currentStageName: "greeting",
   stageLabel: "Приветствие",
@@ -306,7 +265,6 @@ const INITIAL_STATE = {
   whispersEnabled: true,
   scriptHintsEnabled: true,
   scriptHintsRefreshKey: 0,
-  trapHistory: [] as TrapEvent[],
   emotionHistory: [] as { state: EmotionState; timestamp: number }[],
   difficultyReason: null as string | null,
   transcription: { status: "idle", partial: "", final: "" } as TranscriptionState,
@@ -322,17 +280,6 @@ const INITIAL_STATE = {
   goodStreak: 0,
   badStreak: 0,
   hadComeback: false,
-  // Story mode
-  storyId: null as string | null,
-  storyMode: false,
-  preCallBrief: null as PreCallBrief | null,
-  humanFactors: [] as HumanFactor[],
-  consequences: [] as ConsequenceEvent[],
-  callNumber: 0,
-  totalCalls: 0,
-  showPreCallBrief: false,
-  showBetweenCalls: false,
-  betweenCallsEvents: [] as Array<{ event_type: string; title: string; content: string; severity: number | null }>,
 };
 
 export const useSessionStore = create<SessionStore>((set, get) => ({
@@ -448,11 +395,6 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   setIsPreliminaryScore: (isPreliminaryScore) => set({ isPreliminaryScore }),
   setTalkTime: (talkTime) => set({ talkTime }),
   setListenTime: (listenTime) => set({ listenTime }),
-  setActiveTrap: (activeTrap) => set({ activeTrap }),
-  addTrapFell: () => set((s) => ({ trapsFell: s.trapsFell + 1 })),
-  addTrapDodged: () => set((s) => ({ trapsDodged: s.trapsDodged + 1 })),
-  adjustTrapNetScore: (delta) =>
-    set((s) => ({ trapNetScore: Math.max(-10, Math.min(10, s.trapNetScore + delta)) })),
   setStageUpdate: (data) => {
     // 2026-04-23 Sprint 3 (gap-fill): debounce burst stage.update emissions.
     // Backend can fire several stage.update events in rapid succession
@@ -491,11 +433,6 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   setWhispersEnabled: (whispersEnabled) => set({ whispersEnabled }),
   setScriptHintsEnabled: (scriptHintsEnabled) => set({ scriptHintsEnabled }),
   refreshScriptHints: () => set((state) => ({ scriptHintsRefreshKey: state.scriptHintsRefreshKey + 1 })),
-  addTrapToHistory: (trap) =>
-    set((s) => ({
-      // Cap at 200 entries to prevent unbounded memory growth on long sessions
-      trapHistory: [...s.trapHistory.slice(-199), trap],
-    })),
   addEmotionToHistory: (state) =>
     set((s) => ({
       emotionHistory: [...s.emotionHistory.slice(-14), { state, timestamp: Date.now() }],
@@ -518,15 +455,6 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     badStreak: data.bad_streak,
     hadComeback: data.had_comeback,
   }),
-  // Story actions
-  setStoryMode: (storyId, totalCalls) => set({ storyId, storyMode: true, totalCalls }),
-  setPreCallBrief: (preCallBrief) => set({ preCallBrief }),
-  setHumanFactors: (humanFactors) => set({ humanFactors }),
-  addConsequence: (c) => set((s) => ({ consequences: [...s.consequences, c] })),
-  setCallNumber: (callNumber) => set({ callNumber }),
-  setShowPreCallBrief: (showPreCallBrief) => set({ showPreCallBrief }),
-  setShowBetweenCalls: (showBetweenCalls) => set({ showBetweenCalls }),
-  setBetweenCallsEvents: (betweenCallsEvents) => set({ betweenCallsEvents }),
   resetCallState: () =>
     set((s) => ({
       sessionId: s.sessionId,
@@ -561,10 +489,6 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       isPreliminaryScore: true,
       talkTime: 0,
       listenTime: 0,
-      activeTrap: null,
-      trapsFell: 0,
-      trapsDodged: 0,
-      trapNetScore: 0,
       effectiveDifficulty: 5,
       difficultyModifier: 0,
       difficultyMode: "normal",
@@ -584,26 +508,11 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       checkpointHint: null,
       whispersEnabled: s.whispersEnabled,
       whispers: [],
-      trapHistory: [],
       emotionHistory: [],
       difficultyReason: null,
       transcription: { status: "idle", partial: "", final: "" },
       input: "",
       pendingQuotedId: null,
       pendingQuotedPreview: null,
-      storyId: s.storyId,
-      storyMode: s.storyMode,
-      preCallBrief: s.preCallBrief,
-      humanFactors: s.humanFactors,
-      consequences: s.consequences,
-      callNumber: s.callNumber,
-      totalCalls: s.totalCalls,
-      showPreCallBrief: false,
-      showBetweenCalls: false,
-      // 2026-04-18 audit fix: clear stale between-call events when a new
-      // call starts. Previously they persisted across calls and produced
-      // a flash of the PREVIOUS call's events if the overlay opened
-      // before the new `story.between_calls` payload arrived.
-      betweenCallsEvents: [],
     })),
 }));

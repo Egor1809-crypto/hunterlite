@@ -167,6 +167,8 @@ def _apply_transcript_fallback_scores(session: TrainingSession, messages: list[M
         ],
     })
     details.setdefault("judge", {
+        "verdict": "mixed",
+        "rationale_ru": "Автоматический разбор недоступен для этой сессии — показан краткий итог.",
         "summary": "Сессия завершилась техническим сбоем, но переписка сохранена. Оценка рассчитана по фактическим сообщениям пользователя.",
         "recommendation": "Повтори тренировку и доведи клиента до финального шага: резюме проблемы, список документов, срок следующего контакта.",
     })
@@ -338,24 +340,12 @@ async def _build_session_result(
         if weak_items:
             weak_legal = weak_items[:5]  # Max 5 categories
 
-    # ── 3.2: Extract promise fulfillment from CRM story memory ──
-    promise_data: list | None = None
-    if session.client_story_id:
-        from app.schemas.training import PromiseFulfillment
-        promises_raw = details.get("_promises", [])
-        if promises_raw:
-            promise_data = [
-                PromiseFulfillment(
-                    text=str(p.get("text", ""))[:200],
-                    call_number=int(p.get("call_number", 1)),
-                    fulfilled=bool(p.get("fulfilled", False)),
-                    impact="bonus" if p.get("fulfilled") else "penalty",
-                )
-                for p in promises_raw[:10]
-                if p.get("text")
-            ]
-
-    story, story_calls = await _load_story_context(db, session.client_story_id, user_id=user.id)
+    # Story-mode removed (customer decision #3, 2026-06-04): the de-gamified
+    # training flow no longer surfaces «звонки N/M» / consequences / promise
+    # fulfillment in the session result. The ClientStory model and table stay
+    # dormant (no migration), but the result-projection stops emitting story,
+    # story_calls and promise_fulfillment so neither old nor new sessions
+    # render any story panel on /results.
     _apply_transcript_fallback_scores(session, messages)
 
     return SessionResultResponse(
@@ -365,10 +355,10 @@ async def _build_session_result(
         trap_results=trap_results,
         soft_skills=soft_skills,
         client_card=details.get("_client_card_reveal"),
-        story=story,
-        story_calls=story_calls,
+        story=None,
+        story_calls=[],
         weak_legal_categories=weak_legal,
-        promise_fulfillment=promise_data,
+        promise_fulfillment=None,
     )
 
 
@@ -538,6 +528,7 @@ async def start_session(
     # ниже из тех же body.custom_*. Brief/slug дописываются в custom_params
     # после его сборки. Существующий custom_* путь не трогаем.
     _reference_persona_brief: str | None = None
+    _reference_persona_name: str | None = None
     if body.reference_persona_slug:
         from app.models.reference_persona import ReferencePersona
         from app.api.reference_personas import split_dossier
@@ -587,6 +578,11 @@ async def start_session(
         # которыми ведётся AI-клиент через persona_brief в custom_params.
         _client_brief, _ = split_dossier(_persona.cached_dossier)
         _reference_persona_brief = _client_brief or None
+        # P2: имя персонажа из досье — единственный авторитетный источник
+        # идентичности при persona-сессии. Протягиваем его в custom_params,
+        # чтобы WS-слой пиннил ИМЯ ПЕРСОНАЖА (а не случайное имя сгенерированного
+        # ClientProfile) как «неизменяемый факт».
+        _reference_persona_name = (_persona.name or "").strip() or None
 
     # ── CONSTRUCTOR_TZ §3/§4 — гейт конструктора по региону 1 теста ───────
     # Старт из конструктора («Мои клиенты») распознаём по кастомному персонажу/
@@ -805,6 +801,8 @@ async def start_session(
         custom_params["reference_persona_slug"] = body.reference_persona_slug
         if _reference_persona_brief:
             custom_params["persona_brief"] = _reference_persona_brief
+        if _reference_persona_name:
+            custom_params["persona_name"] = _reference_persona_name
 
     # NB: the legacy ``custom_params["persona_snapshot"]`` write that lived
     # here was the root cause behind hotfix PR #55 — runtime read this dict
@@ -1763,9 +1761,12 @@ async def end_session(
         _detail: dict[str, object] = {"code": v.code, "message": v.message}
         if v.details:
             _detail.update(v.details)
-        # Preserve historical hint that listed the 3 center outcomes — the
-        # FE call-page modal renders three buttons whose ids match.
-        _detail.setdefault("allowed_outcomes", ["agreed", "not_agreed", "continue"])
+        # Training-flow rework (2026-06-04): the call-page no longer offers
+        # an outcome picker — a single "Завершить разговор" button sends the
+        # neutral ``completed`` outcome. The hint advertises the new contract;
+        # legacy outcome strings still normalise to ``completed`` upstream so
+        # an in-flight old client is not rejected here.
+        _detail.setdefault("allowed_outcomes", ["completed"])
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=_detail)
 
     # Phase 4 — runtime_status_guard. Refuse to finalize a session that is
@@ -2607,7 +2608,7 @@ async def ask_coach(
     if skill_data:
         skill_lines = [f"  {k}: {v:.0f}/100" for k, v in skill_data.items() if isinstance(v, (int, float))]
         if skill_lines:
-            skill_ctx = "\nНавыки менеджера:\n" + "\n".join(skill_lines)
+            skill_ctx = "\nНавыки консультанта:\n" + "\n".join(skill_lines)
 
     # Cited moments from report (if available)
     cited_ctx = ""

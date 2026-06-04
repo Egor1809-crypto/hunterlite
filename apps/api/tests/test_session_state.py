@@ -20,12 +20,21 @@ def test_center_is_call_like_for_prompting():
 
 
 def test_center_terminal_outcome_guard():
-    assert validate_terminal_outcome(mode="center", outcome="agreed") == (True, "deal_agreed")
-    assert validate_terminal_outcome(mode="center", outcome="not_agreed") == (True, "deal_not_agreed")
-    assert validate_terminal_outcome(mode="center", outcome="continue") == (True, "continue_next_call")
+    # Training-flow rework (2026-06-04): the sales deal/no-deal/continue split
+    # is gone — a session ends with the single neutral ``completed`` outcome.
+    assert validate_terminal_outcome(mode="center", outcome="completed") == (True, "completed")
+    # Legacy sales strings still normalise to ``completed`` (back-compat) and
+    # therefore still pass the center end-guard — an in-flight old client is
+    # not rejected.
+    assert validate_terminal_outcome(mode="center", outcome="agreed") == (True, "completed")
+    assert validate_terminal_outcome(mode="center", outcome="not_agreed") == (True, "completed")
+    assert validate_terminal_outcome(mode="center", outcome="continue") == (True, "completed")
+    # A missing outcome still fails the center guard (something must be sent).
     assert validate_terminal_outcome(mode="center", outcome=None) == (False, None)
 
 
 def test_non_center_terminal_outcome_is_not_blocking():
     assert validate_terminal_outcome(mode="call", outcome=None) == (True, None)
-    assert normalize_session_outcome("continue later") == "continue_next_call"
+    # Legacy "continue later" collapses to the neutral ``completed`` outcome.
+    assert normalize_session_outcome("continue later") == "completed"
+    assert normalize_session_outcome("completed") == "completed"

@@ -25,6 +25,9 @@ interface LayerScore {
   value: number;
   maxValue: number;
   isModifier?: boolean;
+  /** P3 (training-rework): слой мёртв после де-геймификации (L7 ловушки,
+      L9 нарратив). Скрываем из рендера и снимаем вес с легенды/радара. */
+  hidden?: boolean;
   icon: React.ComponentType<Record<string, unknown>>;
 }
 
@@ -45,16 +48,16 @@ export interface LayerExplanation {
 }
 
 const LAYER_DEFS: LayerScore[] = [
-  { key: "score_script_adherence", label: "Следование скрипту", shortLabel: "L1 Скрипт", description: "Насколько точно вы следовали этапам продажи", value: 0, maxValue: 22.5, icon: FileText },
-  { key: "score_objection_handling", label: "Обработка возражений", shortLabel: "L2 Возражения", description: "Качество работы с возражениями клиента", value: 0, maxValue: 18.75, icon: Shield },
-  { key: "score_communication", label: "Коммуникация", shortLabel: "L3 Коммуникация", description: "Тон, эмпатия и стиль общения", value: 0, maxValue: 15, icon: ChatCircle },
-  { key: "score_anti_patterns", label: "Антипаттерны (штраф)", shortLabel: "L4 Антипаттерны", description: "Штрафы за перебивание, давление, грубость", value: 0, maxValue: 11.25, isModifier: true, icon: Warning },
-  { key: "score_result", label: "Результат", shortLabel: "L5 Результат", description: "Удалось ли достичь цели звонка", value: 0, maxValue: 7.5, icon: Target },
-  { key: "score_chain_traversal", label: "Цепочки возражений", shortLabel: "L6 Цепочки", description: "Глубина проработки серии возражений", value: 0, maxValue: 7.5, icon: Link },
-  { key: "score_trap_handling", label: "Ловушки", shortLabel: "L7 Ловушки", description: "Как вы справились с ловушками клиента", value: 0, maxValue: 7.5, isModifier: true, icon: Crosshair },
-  { key: "score_human_factor", label: "Человеческий фактор", shortLabel: "L8 Человечность", description: "Учёт эмоций, усталости и давления", value: 0, maxValue: 15, isModifier: true, icon: Heart },
-  { key: "score_narrative", label: "Нарративная прогрессия", shortLabel: "L9 Нарратив", description: "Развитие истории между звонками", value: 0, maxValue: 10, isModifier: true, icon: BookOpen },
-  { key: "score_legal", label: "Юридическая точность", shortLabel: "L10 Юр.точность", description: "Корректность ссылок на 127-ФЗ", value: 0, maxValue: 5, isModifier: true, icon: Scales },
+  { key: "score_script_adherence", label: "Полнота выяснения обстоятельств", shortLabel: "Полнота выяснения", description: "Долги, доход, иждивенцы, жильё/ипотека, сделки, стадия взыскания", value: 0, maxValue: 18, icon: FileText },
+  { key: "score_objection_handling", label: "Отработка сомнений и страхов", shortLabel: "Сомнения и страхи", description: "Снять «отнимут квартиру» без ложных гарантий", value: 0, maxValue: 12, icon: Shield },
+  { key: "score_communication", label: "Ясность и эмпатия", shortLabel: "Ясность и эмпатия", description: "Понятность объяснений и поддерживающий тон", value: 0, maxValue: 12, icon: ChatCircle },
+  { key: "score_anti_patterns", label: "Этические нарушения (штраф)", shortLabel: "Этические нарушения", description: "Штраф за ложные гарантии списания и запугивание", value: 0, maxValue: 15, isModifier: true, icon: Warning },
+  { key: "score_result", label: "Корректность рекомендации", shortLabel: "Корректность рекомендации", description: "Верный путь (реструктуризация / реализация) и следующий шаг", value: 0, maxValue: 18, icon: Target },
+  { key: "score_chain_traversal", label: "Глубина разбора", shortLabel: "Глубина разбора", description: "Последовательная отработка серии сомнений до конца", value: 0, maxValue: 5, icon: Link },
+  { key: "score_trap_handling", label: "Ловушки", shortLabel: "L7 Ловушки", description: "Как вы справились с ловушками клиента", value: 0, maxValue: 7.5, isModifier: true, hidden: true, icon: Crosshair },
+  { key: "score_human_factor", label: "Поддержка должника", shortLabel: "Поддержка должника", description: "Учёт эмоций, тревоги и давления долговой ситуации", value: 0, maxValue: 10, isModifier: true, icon: Heart },
+  { key: "score_narrative", label: "Нарративная прогрессия", shortLabel: "L9 Нарратив", description: "Развитие истории между звонками", value: 0, maxValue: 10, isModifier: true, hidden: true, icon: BookOpen },
+  { key: "score_legal", label: "Правовая точность ФЗ-127", shortLabel: "Правовая точность ФЗ-127", description: "Корректность ссылок на 127-ФЗ", value: 0, maxValue: 25, icon: Scales },
 ];
 
 function getBarColor(pct: number, isModifier: boolean): string {
@@ -102,7 +105,7 @@ export default function ScoreLayersBreakdown({ scoreBreakdown, totalScore, layer
             Детальный скоринг
           </h3>
           <p className="mt-0.5 text-sm" style={{ color: "var(--text-muted)" }}>
-            10 уровней анализа вашей сессии
+            Разбор консультации по слоям оценки
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -119,6 +122,11 @@ export default function ScoreLayersBreakdown({ scoreBreakdown, totalScore, layer
       {/* Score Layers */}
       <div className="space-y-2">
         {LAYER_DEFS.map((layer, i) => {
+          // P3 (training-rework): L7 (ловушки) и L9 (нарратив) мертвы после
+          // де-геймификации — не рендерим их строку вовсе. Индекс `i`
+          // сохраняем (return null внутри map), чтобы layerKey = L${i+1}
+          // по-прежнему совпадал с ключами explanationMap для живых слоёв.
+          if (layer.hidden) return null;
           // H5 (Roadmap Phase 0 §5.1): raw score can be null when the
           // backend has not scored a layer yet (e.g. session aborted
           // before judge ran). Pass through null so the bar renders as
@@ -299,16 +307,13 @@ export default function ScoreLayersBreakdown({ scoreBreakdown, totalScore, layer
       <div className="pt-3 border-t" style={{ borderColor: "var(--border-color)" }}>
         <div className="flex flex-wrap gap-x-4 gap-y-1">
           <span className="text-xs" style={{ color: "var(--text-muted)" }}>
-            <span className="font-semibold" style={{ color: "var(--text-secondary)" }}>L1–L7</span> базовые (75 pts)
+            <span className="font-semibold" style={{ color: "var(--text-secondary)" }}>Базовые слои</span> — полнота, сомнения, ясность, рекомендация
           </span>
           <span className="text-xs" style={{ color: "var(--text-muted)" }}>
-            <span className="font-semibold" style={{ color: "var(--text-secondary)" }}>L8</span> человечность (+15)
+            <span className="font-semibold" style={{ color: "var(--text-secondary)" }}>Поддержка должника</span> (+10)
           </span>
           <span className="text-xs" style={{ color: "var(--text-muted)" }}>
-            <span className="font-semibold" style={{ color: "var(--text-secondary)" }}>L9</span> нарратив (+10)
-          </span>
-          <span className="text-xs" style={{ color: "var(--text-muted)" }}>
-            <span className="font-semibold" style={{ color: "var(--text-secondary)" }}>L10</span> юр.точность ({"\u00B1"}5)
+            <span className="font-semibold" style={{ color: "var(--text-secondary)" }}>Правовая точность ФЗ-127</span> (25)
           </span>
         </div>
         {layerExplanations && (
