@@ -528,6 +528,7 @@ async def start_session(
     # ниже из тех же body.custom_*. Brief/slug дописываются в custom_params
     # после его сборки. Существующий custom_* путь не трогаем.
     _reference_persona_brief: str | None = None
+    _reference_persona_name: str | None = None
     if body.reference_persona_slug:
         from app.models.reference_persona import ReferencePersona
         from app.api.reference_personas import split_dossier
@@ -577,6 +578,11 @@ async def start_session(
         # которыми ведётся AI-клиент через persona_brief в custom_params.
         _client_brief, _ = split_dossier(_persona.cached_dossier)
         _reference_persona_brief = _client_brief or None
+        # P2: имя персонажа из досье — единственный авторитетный источник
+        # идентичности при persona-сессии. Протягиваем его в custom_params,
+        # чтобы WS-слой пиннил ИМЯ ПЕРСОНАЖА (а не случайное имя сгенерированного
+        # ClientProfile) как «неизменяемый факт».
+        _reference_persona_name = (_persona.name or "").strip() or None
 
     # ── CONSTRUCTOR_TZ §3/§4 — гейт конструктора по региону 1 теста ───────
     # Старт из конструктора («Мои клиенты») распознаём по кастомному персонажу/
@@ -795,6 +801,8 @@ async def start_session(
         custom_params["reference_persona_slug"] = body.reference_persona_slug
         if _reference_persona_brief:
             custom_params["persona_brief"] = _reference_persona_brief
+        if _reference_persona_name:
+            custom_params["persona_name"] = _reference_persona_name
 
     # NB: the legacy ``custom_params["persona_snapshot"]`` write that lived
     # here was the root cause behind hotfix PR #55 — runtime read this dict
