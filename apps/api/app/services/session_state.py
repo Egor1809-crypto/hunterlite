@@ -4,22 +4,38 @@ from __future__ import annotations
 SESSION_MODES = {"chat", "call", "center"}
 CALL_LIKE_MODES = {"call", "center"}
 
+# Training-flow rework (2026-06-04): the sales "deal agreed / not agreed"
+# dichotomy is gone. A consultation session now ends with a single neutral
+# terminal outcome — ``completed``. The legacy deal-aliases are kept only
+# so historical rows / in-flight clients that still send the old strings
+# normalise to the neutral outcome instead of 400-ing the end-guard.
+NEUTRAL_TERMINAL_OUTCOME = "completed"
+
 CENTER_TERMINAL_OUTCOMES = {
+    "completed",
+    # Legacy sales outcomes — accepted for backward compatibility so an
+    # in-flight client sending an old value does not fail the end-guard.
+    # New frontend sends only ``completed``.
     "deal_agreed",
     "deal_not_agreed",
     "continue_next_call",
 }
 
 OUTCOME_ALIASES = {
-    "agreed": "deal_agreed",
-    "contract_agreed": "deal_agreed",
-    "contract_signed": "deal_agreed",
-    "not_agreed": "deal_not_agreed",
-    "contract_not_agreed": "deal_not_agreed",
-    "rejected": "deal_not_agreed",
-    "continue": "continue_next_call",
-    "continue_in_next_call": "continue_next_call",
-    "continue_later": "continue_next_call",
+    # Legacy sales outcomes collapse to the neutral ``completed`` outcome.
+    # The training flow no longer distinguishes "deal" from "no deal".
+    "agreed": "completed",
+    "contract_agreed": "completed",
+    "contract_signed": "completed",
+    "deal_agreed": "completed",
+    "not_agreed": "completed",
+    "contract_not_agreed": "completed",
+    "rejected": "completed",
+    "deal_not_agreed": "completed",
+    "continue": "completed",
+    "continue_in_next_call": "completed",
+    "continue_later": "completed",
+    "continue_next_call": "completed",
     "needs_follow_up": "needs_followup",
 }
 

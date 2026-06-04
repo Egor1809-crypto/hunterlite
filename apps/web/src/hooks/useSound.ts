@@ -26,7 +26,7 @@
 import { useCallback, useEffect, useRef, useSyncExternalStore } from "react";
 
 type SoundName =
-  | "success" | "epic" | "legendary" | "fail" | "levelup"
+  | "success"
   // Arena sounds
   | "correct" | "incorrect" | "tick" | "challenge"
   | "match_start" | "victory" | "defeat" | "streak" | "rank_up"
@@ -403,41 +403,6 @@ const SOUND_DESIGNS: Partial<Record<SoundName, SoundDesign>> = {
       { freq: 1568, type: "sine", gain: 0.06, dur: 0.1, delay: 0.18 },
     ],
   },
-  epic: {
-    totalDur: 1.0,
-    category: "sfx", normalize: 0.85,
-    layers: [
-      { freq: 110, type: "sawtooth", gain: 0.15, dur: 0.5, attack: 0.05 },
-      { freq: 220, type: "triangle", gain: 0.2, dur: 0.6, delay: 0.1 },
-      { freq: 330, type: "sine", gain: 0.25, dur: 0.5, delay: 0.2 },
-      { freq: 440, type: "sine", gain: 0.3, dur: 0.4, delay: 0.35 },
-      { freq: 660, type: "sine", gain: 0.2, dur: 0.3, delay: 0.5 },
-    ],
-    noiseMix: 0.06, noiseDur: 0.2,
-  },
-  legendary: {
-    totalDur: 1.5,
-    category: "sfx", normalize: 0.8,
-    layers: [
-      { freq: 440, type: "sine", gain: 0.2, dur: 0.15 },
-      { freq: 554, type: "sine", gain: 0.2, dur: 0.15, delay: 0.12 },
-      { freq: 659, type: "sine", gain: 0.25, dur: 0.15, delay: 0.24 },
-      { freq: 880, type: "sine", gain: 0.3, dur: 0.2, delay: 0.36 },
-      { freq: 1047, type: "sine", gain: 0.35, dur: 0.6, delay: 0.5 },
-      { freq: 1760, type: "sine", gain: 0.08, dur: 0.4, delay: 0.6 },
-      { freq: 2093, type: "sine", gain: 0.06, dur: 0.3, delay: 0.7 },
-      { freq: 2637, type: "sine", gain: 0.05, dur: 0.2, delay: 0.8 },
-      { freq: 220, type: "triangle", gain: 0.15, dur: 0.8, delay: 0.4 },
-    ],
-  },
-  fail: {
-    totalDur: 0.25,
-    category: "sfx", normalize: 1.05,
-    layers: [
-      { freq: 440, type: "sine", gain: 0.3, dur: 0.2, freqRamp: 0.5, attack: 0.005 },
-      { freq: 220, type: "triangle", gain: 0.12, dur: 0.15, delay: 0.05 },
-    ],
-  },
   click: {
     totalDur: 0.05,
     category: "ui", normalize: 1.6,
@@ -473,17 +438,6 @@ const SOUND_DESIGNS: Partial<Record<SoundName, SoundDesign>> = {
       { freq: 2094, type: "sine", gain: 0.1, dur: 0.25, delay: 0.01, decayStart: 0.1 },
       { freq: 3141, type: "sine", gain: 0.05, dur: 0.2, delay: 0.02, decayStart: 0.08 },
       { freq: 523, type: "sine", gain: 0.08, dur: 0.35, delay: 0.005, decayStart: 0.2 },
-    ],
-  },
-  levelup: {
-    totalDur: 0.8,
-    category: "sfx", normalize: 0.95,
-    layers: [
-      { freq: 262, type: "triangle", gain: 0.25, dur: 0.15 },
-      { freq: 330, type: "triangle", gain: 0.25, dur: 0.15, delay: 0.1 },
-      { freq: 392, type: "sine", gain: 0.3, dur: 0.15, delay: 0.2 },
-      { freq: 523, type: "sine", gain: 0.35, dur: 0.35, delay: 0.3 },
-      { freq: 784, type: "sine", gain: 0.15, dur: 0.25, delay: 0.35 },
     ],
   },
   pvpMatch: {

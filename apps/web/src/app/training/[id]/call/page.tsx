@@ -168,7 +168,9 @@ export default function TrainingCallPage() {
   // that covers all intermediate states until the redirect lands.
   const [hangupInProgress, setHangupInProgress] = useState(false);
   const [hangupReason, setHangupReason] = useState<string>("");
-  const [sessionMode, setSessionMode] = useState<"chat" | "call" | "center">("call");
+  // Значение режима больше не читается (3-кнопочный исход убран в P1), но сеттер
+  // ещё используется при инициализации сессии — оставляем только его.
+  const [, setSessionMode] = useState<"chat" | "call" | "center">("call");
   const [showCenterOutcome, setShowCenterOutcome] = useState(false);
   // 2026-04-22 fallback text input: call mode was voice-only and users
   // with broken mic / denied permission / unsupported browser had NO
@@ -1176,7 +1178,12 @@ export default function TrainingCallPage() {
   // Navigate first so the button always responds even if TTS/STT/backend
   // throw. Cleanup runs as fire-and-forget — the results page reloads
   // session state from the server anyway, so late-arriving errors are safe.
-  const completeHangup = useCallback((outcome?: "agreed" | "not_agreed" | "continue") => {
+  // P1 (training-rework): the deal-outcome semantics ('agreed' /
+  // 'not_agreed' / 'continue') were removed. A training call now has a
+  // single neutral terminal outcome — 'completed'. The backend end-guard
+  // still expects an outcome in its allowed set, so we always send
+  // 'completed' instead of branching on a sales-style result.
+  const completeHangup = useCallback(() => {
     if (endInFlightRef.current) return;
     endInFlightRef.current = true;
     setShowCenterOutcome(false);
@@ -1198,7 +1205,7 @@ export default function TrainingCallPage() {
     // not after we land on /results.
     (async () => {
       try {
-        await api.post(`/training/sessions/${sid}/end`, outcome ? { outcome } : {});
+        await api.post(`/training/sessions/${sid}/end`, { outcome: "completed" });
       } catch (err) {
         logger.warn("[call] end POST failed (may already be ended)", err);
       }
@@ -1210,13 +1217,14 @@ export default function TrainingCallPage() {
     goToResults(2200);
   }, [id, stopAllAudio, stt, goToResults]);
 
+  // P1 (training-rework): one calm confirmation step for every hangup.
+  // Previously only "center" sessions opened a (3-button deal-outcome)
+  // modal and a plain call ended immediately. Now any hangup shows a
+  // single quiet "Завершить разговор?" confirm with a "Вернуться к
+  // звонку" escape — no sales outcome to pick.
   const onHangup = useCallback(() => {
-    if (sessionMode === "center") {
-      setShowCenterOutcome(true);
-      return;
-    }
-    completeHangup();
-  }, [completeHangup, sessionMode]);
+    setShowCenterOutcome(true);
+  }, []);
 
   // 2026-04-22 fallback sender: send current textInput as a plain text.message
   // with correct `content` key (same shape as chat page). Clears the box so
@@ -1535,10 +1543,10 @@ export default function TrainingCallPage() {
         }}
         micSlot={
           /*
-            2026-05-10 (pixel redesign): mic button был rounded-full +
-            blur, теперь square pixel 2px solid, font-medium-лейбл 14px.
-            Audio-level glow сохранён для feedback'а (живой пульс при
-            активном слушании). Логика TTS-pause + STT не тронута.
+            P1 (training-rework): микрофон-индикатор сохранён (audio-level
+            пульс при слушании — это и есть индикатор), но неон смягчён:
+            цвета в токены (danger/accent), тонкая рамка, амплитуда glow
+            уменьшена. Логика TTS-pause + STT не тронута.
           */
           <button
             type="button"
@@ -1559,16 +1567,16 @@ export default function TrainingCallPage() {
               style={{
                 background:
                   stt.status === "listening"
-                    ? "rgba(239,68,68,0.95)"
-                    : "rgba(167,139,250,0.18)",
+                    ? "var(--danger)"
+                    : "var(--accent-muted)",
                 color: stt.status === "listening" ? "#fff" : "var(--accent)",
                 border: stt.status === "listening"
-                  ? "3px solid #f87171"
-                  : "3px solid var(--accent)",
+                  ? "1px solid var(--danger)"
+                  : "1px solid var(--accent)",
                 boxShadow:
                   stt.status === "listening"
-                    ? `0 0 ${18 + stt.audioLevel * 38}px rgba(239,68,68,${0.55 + stt.audioLevel * 0.45})`
-                    : "0 0 12px var(--accent-glow)",
+                    ? `0 0 ${8 + stt.audioLevel * 16}px var(--danger-muted)`
+                    : "none",
               }}
             >
               {stt.status === "listening" ? (
@@ -1580,7 +1588,7 @@ export default function TrainingCallPage() {
             <span
               className="text-sm font-medium"
               style={{
-                color: stt.status === "listening" ? "#f87171" : "var(--text-muted)",
+                color: stt.status === "listening" ? "var(--danger)" : "var(--text-muted)",
               }}
             >
               {stt.status === "listening" ? "Слушаю..." : "Говорить"}
@@ -1590,11 +1598,12 @@ export default function TrainingCallPage() {
       />
 
       {/*
-        2026-05-10 (pixel redesign): Outcome modal был в plain Tailwind
-        стиле (rounded-md + bg-emerald-500/red-500/sky-500). Теперь —
-        пиксельный стиль: square 2px borders, font-medium uppercase 14px,
-        gradient-фон по цвету исхода, neon glow при ховере. Логика
-        completeHangup НЕ ТРОГАЕТСЯ.
+        P1 (training-rework): спокойное подтверждение завершения. Раньше
+        здесь был «Исход звонка» с тремя продажными кнопками (договор
+        согласован / не согласован / продолжить) — это убрано по решению
+        заказчика. Теперь одна нейтральная кнопка «Завершить разговор»
+        (терминальный исход 'completed') + escape «Вернуться к звонку».
+        Тон редакторский: токены var(--*), один акцент, без капса/неона.
       */}
       {showCenterOutcome && !hangupInProgress && (
         <div
@@ -1614,61 +1623,37 @@ export default function TrainingCallPage() {
           >
             <div className="mb-4">
               <div
-                className="text-lg font-bold"
-                style={{ color: "var(--accent)" }}
+                className="text-lg font-semibold"
+                style={{ color: "var(--text-primary)" }}
               >
-                Исход звонка
+                Завершить разговор?
               </div>
               <div
                 className="mt-1 text-sm"
                 style={{ color: "var(--text-muted)" }}
               >
-                Зафиксируем результат — карточка клиента обновится
+                Разговор закончится, и откроется разбор сессии.
               </div>
             </div>
             <div className="grid gap-2">
               <button
                 type="button"
-                className="rounded-xl px-4 py-3 text-left text-sm font-semibold transition-all hover:scale-[1.01]"
+                className="rounded-xl px-4 py-3 text-sm font-medium transition-colors"
                 style={{
-                  background: "rgba(74,222,128,0.08)",
-                  border: "1px solid rgba(74,222,128,0.3)",
-                  color: "#4ade80",
+                  background: "var(--accent-muted)",
+                  border: "1px solid var(--accent)",
+                  color: "var(--accent)",
                 }}
-                onClick={() => completeHangup("agreed")}
+                onClick={() => completeHangup()}
               >
-                Договор согласован
-              </button>
-              <button
-                type="button"
-                className="rounded-xl px-4 py-3 text-left text-sm font-semibold transition-all hover:scale-[1.01]"
-                style={{
-                  background: "rgba(248,113,113,0.08)",
-                  border: "1px solid rgba(248,113,113,0.3)",
-                  color: "#f87171",
-                }}
-                onClick={() => completeHangup("not_agreed")}
-              >
-                Договор не согласован
-              </button>
-              <button
-                type="button"
-                className="rounded-xl px-4 py-3 text-left text-sm font-semibold transition-all hover:scale-[1.01]"
-                style={{
-                  background: "rgba(56,189,248,0.08)",
-                  border: "1px solid rgba(56,189,248,0.3)",
-                  color: "#38bdf8",
-                }}
-                onClick={() => completeHangup("continue")}
-              >
-                Продолжить в другом звонке
+                Завершить разговор
               </button>
               <button
                 type="button"
                 className="rounded-xl px-4 py-3 text-sm font-medium transition-colors"
                 style={{
                   background: "transparent",
-                  border: "1px dashed rgba(255,255,255,0.18)",
+                  border: "1px solid var(--border-color)",
                   color: "var(--text-muted)",
                 }}
                 onClick={() => setShowCenterOutcome(false)}
@@ -1716,16 +1701,17 @@ export default function TrainingCallPage() {
             onPointerLeave={() => { if (pushTalkActive) pushTalkStop(); }}
             onPointerCancel={pushTalkStop}
             disabled={connectionState !== "connected"}
-            className="flex items-center gap-2 rounded-full px-5 py-3 text-sm font-bold text-white transition-all"
+            className="flex items-center gap-2 rounded-full px-5 py-3 text-sm font-medium transition-all"
             style={{
-              background: pushTalkActive
-                ? "linear-gradient(135deg, #ff5f57 0%, #c01f1f 100%)"
-                : "linear-gradient(135deg, #7c3aed 0%, #5b21b6 100%)",
-              boxShadow: pushTalkActive
-                ? "0 0 0 6px rgba(255,95,87,0.25), 0 0 24px rgba(255,95,87,0.6)"
-                : "0 4px 16px -4px rgba(124,58,237,0.6)",
-              transform: pushTalkActive ? "scale(1.05)" : "scale(1)",
-              transition: "transform 0.1s, box-shadow 0.15s, background 0.15s",
+              // P1 (training-rework): неон-градиент + glow убраны, цвета в
+              // токены. Активное состояние — нейтральный danger-токен (идёт
+              // запись), покой — акцент. Микрофон-индикатор сохранён.
+              background: pushTalkActive ? "var(--danger)" : "var(--accent-muted)",
+              border: pushTalkActive
+                ? "1px solid var(--danger)"
+                : "1px solid var(--accent)",
+              color: pushTalkActive ? "#fff" : "var(--accent)",
+              transition: "background 0.15s, color 0.15s, opacity 0.15s",
               opacity: connectionState === "connected" ? 1 : 0.5,
               touchAction: "none",
             }}
@@ -1735,15 +1721,15 @@ export default function TrainingCallPage() {
             <span>{pushTalkActive ? "Говорите…" : "Удерживайте чтобы говорить"}</span>
           </button>
           <div
-            className="rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider"
+            className="rounded-full px-2.5 py-0.5 text-[11px] font-medium tracking-wide"
             style={{
-              background: "rgba(124,58,237,0.18)",
-              color: "#c4b5fd",
-              border: "1px solid rgba(124,58,237,0.4)",
+              background: "var(--accent-muted)",
+              color: "var(--accent)",
+              border: "1px solid var(--border-color)",
             }}
             title="Голос работает через сервер (Whisper). В Brave/Safari/Firefox это рабочий вариант — настраивать ничего не нужно."
           >
-            🎤 Голос работает · Whisper
+            Голос работает через Whisper
           </div>
         </div>
       )}

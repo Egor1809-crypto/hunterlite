@@ -15,9 +15,10 @@ def _session(*, details=None, timeline=None):
 
 
 def test_followup_created_for_callback_outcome():
+    # Emotion-driven / explicit follow-up outcomes still create a reminder.
     assert should_create_followup("callback") is True
-    assert should_create_followup("continue_next_call") is True
-    assert should_create_followup("continue") is True
+    assert should_create_followup("needs_followup") is True
+    assert should_create_followup("considering") is True
 
 
 def test_followup_not_created_for_terminal_negative_outcome():
@@ -25,10 +26,24 @@ def test_followup_not_created_for_terminal_negative_outcome():
     assert should_create_followup("hostile") is False
 
 
+def test_followup_not_created_for_neutral_completed_outcome():
+    # Training-flow rework (2026-06-04): the legacy "continue" / sales
+    # outcomes collapse to the neutral ``completed`` outcome, which is NOT a
+    # follow-up trigger (the deal/continue distinction is removed). The
+    # single "Завершить разговор" button must not silently spawn a CRM
+    # reminder.
+    assert should_create_followup("completed") is False
+    assert should_create_followup("continue") is False
+    assert should_create_followup("continue_next_call") is False
+    assert should_create_followup("agreed") is False
+
+
 def test_normalize_center_outcome_aliases():
-    assert normalize_session_outcome("agreed") == "deal_agreed"
-    assert normalize_session_outcome("not agreed") == "deal_not_agreed"
-    assert normalize_session_outcome("continue_later") == "continue_next_call"
+    # Training-flow rework: legacy sales strings normalise to ``completed``.
+    assert normalize_session_outcome("agreed") == "completed"
+    assert normalize_session_outcome("not agreed") == "completed"
+    assert normalize_session_outcome("continue_later") == "completed"
+    assert normalize_session_outcome("completed") == "completed"
 
 
 def test_infer_followup_outcome_prefers_scoring_details():

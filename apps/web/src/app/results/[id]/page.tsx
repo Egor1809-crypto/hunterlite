@@ -7,7 +7,6 @@ import { motion } from "framer-motion";
 import {
   ArrowRight,
   Home,
-  Zap,
   MessageSquare,
   TrendingUp,
   Loader2,
@@ -19,13 +18,11 @@ import {
   Repeat,
     Share2,
     Check,
-    Trophy,
     Download,
     Copy,
     ClipboardCheck,
     Sparkles,
     BookOpen,
-    Handshake,
   } from "lucide-react";
 import { api } from "@/lib/api";
 import { downloadTranscript, copyTranscript, copyToClipboard } from "@/lib/exportTranscript";
@@ -77,7 +74,7 @@ function emotionLabelRu(state: string): string {
 }
 
 function getScoreColor(score: number): string {
-  return score >= 70 ? "var(--success)" : score >= 40 ? "var(--gf-xp)" : "var(--danger)";
+  return score >= 70 ? "var(--success)" : score >= 40 ? "var(--warning)" : "var(--danger)";
 }
 
 export default function ResultsPage() {
@@ -88,7 +85,6 @@ export default function ResultsPage() {
   const [repeating, setRepeating] = useState(false);
   const [copied, setCopied] = useState(false);
   const [transcriptCopied, setTranscriptCopied] = useState(false);
-  const [, setAchievement] = useState<{ id: string; title: string; description: string; icon?: string } | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
 
   // Replay Mode state
@@ -148,19 +144,10 @@ export default function ResultsPage() {
           if (isFirst) setLoading(false);
           if (isFullyScored(data) || attempts >= MAX_ATTEMPTS - 1) {
             setProcessing(false);
-            // Trigger achievement toast based on score (only once, when
-            // we know the score is final).
-            const score = data?.session?.score_total;
-            if (score !== null && score !== undefined) {
-              if (score >= 90) {
-                setTimeout(() => setAchievement({ id: "ace", title: "Ас переговоров", description: "Набрано 90+ баллов за сессию", icon: "🏆" }), 1500);
-                setTimeout(() => {
-                  window.dispatchEvent(new CustomEvent("gamification", { detail: { type: "perfect-score", score } }));
-                }, 800);
-              } else if (score >= 70) {
-                setTimeout(() => setAchievement({ id: "good", title: "Уверенный старт", description: "Набрано 70+ баллов за сессию", icon: "⭐" }), 1500);
-              }
-            }
+            // P1 (training-rework): score-based achievement toasts +
+            // the "gamification" perfect-score event were removed —
+            // дегеймификация. Результат показывается спокойной сводкой,
+            // без ачивок/тостов/конфетти.
             return;
           }
           attempts += 1;
@@ -238,7 +225,6 @@ export default function ResultsPage() {
   }
 
   const { session, messages } = result;
-  const story = result.story;
   const totalScore = session.score_total ?? 0;
   const hasScores = session.score_total !== null;
   const totalScoreColor = getScoreColor(totalScore);
@@ -512,38 +498,10 @@ export default function ResultsPage() {
           L1-L10 / weak-legal sections).
         */}
 
-        {/* XP Rewards banner */}
-        {result.xp_breakdown && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ delay: 0.15 }}
-            className="mb-8 glass-panel rounded-2xl p-5 flex flex-wrap items-center justify-between gap-4"
-          >
-            <div className="flex items-center gap-6">
-              <div className="flex items-center gap-2">
-                <Zap size={20} style={{ color: "var(--warning)" }} />
-                <span className="font-display font-bold text-xl" style={{ color: "var(--warning)" }}>
-                  +{result.xp_breakdown.grand_total ?? result.xp_breakdown.session_total ?? 0} XP
-                </span>
-              </div>
-              {result.level_up && (
-                <div className="flex items-center gap-2 rounded-xl px-3 py-1.5" style={{ background: "rgba(61,220,132,0.1)", border: "1px solid rgba(61,220,132,0.3)" }}>
-                  <Trophy size={16} style={{ color: "var(--success)" }} />
-                  <span className="font-display font-bold text-sm" style={{ color: "var(--success)" }}>
-                    Уровень {result.new_level}!
-                  </span>
-                </div>
-              )}
-            </div>
-            <div className="flex items-center gap-4 text-sm font-mono" style={{ color: "var(--text-muted)" }}>
-              {result.xp_breakdown.base && <span>База: +{result.xp_breakdown.base}</span>}
-              {result.xp_breakdown.score_bonus > 0 && <span>За баллы: +{result.xp_breakdown.score_bonus}</span>}
-              {result.xp_breakdown.streak_bonus > 0 && <span>Стрик: +{result.xp_breakdown.streak_bonus}</span>}
-              {result.xp_breakdown.achievements > 0 && <span>Ачивки: +{result.xp_breakdown.achievements}</span>}
-            </div>
-          </motion.div>
-        )}
+        {/* P1 (training-rework): XP Rewards banner (+N XP, level_up,
+            base/score/streak/achievements breakdown) удалён —
+            дегеймификация по решению заказчика. XP больше не
+            начисляется/показывается; таблицы xp_* остаются спящими. */}
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 flex-1">
           {/* LEFT: Pentagram */}
@@ -794,71 +752,9 @@ export default function ResultsPage() {
           </div>
         </motion.div>
 
-        {story && (
-          <motion.div
-            initial={{ opacity: 0, y: 14 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.15 }}
-            className="glass-panel mt-2 p-6 rounded-2xl"
-          >
-            <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-              <div>
-                <div className="flex items-center gap-2">
-                  <Sparkles size={16} style={{ color: "var(--accent)" }} />
-                  <span className="font-mono text-sm uppercase tracking-widest" style={{ color: "var(--accent)" }}>
-                    История клиента
-                  </span>
-                </div>
-                <h2 className="mt-2 font-display text-2xl font-bold" style={{ color: "var(--text-primary)" }}>
-                  {story.story_name}
-                </h2>
-                <p className="mt-2 text-sm" style={{ color: "var(--text-secondary)" }}>
-                  Звонок {session.call_number_in_story ?? story.current_call_number} из {story.total_calls_planned}. Эта сессия входит в одну общую историю клиента, а не является изолированным разговором.
-                </p>
-              </div>
-              <div className="grid grid-cols-2 gap-3 md:min-w-[320px]">
-                {[
-                  { label: "Средний балл story", value: story.avg_score !== null ? Math.round(story.avg_score) : "—" },
-                  { label: "Статус клиента", value: story.game_status },
-                  { label: "Факторы", value: story.active_factors.length },
-                  { label: "Последствия", value: story.consequences.length },
-                ].map((item) => (
-                  <div key={item.label} className="rounded-xl p-3" style={{ background: "var(--input-bg)" }}>
-                    <div className="font-mono text-xs uppercase tracking-widest" style={{ color: "var(--text-muted)" }}>
-                      {item.label}
-                    </div>
-                    <div className="mt-1 text-lg font-semibold" style={{ color: "var(--text-primary)" }}>
-                      {item.value}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {result.story_calls.length > 0 && (
-              <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-                {result.story_calls.map((call) => (
-                  <div key={call.session_id} className="rounded-xl p-4" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid var(--border-color)" }}>
-                    <div className="flex items-center justify-between">
-                      <span className="font-mono text-xs uppercase tracking-widest" style={{ color: "var(--accent)" }}>
-                        Call {call.call_number}
-                      </span>
-                      <span className="text-xs" style={{ color: "var(--text-muted)" }}>
-                        {call.status}
-                      </span>
-                    </div>
-                      <div className="mt-3 text-2xl font-bold" style={{ color: call.score_total !== null ? getScoreColor(call.score_total) : "var(--text-muted)" }}>
-                      {call.score_total !== null ? Math.round(call.score_total) : "—"}
-                    </div>
-                    <div className="mt-2 text-xs" style={{ color: "var(--text-muted)" }}>
-                      {formatDuration(call.duration_seconds)}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </motion.div>
-        )}
+        {/* Story-mode panel removed (customer decision #3, 2026-06-04):
+            «История клиента / Звонок N из M / последствия» surface is cut
+            front-and-back. The backend no longer projects story/story_calls. */}
 
         {/* Trap Results */}
         {result.trap_results && result.trap_results.length > 0 && (
@@ -934,50 +830,9 @@ export default function ResultsPage() {
           </motion.div>
         )}
 
-        {/* 3.2: Promise fulfillment from CRM story */}
-        {result.promise_fulfillment && result.promise_fulfillment.length > 0 && (
-          <motion.div
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.38 }}
-            className="glass-panel mt-6 p-5"
-          >
-            <div className="flex items-center gap-2 mb-3">
-              <Handshake size={14} style={{ color: "var(--accent)" }} />
-              <span className="font-mono text-xs uppercase tracking-widest" style={{ color: "var(--accent)" }}>ВЫПОЛНЕНИЕ ОБЕЩАНИЙ</span>
-            </div>
-            <div className="space-y-2">
-              {result.promise_fulfillment.map((p: { text: string; call_number: number; fulfilled: boolean; impact: string }, i: number) => (
-                <div
-                  key={i}
-                  className="flex items-center gap-3 rounded-lg p-2.5"
-                  style={{
-                    background: p.fulfilled ? "var(--success-muted)" : "var(--danger-muted)",
-                    border: `1px solid ${p.fulfilled ? "var(--success-muted)" : "var(--danger-muted)"}`,
-                  }}
-                >
-                  {p.fulfilled ? (
-                    <CheckCircle size={14} style={{ color: "var(--success)" }} />
-                  ) : (
-                    <AlertCircle size={14} style={{ color: "var(--danger)" }} />
-                  )}
-                  <div className="flex-1">
-                    <span className="text-xs" style={{ color: "var(--text-primary)" }}>{p.text}</span>
-                    <span className="ml-2 font-mono text-xs" style={{ color: "var(--text-muted)" }}>
-                      Звонок #{p.call_number}
-                    </span>
-                  </div>
-                  <span className={`stat-chip ${p.fulfilled ? "" : "neon-pulse"}`} style={{
-                    color: p.fulfilled ? "var(--success)" : "var(--danger)",
-                    fontSize: "14px",
-                  }}>
-                    {p.fulfilled ? "+0.5" : "−1.0"}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </motion.div>
-        )}
+        {/* Promise-fulfillment panel removed (customer decision #3,
+            2026-06-04): it was a CRM-story «выполнение обещаний» surface tied
+            to story-mode. Cut front-and-back; backend no longer projects it. */}
 
         {/* Score bars */}
         {hasScores && (
@@ -993,7 +848,7 @@ export default function ResultsPage() {
             <div className="space-y-4">
               {scoreItems.map((item, i) => {
                 const pct = item.max > 0 ? (item.value / item.max) * 100 : 0;
-                const barColor = pct >= 70 ? "var(--success)" : pct >= 40 ? "var(--gf-xp)" : "var(--danger)";
+                const barColor = pct >= 70 ? "var(--success)" : pct >= 40 ? "var(--warning)" : "var(--danger)";
                 return (
                   <motion.div key={item.label} initial={{ opacity: 0, x: -16 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.5 + i * 0.1 }}>
                     <div className="flex items-center justify-between mb-1.5">
@@ -1193,7 +1048,7 @@ export default function ResultsPage() {
                 {isLegacySession && canRetrain && (
                   <span
                     className="text-[10px] flex items-center gap-1"
-                    style={{ color: "var(--gf-xp)" }}
+                    style={{ color: "var(--warning)" }}
                     title="Это старая сессия из времён до обновления CRM-привязки — клиент сгенерируется случайно и может отличаться от оригинального."
                   >
                     <AlertTriangle size={10} />

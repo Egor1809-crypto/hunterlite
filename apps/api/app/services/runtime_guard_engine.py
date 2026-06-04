@@ -228,10 +228,13 @@ def evaluate_end_guards(
     """Run §8.3 end-of-session guards. Returns the list of violations.
 
     The single guard wired here is ``terminal_outcome_required_guard``:
-    center sessions cannot end without one of {deal_agreed, deal_not_agreed,
-    continue_next_call}. The check is delegated to
-    ``session_state.validate_terminal_outcome`` so REST and WS handlers
-    that already use it stay in lockstep without a second source of truth.
+    center sessions cannot end without a terminal outcome. After the
+    2026-06-04 training-flow rework the only neutral outcome the frontend
+    sends is ``completed`` (legacy {deal_agreed, deal_not_agreed,
+    continue_next_call} still normalise to it for backward compatibility).
+    The check is delegated to ``session_state.validate_terminal_outcome``
+    so REST and WS handlers that already use it stay in lockstep without a
+    second source of truth.
     """
     from app.services.session_state import validate_terminal_outcome
 

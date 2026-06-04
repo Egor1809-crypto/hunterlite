@@ -81,18 +81,11 @@ from app.services.session_manager import (
 from app.services.llm import (
     LLMError,
     LLMResponse,
-    FactorInteractionMatrix,
-    build_multi_call_prompt,
-    generate_personality_profile,
     generate_response,
-    get_context_budget_manager,
-    inject_human_factors,
     load_prompt,
 )
 from app.services.scenario_engine import (
     SessionConfig,
-    apply_between_calls_context,
-    generate_pre_call_brief,
     generate_session_report,
     parse_stage_directions_v2,
 )
@@ -949,18 +942,11 @@ async def _handle_session_resume(
     except Exception as e:
         logger.debug("Stage tracking restore skipped for session %s: %s", session_id, e)
 
-    # 6b. Restore adaptive difficulty state (optional)
-    try:
-        from app.services.adaptive_difficulty import IntraSessionAdapter as _ISA
-        from app.core.redis_pool import get_redis as _get_redis_resume_diff
-        _r_diff = _get_redis_resume_diff()
-        _ada = _ISA(_r_diff)
-        _ad_state = await _ada.get_state(str(session_id))
-        if _ad_state and _ad_state.current_turn > 0:
-            base_diff = state.get("base_difficulty", 5)
-            await _send(ws, "difficulty.update", _ada.build_ws_payload(_ad_state, base_diff))
-    except Exception as e:
-        logger.debug("Difficulty tracking restore skipped for session %s: %s", session_id, e)
+    # 6b. Adaptive difficulty state restore — P1 de-gamification: the
+    # difficulty.update emit (mode=boss / good_streak / bad_streak game HUD)
+    # is no longer sent to the client. The adaptive engine itself keeps
+    # running server-side (it drives pacing + the bad_streak hangup), but
+    # the streak/boss HUD payload is suppressed. No resume emit here.
 
     # 7. Replay missed messages
     messages = await get_message_history(session_id)
@@ -2689,109 +2675,11 @@ async def _generate_character_reply(
     # Parse v1+v2 stage directions BEFORE stripping for analytics
     clean_v5, stage_directions = parse_stage_directions_v2(llm_result.content)
 
-    # Process parsed stage directions
-    story_id = state.get("story_id")
-    if stage_directions and story_id:
-        latest_consequence = None
-        state_changed = False
-        for sd in stage_directions:
-            # Write episodic memories
-            if sd.direction_type == "memory":
-                try:
-                    from app.models.roleplay import EpisodicMemory
-                    async with async_session() as mem_db:
-                        mem = EpisodicMemory(
-                            story_id=story_id,
-                            session_id=session_id,
-                            call_number=state.get("call_number", 1),
-                            memory_type=sd.payload.get("type", "fact"),
-                            content=sd.payload.get("content", ""),
-                            salience=sd.payload.get("salience", 5),
-                            valence=sd.payload.get("valence", 0.0),
-                            token_count=len(sd.payload.get("content", "")) // 4,
-                        )
-                        mem_db.add(mem)
-                        await mem_db.commit()
-                except Exception:
-                    logger.debug("Failed to save episodic memory for story %s", story_id)
-
-            # Track consequences
-            elif sd.direction_type == "consequence":
-                consequences = state.get("accumulated_consequences", [])
-                latest_consequence = {
-                    "call": state.get("call_number", 1),
-                    "type": sd.payload.get("type", "unknown"),
-                    "severity": sd.payload.get("severity", 0.5),
-                    "detail": sd.payload.get("detail", ""),
-                }
-                consequences.append(latest_consequence)
-                state["accumulated_consequences"] = consequences
-                state_changed = True
-
-            # Activate/update human factors
-            elif sd.direction_type == "factor":
-                active_factors = state.get("active_factors", [])
-                factor_name = sd.payload.get("factor", "")
-                intensity = sd.payload.get("intensity", 0.5)
-                # Update existing or add new
-                updated = False
-                for f in active_factors:
-                    if f["factor"] == factor_name:
-                        f["intensity"] = min(1.0, f["intensity"] + intensity * 0.3)
-                        updated = True
-                        break
-                if not updated:
-                    active_factors.append({
-                        "factor": factor_name,
-                        "intensity": intensity,
-                        "since_call": state.get("call_number", 1),
-                    })
-                # Apply interaction matrix
-                active_factors = FactorInteractionMatrix.apply_interactions(active_factors)
-                state["active_factors"] = active_factors
-                state_changed = True
-
-        # Save stage directions for analytics
-        try:
-            from app.models.roleplay import StoryStageDirection, StageDirectionType
-            async with async_session() as sd_db:
-                for sd in stage_directions:
-                    try:
-                        dtype = StageDirectionType(sd.direction_type)
-                    except ValueError:
-                        dtype = StageDirectionType.action
-                    record = StoryStageDirection(
-                        story_id=story_id,
-                        session_id=session_id,
-                        call_number=state.get("call_number", 1),
-                        message_sequence=len(messages),
-                        direction_type=dtype,
-                        raw_tag=sd.raw_tag,
-                        parsed_payload=sd.payload,
-                        was_applied=sd.confidence >= 0.5,
-                    )
-                    sd_db.add(record)
-                await sd_db.commit()
-        except Exception:
-            logger.debug("Failed to save stage directions for story %s", story_id)
-
-        if state_changed:
-            active_hf = [
-                {
-                    "factor": af.get("factor", af.get("name", "unknown")),
-                    "intensity": af.get("intensity", 0.5),
-                    "since_call": af.get("since_call", 1),
-                }
-                for af in state.get("active_factors", [])
-            ]
-            await _send(ws, "story.state_delta", {
-                "story_id": str(story_id),
-                "call_number": state.get("call_number", 1),
-                "active_factors": active_hf,
-                "new_consequence": latest_consequence,
-                "consequences_count": len(state.get("accumulated_consequences", [])),
-                "tension": round(len(state.get("accumulated_consequences", [])) * 0.15, 2),
-            })
+    # P1 story-rip: the stage-direction *processing* block (episodic memory,
+    # consequence tracking, factor activation, StoryStageDirection analytics,
+    # and the story.state_delta emit) was gated on `story_id` and is removed —
+    # story_id is never set on the de-storied path. The parse above is kept
+    # only so the *stripping* below still cleans any stray <tags> the LLM emits.
 
     # Strip stage directions from LLM output before sending to chat/TTS
     # Uses v5 parsed output if available, falls back to v1 stripping
@@ -3108,7 +2996,10 @@ async def _generate_character_reply(
         except Exception:
             logger.debug("Whisper engine failed for session %s", session_id, exc_info=True)
 
-    # ── Adaptive difficulty: process reply + send difficulty.update ──
+    # ── Adaptive difficulty: process reply (server-side pacing only) ──
+    # P1 de-gamification: the difficulty.update emit (mode=boss / streak HUD)
+    # is suppressed. The adapter still runs to drive the bad_streak hangup,
+    # but no streak/boss event reaches the client.
     try:
         from app.core.redis_pool import get_redis as _get_redis_ad
         _r_ad = _get_redis_ad()
@@ -3133,8 +3024,7 @@ async def _generate_character_reply(
         action = await adapter.process_reply(str(session_id), quality, base_diff)
         ad_state = await adapter.get_state(str(session_id))
 
-        # Send difficulty.update to frontend
-        await _send(ws, "difficulty.update", adapter.build_ws_payload(ad_state, base_diff))
+        # P1: difficulty.update (streak/boss HUD) is no longer emitted.
 
         # Check if adaptive difficulty triggers hangup (bad_streak >= 15 + mercy failed)
         if adapter.should_hangup(ad_state) and new_emotion != "hangup":
@@ -3146,10 +3036,11 @@ async def _generate_character_reply(
             # and trigger the full hangup flow (character.response + client.hangup + session_end).
             try:
                 await _r_ad.setex(f"session:{session_id}:force_hangup", 600, "adaptive")
-                # Send early warning so the manager sees "client is about to hang up"
+                # Send early warning so the manager sees "client is about to hang up".
+                # P1: streak detail (bad_streak) dropped from the client payload —
+                # the warning stays (neutral "about to end" cue), the game streak does not.
                 await _send(ws, "client.hangup_warning", {
                     "reason": "adaptive_difficulty",
-                    "bad_streak": ad_state.bad_streak,
                 })
             except Exception:
                 # FIND-008 fix (2026-04-18): Redis/WS send failures here are non-fatal —
@@ -5333,7 +5224,12 @@ async def _check_traps_after_user_message(
     """Check if the manager's response fell into or dodged a trap.
 
     Called after every user message, before generating character reply.
-    Sends trap.triggered WS event if a trap was activated.
+
+    P1 de-gamification: trap.triggered / trap.personal_challenge WS events
+    are no longer emitted. The detector still runs so its emotion triggers
+    and accumulated consequences keep feeding the emotion engine and the
+    adaptive-difficulty / scoring side, but the client receives no game
+    "ловушка сработала" / "personal challenge" notifications.
     """
     active_traps = state.get("active_traps")
     last_character_msg = state.get("last_character_message", "")
@@ -5351,68 +5247,15 @@ async def _check_traps_after_user_message(
             active_traps=active_traps,
         )
 
-        # v6: Apply TRAP_INTENSITY_MULTIPLIER based on current emotion intensity
-        _trap_multiplier = 1.0
-        try:
-            from app.services.emotion_v6 import TRAP_INTENSITY_MULTIPLIER, IntensityLevel
-            _cur_intensity = state.get("_current_intensity", "MEDIUM")
-            _int_level = IntensityLevel[_cur_intensity.upper()] if isinstance(_cur_intensity, str) else IntensityLevel.MEDIUM
-            _trap_multiplier = TRAP_INTENSITY_MULTIPLIER.get(_int_level, 1.0)
-        except Exception:
-            # FIND-008: emotion_v6 optional module — fall back to 1.0 multiplier, debug-log.
-            logger.debug("training.trap_intensity: emotion_v6 lookup failed, using 1.0", exc_info=True)
+        # P1: per-trap trap.triggered emit removed (no game "ловушка
+        # сработала" notification). The TRAP_INTENSITY_MULTIPLIER scaled-delta
+        # computation that only fed that payload is dropped with it; the score
+        # effect of traps is recomputed post-session by the scoring layer, not
+        # pushed live.
 
-        for result in results:
-            if result.status == "not_activated":
-                continue
-
-            _scaled_delta = round(result.score_delta * _trap_multiplier, 1)
-            await _send(ws, "trap.triggered", {
-                "trap_name": result.trap_name,
-                "category": result.category,
-                "status": result.status,  # fell | dodged | partial
-                "score_delta": _scaled_delta,
-                "intensity_multiplier": _trap_multiplier,
-                "wrong_keywords": result.wrong_keywords_found,
-                "correct_keywords": result.correct_keywords_found,
-                # Post-session review data
-                "client_phrase": result.client_phrase,
-                "correct_example": result.correct_example,
-            })
-
-        # ── Personal Challenge: track trap fails per user, send challenge on 2+ ──
-        _user_id = state.get("user_id")
-        if _user_id:
-            for result in results:
-                if result.status != "fell":
-                    continue
-                try:
-                    _trap_code = result.trap_name or result.category
-                    async with async_session() as _tc_db:
-                        # Increment trap fail counter
-                        from app.models.traps import TrapSessionLog
-                        _fail_count_r = await _tc_db.execute(
-                            select(func.count(TrapSessionLog.id)).where(
-                                TrapSessionLog.session_id.in_(
-                                    select(TrainingSession.id).where(
-                                        TrainingSession.user_id == _user_id,
-                                        TrainingSession.status == SessionStatus.completed,
-                                    )
-                                ),
-                                TrapSessionLog.trap_code == _trap_code,
-                                TrapSessionLog.outcome == "fell",
-                            )
-                        )
-                        _fail_count = (_fail_count_r.scalar() or 0) + 1  # +1 for current (not yet committed)
-
-                        if _fail_count >= 2:
-                            await _send(ws, "trap.personal_challenge", {
-                                "trap_name": _trap_code,
-                                "fail_count": _fail_count,
-                                "message": f"Ловушка «{_trap_code}» победила тебя {_fail_count} раз. Попробуешь ещё?",
-                            })
-                except Exception:
-                    pass  # personal challenge is non-critical
+        # P1: Personal Challenge ("Ловушка победила тебя N раз. Попробуешь
+        # ещё?") trap-fail counter + trap.personal_challenge emit removed —
+        # it existed solely to drive that gamified challenge prompt.
 
         # ── Extract emotion triggers from trap results for the emotion engine ──
         trap_triggers = get_emotion_triggers(results)
@@ -5428,52 +5271,10 @@ async def _check_traps_after_user_message(
         logger.warning("Trap detection failed for session %s", session_id, exc_info=True)
 
     # ── Narrative traps: memory/promise/consistency checks (story mode, call 2+) ──
-    story_id = state.get("story_id")
-    if story_id:
-        try:
-            from app.services.narrative_trap_detector import (
-                detect_narrative_traps,
-                build_consequences as build_narrative_consequences,
-            )
-            # Reuse cached ClientStory from prompt injection (avoids extra DB session)
-            _narr_story = state.get("_cached_client_story")
-            if _narr_story is None:
-                from app.models.roleplay import ClientStory as _CSNarr
-                async with async_session() as _narr_db:
-                    _narr_res = await _narr_db.execute(
-                        select(_CSNarr).where(_CSNarr.id == uuid.UUID(str(story_id)))
-                    )
-                    _narr_story = _narr_res.scalar_one_or_none()
-                    state["_cached_client_story"] = _narr_story
-            if _narr_story:
-                    narrative_results = await detect_narrative_traps(
-                        session_id=session_id,
-                        client_message=last_character_msg,
-                        manager_message=manager_message,
-                        story=_narr_story,
-                    )
-                    for nr in narrative_results:
-                        if nr.status == "not_activated":
-                            continue
-                        await _send(ws, "trap.triggered", {
-                            "trap_name": nr.trap_type,
-                            "category": "narrative",
-                            "status": nr.status,
-                            "score_delta": nr.score_delta,
-                            "description": nr.description,
-                            "evidence": nr.evidence,
-                        })
-                    # Feed consequences to Game Director state
-                    narr_consequences = build_narrative_consequences(session_id, narrative_results)
-                    if narr_consequences:
-                        acc = state.get("accumulated_consequences", [])
-                        acc.extend([
-                            {"type": c.consequence_type, "severity": c.severity, "detail": str(c.payload)}
-                            for c in narr_consequences
-                        ])
-                        state["accumulated_consequences"] = acc
-        except Exception:
-            logger.debug("Narrative trap detection failed for session %s", session_id, exc_info=True)
+    # P1 story-rip: the narrative-trap block (story-only, gated on story_id;
+    # memory/promise/consistency checks across calls of a multi-call story)
+    # is removed. story_id is never set anymore, so this was dead code on the
+    # de-storied path.
 
     # ── Human Factor traps: combinatorial patience/empathy/flattery/urgency (no LLM) ──
     if state.get("active_factors"):
@@ -5497,17 +5298,10 @@ async def _check_traps_after_user_message(
                 session_id=str(session_id),
             )
             state["_last_hf_results"] = hf_results  # for prompt injection
-            for hfr in hf_results:
-                if hfr.status == "not_activated":
-                    continue
-                await _send(ws, "trap.triggered", {
-                    "trap_name": hfr.trap_type,
-                    "category": "human_factor",
-                    "status": hfr.status,
-                    "score_delta": hfr.score_delta,
-                    "description": hfr.description,
-                    "matched_triggers": hfr.matched_triggers,
-                })
+            # P1: human-factor trap.triggered emit removed. Detection still
+            # runs (it shapes the emotion engine via _last_hf_results and the
+            # accumulated consequences below), but no game "ловушка сработала"
+            # notification reaches the client.
             # Feed consequences to accumulated state
             hf_consequences = build_hf_consequences(hf_results, str(session_id))
             if hf_consequences:
@@ -6543,20 +6337,10 @@ async def _handle_session_end(
     except Exception as tc_exc:
         logger.warning("Failed to update team challenge progress: %s", tc_exc)
 
-    # --- Story Progression: record session + check chapter advancement ---
-    try:
-        user_id_sp = state.get("user_id")
-        final_score_sp = state.get("final_score") or state.get("score_total") or 0
-        if user_id_sp and isinstance(final_score_sp, (int, float)):
-            from app.services.story_progression import record_session_completion, check_chapter_advancement
-            async with async_session() as sp_db:
-                await record_session_completion(user_id_sp, float(final_score_sp), sp_db)
-                advancement = await check_chapter_advancement(user_id_sp, sp_db)
-                await sp_db.commit()
-                if advancement:
-                    await _send(ws, "story.chapter_advanced", advancement.to_dict())
-    except Exception as sp_exc:
-        logger.warning("Failed to update story progression: %s", sp_exc)
+    # P1 story-rip: the Story-Progression block (campaign chapter meta-layer
+    # — record_session_completion / check_chapter_advancement, emitting
+    # story.chapter_advanced) is removed. The story_progression service is no
+    # longer driven from the training session-end path. Flagged for BE-svc.
 
     # --- Behavioral Intelligence hooks ---
     try:
@@ -6681,945 +6465,10 @@ async def _handle_session_end(
     except Exception:
         logger.debug("Failed to schedule wiki ingest for session %s", session_id)
 
-    # Send XP/level update as separate event (after background processing)
-    if mp_result:
-        try:
-            await _send(ws, "session.xp_update", {
-                "session_id": str(session_id),
-                "xp_breakdown": mp_result.get("xp_breakdown", {}),
-                "level_up": mp_result.get("level_up", False),
-                "new_level": mp_result.get("new_level"),
-                "new_level_name": mp_result.get("new_level_name"),
-            })
-        except Exception:
-            logger.debug("Failed to send XP update for session %s", session_id)
-
-
-# ===========================================================================
-# v5: Multi-call story handlers
-# ===========================================================================
-
-async def _handle_story_start(
-    ws: WebSocket,
-    data: dict,
-    state: dict,
-) -> None:
-    """Handle story.start: create a new multi-call story arc.
-
-    Creates ClientStory, generates personality profile, and starts first call.
-    Data: {scenario_id, total_calls?: 3, custom_params?: {...}}
-    """
-    user_id = state.get("user_id")
-    if not user_id:
-        await _send_error(ws, "Not authenticated", "auth_error")
-        return
-
-    scenario_id_str = data.get("scenario_id")
-    if not scenario_id_str:
-        await _send_error(ws, "scenario_id is required", "missing_field")
-        return
-
-    total_calls = data.get("total_calls", 3)
-    total_calls = max(2, min(5, total_calls))  # Clamp to 2-5
-    custom_params = data.get("custom_params") if isinstance(data.get("custom_params"), dict) else {}
-
-    try:
-        scenario_id = uuid.UUID(scenario_id_str)
-    except ValueError:
-        await _send_error(ws, "Invalid scenario_id format", "invalid_field")
-        return
-
-    async with async_session() as db:
-        # Load scenario + character (checks both scenarios and scenario_templates)
-        scenario = await _resolve_scenario(db, scenario_id)
-        if not scenario:
-            await _send_error(ws, "Scenario not found", "not_found")
-            return
-
-        char_result = await db.execute(
-            select(Character).where(Character.id == scenario.character_id)
-        )
-        character = char_result.scalar_one_or_none()
-        if not character:
-            await _send_error(ws, "Character not found", "not_found")
-            return
-
-        archetype_code = (custom_params.get("archetype") or character.slug or "skeptic")
-
-        # Generate personality profile correlated with archetype.
-        # 2026-05-07 (PR-B2): apply tone-driven OCEAN shift on top of the
-        # archetype baseline so the persisted ClientStory.personality_profile
-        # reflects the user's tone pick. Without this the runtime
-        # ClientProfile honoured tone (via client_generator.generate_personality_profile)
-        # but the canonical OCEAN baseline persisted in ClientStory was
-        # toneless — a "skeptic + friendly" baseline drifted toward
-        # plain skeptic across reads. The shift is the same TONE_OCEAN_SHIFT
-        # (±0.05..±0.10) used at runtime, so values stay in [0,1] and
-        # archetype identity survives.
-        personality_profile = generate_personality_profile(archetype_code)
-        _tone = (custom_params or {}).get("tone")
-        if _tone and isinstance(personality_profile, dict) and "ocean" in personality_profile:
-            try:
-                from app.services.adaptive_difficulty import apply_tone_ocean_shift
-                personality_profile["ocean"] = apply_tone_ocean_shift(
-                    personality_profile["ocean"], _tone,
-                )
-            except Exception:
-                # Tone shift is opportunistic — never block story creation
-                # over a missing weights table or unknown tone code.
-                logger.debug(
-                    "PR-B2: tone shift skipped (tone=%s, archetype=%s)",
-                    _tone, archetype_code, exc_info=True,
-                )
-
-        # Resolve VRM avatar model from archetype
-        from app.services.avatar_assignment import resolve_model_key
-        vrm_model_id = resolve_model_key(archetype_code)
-
-        # Create ClientStory
-        from app.models.roleplay import ClientStory
-        story = ClientStory(
-            user_id=user_id,
-            story_name=f"Story: {scenario.title}",
-            total_calls_planned=total_calls,
-            current_call_number=0,
-            personality_profile=personality_profile,
-            vrm_model_id=vrm_model_id,
-            active_factors=[],
-            between_call_events=[],
-            consequences=[],
-        )
-        db.add(story)
-        await db.flush()
-
-        state["story_id"] = story.id
-        state["total_calls"] = total_calls
-        state["personality_profile"] = personality_profile
-        state["active_factors"] = []
-        state["accumulated_consequences"] = []
-        state["between_call_events"] = []
-        state["archetype_code"] = archetype_code
-        state["scenario_id"] = scenario_id
-        state["scenario"] = scenario
-        state["character"] = character
-        state["story_custom_params"] = custom_params
-
-        await db.commit()
-
-    await _send(ws, "story.started", {
-        "story_id": str(story.id),
-        "story_name": story.story_name,
-        "total_calls": total_calls,
-        "client_name": state.get("client_name", "Клиент"),
-        "personality_profile": personality_profile,
-    })
-
-    # Auto-start first call
-    await _handle_story_next_call(ws, data, state)
-
-
-async def _handle_story_next_call(
-    ws: WebSocket,
-    data: dict,
-    state: dict,
-) -> None:
-    """Handle story.next_call: start the next call in the multi-call story.
-
-    Generates between-call events, pre-call brief, and initiates a new
-    TrainingSession linked to the story.
-    """
-    story_id = state.get("story_id")
-    if not story_id:
-        await _send_error(ws, "No active story. Send story.start first.", "no_story")
-        return
-
-    # 2026-04-18 audit fix: idempotency lock. Prevents double-click / duplicate
-    # WS messages from advancing call_number twice. Without this, a quick
-    # second story.next_call skipped a call entirely (3-call chain becomes
-    # 2 effective calls) and pushed the pre_call_brief out of sync.
-    # NOTE: the lock is released at the end of this function (after
-    # `story.call_ready` is sent) AND on every early-return path below.
-    if state.get("_next_call_in_progress"):
-        logger.info(
-            "Ignoring duplicate story.next_call for story %s (already in progress)",
-            story_id,
-        )
-        return
-    state["_next_call_in_progress"] = True
-
-    # 2026-05-07 (PR-F): blank the between-call appendix at the START of
-    # every next-call setup. The accumulator pattern requires a fresh
-    # slate per call — otherwise tier3/hangup context from call N-1 would
-    # bleed into call N's prompt on top of the call N additions. The
-    # consume helper no longer self-clears (so a mid-call WS reconnect
-    # can re-apply the same appendix to the rebuilt prompt without losing
-    # the AI's context), so the explicit reset belongs here.
-    state["between_call_appendix"] = ""
-
-    total_calls = state.get("total_calls", 3)
-    current_call = state.get("call_number", 0) + 1
-
-    if current_call > total_calls:
-        await _send_error(ws, "Story complete — all calls done", "story_complete")
-        state["_next_call_in_progress"] = False
-        return
-
-    state["call_number"] = current_call
-    archetype_code = state.get("archetype_code", "skeptic")
-
-    # 2026-04-21: story-mode difficulty ramp. Owner requested a "крутой"
-    # progression — easy first contact, hard final call — so the manager
-    # warms up on the easy end and the 5th call stress-tests them. Base
-    # comes from custom_params.difficulty (picked in the constructor) or
-    # the scenario's own difficulty as a legacy fallback. The ramp
-    # shifts the per-call difficulty only for story-mode; single chat/
-    # call sessions continue to use the authored value unchanged.
-    try:
-        from app.services.adaptive_difficulty import story_difficulty_ramp
-        _story_cp = state.get("story_custom_params") or {}
-        _base_diff = _story_cp.get("difficulty")
-        if _base_diff is None:
-            _scn = state.get("scenario")
-            _base_diff = getattr(_scn, "difficulty", None) if _scn else None
-        _base_diff = int(_base_diff) if _base_diff else 5
-        _ramp = story_difficulty_ramp(_base_diff, total_calls)
-        _call_idx = max(0, min(current_call - 1, len(_ramp) - 1))
-        _call_diff = _ramp[_call_idx]
-        state["current_call_difficulty"] = _call_diff
-        logger.info(
-            "Story ramp | story=%s | base=%d total=%d | ramp=%s | call=%d → diff=%d",
-            story_id, _base_diff, total_calls, _ramp, current_call, _call_diff,
-        )
-    except Exception:
-        # Never block a story call over a ramp glitch — fall back to base.
-        logger.warning("story_difficulty_ramp failed, using base difficulty", exc_info=True)
-        state.pop("current_call_difficulty", None)
-
-    # NOTE: Stage tracker reset is deferred to session.start — at this point
-    # the new session hasn't been created yet, so there's no valid session_id.
-
-    # ── Hangup recovery: apply penalties from previous call hangup ──
-    previous_hangup = state.get("call_outcome") == "hangup"
-    if previous_hangup:
-        # Store desired starting emotion — will be applied after session.start
-        # creates the new session (init_emotion needs a valid session_id).
-        state["_deferred_start_emotion"] = "hostile"
-
-        # Clear hangup state for this new call
-        state.pop("call_outcome", None)
-        state.pop("hangup_reason", None)
-
-        # Inject hostile context into LLM system prompt for this call.
-        #
-        # 2026-05-07 (PR-B): write to state["between_call_appendix"] instead
-        # of mutating state["client_profile_prompt"] directly. The next
-        # session.start handler rebuilds client_profile_prompt from the
-        # profile and used to OVERWRITE this append (see _handle_session_start
-        # near "state['client_profile_prompt'] = client_profile_prompt") —
-        # so the hangup context never reached the LLM, only the FE brief.
-        # Now _handle_session_start consumes the appendix and clears it.
-        hangup_context = (
-            "\n\n[CONTEXT: Клиент помнит неудачный предыдущий разговор. "
-            "Начинай с враждебной позиции. Доверие снижено. "
-            "Менеджер должен ВОССТАНОВИТЬ доверие прежде чем продолжать продажу. "
-            "Если менеджер извинится и покажет уважение — можно постепенно смягчиться.]"
-        )
-        state["between_call_appendix"] = (
-            state.get("between_call_appendix", "") + hangup_context
-        )
-
-    # Generate between-call events (skip for call 1)
-    between_events = []
-    gd_events = []  # BUG-FIX: must be defined before if-block to avoid NameError on call 1
-    if current_call > 1:
-        previous_outcome = state.get("last_call_outcome")
-        previous_emotion = state.get("last_call_emotion", "cold")
-        existing_events = state.get("between_call_events", [])
-
-        between_events = apply_between_calls_context(
-            call_number=current_call,
-            archetype_code=archetype_code,
-            previous_outcome=previous_outcome,
-            previous_emotion=previous_emotion,
-            existing_events=existing_events,
-            relationship_score=state.get("relationship_score", 50.0),
-            lifecycle_state=state.get("lifecycle_state", "FIRST_CONTACT"),
-            active_storylets=state.get("active_storylets", []),
-            consequence_log=state.get("consequence_log", []),
-        )
-
-        # ── Game Director: read between-call events already generated by advance_story ──
-        # NOTE: advance_story() in _handle_story_call_end already created & persisted
-        # between-call events. We READ them here instead of generating duplicates.
-        gd_events = []
-        try:
-            from app.models.game_crm import GameClientEvent as _GCE
-            async with async_session() as gd_db:
-                _evt_result = await gd_db.execute(
-                    select(_GCE)
-                    .where(_GCE.story_id == story_id)
-                    .where(_GCE.source == "game_director")
-                    .order_by(_GCE.created_at.desc())
-                    .limit(15)
-                )
-                gd_events = list(_evt_result.scalars().all())
-        except Exception:
-            logger.debug("Failed to read game director events for story %s", story_id)
-
-        # Inject hangup event into between-call events if previous call was hangup
-        if previous_hangup:
-            hangup_event = {
-                "event": "client_hangup",
-                "impact": "trust-30",
-                "description": (
-                    "В прошлом звонке клиент бросил трубку. "
-                    "Начальная эмоция: враждебная. Доверие снижено."
-                ),
-                "emotion_shift": {"N": 0.3, "P": -0.4, "A": 0.2},
-            }
-            between_events.insert(0, hangup_event)
-
-        # Accumulate events
-        all_events = existing_events + [
-            {"after_call": current_call - 1, **evt} for evt in between_events
-        ]
-        state["between_call_events"] = all_events
-
-        # ── Build frontend event list from all sources ──
-        # Merge: scenario_engine events + game_director events (client msgs, storylets, consequences)
-        frontend_events = []
-
-        # 1. Scenario engine events (CRM/external)
-        for evt in between_events:
-            severity_val = None
-            impact_str = evt.get("impact", "")
-            if impact_str:
-                import re as _re
-                _m = _re.search(r"[+-](\d+)", impact_str)
-                severity_val = int(_m.group(1)) / 100.0 if _m else 0.5
-            frontend_events.append({
-                "event_type": evt.get("event", "unknown"),
-                "title": evt.get("event", "Событие").replace("_", " ").capitalize(),
-                "content": evt.get("description", ""),
-                "severity": severity_val,
-                "source": "crm",
-            })
-
-        # 2. Game director events (client messages, storylet triggers, consequences)
-        for gd_evt in gd_events:
-            _evt_type_raw = getattr(gd_evt, "event_type", "unknown")
-            # event_type may be a GameEventType enum — normalize to string
-            _evt_type = _evt_type_raw.value if hasattr(_evt_type_raw, "value") else str(_evt_type_raw)
-            _payload = getattr(gd_evt, "payload", {}) or {}
-            _severity = getattr(gd_evt, "severity", None)
-            if _severity is None:
-                if _evt_type == "consequence":
-                    _severity = 0.7
-                elif _evt_type == "storylet":
-                    _severity = _payload.get("priority", 5) / 10.0
-            frontend_events.append({
-                "event_type": _evt_type,
-                "title": getattr(gd_evt, "title", "Событие"),
-                "content": getattr(gd_evt, "content", ""),
-                "severity": _severity,
-                "source": "game_director",
-                "payload": _payload,
-            })
-
-        # 3. Relationship trajectory indicator (if available from game director)
-        _rel_score = state.get("relationship_score", 50.0)
-        _lc_state = state.get("lifecycle_state", "FIRST_CONTACT")
-        if current_call > 1:
-            frontend_events.append({
-                "event_type": "status_indicator",
-                "title": "Статус отношений",
-                "content": f"Доверие: {_rel_score:.0f}/100 | Этап: {_lc_state}",
-                "severity": None,
-                "source": "system",
-            })
-
-        # 2026-04-18 audit fix: only send between_calls if we actually have
-        # content beyond the always-present "status indicator". Empty/noise
-        # events produced an invisible overlay (`s.betweenCallsEvents.length > 0`
-        # guard hides it) — but they still polluted WS traffic and flipped
-        # `showBetweenCalls=true` in the store, which then raced with the
-        # pre_call_brief overlay. Skip the send entirely when the only item
-        # is the auto-generated status indicator.
-        _meaningful_events = [
-            e for e in frontend_events
-            if e.get("event_type") != "status_indicator"
-        ]
-        if _meaningful_events:
-            await _send(ws, "story.between_calls", {
-                "story_id": str(story_id),
-                "events": frontend_events,
-                "relationship_score": _rel_score,
-                "lifecycle_state": _lc_state,
-            })
-
-    # Generate pre-call brief
-    client_name = state.get("client_name", "Клиент")
-    # Load episodic memories for brief
-    key_memories = []
-    try:
-        from app.models.roleplay import EpisodicMemory
-        async with async_session() as mem_db:
-            mem_result = await mem_db.execute(
-                select(EpisodicMemory)
-                .where(EpisodicMemory.story_id == story_id)
-                .order_by(EpisodicMemory.salience.desc())
-                .limit(5)
-            )
-            memories = mem_result.scalars().all()
-            key_memories = [
-                {"content": m.content, "type": m.memory_type, "salience": m.salience}
-                for m in memories
-            ]
-    except Exception as e:
-        logger.debug("Failed to load episodic memories for story %s: %s", story_id, e)
-
-    # Extract client messages from game director events
-    _client_msgs = []
-    for e in gd_events:
-        _et = getattr(e, "event_type", "")
-        _et_str = _et.value if hasattr(_et, "value") else str(_et)
-        if _et_str == "message":
-            _client_msgs.append(getattr(e, "content", "") or "")
-
-    # Load manager weak points for coaching section
-    _mgr_weak_points = None
-    try:
-        from app.services.manager_progress import ManagerProgressService
-        _uid = state.get("user_id")
-        if _uid:
-            async with async_session() as _wp_db:
-                _wp_svc = ManagerProgressService(_wp_db)
-                _wp_data = await _wp_svc.get_weak_points(_uid)
-                _mgr_weak_points = [w.get("skill", "") for w in _wp_data] if _wp_data else None
-    except Exception as e:
-        logger.debug("Failed to load coaching weak points for pre-call brief: %s", e)
-
-    pre_call_brief = generate_pre_call_brief(
-        call_number=current_call,
-        client_name=client_name,
-        archetype_code=archetype_code,
-        previous_outcome=state.get("last_call_outcome"),
-        previous_emotion=state.get("last_call_emotion", "cold"),
-        between_events=between_events,
-        key_memories=key_memories,
-        relationship_score=state.get("relationship_score", 50.0),
-        lifecycle_state=state.get("lifecycle_state", "FIRST_CONTACT"),
-        active_storylets=state.get("active_storylets", []),
-        manager_weak_points=_mgr_weak_points,
-        client_messages=_client_msgs,
-    )
-
-    state["pre_call_brief"] = pre_call_brief
-    state["episodic_memories"] = key_memories
-
-    # ── Tier 3: Inject situational context into LLM system prompt for this call ──
-    # This gives the AI character awareness of between-call events, storylets,
-    # and relationship state — so it can react intelligently to the story arc.
-    if current_call > 1:
-        tier3_parts = []
-
-        # Between-call event awareness
-        if between_events:
-            _evt_summaries = [e.get("description", e.get("event", "")) for e in between_events]
-            tier3_parts.append(
-                "Между звонками произошло: " + "; ".join(_evt_summaries) + "."
-            )
-
-        # Active storylet awareness
-        _storylet_hints = {
-            "wife_found_out": "Жена клиента узнала о долгах. Клиент может упоминать семейное давление.",
-            "collectors_arrived": "К клиенту приходили коллекторы. Клиент напуган и взволнован.",
-            "friend_recommended_lawyer": "Другу клиента порекомендовали юриста. Клиент может сравнивать.",
-            "court_order_received": "Клиент получил судебный приказ. Ситуация стала срочной.",
-            "salary_garnishment": "Из зарплаты клиента удерживают средства. Финансовое давление растёт.",
-            "positive_precedent": "Клиент узнал о успешном банкротстве знакомого. Настроен позитивнее.",
-        }
-        for s_code in state.get("active_storylets", []):
-            hint = _storylet_hints.get(s_code)
-            if hint:
-                tier3_parts.append(hint)
-
-        # Relationship-driven behavior instruction
-        _rel = state.get("relationship_score", 50.0)
-        if _rel < 30:
-            tier3_parts.append(
-                "Уровень доверия к менеджеру ОЧЕНЬ НИЗКИЙ. "
-                "Будь скептичен, требуй доказательств, не соглашайся легко."
-            )
-        elif _rel < 50:
-            tier3_parts.append(
-                "Уровень доверия НИЖЕ СРЕДНЕГО. "
-                "Будь осторожен, задавай уточняющие вопросы."
-            )
-        elif _rel > 75:
-            tier3_parts.append(
-                "Уровень доверия ВЫСОКИЙ. "
-                "Можешь быть более открытым, задавать конкретные вопросы о процедуре."
-            )
-
-        # Client message context (what client "texted" between calls)
-        if _client_msgs:
-            tier3_parts.append(
-                "Клиент написал между звонками: "
-                + " | ".join(f'«{m}»' for m in _client_msgs[:2])
-            )
-
-        if tier3_parts:
-            tier3_context = (
-                "\n\n[BETWEEN-CALL CONTEXT (Tier 3 — situational awareness):\n"
-                + "\n".join(f"- {p}" for p in tier3_parts)
-                + "\nИспользуй этот контекст в реакциях, но не упоминай что тебе дали контекст.]"
-            )
-            # 2026-05-07 (PR-B): write to between_call_appendix accumulator
-            # — see comment in _handle_story_next_call hangup block above.
-            # Direct mutation of client_profile_prompt was overwritten by
-            # _handle_session_start, so the AI never actually saw the
-            # consequences/storylets/relationship state. The pre-call brief
-            # FE render path keeps working because it reads state directly
-            # from the WS frame (`pre_call_brief` payload) before the
-            # session.start round-trip clears anything.
-            state["between_call_appendix"] = (
-                state.get("between_call_appendix", "") + tier3_context
-            )
-
-    # Send structured pre-call brief matching frontend PreCallBrief interface
-    scenario = state.get("scenario")
-    scenario_title = scenario.title if scenario else "Сценарий"
-
-    # Build active_factors for frontend HumanFactor[] contract
-    active_hf = []
-    for af in state.get("active_factors", []):
-        active_hf.append({
-            "factor": af.get("factor", af.get("name", "unknown")),
-            "intensity": af.get("intensity", 0.5),
-            "since_call": af.get("since_call", 1),
-        })
-
-    # Build previous_consequences for frontend ConsequenceEvent[] contract
-    prev_consequences = []
-    for c in state.get("accumulated_consequences", []):
-        prev_consequences.append({
-            "call": c.get("call", current_call - 1),
-            "type": c.get("type", "unknown"),
-            "severity": c.get("severity", 0.5),
-            "detail": c.get("detail", ""),
-        })
-
-    # ── Between-Call Intelligence: coaching, narrative, opener ──
-    _narrator_data: dict = {}
-    if current_call > 1:
-        try:
-            from app.services.between_call_narrator import (
-                generate_between_call_content,
-                NarratorContext,
-            )
-            # Fetch chapter context for story-aware narration
-            _ch_id, _ch_name, _ep_name = 1, "", ""
-            try:
-                from app.services.story_progression import get_chapter_context
-                async with async_session() as _ch_db:
-                    _ch_ctx = await get_chapter_context(state["user_id"], _ch_db)
-                    _ch_id = _ch_ctx.chapter_id
-                    _ch_name = _ch_ctx.chapter_name
-                    _ep_name = _ch_ctx.epoch_name
-            except Exception:
-                pass  # graceful degradation
-            _narrator_ctx = NarratorContext(
-                lifecycle_state=state.get("lifecycle_state", "FIRST_CONTACT"),
-                relationship_score=state.get("relationship_score", 50.0),
-                call_number=current_call - 1,  # previous call number
-                total_calls=total_calls,
-                archetype_code=archetype_code,
-                client_name=state.get("client_name", "Клиент"),
-                # H4 (Roadmap Phase 0 §5.1): pass client gender so the
-                # narrator picks grammatically agreed adjectives.
-                gender=(state.get("client_gender") or "unknown"),
-                last_outcome=state.get("last_call_outcome", "unknown"),
-                last_emotion=state.get("last_call_emotion", "cold"),
-                last_score=state.get("last_score_total", 0.0),
-                key_memories=key_memories,
-                active_storylets=state.get("active_storylets", []),
-                active_consequences=state.get("accumulated_consequences", []),
-                between_events=between_events,
-                manager_weak_points=_mgr_weak_points or [],
-                chapter_id=_ch_id,
-                chapter_name=_ch_name,
-                epoch_name=_ep_name,
-            )
-            _narrator_result = await generate_between_call_content(_narrator_ctx)
-            _narrator_data = {
-                "coaching_tips": _narrator_result.coaching_tips,
-                "narrative_summary": _narrator_result.narrative_summary,
-                "emotional_forecast": _narrator_result.emotional_forecast,
-                "suggested_opener": _narrator_result.suggested_opener,
-                "narrator_source": _narrator_result.source,
-            }
-            # If narrator generated a client message and game_director didn't,
-            # add it to the between-call events
-            if _narrator_result.client_message:
-                _has_client_msg = any(
-                    e.get("event_type") == "client_message"
-                    for e in frontend_events
-                )
-                if not _has_client_msg:
-                    frontend_events.append({
-                        "event_type": "client_message",
-                        "title": "Сообщение от клиента",
-                        "content": _narrator_result.client_message,
-                        "severity": 0.4,
-                        "source": _narrator_result.source,
-                    })
-        except Exception:
-            logger.debug("Between-call narrator failed", exc_info=True)
-
-    await _send(ws, "story.pre_call_brief", {
-        "story_id": str(story_id),
-        "call_number": current_call,
-        "total_calls": total_calls,
-        "client_name": client_name,
-        "scenario_title": scenario_title,
-        "context": pre_call_brief,  # markdown brief as context text
-        "active_factors": active_hf,
-        "previous_consequences": prev_consequences,
-        "personality_hint": state.get("personality_profile", {}).get("hint"),
-        "suggested_approach": state.get("personality_profile", {}).get("suggested_approach"),
-        # v2: Between-Call Intelligence enrichments
-        "coaching_tips": _narrator_data.get("coaching_tips", []),
-        "narrative_summary": _narrator_data.get("narrative_summary", ""),
-        "emotional_forecast": _narrator_data.get("emotional_forecast", ""),
-        "suggested_opener": _narrator_data.get("suggested_opener", ""),
-    })
-
-    # Now start the actual call session via existing session.start mechanism
-    # The client should follow up with session.start containing the scenario_id
-    await _send(ws, "story.call_ready", {
-        "story_id": str(story_id),
-        "call_number": current_call,
-        "total_calls": total_calls,
-        "session_id": str(state.get("session_id", "")),
-    })
-
-    # 2026-04-18 audit fix: release idempotency lock after successful flow.
-    state["_next_call_in_progress"] = False
-
-
-async def _handle_story_call_end(
-    ws: WebSocket,
-    data: dict,
-    state: dict,
-) -> None:
-    """Handle end of a single call within a multi-call story.
-
-    Saves call record, generates report, updates story state.
-    Called after session.end when story_id is present.
-    """
-    story_id = state.get("story_id")
-    session_id = state.get("last_ended_session_id") or state.get("session_id")
-    if not story_id or not session_id:
-        return
-
-    call_number = state.get("call_number", 1)
-    current_emotion = await get_emotion(session_id)
-
-    # Save call record
-    try:
-        from app.models.training import CallRecord
-        async with async_session() as db:
-            record = CallRecord(
-                story_id=story_id,
-                session_id=session_id,
-                call_number=call_number,
-                pre_call_brief=state.get("pre_call_brief"),
-                applied_events=state.get("between_call_events", []),
-                simulated_days_gap=state.get("simulated_days_gap", 1),
-                starting_emotion=state.get("call_starting_emotion", "cold"),
-                starting_trust=state.get("call_starting_trust", 3),
-                outcome=data.get("outcome", "unknown"),
-                emotion_trajectory=state.get("emotion_trajectory", []),
-                active_factors=state.get("active_factors", []),
-                system_prompt_tokens=state.get("last_system_prompt_tokens"),
-            )
-            db.add(record)
-
-            # Update ClientStory
-            from app.models.roleplay import ClientStory
-            story_result = await db.execute(
-                select(ClientStory).where(ClientStory.id == story_id)
-            )
-            story = story_result.scalar_one_or_none()
-            if story:
-                story.current_call_number = call_number
-                story.active_factors = state.get("active_factors", [])
-                story.consequences = state.get("accumulated_consequences", [])
-                story.between_call_events = state.get("between_call_events", [])
-
-                # Compress older calls if needed.
-                # 2026-04-18 audit fix: only compress on call 3+ AND when more
-                # calls remain. On the final call, compression output is never
-                # read — it was wasted CPU and delayed `story.call_report`.
-                if call_number >= 3 and call_number < state.get("total_calls", 3):
-                    mgr = get_context_budget_manager()
-                    # Get message history for older calls
-                    call_messages = await get_message_history(session_id)
-                    call_msg_list = [
-                        {"role": m["role"], "content": m["content"]}
-                        for m in call_messages
-                    ]
-                    story.compressed_history = await mgr.compress_old_calls(
-                        call_msg_list, story.compressed_history
-                    )
-
-                if call_number >= state.get("total_calls", 3):
-                    story.is_completed = True
-                    from datetime import datetime, timezone
-                    story.ended_at = datetime.now(timezone.utc)
-
-            await db.commit()
-    except Exception:
-        logger.warning("Failed to save call record for story %s call %d", story_id, call_number)
-
-    # ── Game Director: advance story state (lifecycle, relationship, storylets) ──
-    try:
-        from app.services.game_director import game_director, SessionResult
-        session_result = SessionResult(
-            session_id=str(session_id),
-            client_story_id=str(story_id),
-            final_emotion_state=str(current_emotion),
-            score_total=state.get("last_score_total", 0.0),
-            score_breakdown=state.get("last_score_breakdown", {}),
-            traps_fell=state.get("traps_fell", []),
-            traps_dodged=state.get("traps_dodged", []),
-            promises_made=state.get("promises_made", []),
-            promises_broken=state.get("promises_broken", []),
-            key_moments=state.get("key_moments", []),
-            stage_directions=state.get("stage_directions_parsed", []),
-            duration_seconds=int(state.get("session_duration_sec", 0)),
-            empathy_detected=state.get("empathy_detected", False),
-            rudeness_detected=state.get("rudeness_detected", False),
-            legal_errors=state.get("legal_errors", []),
-        )
-        async with async_session() as gd_db:
-            gd_changes = await game_director.advance_story(session_result, gd_db)
-            await gd_db.commit()
-
-        # Propagate game director state back to WS state for next call
-        if isinstance(gd_changes, dict) and "error" not in gd_changes:
-            state["_gd_changes"] = gd_changes
-            # Update relationship score in state for between-call generation
-            async with async_session() as _rel_db:
-                from app.models.roleplay import ClientStory as _CS
-                _story_row = await _rel_db.get(_CS, story_id)
-                if _story_row:
-                    state["relationship_score"] = _story_row.relationship_score or 50.0
-                    state["lifecycle_state"] = _story_row.lifecycle_state or "FIRST_CONTACT"
-                    state["active_storylets"] = _story_row.active_storylets or []
-                    state["consequence_log"] = _story_row.consequence_log or []
-            logger.info(
-                "Game director advanced story %s: rel=%.0f, state=%s, changes=%d",
-                story_id,
-                state.get("relationship_score", 50),
-                state.get("lifecycle_state", "?"),
-                len(gd_changes.get("changes", [])),
-            )
-    except Exception:
-        logger.warning("Game director advance_story failed for story %s", story_id, exc_info=True)
-
-    # ── Detect hangup recovery: previous call was hangup but this one succeeded ──
-    # Check if this call is a recovery from a previous hangup
-    _prev_was_hangup = state.get("story_had_hangup", False)
-    _this_outcome = data.get("outcome", "unknown")
-    _current_em = str(current_emotion)
-
-    if _prev_was_hangup and _this_outcome != "hangup" and _current_em not in ("hangup", "hostile"):
-        # Recovery! Manager successfully recovered client after a hangup
-        state["had_hangup_recovery"] = True
-        # Save to session scoring_details for L5/L9 bonus
-        try:
-            async with async_session() as _rec_db:
-                _rec_session = await _rec_db.get(TrainingSession, session_id)
-                if _rec_session:
-                    _sd = _rec_session.scoring_details or {}
-                    _sd["had_hangup_recovery"] = True
-                    _rec_session.scoring_details = _sd
-                    await _rec_db.commit()
-        except Exception:
-            logger.debug("Failed to save hangup recovery flag for session %s", session_id)
-
-    # Track if THIS call was a hangup (for next call's recovery detection)
-    if state.get("call_outcome") == "hangup" or _this_outcome == "hangup":
-        state["story_had_hangup"] = True
-
-    # Save last call outcome/emotion for between-call generation
-    state["last_call_outcome"] = _this_outcome if _this_outcome != "unknown" else state.get("call_outcome", "unknown")
-    state["last_call_emotion"] = _current_em
-
-    # Generate post-call report
-    try:
-        from app.services.scenario_engine import SessionConfig
-        messages = await get_message_history(session_id)
-        msg_list = [{"role": m["role"], "content": m["content"]} for m in messages]
-
-        # Build a minimal config for report generation
-        config = SessionConfig(
-            scenario_code=state.get("scenario_code", "unknown"),
-            scenario_name=state.get("scenario_name", "Unknown"),
-            template_id=uuid.uuid4(),
-            archetype=state.get("archetype_code", "skeptic"),
-            initial_emotion="cold",
-            client_awareness="low",
-            client_motivation="none",
-        )
-
-        is_final = call_number >= state.get("total_calls", 3)
-
-        # Gather AI-Coach context: manager weak points and skill history
-        _coach_weak_points = None
-        _coach_skill_history = None
-        try:
-            from app.services.manager_progress import ManagerProgressService
-            _user_id = state.get("user_id")
-            if _user_id:
-                async with async_session() as _mp_db:
-                    _mp_svc = ManagerProgressService(_mp_db)
-                    _wp_data = await _mp_svc.get_weak_points(_user_id)
-                    _coach_weak_points = [w.get("skill", "") for w in _wp_data] if _wp_data else None
-        except Exception as e:
-            logger.debug("Failed to load manager progress weak points for report: %s", e)
-
-        report_data = await generate_session_report(
-            messages=msg_list,
-            config=config,
-            emotion_trajectory=state.get("emotion_trajectory"),
-            call_number=call_number,
-            is_story_final=is_final,
-            stage_progress=state.get("_last_stage_progress"),
-            manager_weak_points=_coach_weak_points,
-            manager_skill_history=_coach_skill_history,
-        )
-
-        # Save report
-        from app.models.training import SessionReport
-        async with async_session() as db:
-            report = SessionReport(
-                story_id=story_id,
-                session_id=session_id,
-                call_number=call_number,
-                report_type="story_summary" if is_final else "post_call",
-                content=report_data,
-                score_total=report_data.get("score_breakdown", {}).get("total"),
-                is_final=is_final,
-            )
-            db.add(report)
-            await db.commit()
-
-        # Send report to frontend matching WSStoryCallReport contract
-        # Extract score from score_breakdown or LLM report
-        score_total = report_data.get("score_breakdown", {}).get("total", 0)
-        if not score_total and isinstance(report_data.get("score"), (int, float)):
-            score_total = report_data["score"]
-
-        # key_moments: flatten to string[] for frontend
-        raw_moments = report_data.get("key_moments", [])
-        key_moments_list = []
-        for km in raw_moments:
-            if isinstance(km, dict):
-                key_moments_list.append(km.get("detail", str(km)))
-            else:
-                key_moments_list.append(str(km))
-
-        # consequences: from accumulated state, already in frontend format
-        consequences_list = [
-            {
-                "call": c.get("call", call_number),
-                "type": c.get("type", "unknown"),
-                "severity": c.get("severity", 0.5),
-                "detail": c.get("detail", ""),
-            }
-            for c in state.get("accumulated_consequences", [])
-        ]
-
-        # Count episodic memories created during this call
-        memories_created = len(state.get("episodic_memories", []))
-
-        await _send(ws, "story.call_report", {
-            "story_id": str(story_id),
-            "call_number": call_number,
-            "score": score_total,
-            "key_moments": key_moments_list,
-            "consequences": consequences_list,
-            "memories_created": memories_created,
-            "is_final": call_number >= state.get("total_calls", 3),
-            "total_calls": state.get("total_calls", 3),
-        })
-
-    except Exception:
-        logger.warning("Failed to generate report for story %s call %d", story_id, call_number)
-
-    # NOTE: last_call_outcome and last_call_emotion are already set above
-    # (lines ~3560-3561) with smarter fallback logic. Do NOT overwrite them here.
-    #
-    # 2026-04-18 audit: the `story.completed` emit + EVENT_STORY_COMPLETED
-    # broadcast happen in the `else` branch below when call_number >=
-    # total_calls. This is already handled — no separate emit needed here.
-
-    # Notify frontend about story progress
-    total_calls = state.get("total_calls", 3)
-    if call_number < total_calls:
-        await _send(ws, "story.progress", {
-            "story_id": str(story_id),
-            "call_number": call_number,
-            "total_calls": total_calls,
-            "game_status": "in_process",
-            "tension": len(state.get("accumulated_consequences", [])) * 0.15,
-        })
-    else:
-        # Compute final score from last report if available
-        last_report_score = 0
-        try:
-            from app.models.training import SessionReport
-            async with async_session() as score_db:
-                final_report = await score_db.execute(
-                    select(SessionReport)
-                    .where(SessionReport.story_id == story_id, SessionReport.is_final.is_(True))
-                    .order_by(SessionReport.call_number.desc())
-                    .limit(1)
-                )
-                fr = final_report.scalar_one_or_none()
-                if fr and fr.score_total:
-                    last_report_score = fr.score_total
-        except Exception as e:
-            logger.debug("Failed to load final report score for story %s: %s", story_id, e)
-
-        await _send(ws, "story.completed", {
-            "story_id": str(story_id),
-            "final_status": "completed",
-            "total_score": last_report_score,
-            "calls_completed": call_number,
-        })
-
-        # BUG-2 fix: emit EVENT_STORY_COMPLETED for achievement tracking
-        try:
-            from app.services.event_bus import event_bus, GameEvent, EVENT_STORY_COMPLETED
-            user_id = state.get("user_id")
-            if user_id:
-                async with async_session() as evt_db:
-                    await event_bus.emit(GameEvent(
-                        kind=EVENT_STORY_COMPLETED,
-                        user_id=user_id,
-                        db=evt_db,
-                        payload={
-                            "story_id": str(story_id),
-                            "total_score": last_report_score,
-                            "calls_completed": call_number,
-                        },
-                    ))
-        except Exception as e:
-            logger.warning("Failed to emit story_completed event: %s", e)
+    # P1 de-gamification: XP is no longer awarded, sent, or shown. The
+    # session.xp_update emit (xp_breakdown / level_up / new_level) was
+    # removed here. The xp_* tables stay dormant (no migrations); the
+    # server-side XP computation is being unwired by BE-svc.
 
 
 async def training_websocket(websocket: WebSocket) -> None:
@@ -7821,62 +6670,19 @@ async def training_websocket(websocket: WebSocket) -> None:
                     logger.debug("audio.interrupted handler failed", exc_info=True)
 
             elif msg_type == "session.end":
+                # P1 story-rip: single-call sessions only. The former
+                # `if state.get("story_id"): _handle_story_call_end(...)`
+                # multi-call branch was removed with the story handlers — every
+                # session.end now finalizes and stops. The neutral "Завершить
+                # разговор" outcome ('completed') flows through
+                # _handle_session_end → normalize_session_outcome unchanged.
                 await _handle_session_end(websocket, msg_data, state)
-                # v5: If this is part of a story, handle call-level end
-                if state.get("story_id"):
-                    await _handle_story_call_end(websocket, msg_data, state)
-                    # Don't break — story may have more calls
-                else:
-                    stop_event.set()
-                    break
-
-            # ── v5: Multi-call story messages ──
-            elif msg_type == "story.start":
-                await _handle_story_start(websocket, msg_data, state)
-
-            elif msg_type == "story.next_call":
-                await _handle_story_next_call(websocket, msg_data, state)
-
-            elif msg_type == "story.end":
-                # Force-end the entire story
-                _story_id = state.get("story_id")
-                if _story_id:
-                    try:
-                        from app.models.roleplay import ClientStory
-                        async with async_session() as db:
-                            story_result = await db.execute(
-                                select(ClientStory).where(
-                                    ClientStory.id == _story_id
-                                )
-                            )
-                            story = story_result.scalar_one_or_none()
-                            if story:
-                                story.is_completed = True
-                                from datetime import datetime, timezone
-                                story.ended_at = datetime.now(timezone.utc)
-                            await db.commit()
-                    except Exception as _story_err:
-                        logger.error("Failed to end story %s: %s", _story_id, _story_err, exc_info=True)
-                    await _send(websocket, "story.completed", {
-                        "story_id": str(_story_id),
-                        "forced": True,
-                    })
-                    # BUG-2 fix: emit EVENT_STORY_COMPLETED for forced endings too
-                    try:
-                        from app.services.event_bus import event_bus, GameEvent, EVENT_STORY_COMPLETED
-                        _uid = state.get("user_id")
-                        if _uid:
-                            async with async_session() as evt_db:
-                                await event_bus.emit(GameEvent(
-                                    kind=EVENT_STORY_COMPLETED,
-                                    user_id=_uid,
-                                    db=evt_db,
-                                    payload={"story_id": str(_story_id), "forced": True},
-                                ))
-                    except Exception:
-                        logger.warning("Failed to emit story_completed for forced end")
                 stop_event.set()
                 break
+
+            # ── v5 story.start / story.next_call / story.end message handlers
+            #    removed (P1 story-rip). Story-mode is cut wholesale; the
+            #    client no longer sends these. ──
 
             # ── v6: Session resume + token refresh ──
             elif msg_type == "session.resume":

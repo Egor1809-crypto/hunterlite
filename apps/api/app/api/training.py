@@ -340,24 +340,12 @@ async def _build_session_result(
         if weak_items:
             weak_legal = weak_items[:5]  # Max 5 categories
 
-    # ── 3.2: Extract promise fulfillment from CRM story memory ──
-    promise_data: list | None = None
-    if session.client_story_id:
-        from app.schemas.training import PromiseFulfillment
-        promises_raw = details.get("_promises", [])
-        if promises_raw:
-            promise_data = [
-                PromiseFulfillment(
-                    text=str(p.get("text", ""))[:200],
-                    call_number=int(p.get("call_number", 1)),
-                    fulfilled=bool(p.get("fulfilled", False)),
-                    impact="bonus" if p.get("fulfilled") else "penalty",
-                )
-                for p in promises_raw[:10]
-                if p.get("text")
-            ]
-
-    story, story_calls = await _load_story_context(db, session.client_story_id, user_id=user.id)
+    # Story-mode removed (customer decision #3, 2026-06-04): the de-gamified
+    # training flow no longer surfaces «звонки N/M» / consequences / promise
+    # fulfillment in the session result. The ClientStory model and table stay
+    # dormant (no migration), but the result-projection stops emitting story,
+    # story_calls and promise_fulfillment so neither old nor new sessions
+    # render any story panel on /results.
     _apply_transcript_fallback_scores(session, messages)
 
     return SessionResultResponse(
@@ -367,10 +355,10 @@ async def _build_session_result(
         trap_results=trap_results,
         soft_skills=soft_skills,
         client_card=details.get("_client_card_reveal"),
-        story=story,
-        story_calls=story_calls,
+        story=None,
+        story_calls=[],
         weak_legal_categories=weak_legal,
-        promise_fulfillment=promise_data,
+        promise_fulfillment=None,
     )
 
 
@@ -1765,9 +1753,12 @@ async def end_session(
         _detail: dict[str, object] = {"code": v.code, "message": v.message}
         if v.details:
             _detail.update(v.details)
-        # Preserve historical hint that listed the 3 center outcomes — the
-        # FE call-page modal renders three buttons whose ids match.
-        _detail.setdefault("allowed_outcomes", ["agreed", "not_agreed", "continue"])
+        # Training-flow rework (2026-06-04): the call-page no longer offers
+        # an outcome picker — a single "Завершить разговор" button sends the
+        # neutral ``completed`` outcome. The hint advertises the new contract;
+        # legacy outcome strings still normalise to ``completed`` upstream so
+        # an in-flight old client is not rejected here.
+        _detail.setdefault("allowed_outcomes", ["completed"])
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=_detail)
 
     # Phase 4 — runtime_status_guard. Refuse to finalize a session that is

@@ -12,7 +12,8 @@ verdict» защищает результирующую карточку от р
 from app.api.training import _apply_transcript_fallback_scores
 from app.models.training import Message, MessageRole, TrainingSession
 
-_ALLOWED_VERDICTS = {"positive", "good", "mixed", "poor", "negative", "red_flag"}
+# Соответствует реальным веткам getVerdictMeta в JudgeVerdictCard.tsx.
+_ALLOWED_VERDICTS = {"excellent", "good", "mixed", "poor", "red_flag"}
 
 
 def _make_messages() -> list[Message]:

@@ -634,6 +634,11 @@ def outcome_from_raw(raw: str | None) -> TerminalOutcome:
         "judge_failed": TerminalOutcome.technical_failed,
         "aborted": TerminalOutcome.operator_aborted,
         "operator_aborted": TerminalOutcome.operator_aborted,
+        # Training-flow rework (2026-06-04): neutral consultation end. There
+        # is no sale/no-sale split anymore — ``completed`` maps to the
+        # neutral ``operator_aborted`` terminal (a valid training outcome,
+        # not forbidden in any mode) so the finalize step stamps cleanly.
+        "completed": TerminalOutcome.operator_aborted,
     }
     return mapping.get(lowered, TerminalOutcome.operator_aborted)
 
