@@ -91,9 +91,12 @@ function getVerdictMeta(verdict: JudgeVerdictData["verdict"]): VerdictMeta {
         border: "rgba(239,68,68,0.55)",
       };
     default:
+      // P0 (training-rework): never render a raw String(verdict) — null /
+      // unknown / unexpected values used to surface as literal "undefined".
+      // Fall back to a calm, neutral "mixed result" label instead.
       return {
         emoji: "⚪",
-        label: String(verdict),
+        label: "Смешанный итог",
         color: "var(--text-secondary)",
         bg: "rgba(255,255,255,0.05)",
         border: "var(--border-color)",

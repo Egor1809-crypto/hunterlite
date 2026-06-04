@@ -35,10 +35,6 @@ import CallDialingOverlay from "@/components/training/phone/CallDialingOverlay";
 // route, mode='call' adds phone-themed icon + 300Hz click + reason/stats.
 import SessionEndingOverlay from "@/components/training/SessionEndingOverlay";
 import ScriptDrawer from "@/components/training/ScriptDrawer";
-import { LinkClientButton } from "@/components/training/LinkClientButton";
-// NEW-6/7 (2026-05-04): same kebab pattern as the chat view — paperclip
-// moved into a dropdown so the input field is the main focus.
-import { SessionAttachmentButton } from "@/components/training/SessionAttachmentButton";
 import { telemetry } from "@/lib/telemetry";
 import { useWebSocket } from "@/hooks/useWebSocket";
 import { useTTS } from "@/hooks/useTTS";
@@ -1761,10 +1757,8 @@ export default function TrainingCallPage() {
         Push-to-talk mic remains in the control row for voice users.
       */}
       <div className="fixed bottom-0 left-0 right-0 z-20 flex flex-col items-center bg-gradient-to-t from-black/70 to-transparent px-4 pb-3 pt-10">
-        {/* 2026-05-04 (radical redesign): chip + paperclip + WS-status dot
-            in a tiny secondary bar ABOVE the input. The text input itself
-            then takes the full max-w-lg width. User feedback: «панель
-            ввода главная — остальное куда хочешь убирай». */}
+        {/* P0 (training-rework): CRM-link chip + attachment removed — only the
+            WS-status dot remains in this secondary bar above the input. */}
         <div className="mb-1.5 flex w-full max-w-lg items-center gap-2 px-2">
           <span
             className="flex h-2 w-2 shrink-0 rounded-full"
@@ -1781,16 +1775,6 @@ export default function TrainingCallPage() {
                 : `WS: ${connectionState} — нажмите «Принять» снова если не восстановится`
             }
             aria-label={`WS status: ${connectionState}`}
-          />
-          <LinkClientButton
-            sessionId={id}
-            variant="call"
-            disabled={connectionState !== "connected"}
-          />
-          <SessionAttachmentButton
-            sessionId={id}
-            variant="call"
-            disabled={connectionState !== "connected"}
           />
         </div>
         <form

@@ -28,11 +28,6 @@ import { MicCheck } from "@/components/training/MicCheck";
 import ChatMessage from "@/components/training/ChatMessage";
 import { PinnedMessagesBar } from "@/components/training/PinnedMessagesBar";
 import { QuoteReplyBadge } from "@/components/training/QuoteReplyBadge";
-import { LinkClientButton } from "@/components/training/LinkClientButton";
-// NEW-6/7 (2026-05-04): SessionAttachmentButton moved into a kebab menu
-// so the textarea regains ~70%+ of the input row. Direct import kept for
-// the call view where we apply the same kebab pattern.
-import { SessionAttachmentButton } from "@/components/training/SessionAttachmentButton";
 // 2026-04-20: CallButton убран из chat-header. Переключение в голосовой
 // режим теперь происходит на CRM-карточке клиента (/clients/[id]),
 // через отдельные кнопки «Написать / Позвонить» — до входа в сессию,
@@ -1988,21 +1983,9 @@ export default function TrainingSessionPage() {
                   preview={s.pendingQuotedPreview}
                   onCancel={() => s.clearPendingQuote()}
                 />
-                {/* 2026-05-04 (radical input redesign): textarea = main row,
-                    full width. CRM-link chip + paperclip moved to a small
-                    secondary toolbar ABOVE the textarea so they don't eat
-                    horizontal space. User feedback: «панель ввода главная,
-                    остальное как хочешь убирай». */}
-                <div className="mb-1.5 flex items-center gap-2 px-1">
-                  <LinkClientButton
-                    sessionId={routeId}
-                    disabled={s.sessionState !== "ready"}
-                  />
-                  <SessionAttachmentButton
-                    sessionId={routeId}
-                    disabled={s.sessionState !== "ready"}
-                  />
-                </div>
+                {/* P0 (training-rework): CRM-link chip + attachment removed —
+                    training is persona-driven, not CRM-linked. Input row is now
+                    just textarea + send/mic. */}
                 <div className="flex items-end gap-2">
                   <textarea
                     ref={textareaRef}
@@ -2183,19 +2166,8 @@ export default function TrainingSessionPage() {
             <div className="lg:hidden">
               {s.textMode ? (
                 <>
-                  {/* 2026-05-04: same redesign as desktop — chip+paperclip
-                      sit in a tiny toolbar ABOVE the textarea so the input
-                      itself can use the full row width. */}
-                  <div className="mb-1.5 flex items-center gap-2 px-1">
-                    <LinkClientButton
-                      sessionId={routeId}
-                      disabled={s.sessionState !== "ready"}
-                    />
-                    <SessionAttachmentButton
-                      sessionId={routeId}
-                      disabled={s.sessionState !== "ready"}
-                    />
-                  </div>
+                  {/* P0 (training-rework): CRM-link chip + attachment removed
+                      from the mobile input row too — textarea + mic only. */}
                   <div className="flex items-end gap-2">
                     <textarea
                       value={s.input}

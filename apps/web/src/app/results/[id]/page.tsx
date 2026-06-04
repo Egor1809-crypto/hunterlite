@@ -7,7 +7,6 @@ import { motion } from "framer-motion";
 import {
   ArrowRight,
   Home,
-  Users,
   Zap,
   MessageSquare,
   TrendingUp,
@@ -24,10 +23,6 @@ import {
     Download,
     Copy,
     ClipboardCheck,
-    Swords,
-    Crown,
-    Medal,
-    Layers3,
     Sparkles,
     BookOpen,
     Handshake,
@@ -47,8 +42,6 @@ const EmotionTimeline = dynamic(() => import("@/components/results/EmotionTimeli
 });
 import TrapResults from "@/components/results/TrapResults";
 import SoftSkillsCard from "@/components/results/SoftSkillsCard";
-import ClientReveal from "@/components/results/ClientReveal";
-import { LinkClientButton } from "@/components/training/LinkClientButton";
 import AIRecommendations from "@/components/results/AIRecommendations";
 import CheckpointProgress from "@/components/results/CheckpointProgress";
 import StageBreakdown from "@/components/results/StageBreakdown";
@@ -58,7 +51,6 @@ import ScoreLayersBreakdown from "@/components/results/ScoreLayersBreakdown";
 import JudgeVerdictCard from "@/components/results/JudgeVerdictCard";
 import MistakesBreakdown from "@/components/results/MistakesBreakdown";
 import ReplayModal from "@/components/results/ReplayModal";
-import { PostSessionVerdict } from "@/components/results/PostSessionVerdict";
 import CallDroppedCard, { type CallDroppedReason } from "@/components/results/CallDroppedCard";
 import { BackButton } from "@/components/ui/BackButton";
 import { Button } from "@/components/ui/Button";
@@ -94,13 +86,10 @@ export default function ResultsPage() {
   const [result, setResult] = useState<SessionResultResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [repeating, setRepeating] = useState(false);
-  const [showVerdict, setShowVerdict] = useState(true);
   const [copied, setCopied] = useState(false);
   const [transcriptCopied, setTranscriptCopied] = useState(false);
   const [, setAchievement] = useState<{ id: string; title: string; description: string; icon?: string } | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [addedToCRM, setAddedToCRM] = useState(false);
-  const [createdClientId, setCreatedClientId] = useState<string | null>(null);
 
   // Replay Mode state
   const [replayMessage, setReplayMessage] = useState<{ msg: ChatMessage; index: number } | null>(null);
@@ -377,17 +366,37 @@ export default function ResultsPage() {
         </div>
       )}
 
-      {/* Score verdict overlay — shows first, then fades into full report.
-          Skipped for error outcomes (CallDroppedCard owns the screen). */}
-      {!isCallDropped && showVerdict && hasScores && (
-        <PostSessionVerdict
-          score={totalScore}
-          xpGained={result.xp_breakdown?.grand_total ?? result.xp_breakdown?.session_total ?? 0}
-          onContinue={() => setShowVerdict(false)}
-        />
-      )}
+      <div className="app-page flex flex-col min-h-screen" style={{ display: isCallDropped ? "none" : undefined }}>
+        {/* Спокойная сводка вместо драматичного полноэкранного оверлея.
+            Тон — нейтральный редакторский (как CallDroppedCard): итог
+            одной-двумя строками, без капса/конфетти/звука/glitch.
+            Показывается только когда есть итоговый балл. */}
+        {!isCallDropped && hasScores && (
+          <div
+            className="mt-3 mb-2 rounded-2xl border px-5 py-4"
+            style={{
+              background: "var(--bg-secondary)",
+              borderColor: "var(--border-color)",
+            }}
+          >
+            <div className="font-mono text-xs tracking-widest" style={{ color: "var(--text-muted)" }}>
+              Сессия завершена
+            </div>
+            <div className="mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+              <span className="text-lg" style={{ color: "var(--text-primary)" }}>
+                Итог: {Math.round(totalScore)} из 100
+              </span>
+              <span className="text-sm" style={{ color: "var(--text-secondary)" }}>
+                {totalScore >= 70
+                  ? "Разговор проведён уверенно. Ниже — разбор по навыкам и динамика клиента."
+                  : totalScore >= 40
+                  ? "Есть над чем поработать. Ниже — разбор сильных и слабых мест."
+                  : "Разговор дался непросто. Ниже — разбор ошибок и рекомендации, что подтянуть."}
+              </span>
+            </div>
+          </div>
+        )}
 
-      <div className="app-page flex flex-col min-h-screen" style={{ display: isCallDropped || (showVerdict && hasScores) ? "none" : undefined }}>
         <Breadcrumb items={[{ label: "История", href: "/history" }, { label: "Результат" }]} />
         <BackButton href="/training" label="К тренировкам" />
 
@@ -474,14 +483,6 @@ export default function ResultsPage() {
                   </div>
                 </div>
               )}
-              {story && (
-                <span
-                  className="flex items-center gap-2 rounded-lg px-4 py-3 font-mono text-xs tracking-widest backdrop-blur"
-                  style={{ background: "var(--accent-muted)", border: "1px solid var(--accent-glow)", color: "var(--accent)" }}
-                >
-                  <Layers3 size={14} /> ИСТОРИЯ CRM
-                </span>
-              )}
               <Link href="/training">
                 <motion.span
                   className="flex items-center gap-2 rounded-lg px-6 py-3 font-mono text-xs tracking-widest transition-colors backdrop-blur"
@@ -494,81 +495,6 @@ export default function ResultsPage() {
               </Link>
             </div>
           </div>
-
-          {/* CRM CTA row — независимая от score, видна всегда. */}
-          {(() => {
-            const realClientId = (session as unknown as { real_client_id?: string | null }).real_client_id;
-            // Если сессия уже привязана к существующему клиенту в CRM —
-            // показываем «Перейти к клиенту». Иначе — «Добавить в CRM»
-            // создаёт новую CRM-карточку из данных тренировки.
-            const linkedClientId = realClientId || createdClientId;
-            return (
-              <div className="flex flex-wrap items-center gap-3 rounded-2xl border p-4"
-                style={{
-                  background: linkedClientId || addedToCRM
-                    ? "rgba(61,220,132,0.06)"
-                    : "var(--accent-muted)",
-                  borderColor: linkedClientId || addedToCRM
-                    ? "rgba(61,220,132,0.3)"
-                    : "var(--accent)",
-                }}
-              >
-                <Users size={18} style={{
-                  color: linkedClientId || addedToCRM ? "var(--success)" : "var(--accent)",
-                  flexShrink: 0,
-                }} />
-                <div className="flex-1 min-w-[200px]">
-                  <div className="font-mono text-xs uppercase tracking-widest mb-1"
-                    style={{ color: linkedClientId || addedToCRM ? "var(--success)" : "var(--accent)" }}
-                  >
-                    {linkedClientId || addedToCRM ? "Клиент в CRM" : "CRM-карточка"}
-                  </div>
-                  <div className="text-sm" style={{ color: "var(--text-secondary)" }}>
-                    {linkedClientId || addedToCRM
-                      ? "Этот разговор записан в карточку клиента — история звонков, обещания, факты подтянутся."
-                      : "Сохраните клиента из этой тренировки в CRM с реальными данными (долг, кредиторы, архетип)."}
-                  </div>
-                </div>
-                {!linkedClientId && !addedToCRM && (
-                  <motion.button
-                    onClick={async () => {
-                      if (addedToCRM) return;
-                      try {
-                        const res = await api.post<{ id: string }>(
-                          `/clients/from-session/${session.id}`,
-                          {},
-                        );
-                        setAddedToCRM(true);
-                        setCreatedClientId(res.id);
-                      } catch {
-                        // Idempotent on backend — silently ignore.
-                      }
-                    }}
-                    className="inline-flex items-center justify-center gap-2 font-bold tracking-wide uppercase rounded-xl px-4 py-2.5 text-xs transition-all"
-                    style={{
-                      background: "var(--accent)",
-                      color: "white",
-                      border: "1px solid var(--accent)",
-                    }}
-                    whileTap={{ scale: 0.97 }}
-                    whileHover={{ background: "var(--accent-glow)" }}
-                  >
-                    <Users size={14} />
-                    Добавить в CRM
-                  </motion.button>
-                )}
-                {(linkedClientId || addedToCRM) && (
-                  <Button
-                    href={linkedClientId ? `/clients/${linkedClientId}` : "/clients"}
-                    size="sm"
-                    iconRight={<ArrowRight size={14} />}
-                  >
-                    {linkedClientId ? "Открыть карточку" : "Открыть CRM"}
-                  </Button>
-                )}
-              </div>
-            );
-          })()}
         </motion.header>
 
         {/*
@@ -1144,43 +1070,6 @@ export default function ResultsPage() {
           </div>
         )}
 
-
-        {/* Client Reveal — hidden data revealed post-session */}
-        {result.client_card && (
-          <div className="mt-6">
-            <ClientReveal clientCard={result.client_card} />
-          </div>
-        )}
-
-        {/* BUG-FIX 2026-05-05 (CRM-binding): post-hoc link UI for orphan
-            sessions. User feedback: «зашёл на результаты — нет «привязать
-            к CRM», тренировка остаётся вне CRM-карточки и не подтягивает
-            cross-session память на следующих звонках». LinkClientButton
-            already exists for the in-training UI (chat page); reusing it
-            here gives /results parity. Self-hides when the session is
-            already linked to a CRM client (LinkClientButton renders the
-            chip-only view in that case). */}
-        {(() => {
-          const sessLoose = session as unknown as {
-            id: string;
-            real_client_id?: string | null;
-          };
-          const initial = sessLoose.real_client_id && result.client_card
-            ? {
-                id: sessLoose.real_client_id,
-                full_name: (result.client_card as { name?: string }).name || "Клиент CRM",
-              }
-            : null;
-          return (
-            <div className="mt-4 flex items-center justify-end">
-              <LinkClientButton
-                sessionId={sessLoose.id}
-                initialLinkedClient={initial}
-                variant="chat"
-              />
-            </div>
-          );
-        })()}
 
         {/* Transcript moved up (after MistakesBreakdown) per 2026-05-11
             redesign-B — это центральный артефакт сессии, должен быть на
