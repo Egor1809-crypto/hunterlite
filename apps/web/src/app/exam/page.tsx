@@ -27,7 +27,6 @@ import AuthLayout from "@/components/layout/AuthLayout";
 import { api } from "@/lib/api";
 import { useAuthStore } from "@/stores/useAuthStore";
 import { Card } from "@/components/ui/Card";
-import { Button } from "@/components/ui/Button";
 import { AbstractBackdrop } from "@/components/ui/AbstractBackdrop";
 import { CertificatePreview, CERT_TOKEN_PALETTE } from "@/components/certificate/CertificatePreview";
 
@@ -40,6 +39,27 @@ const EXAM_ICONS: Record<string, LucideIcon> = {
   "exam-5": Trophy,
 };
 
+// Per-exam accent — gives each card its own identity (Abstract/Malvah-style:
+// restrained colour, one accent per panel).
+const EXAM_ACCENT: Record<string, string> = {
+  "exam-1": "#6366F1",
+  "exam-2": "#F59E0B",
+  "exam-3": "#EC4899",
+  "exam-4": "#8B5CF6",
+  "exam-5": "#10B981",
+};
+
+// The mechanic is the new differentiator — surface it on every card.
+const MECHANIC_META: Record<string, { label: string; ai: boolean }> = {
+  hard_mcq: { label: "Тест + числа", ai: false },
+  sequencing: { label: "Порядок + пары", ai: false },
+  matching: { label: "Сопоставление", ai: false },
+  case_analysis: { label: "Анализ дела", ai: true },
+  document_drafting: { label: "Документ", ai: true },
+  multi_step: { label: "Капстоун-дело", ai: true },
+  mcq: { label: "Тест", ai: false },
+};
+
 interface ExamItem {
   id: string;
   title: string;
@@ -48,6 +68,7 @@ interface ExamItem {
   question_count: number;
   time_limit_minutes: number;
   pass_threshold: number;
+  mechanic: string;
   order_index: number;
   unlock_condition: Record<string, unknown>;
   best_score: number | null;
@@ -60,69 +81,130 @@ interface ExamItem {
 function ExamCard({ exam, onStart }: { exam: ExamItem; onStart: () => void }) {
   const Icon = EXAM_ICONS[exam.id] ?? GraduationCap;
   const isFinal = exam.id === "exam-5";
+  const accent = EXAM_ACCENT[exam.id] ?? "var(--primary)";
+  const mech = MECHANIC_META[exam.mechanic] ?? { label: exam.mechanic, ai: false };
 
   return (
-    <Card accentTop={exam.passed} style={{ opacity: exam.is_locked ? 0.6 : 1 }}>
-      <div className="mb-4 flex items-start gap-4">
-        <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl" style={{ background: "var(--primary-muted)", border: "1px solid var(--border-color)" }}>
-          <Icon size={24} strokeWidth={1.75} style={{ color: "var(--primary)" }} />
-        </span>
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="font-mono text-[11px] font-semibold uppercase tracking-wide" style={{ color: "var(--primary)" }}>Экзамен {exam.order_index}</span>
-            {isFinal && <span className="font-mono text-[11px] font-semibold uppercase tracking-wide" style={{ color: "var(--warning)" }}>Финальный</span>}
-            {exam.passed && (
-              <span className="inline-flex items-center gap-1 font-mono text-[11px] font-semibold uppercase tracking-wide" style={{ color: "var(--success)" }}>
-                <CheckCircle size={11} /> Сдан
+    <Card
+      padded={false}
+      className="group relative overflow-hidden"
+      style={{ opacity: exam.is_locked ? 0.55 : 1 }}
+    >
+      {/* accent strip — per-exam identity */}
+      <div className="h-[3px] w-full" style={{ background: `linear-gradient(90deg, ${accent}, ${accent}22 70%, transparent)` }} />
+
+      <div className="p-5 sm:p-6">
+        {/* Header */}
+        <div className="flex items-start gap-4">
+          <span
+            className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl"
+            style={{ background: `${accent}14`, border: `1px solid ${accent}33` }}
+          >
+            <Icon size={22} strokeWidth={1.9} style={{ color: accent }} />
+          </span>
+
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
+              <span className="font-mono text-[11px] font-bold uppercase tracking-[0.14em]" style={{ color: accent }}>
+                Экзамен {exam.order_index}
               </span>
-            )}
+              {/* mechanic pill — the differentiator */}
+              <span
+                className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-semibold"
+                style={{ background: `${accent}16`, color: accent, border: `1px solid ${accent}30` }}
+              >
+                <span className="h-1.5 w-1.5 rounded-full" style={{ background: accent }} />
+                {mech.label}
+              </span>
+              {mech.ai ? (
+                <span className="inline-flex items-center gap-1 text-[11px] font-semibold" style={{ color: "var(--text-secondary)" }}>
+                  <Star size={11} style={{ color: accent }} /> ИИ-оценка
+                </span>
+              ) : (
+                <span className="text-[11px] font-semibold" style={{ color: "var(--text-secondary)" }}>Авто-проверка</span>
+              )}
+              {isFinal && (
+                <span className="text-[11px] font-bold uppercase tracking-wide" style={{ color: "var(--warning)" }}>Финал</span>
+              )}
+              {exam.passed && (
+                <span className="inline-flex items-center gap-1 text-[11px] font-bold uppercase tracking-wide" style={{ color: "var(--success)" }}>
+                  <CheckCircle size={12} /> Сдан
+                </span>
+              )}
+            </div>
+
+            <h3 className="mt-2 text-[19px] font-semibold leading-tight tracking-tight" style={{ color: "var(--text-primary)" }}>
+              {exam.title}
+            </h3>
+            <p className="mt-1.5 text-[13.5px] leading-relaxed" style={{ color: "var(--text-secondary)" }}>
+              {exam.description}
+            </p>
           </div>
-          <h3 className="mt-1.5 text-[17px] font-semibold tracking-tight" style={{ color: "var(--text-primary)" }}>{exam.title}</h3>
-          <p className="mt-1 text-[13px] leading-relaxed" style={{ color: "var(--text-muted)" }}>{exam.description}</p>
+
+          {exam.passed && exam.best_score !== null && (
+            <div className="shrink-0 text-right">
+              <div className="font-mono text-[26px] font-semibold leading-none tabular-nums" style={{ color: "var(--success)" }}>{exam.best_score}%</div>
+              <div className="mt-1 text-[11px] font-medium" style={{ color: "var(--text-secondary)" }}>лучший</div>
+            </div>
+          )}
         </div>
-        {exam.passed && exam.best_score !== null && (
-          <div className="shrink-0 text-right">
-            <div className="font-mono text-2xl font-semibold tabular-nums" style={{ color: "var(--success)" }}>{exam.best_score}%</div>
-            <div className="font-mono text-[11px]" style={{ color: "var(--text-muted)" }}>лучший</div>
+
+        {/* Stats */}
+        <div className="mt-5 grid grid-cols-4 gap-2.5">
+          {[
+            { icon: FileText, label: "Заданий", value: String(exam.question_count) },
+            { icon: Clock, label: "Минут", value: String(exam.time_limit_minutes) },
+            { icon: Star, label: "Порог", value: `${exam.pass_threshold}%` },
+            { icon: RefreshCw, label: "Попыток", value: String(exam.attempts_count) },
+          ].map((s) => {
+            const SIcon = s.icon;
+            return (
+              <div
+                key={s.label}
+                className="rounded-xl px-2 py-3 text-center transition-colors"
+                style={{ background: "var(--bg-secondary)", border: "1px solid var(--border-color)" }}
+              >
+                <SIcon size={14} className="mx-auto mb-1.5" style={{ color: accent }} />
+                <div className="font-mono text-[15px] font-bold leading-none tabular-nums" style={{ color: "var(--text-primary)" }}>{s.value}</div>
+                <div className="mt-1.5 text-[10.5px] font-medium uppercase tracking-wide" style={{ color: "var(--text-secondary)" }}>{s.label}</div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Categories */}
+        {exam.categories.length > 0 && (
+          <div className="mt-4 flex flex-wrap gap-1.5">
+            {exam.categories.map((t) => (
+              <span
+                key={t}
+                className="rounded-md px-2.5 py-1 text-[11.5px] font-medium"
+                style={{ background: "var(--bg-secondary)", color: "var(--text-secondary)", border: "1px solid var(--border-color)" }}
+              >
+                {t}
+              </span>
+            ))}
           </div>
         )}
-      </div>
 
-      <div className="mb-4 grid grid-cols-4 gap-2">
-        {[
-          { icon: FileText, label: "Вопросов", value: String(exam.question_count) },
-          { icon: Clock, label: "Время", value: `${exam.time_limit_minutes} мин` },
-          { icon: Star, label: "Порог", value: `${exam.pass_threshold}%` },
-          { icon: RefreshCw, label: "Попытки", value: String(exam.attempts_count) },
-        ].map((s) => {
-          const Icon = s.icon;
-          return (
-            <div key={s.label} className="rounded-lg p-2.5 text-center" style={{ background: "var(--bg-secondary)", border: "1px solid var(--border-color)" }}>
-              <Icon size={13} className="mx-auto mb-1" style={{ color: "var(--text-muted)" }} />
-              <div className="font-mono text-[13px] font-semibold tabular-nums" style={{ color: "var(--text-primary)" }}>{s.value}</div>
-              <div className="font-mono text-[11px]" style={{ color: "var(--text-muted)" }}>{s.label}</div>
+        {/* CTA */}
+        <div className="mt-5">
+          {exam.is_locked ? (
+            <div className="flex items-center gap-2 rounded-xl px-3 py-3 text-[13px]" style={{ background: "var(--bg-secondary)", border: "1px solid var(--border-color)", color: "var(--text-secondary)" }}>
+              <Lock size={14} /> Сдайте предыдущий экзамен, чтобы открыть этот.
             </div>
-          );
-        })}
+          ) : (
+            <button
+              onClick={onStart}
+              className="flex w-full items-center justify-center gap-2 rounded-xl py-3.5 text-[14px] font-semibold text-white transition-transform active:scale-[0.99]"
+              style={{ background: accent, boxShadow: `0 6px 20px -8px ${accent}` }}
+            >
+              <GraduationCap size={17} />
+              {exam.passed ? "Пересдать экзамен" : "Начать экзамен"}
+            </button>
+          )}
+        </div>
       </div>
-
-      {exam.categories.length > 0 && (
-        <div className="mb-5 flex flex-wrap gap-1.5">
-          {exam.categories.map((t) => (
-            <span key={t} className="rounded-md px-2 py-1 font-mono text-[11px]" style={{ background: "var(--bg-secondary)", color: "var(--text-secondary)", border: "1px solid var(--border-color)" }}>{t}</span>
-          ))}
-        </div>
-      )}
-
-      {exam.is_locked ? (
-        <div className="flex items-center gap-2 text-[13px]" style={{ color: "var(--text-muted)" }}>
-          <Lock size={13} /> Сдайте предыдущий экзамен, чтобы открыть этот.
-        </div>
-      ) : (
-        <Button variant="primary" fluid icon={<GraduationCap size={16} />} onClick={onStart}>
-          {exam.passed ? "Пересдать" : "Начать экзамен"}
-        </Button>
-      )}
     </Card>
   );
 }
@@ -191,7 +273,7 @@ export default function ExamPage() {
                 <div>
                   <div className="font-mono text-[11px] uppercase tracking-[0.16em]" style={{ color: "var(--text-secondary)" }}>Аттестация</div>
                   <h1 className="mt-1 text-4xl font-semibold tracking-tight sm:text-5xl" style={{ color: "var(--text-primary)" }}>Экзамен</h1>
-                  <p className="mt-2 text-[15px]" style={{ color: "var(--text-muted)" }}>Подтверждение квалификации по ФЗ-127.</p>
+                  <p className="mt-2 text-[15px]" style={{ color: "var(--text-secondary)" }}>Подтверждение квалификации по ФЗ-127 — 5 экзаменов, 5 механик, ИИ-оценка.</p>
                 </div>
               </div>
 
@@ -245,7 +327,7 @@ export default function ExamPage() {
                   </button>
                 </div>
 
-                <p className="mt-3 text-[13px]" style={{ color: "var(--text-muted)" }}>
+                <p className="mt-3 text-[13px]" style={{ color: "var(--text-secondary)" }}>
                   {finalPassed
                     ? "Сертификат получен — поздравляем."
                     : passedModules === 4
@@ -295,7 +377,7 @@ export default function ExamPage() {
                       <Award size={20} style={{ color: "var(--primary)" }} />
                       <div>
                         <div className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>{exam.title}</div>
-                        <div className="font-mono text-[12px]" style={{ color: "var(--text-muted)" }}>{exam.best_score}% · код {exam.certificate_code}</div>
+                        <div className="font-mono text-[12px]" style={{ color: "var(--text-secondary)" }}>{exam.best_score}% · код {exam.certificate_code}</div>
                       </div>
                     </div>
                     <span className="font-mono text-[12px] font-semibold" style={{ color: "var(--primary)" }}>Открыть</span>
@@ -311,11 +393,11 @@ export default function ExamPage() {
               <Shield size={16} className="mt-0.5 shrink-0" style={{ color: "var(--text-muted)" }} />
               <div>
                 <div className="mb-1.5 text-[13px] font-semibold" style={{ color: "var(--text-primary)" }}>Правила экзаменации</div>
-                <ul className="space-y-1 text-[13px] leading-relaxed" style={{ color: "var(--text-muted)" }}>
-                  <li>Экзамен 1 открыт сразу, остальные — последовательно после сдачи предыдущего.</li>
-                  <li>У каждого экзамена свой порог сдачи и своя механика.</li>
-                  <li>Задания формируются по плану экзамена; сложные ответы оценивает ИИ-эксперт.</li>
-                  <li>Финальный экзамен открывается после сдачи всех 4 модулей.</li>
+                <ul className="space-y-1.5 text-[13px] leading-relaxed" style={{ color: "var(--text-secondary)" }}>
+                  <li>Все экзамены открыты — проходите в любом порядке.</li>
+                  <li>У каждого экзамена своя механика и свой порог сдачи.</li>
+                  <li>Задания формируются по плану экзамена; сложные ответы оценивает ИИ-эксперт (deepseek) по рубрике.</li>
+                  <li>Таймер проверяется на сервере; сертификат — только при проходе в срок.</li>
                   <li>При успешной сдаче выдаётся сертификат с кодом верификации.</li>
                 </ul>
               </div>
