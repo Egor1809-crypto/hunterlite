@@ -364,7 +364,6 @@ export default function ResultsPage() {
         <div className="app-page flex min-h-screen flex-col items-center justify-center px-4">
           <CallDroppedCard
             reason={session.terminal_outcome as CallDroppedReason}
-            detail={session.terminal_reason || undefined}
             onRetry={() => {
               // Naive "redirect to /training to start fresh" — fast and
               // avoids needing to know the exact scenario id format. The

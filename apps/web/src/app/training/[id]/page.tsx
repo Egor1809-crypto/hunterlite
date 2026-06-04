@@ -59,8 +59,7 @@ import {
   type HangupCoordinatorState,
 } from "@/lib/hangupCoordinator";
 import { TrapNotification, type TrapEvent } from "@/components/training/TrapNotification";
-import { ClientCard, type ClientCardData } from "@/components/training/ClientCard";
-import { ClientCardMini } from "@/components/training/ClientCardMini";
+import { type ClientCardData } from "@/components/training/ClientCard";
 import { HumanFactorIcons } from "@/components/training/HumanFactorIcons";
 import { StoryProgress } from "@/components/training/StoryProgress";
 import { ConsequenceToast } from "@/components/training/ConsequenceToast";
@@ -383,12 +382,13 @@ export default function TrainingSessionPage() {
           if (data.data.scenario_title) s.setScenarioTitle(data.data.scenario_title as string);
           if (data.data.archetype_code) s.setArchetypeCode(data.data.archetype_code as string);
           if (data.data.character_gender) s.setCharacterGender(data.data.character_gender as "M" | "F" | "neutral");
+          // 2026-06-04: pre-session CRM brief removed — go straight into the
+          // session. (clientCard still stored for any internal use, but no
+          // briefing gate / CRM card is shown.)
           if (data.data.client_card) {
             s.setClientCard(data.data.client_card as ClientCardData);
-            s.setSessionState("briefing");
-          } else {
-            s.setSessionState("ready");
           }
+          s.setSessionState("ready");
           break;
 
         case "avatar.typing":
@@ -1613,20 +1613,8 @@ export default function TrainingSessionPage() {
     );
   }
 
-  // ── Briefing gate ──
-  if (s.sessionState === "briefing" && s.clientCard) {
-    return (
-      <ClientCard
-        clientCard={s.clientCard}
-        scenarioTitle={s.scenarioTitle || "Тренировка"}
-        onStart={() => s.setSessionState("ready")}
-        onBack={() => {
-          sendMessage({ type: "session.end", data: {} });
-          router.push("/training");
-        }}
-      />
-    );
-  }
+  // ── Briefing gate REMOVED (2026-06-04) — no pre-session CRM card; the
+  // session opens straight into the conversation. ──
 
   // ── MicCheck gate — 2026-04-18 DISABLED ──
   // Per user feedback: "убери панель выбора, пусть на автомате перенесёт
@@ -1726,14 +1714,7 @@ export default function TrainingSessionPage() {
         )}
       </AnimatePresence>
 
-      {/* ── Client Card Mini ──────────────────────────────── */}
-      {s.clientCard && s.sessionState === "ready" && (
-        <ClientCardMini
-          clientCard={s.clientCard}
-          isExpanded={s.miniCardExpanded}
-          onToggle={() => s.setMiniCardExpanded(!s.miniCardExpanded)}
-        />
-      )}
+      {/* ── Client Card Mini REMOVED (2026-06-04) — no in-call CRM panel ── */}
 
       {/* ── Story-mode HUD bar ──────────────────────────────── */}
       {s.storyMode && s.sessionState === "ready" && (
