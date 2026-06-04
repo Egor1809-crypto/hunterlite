@@ -56,6 +56,7 @@ DEFINITION_OVERRIDES: dict[str, dict] = {
     "exam-1": {
         "title": "Основы банкротства физлица",
         "description": "Жёсткие MCQ + числа и сроки ФЗ-127 (гл. X): пороги, сроки, прожиточный минимум.",
+        "categories": ["Сроки и пороги", "Прожиточный минимум", "Процедуры физлиц"],
         "mechanic": "hard_mcq",
         "pass_threshold": 85,
         "blueprint": {"items": [{"type": "mcq", "count": 8}, {"type": "numeric", "count": 3}], "shuffle": False},
@@ -63,6 +64,7 @@ DEFINITION_OVERRIDES: dict[str, dict] = {
     "exam-2": {
         "title": "Процедура банкротства физлица",
         "description": "Порядок процедур и сопоставление статей ↔ действий (sequencing / matching).",
+        "categories": ["Порядок процедур", "Статьи и последствия", "Оспаривание сделок"],
         "mechanic": "sequencing",
         "pass_threshold": 80,
         "blueprint": {"items": [{"type": "sequencing", "count": 3}, {"type": "matching", "count": 3}], "shuffle": False},
@@ -70,6 +72,7 @@ DEFINITION_OVERRIDES: dict[str, dict] = {
     "exam-3": {
         "title": "Анализ дела (банкротство физлица)",
         "description": "Дан факт-паттерн — напишите юридический анализ. AI-оценка по рубрике с заземлением на ФЗ-127.",
+        "categories": ["Единственное жильё", "Оспоримые сделки", "Выбор процедуры"],
         "mechanic": "case_analysis",
         "pass_threshold": 75,
         "blueprint": {"items": [{"type": "case_analysis", "count": 3}], "shuffle": False},
@@ -77,6 +80,7 @@ DEFINITION_OVERRIDES: dict[str, dict] = {
     "exam-4": {
         "title": "Документ по делу физлица",
         "description": "Составьте реальный процессуальный документ. AI-оценка полноты и юр-корректности.",
+        "categories": ["Заявление о банкротстве", "Опись имущества", "МФЦ"],
         "mechanic": "document_drafting",
         "pass_threshold": 75,
         "blueprint": {"items": [{"type": "document_drafting", "count": 2}], "shuffle": False},
@@ -84,6 +88,7 @@ DEFINITION_OVERRIDES: dict[str, dict] = {
     "exam-5": {
         "title": "Капстоун: мок-дело физлица",
         "description": "Сквозное симулированное дело: смешанные шаги, тайм-пресс, высокий порог. AI-оценка свободных шагов.",
+        "categories": ["Комплексное дело", "Стратегия", "Все процедуры"],
         "mechanic": "multi_step",
         "pass_threshold": 80,
         "blueprint": {"items": [{"type": "multi_step", "count": 1}], "shuffle": False},
@@ -333,6 +338,17 @@ async def _upsert_definition(session, exam_id: str, ov: dict) -> None:
     d.mechanic = ov["mechanic"]
     d.blueprint = ov["blueprint"]
     d.pass_threshold = ov["pass_threshold"]
+    # Full access: open every exam (no sequential lock). Restore per-exam gating
+    # by setting `unlock_condition: {"required_exam": "exam-N"}` in the override.
+    d.unlock_condition = ov.get("unlock_condition", {})
+    if "categories" in ov:
+        d.categories = ov["categories"]
+    if "time_limit_minutes" in ov:
+        d.time_limit_minutes = ov["time_limit_minutes"]
+    # `question_count` = how many items the candidate actually answers per attempt
+    # (sum of blueprint counts), so the card stops showing the stale legacy 30/35.
+    bp_items = (ov.get("blueprint") or {}).get("items") or []
+    d.question_count = ov.get("question_count") or sum(int(i.get("count", 0)) for i in bp_items) or d.question_count
 
 
 async def _reseed_items(session, exam_id: str, items: list[dict]) -> None:
