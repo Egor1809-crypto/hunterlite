@@ -530,6 +530,64 @@ async def start_session(
             body.custom_session_mode, body.real_client_id, body.custom_character_id,
         )
 
+    # ── 2026-06-04 — старт из галереи reference-персонажей (CONSTRUCTOR_TZ) ──
+    # Когда FE передаёт только ``reference_persona_slug``, загружаем активного
+    # эталона и раскладываем его поля в body.custom_* — так дальше работает
+    # тот же путь, что у обычного конструктора: гейт constructor_locked
+    # сработает (custom_archetype станет не-None), custom_params соберётся
+    # ниже из тех же body.custom_*. Brief/slug дописываются в custom_params
+    # после его сборки. Существующий custom_* путь не трогаем.
+    _reference_persona_brief: str | None = None
+    if body.reference_persona_slug:
+        from app.models.reference_persona import ReferencePersona
+        from app.api.reference_personas import split_dossier
+
+        _persona = (await db.execute(
+            select(ReferencePersona).where(
+                ReferencePersona.slug == body.reference_persona_slug,
+                ReferencePersona.is_active.is_(True),
+            )
+        )).scalar_one_or_none()
+        if _persona is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="reference_persona_not_found",
+            )
+
+        _DIFFICULTY_MAP = {"easy": 3, "medium": 5, "hard": 8}
+        # Раскладываем поля персонажа в body.custom_* (explicit body wins —
+        # если FE прислал и slug, и кастомное поле, кастомное приоритетнее).
+        if body.custom_archetype is None:
+            body.custom_archetype = _persona.archetype
+        if body.custom_profession is None:
+            body.custom_profession = _persona.profession
+        if body.custom_lead_source is None:
+            body.custom_lead_source = _persona.lead_source
+        if body.custom_emotion_preset is None:
+            body.custom_emotion_preset = _persona.emotion_preset
+        if body.custom_tone is None:
+            body.custom_tone = _persona.tone
+        if body.custom_family_preset is None:
+            body.custom_family_preset = _persona.family_preset
+        if body.custom_creditors_preset is None:
+            body.custom_creditors_preset = _persona.creditors_preset
+        if body.custom_debt_stage is None:
+            body.custom_debt_stage = _persona.debt_stage
+        if body.custom_debt_range is None:
+            body.custom_debt_range = _persona.debt_range
+        if body.custom_difficulty is None:
+            body.custom_difficulty = _DIFFICULTY_MAP.get(
+                (_persona.difficulty or "medium").lower(), 5,
+            )
+        # session_mode — из custom_session_mode/mode, если задан.
+        if body.custom_session_mode is None and body.mode is not None:
+            body.custom_session_mode = body.mode
+
+        # client_brief — факты клиента (до маркера «ЧТО ЮРИСТ ОБЯЗАН …»),
+        # которыми ведётся AI-клиент через persona_brief в custom_params.
+        _client_brief, _ = split_dossier(_persona.cached_dossier)
+        _reference_persona_brief = _client_brief or None
+
     # ── CONSTRUCTOR_TZ §3/§4 — гейт конструктора по региону 1 теста ───────
     # Старт из конструктора («Мои клиенты») распознаём по кастомному персонажу/
     # архетипу без привязки к реальному CRM-клиенту. CRM/сценарные потоки этим
@@ -737,6 +795,16 @@ async def start_session(
     if normalized_mode:
         custom_params = custom_params or {}
         custom_params["session_mode"] = normalized_mode
+
+    # ── reference-персонаж: досье клиента (факты) → AI-клиент ──
+    # persona_brief доходит до WS как ambient_ctx (==custom_params) и в
+    # _build_client_profile_prompt префиксуется авторитетным блоком «Кто ты».
+    # reference_persona_slug — диагностический маркер источника старта.
+    if body.reference_persona_slug:
+        custom_params = custom_params or {}
+        custom_params["reference_persona_slug"] = body.reference_persona_slug
+        if _reference_persona_brief:
+            custom_params["persona_brief"] = _reference_persona_brief
 
     # NB: the legacy ``custom_params["persona_snapshot"]`` write that lived
     # here was the root cause behind hotfix PR #55 — runtime read this dict
