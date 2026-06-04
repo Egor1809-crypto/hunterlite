@@ -61,7 +61,15 @@ SYSTEM_PROMPT = """
 8. Если у найденного фрагмента есть поле `scope_note` — обязательно следуй ему: помечай юрлица/КДЛ-контекст и переноси на физлицо только применимую часть, явно оговаривая различие.
 """.strip()
 
-_MODEL = os.getenv("KNOWLEDGE_AI_MODEL", "deepseek-v4-pro")
+# 2026-06-04: Маняша — латентно-чувствительный чат с агентным циклом (RAG-поиск
+# + ответ = несколько round-trip'ов). deepseek-v4-pro (reasoning) давал ~40с.
+# Используем gpt-5.5 — быстрая (~2с/шаг) И корректно реиграет multi-step
+# tool-use в OpenAI-формате. NB: gemini-3.5-flash здесь НЕ подходит — на втором
+# ходе navy/Gemini требует `thought_signature` на functionCall и валит цикл 400;
+# gemini годится только для single-shot (роль-персонаж без инструментов).
+# gpt-5.x отвергает кастомную temperature — _call_navy её опускает для gpt-5*.
+# Точностно-критичный грейдер экзамена остаётся на deepseek (settings.exam_model).
+_MODEL = os.getenv("KNOWLEDGE_AI_MODEL", "gpt-5.5")
 # "Без лимитов" = высокий потолок ответа (провайдерский предел всё равно есть).
 # ТЗ §2.3 реком. 8–16K.
 _MAX_TOKENS = max(8000, int(os.getenv("KNOWLEDGE_AI_MAX_TOKENS", "12000")))

@@ -124,7 +124,15 @@ class Settings(BaseSettings):
         default="deepseek-v4-pro",
         validation_alias=AliasChoices("EXAM_MODEL"),
     )
-    local_llm_persona_model: str = ""
+    # 2026-06-04: roleplay (live call/chat persona) runs on a FAST model —
+    # deepseek-v4-pro (reasoning) added ~3-7s/turn which is too slow for live
+    # dialogue. gemini-3.5-flash answers in ~1.5-2s with good Russian. Only
+    # task_type=="roleplay" uses this; exam grading / accuracy-critical paths
+    # keep deepseek (exam_model). Empty = no override (back to local_llm_model).
+    local_llm_persona_model: str = Field(
+        default="gemini-3.5-flash",
+        validation_alias=AliasChoices("NAVY_LLM_PERSONA_MODEL", "LOCAL_LLM_PERSONA_MODEL"),
+    )
     # 2026-06-04: model-level fallback chain on navy.api. The primary model
     # (``local_llm_model``, deepseek-v4-pro) is a reasoning model that
     # occasionally lags or 500s. When a request to the primary fails/times out,
