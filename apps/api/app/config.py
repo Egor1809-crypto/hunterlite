@@ -723,7 +723,10 @@ class Settings(BaseSettings):
     pagination_max_limit: int = 200
 
     # Rate Limits — safe defaults; overridden in .env
-    max_sessions_per_day: int = 10
+    # 2026-06-04: 10 was far too low for a learning platform — an active learner
+    # (or anyone testing) grinds through 10 short calls/tests quickly and then
+    # gets hard-blocked for the rest of the day. 100/day still bounds abuse.
+    max_sessions_per_day: int = 100
     max_session_duration_minutes: int = 30
     max_messages_per_session: int = 200
 

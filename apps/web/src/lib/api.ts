@@ -308,6 +308,12 @@ async function request(path: string, options: RequestInit = {}): Promise<unknown
       }
       throw new ApiError(String(detail.message ?? "Лимит плана"), 429);
     }
+    // A string detail is a specific reason (e.g. the daily-session-limit
+    // message) — surface it verbatim rather than the misleading "wait 30s"
+    // (which is wrong for a daily cap).
+    if (typeof detail === "string" && detail.trim()) {
+      throw new ApiError(detail, 429);
+    }
     const retryAfter = response.headers.get("Retry-After");
     const waitSec = retryAfter ? parseInt(retryAfter, 10) : 30;
     throw new ApiError(
