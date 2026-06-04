@@ -81,8 +81,17 @@ class Settings(BaseSettings):
         default="http://localhost:11434/v1",
         validation_alias=AliasChoices("NAVY_LLM_URL", "LOCAL_LLM_URL"),
     )
+    # 2026-06-04: единый агрегатор — navy.api, основная модель deepseek-v4-pro
+    # ("4 pro" — лучшая у нас). Используется ВЕЗДЕ, где зовётся local_llm_model:
+    # тренинг/диалог персонажей (task_type="roleplay" падает сюда, т.к.
+    # local_llm_persona_model пуст), coach/report и пр. Старый дефолт
+    # "gemma4:e2b" был мёртвым артефактом локального LM Studio. Прод-`.env`
+    # обязан выставить NAVY_LLM_MODEL=deepseek-v4-pro явно (или положиться на
+    # этот дефолт). NB: deepseek-v4-pro — reasoning-модель, в live-диалоге
+    # медленнее; если задержка критична — точечный быстрый roleplay-override
+    # через local_llm_persona_model (напр. claude-haiku-4-5).
     local_llm_model: str = Field(
-        default="gemma4:e2b",
+        default="deepseek-v4-pro",
         validation_alias=AliasChoices("NAVY_LLM_MODEL", "LOCAL_LLM_MODEL"),
     )
     local_llm_enabled: bool = Field(
