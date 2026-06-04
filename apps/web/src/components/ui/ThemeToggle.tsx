@@ -6,7 +6,7 @@ import { motion } from "framer-motion";
 import { Sun, Moon } from "lucide-react";
 
 export function ThemeToggle() {
-  const { theme, setTheme } = useTheme();
+  const { resolvedTheme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => setMounted(true), []);
@@ -15,7 +15,10 @@ export function ThemeToggle() {
     return <div className="h-9 w-9" />;
   }
 
-  const isDark = theme === "dark";
+  // resolvedTheme reflects the *actual* applied theme even when the user's
+  // choice is "system" (auto) — so the toggle always flips to the opposite of
+  // what's on screen, never gets stuck on a stale "system" value.
+  const isDark = resolvedTheme === "dark";
 
   const toggle = () => {
     setTheme(isDark ? "light" : "dark");

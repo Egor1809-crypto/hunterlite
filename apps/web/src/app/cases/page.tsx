@@ -6,13 +6,14 @@ import { motion } from "framer-motion";
 import AuthLayout from "@/components/layout/AuthLayout";
 import { api } from "@/lib/api";
 
-/* ── Palette (editorial / malvah-abstract) ─────────────────── */
-const PAPER = "#F2F0EB";
-const INK = "#16140F";
-const INK_SOFT = "#5C574E";
-const INK_FAINT = "#928C81";
-const RULE = "rgba(22,20,15,0.12)";
-const RIGHT = "#1F5C46";
+/* ── Palette (editorial / malvah-abstract) — theme-aware via tokens, so the
+   page follows light/dark like the rest of the app. ─────────────────────── */
+const PAPER = "var(--bg-primary)";
+const INK = "var(--text-primary)";
+const INK_SOFT = "var(--text-secondary)";
+const INK_FAINT = "var(--text-muted)";
+const RULE = "var(--border-color)";
+const RIGHT = "var(--success)";
 const EASE: [number, number, number, number] = [0.22, 1, 0.36, 1];
 
 interface CaseListItem {

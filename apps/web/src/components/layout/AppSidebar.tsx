@@ -109,7 +109,7 @@ export default function AppSidebar({ collapsed, onToggle }: AppSidebarProps) {
 
   return (
     <aside
-      className={`fixed top-0 left-0 z-40 flex h-screen flex-col border-r select-none ${collapsed && userMenuOpen ? "" : "overflow-hidden"}`}
+      className="fixed top-0 left-0 z-40 flex h-screen flex-col overflow-hidden border-r select-none"
 	      style={{
 	        background: "var(--surface-card)",
 	        borderColor: "var(--border-color)",
@@ -128,50 +128,32 @@ export default function AppSidebar({ collapsed, onToggle }: AppSidebarProps) {
           className={`flex items-center ${collapsed ? "justify-center" : "gap-2.5 overflow-hidden"}`}
           prefetch
         >
-          {collapsed && <BrandLogo compact size="md" />}
-          <AnimatePresence mode="wait">
-            {!collapsed && (
-              <motion.div
-                key="logo-text"
-                initial={{ opacity: 0, x: -8 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -8 }}
-                transition={{ duration: 0.15 }}
-              >
-                <BrandLogo size="lg" />
-              </motion.div>
-            )}
-          </AnimatePresence>
+          {collapsed ? <BrandLogo compact size="md" /> : <BrandLogo size="lg" />}
         </Link>
 
         {/* Collapse control — only when expanded */}
-        <AnimatePresence>
-          {!collapsed && (
-            <motion.button
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={onToggle}
-              className="ml-auto flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-colors"
-              style={{
-                color: "var(--text-muted)",
-                border: "1px solid var(--border-color)",
-                background: "var(--surface-card)",
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = "var(--bg-secondary)";
-                e.currentTarget.style.color = "var(--text-primary)";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = "var(--surface-card)";
-                e.currentTarget.style.color = "var(--text-muted)";
-              }}
-              aria-label="Свернуть панель"
-            >
-              <PanelLeftClose size={16} />
-            </motion.button>
-          )}
-        </AnimatePresence>
+        {!collapsed && (
+          <button
+            onClick={onToggle}
+            className="ml-auto flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-colors"
+            style={{
+              color: "var(--text-muted)",
+              border: "1px solid var(--border-color)",
+              background: "var(--surface-card)",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = "var(--bg-secondary)";
+              e.currentTarget.style.color = "var(--text-primary)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = "var(--surface-card)";
+              e.currentTarget.style.color = "var(--text-muted)";
+            }}
+            aria-label="Свернуть панель"
+          >
+            <PanelLeftClose size={16} />
+          </button>
+        )}
       </div>
 
       {/* ── Expand button when collapsed ─────────────── */}
@@ -252,7 +234,7 @@ export default function AppSidebar({ collapsed, onToggle }: AppSidebarProps) {
                 href={item.href}
                 prefetch
                 aria-current={active ? "page" : undefined}
-	                className="group relative flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium transition-all duration-150 overflow-hidden"
+	                className="group relative flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium transition-colors duration-150 overflow-hidden"
 	                style={{
 	                  color: active ? "var(--primary)" : "var(--text-secondary)",
 	                  background: active
@@ -260,7 +242,9 @@ export default function AppSidebar({ collapsed, onToggle }: AppSidebarProps) {
                       : "transparent",
                     border: active ? "1px solid color-mix(in srgb, var(--primary) 18%, var(--border-color))" : "1px solid transparent",
                     boxShadow: "none",
-	                  justifyContent: collapsed ? "center" : "flex-start",
+	                  // Иконка всегда у левого края (flex-start) — при сворачивании она
+	                  // НЕ ездит и не вылезает за границы рейла; label просто исчезает справа.
+	                  justifyContent: "flex-start",
 	                }}
                 onMouseEnter={(e) => {
                   if (!active) {
@@ -290,20 +274,7 @@ export default function AppSidebar({ collapsed, onToggle }: AppSidebarProps) {
                   className="shrink-0"
                   style={{ opacity: active ? 1 : 0.7 }}
                 />
-                <AnimatePresence mode="wait">
-                  {!collapsed && (
-                    <motion.span
-                      key={`nav-label-${item.href}`}
-                      initial={{ opacity: 0, x: -6 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      exit={{ opacity: 0, x: -6 }}
-                      transition={{ duration: 0.12 }}
-                      className="truncate"
-                    >
-                      {item.label}
-                    </motion.span>
-                  )}
-                </AnimatePresence>
+                {!collapsed && <span className="truncate">{item.label}</span>}
               </Link>
             );
           })}
@@ -368,31 +339,22 @@ export default function AppSidebar({ collapsed, onToggle }: AppSidebarProps) {
             fullName={displayName}
             size={32}
           />
-          <AnimatePresence mode="wait">
-            {!collapsed && (
-              <motion.div
-                key="user-info"
-                initial={{ opacity: 0, x: -6 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -6 }}
-                transition={{ duration: 0.12 }}
-                className="min-w-0 flex-1 text-left"
+          {!collapsed && (
+            <div className="min-w-0 flex-1 text-left">
+              <div
+                className="truncate text-sm font-semibold leading-tight"
+                style={{ color: "var(--text-primary)" }}
               >
-                <div
-                  className="truncate text-sm font-semibold leading-tight"
-                  style={{ color: "var(--text-primary)" }}
-                >
-                  {displayName}
-                </div>
-                <div
-                  className="truncate text-xs"
-                  style={{ color: "var(--text-muted)" }}
-                >
-                  {roleLabel}
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
+                {displayName}
+              </div>
+              <div
+                className="truncate text-xs"
+                style={{ color: "var(--text-muted)" }}
+              >
+                {roleLabel}
+              </div>
+            </div>
+          )}
           {!collapsed && (
             <motion.span
               animate={{ rotate: userMenuOpen ? 180 : 0 }}
@@ -414,15 +376,19 @@ export default function AppSidebar({ collapsed, onToggle }: AppSidebarProps) {
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 8, scale: 0.97 }}
               transition={{ duration: 0.15 }}
-              className={`absolute bottom-full mb-2 overflow-hidden rounded-xl border ${collapsed ? "left-2" : "left-3 right-3"}`}
+              className="overflow-hidden rounded-xl border"
               style={{
+                // fixed (а не absolute) — чтобы меню НЕ обрезалось overflow-hidden
+                // рейла. Раньше при закрытии оно клиппилось и мелькала
+                // «полузакрытая панель». Теперь exit-анимация проигрывается целиком.
+                position: "fixed",
+                bottom: 76,
+                left: 12,
+                width: collapsed ? 208 : sidebarWidth - 24,
                 background: "var(--surface-card)",
                 borderColor: "var(--border-color)",
                 boxShadow: "var(--shadow-lg)",
-                // Collapsed sidebar is only 68px wide — a left/right-anchored menu
-                // would squeeze the labels into a single vertical column. Give it a
-                // fixed width so it flies out beyond the rail and reads horizontally.
-                width: collapsed ? 208 : undefined,
+                zIndex: 50,
               }}
             >
               <div className="p-1.5">

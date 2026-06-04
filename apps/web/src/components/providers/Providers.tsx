@@ -28,8 +28,9 @@ export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <NextThemesProvider
       attribute="class"
-      defaultTheme="light"
-      enableSystem={false}
+      defaultTheme="system"
+      enableSystem
+      disableTransitionOnChange
       storageKey="vh-theme"
     >
       <NotificationWSProvider>

@@ -10,12 +10,13 @@
 import { useState, useEffect, useCallback, useRef, type ReactNode } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Save, Loader2, Check, Lock, ArrowRight, AlertCircle, CheckCircle, ChevronDown, type LucideIcon,
+  Save, Loader2, Check, Lock, ArrowRight, AlertCircle, CheckCircle, ChevronDown, Sparkles, type LucideIcon,
 } from "lucide-react";
 import {
   User as UserIcon, Palette, PaperPlaneTilt,
 } from "@phosphor-icons/react";
 import { useTheme } from "next-themes";
+import { useAssistantHidden } from "@/lib/assistantPrefs";
 import { api } from "@/lib/api";
 import { useAuth } from "@/hooks/useAuth";
 // useGamificationStore removed — gamification display cleaned up
@@ -193,8 +194,14 @@ function SettingsLabel({ children }: { children: ReactNode }) {
 export default function SettingsPage() {
   const { user } = useAuth();
   const { theme, setTheme } = useTheme();
+  const [assistantHidden, setAssistantHidden] = useAssistantHidden();
   const mountedRef = useRef(false);
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  // true только после реального изменения поля ПОЛЬЗОВАТЕЛЕМ. Гидрация значений
+  // из `user` НЕ поднимает флаг → автосейв не срабатывает «сам по себе» на
+  // загрузке (раньше из-за этого индикатор «Сохранение/Сохранено» висел вечно).
+  const dirtyRef = useRef(false);
+  const markDirty = useCallback(() => { dirtyRef.current = true; }, []);
 
   const [gender, setGender] = useState<string>("");
   const [roleTitle, setRoleTitle] = useState<string>("");
@@ -251,6 +258,7 @@ export default function SettingsPage() {
       if (specialization) prefs.specialization = specialization;
       await api.post("/users/me/preferences", prefs);
       useAuthStore.getState().updatePreferences(prefs);
+      dirtyRef.current = false;
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
     } catch (e) {
@@ -263,6 +271,7 @@ export default function SettingsPage() {
 
   useEffect(() => {
     if (!mountedRef.current || !user) return;
+    if (!dirtyRef.current) return; // нет правок пользователя → не сохраняем
     if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
     const timeout = setTimeout(() => { triggerAutosave(); }, 1500);
     saveTimeoutRef.current = timeout;
@@ -452,7 +461,7 @@ export default function SettingsPage() {
                       key={g.key}
                       active={gender === g.key}
                       label={g.label}
-                      onClick={() => setGender(g.key)}
+                      onClick={() => { markDirty(); setGender(g.key); }}
                       accent="#a78bfa"
                     />
                   ))}
@@ -461,17 +470,17 @@ export default function SettingsPage() {
 
               <SettingsCard>
                 <SettingsLabel>Должность</SettingsLabel>
-                <PixelInput value={roleTitle} onChange={setRoleTitle} placeholder="Менеджер" />
+                <PixelInput value={roleTitle} onChange={(v) => { markDirty(); setRoleTitle(v); }} placeholder="Менеджер" />
               </SettingsCard>
 
               <SettingsCard>
                 <SettingsLabel>Контакт</SettingsLabel>
-                <PixelInput value={primaryContact} onChange={setPrimaryContact} placeholder="Telegram / Phone" />
+                <PixelInput value={primaryContact} onChange={(v) => { markDirty(); setPrimaryContact(v); }} placeholder="Telegram / Phone" />
               </SettingsCard>
 
               <SettingsCard>
                 <SettingsLabel>Специализация</SettingsLabel>
-                <PixelInput value={specialization} onChange={setSpecialization} placeholder="HR, Продажи..." />
+                <PixelInput value={specialization} onChange={(v) => { markDirty(); setSpecialization(v); }} placeholder="HR, Продажи..." />
               </SettingsCard>
             </div>
           </SettingsSection>
@@ -498,6 +507,46 @@ export default function SettingsPage() {
                       />
                     ))}
                   </div>
+                )}
+              </SettingsCard>
+
+              <SettingsCard>
+                <SettingsLabel>Помощник Маняша</SettingsLabel>
+                {hydrated && (
+                  <button
+                    type="button"
+                    onClick={() => setAssistantHidden(!assistantHidden)}
+                    className="flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2.5 transition-colors"
+                    style={{ background: "var(--surface-card)", border: "1px solid var(--border-color)" }}
+                    aria-pressed={!assistantHidden}
+                  >
+                    <span className="flex items-center gap-2.5">
+                      <span
+                        className="flex h-8 w-8 items-center justify-center rounded-lg"
+                        style={{ background: "var(--primary-muted)", color: "var(--primary)" }}
+                      >
+                        <Sparkles size={15} />
+                      </span>
+                      <span className="text-left">
+                        <span className="block text-sm font-medium" style={{ color: "var(--text-primary)" }}>
+                          {assistantHidden ? "Скрыт" : "Показывать"}
+                        </span>
+                        <span className="block text-[12px]" style={{ color: "var(--text-muted)" }}>
+                          Плавающий чат-маскот на страницах
+                        </span>
+                      </span>
+                    </span>
+                    {/* Switch */}
+                    <span
+                      className="relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors"
+                      style={{ background: assistantHidden ? "var(--bg-tertiary)" : "var(--primary)" }}
+                    >
+                      <span
+                        className="inline-block h-5 w-5 rounded-full bg-white transition-transform"
+                        style={{ transform: assistantHidden ? "translateX(2px)" : "translateX(22px)", boxShadow: "var(--shadow-sm)" }}
+                      />
+                    </span>
+                  </button>
                 )}
               </SettingsCard>
             </div>

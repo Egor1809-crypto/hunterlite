@@ -30,6 +30,7 @@ import {
   useCallback,
   type CSSProperties,
 } from "react";
+import { useAssistantHidden } from "@/lib/assistantPrefs";
 
 export interface ChatMessage {
   role: "user" | "assistant";
@@ -117,132 +118,121 @@ const LS_CHAT = "manyasha.chat";
 
 const STYLE_ID = "manyasha-widget-styles";
 
-/** Все стили виджета — вшиваются в <head> один раз, переменные темы — через CSS-vars. */
+/**
+ * Стили виджета — вшиваются в <head> один раз. Полностью на токенах платформы
+ * (var(--surface-card), var(--text-primary), var(--primary)…), поэтому чат
+ * АВТОМАТИЧЕСКИ следует теме: светлый в светлой, тёмный в тёмной — без неона,
+ * циана и маженты. Маскот статичен (см. FrozenMascot), декоративное свечение
+ * и «сетка» убраны.
+ */
 function styleSheet(): string {
   return `
 .mnya-root { position: fixed; bottom: 24px; right: 24px; z-index: 50;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+  font-family: var(--font-geist-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
 .mnya-root * { box-sizing: border-box; }
 
 .mnya-window {
   position: absolute; right: 0;
-  background: linear-gradient(to bottom, color-mix(in srgb, var(--mnya-navy800) 98%, transparent), color-mix(in srgb, var(--mnya-navy900) 98%, transparent));
-  border: 1px solid color-mix(in srgb, var(--mnya-accent) 25%, transparent);
-  backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
-  border-radius: 24px; box-shadow: 0 25px 50px -12px rgba(0,0,0,.5);
+  background: var(--surface-card);
+  border: 1px solid var(--border-color);
+  border-radius: 20px; box-shadow: var(--shadow-lg);
   display: flex; flex-direction: column; overflow: hidden;
-  animation: mnya-fadeIn .25s cubic-bezier(.16,1,.3,1);
+  animation: mnya-fadeIn .22s cubic-bezier(.16,1,.3,1);
 }
 
-.mnya-resize { position: absolute; top: 0; left: 0; width: 24px; height: 24px; z-index: 20;
+.mnya-resize { position: absolute; top: 0; left: 0; width: 22px; height: 22px; z-index: 20;
   cursor: nwse-resize; display: flex; align-items: center; justify-content: center;
-  color: color-mix(in srgb, var(--mnya-accent) 50%, transparent); }
-.mnya-resize:hover { color: var(--mnya-accent); }
+  color: var(--text-muted); opacity: .45; }
+.mnya-resize:hover { opacity: 1; color: var(--text-secondary); }
 
 .mnya-header { position: relative; display: flex; align-items: center; gap: 12px;
-  padding: 14px 16px;
-  background: linear-gradient(to right, rgba(37,99,235,.30), color-mix(in srgb, var(--mnya-magenta) 20%, transparent), color-mix(in srgb, var(--mnya-accent) 15%, transparent));
-  border-bottom: 1px solid rgba(255,255,255,.10); flex-shrink: 0; }
-.mnya-grid { position: absolute; inset: 0; opacity: .3; pointer-events: none;
-  background-image: linear-gradient(color-mix(in srgb,var(--mnya-accent) 6%,transparent) 1px, transparent 1px),
-    linear-gradient(90deg, color-mix(in srgb,var(--mnya-accent) 6%,transparent) 1px, transparent 1px);
-  background-size: 28px 28px; }
-.mnya-avatar { position: relative; width: 44px; height: 44px; border-radius: 9999px; overflow: hidden;
-  box-shadow: 0 0 0 2px color-mix(in srgb,var(--mnya-accent) 40%,transparent); flex-shrink: 0;
-  background: var(--mnya-navy900); margin-left: 12px; }
+  padding: 14px 16px; background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-color); flex-shrink: 0; }
+.mnya-grid { display: none; }
+.mnya-avatar { position: relative; width: 40px; height: 40px; border-radius: 9999px; overflow: hidden;
+  box-shadow: 0 0 0 1px var(--border-color); flex-shrink: 0; background: var(--bg-tertiary); }
 .mnya-avatar-video {
   width: 100%; height: 100%; object-fit: cover; object-position: center;
   transform: scale(2.45) translateY(10%); transform-origin: 50% 42%;
   display: block; background: transparent;
 }
 .mnya-head-text { position: relative; flex: 1; min-width: 0; }
-.mnya-name { font-size: 14px; font-weight: 700; color: #fff; line-height: 1.2; margin: 0; }
-.mnya-status { font-size: 11px; color: color-mix(in srgb, #67e8f9 90%, transparent); font-weight: 500;
+.mnya-name { font-size: 14px; font-weight: 600; color: var(--text-primary); line-height: 1.2; margin: 0; }
+.mnya-status { font-size: 11px; color: var(--text-muted); font-weight: 500;
   display: flex; align-items: center; gap: 6px; margin: 0; }
 .mnya-dot { position: relative; display: flex; height: 6px; width: 6px; }
 .mnya-dot-ping { position: absolute; display: inline-flex; height: 100%; width: 100%; border-radius: 9999px;
-  background: var(--mnya-online); opacity: .75; animation: mnya-ping 1s cubic-bezier(0,0,.2,1) infinite; }
-.mnya-dot-core { position: relative; display: inline-flex; border-radius: 9999px; height: 6px; width: 6px; background: var(--mnya-online); }
-.mnya-close { position: relative; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;
-  color: #d1d5db; background: transparent; border: 0; border-radius: 9999px; cursor: pointer; transition: .2s; flex-shrink: 0; }
-.mnya-close:hover { color: #fff; background: rgba(255,255,255,.15); }
+  background: var(--success); opacity: .6; animation: mnya-ping 1.6s cubic-bezier(0,0,.2,1) infinite; }
+.mnya-dot-core { position: relative; display: inline-flex; border-radius: 9999px; height: 6px; width: 6px; background: var(--success); }
+.mnya-close { position: relative; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center;
+  color: var(--text-muted); background: transparent; border: 0; border-radius: 9999px; cursor: pointer; transition: .15s; flex-shrink: 0; }
+.mnya-close:hover { color: var(--text-primary); background: var(--bg-tertiary); }
 
-.mnya-msgs { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 16px; min-height: 0; }
-.mnya-greet { text-align: center; padding: 24px 0; }
-.mnya-greet-avatar { width: 64px; height: 64px; margin: 0 auto 12px; border-radius: 9999px; overflow: hidden;
-  box-shadow: 0 0 0 2px color-mix(in srgb,var(--mnya-accent) 30%,transparent); background: var(--mnya-navy900); }
+.mnya-msgs { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 14px; min-height: 0; background: var(--bg-primary); }
+.mnya-greet { text-align: center; padding: 20px 0; }
+.mnya-greet-avatar { width: 60px; height: 60px; margin: 0 auto 12px; border-radius: 9999px; overflow: hidden;
+  box-shadow: 0 0 0 1px var(--border-color); background: var(--bg-tertiary); }
 .mnya-greet-avatar .mnya-avatar-video { transform: scale(2.3) translateY(10%); }
-.mnya-greet-title { color: #fff; font-size: 14px; font-weight: 600; margin: 0; }
-.mnya-greet-sub { color: #9ca3af; font-size: 12px; margin: 6px auto 0; max-width: 240px; line-height: 1.5; }
-.mnya-quick { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 20px; }
-.mnya-quick button { padding: 8px 14px; font-size: 12px; background: rgba(255,255,255,.05);
-  border: 1px solid rgba(255,255,255,.10); color: #e5e7eb; border-radius: 9999px; cursor: pointer; transition: .2s; }
-.mnya-quick button:hover { border-color: color-mix(in srgb,var(--mnya-accent) 50%,transparent);
-  background: color-mix(in srgb,var(--mnya-accent) 10%,transparent); color: var(--mnya-accent); }
+.mnya-greet-title { color: var(--text-primary); font-size: 15px; font-weight: 600; margin: 0; }
+.mnya-greet-sub { color: var(--text-muted); font-size: 12px; margin: 6px auto 0; max-width: 240px; line-height: 1.5; }
+.mnya-quick { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 18px; }
+.mnya-quick button { padding: 8px 14px; font-size: 12px; background: var(--surface-card);
+  border: 1px solid var(--border-color); color: var(--text-secondary); border-radius: 9999px; cursor: pointer; transition: .15s; }
+.mnya-quick button:hover { border-color: var(--primary); background: var(--primary-muted); color: var(--primary); }
 
 .mnya-row { display: flex; align-items: flex-end; gap: 8px; justify-content: flex-start; }
 .mnya-row-user { justify-content: flex-end; }
-.mnya-msg-avatar { width: 28px; height: 28px; border-radius: 9999px; overflow: hidden;
-  box-shadow: 0 0 0 1px color-mix(in srgb,var(--mnya-accent) 30%,transparent); background: var(--mnya-navy900); flex-shrink: 0; }
+.mnya-msg-avatar { width: 26px; height: 26px; border-radius: 9999px; overflow: hidden;
+  box-shadow: 0 0 0 1px var(--border-color); background: var(--bg-tertiary); flex-shrink: 0; }
 .mnya-msg-avatar .mnya-avatar-video { transform: scale(2.55) translateY(10%); }
-.mnya-bubble { max-width: 78%; padding: 10px 14px; font-size: 14px; line-height: 1.5; box-shadow: 0 1px 2px rgba(0,0,0,.05); }
-.mnya-bubble-bot { background: rgba(255,255,255,.07); color: #f3f4f6;
-  border-radius: 16px; border-bottom-left-radius: 6px; border: 1px solid rgba(255,255,255,.05); }
-.mnya-bubble-user { background: linear-gradient(to bottom right, color-mix(in srgb,var(--mnya-accent) 30%,transparent), color-mix(in srgb,var(--mnya-accent) 15%,transparent));
-  color: var(--mnya-accent-soft); border-radius: 16px; border-bottom-right-radius: 6px;
-  border: 1px solid color-mix(in srgb,var(--mnya-accent) 20%,transparent); }
+.mnya-bubble { max-width: 80%; padding: 9px 13px; font-size: 14px; line-height: 1.5; }
+.mnya-bubble-bot { background: var(--surface-card); color: var(--text-primary);
+  border-radius: 14px; border-bottom-left-radius: 5px; border: 1px solid var(--border-color); }
+.mnya-bubble-user { background: var(--primary); color: #fff;
+  border-radius: 14px; border-bottom-right-radius: 5px; }
 
-.mnya-typing { background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.05);
-  padding: 12px 16px; border-radius: 16px; border-bottom-left-radius: 6px; }
+.mnya-typing { background: var(--surface-card); border: 1px solid var(--border-color);
+  padding: 11px 15px; border-radius: 14px; border-bottom-left-radius: 5px; }
 .mnya-typing .d { display: inline-flex; gap: 4px; }
-.mnya-typing .d span { width: 8px; height: 8px; background: color-mix(in srgb,#67e8f9 70%,transparent);
+.mnya-typing .d span { width: 7px; height: 7px; background: var(--text-muted);
   border-radius: 9999px; animation: mnya-bounce 1s infinite; }
 
-.mnya-input-area { padding: 12px; border-top: 1px solid rgba(255,255,255,.10);
-  background: color-mix(in srgb,var(--mnya-navy900) 40%,transparent); flex-shrink: 0; }
+.mnya-input-area { padding: 12px; border-top: 1px solid var(--border-color);
+  background: var(--surface-card); flex-shrink: 0; }
 .mnya-input-row { display: flex; gap: 8px; align-items: center; }
-.mnya-input { flex: 1; background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.10);
-  border-radius: 9999px; padding: 10px 16px; font-size: 14px; color: #fff; outline: none; transition: .2s; }
-.mnya-input::placeholder { color: #6b7280; }
-.mnya-input:focus { border-color: color-mix(in srgb,var(--mnya-accent) 50%,transparent); background: rgba(255,255,255,.08); }
+.mnya-input { flex: 1; background: var(--input-bg); border: 1px solid var(--input-border);
+  border-radius: 9999px; padding: 10px 16px; font-size: 14px; color: var(--text-primary); outline: none; transition: .15s; }
+.mnya-input::placeholder { color: var(--text-muted); }
+.mnya-input:focus { border-color: var(--primary); }
 .mnya-input:disabled { opacity: .5; }
 .mnya-send { width: 40px; height: 40px; display: flex; align-items: center; justify-content: center;
-  background: linear-gradient(to bottom right, var(--mnya-accent), var(--mnya-magenta));
-  color: #fff; border: 0; border-radius: 9999px; cursor: pointer; transition: .2s; flex-shrink: 0; }
-.mnya-send:hover:not(:disabled) { box-shadow: 0 0 18px rgba(0,207,255,.5); }
-.mnya-send:disabled { opacity: .3; cursor: not-allowed; }
+  background: var(--primary); color: #fff; border: 0; border-radius: 9999px; cursor: pointer; transition: .15s; flex-shrink: 0; }
+.mnya-send:hover:not(:disabled) { background: var(--primary-hover); }
+.mnya-send:disabled { opacity: .4; cursor: not-allowed; }
 .mnya-tg { display: flex; align-items: center; justify-content: center; gap: 8px;
-  margin-top: 10px; padding: 6px 0; font-size: 11px; color: #9ca3af; text-decoration: none; transition: .2s; }
-.mnya-tg:hover { color: #60a5fa; }
+  margin-top: 10px; padding: 6px 0; font-size: 11px; color: var(--text-muted); text-decoration: none; transition: .15s; }
+.mnya-tg:hover { color: var(--primary); }
 
 .mnya-mascot { position: relative; user-select: none; touch-action: none; }
-.mnya-size-btn { position: absolute; top: 4px; right: 4px; z-index: 10; width: 32px; height: 32px;
+.mnya-size-btn { position: absolute; top: 4px; right: 4px; z-index: 10; width: 30px; height: 30px;
   display: flex; align-items: center; justify-content: center;
-  background: color-mix(in srgb,var(--mnya-navy800) 90%,transparent);
-  border: 1px solid color-mix(in srgb,var(--mnya-accent) 30%,transparent); color: var(--mnya-accent);
-  border-radius: 9999px; cursor: pointer; transition: .2s; box-shadow: 0 10px 15px -3px rgba(0,0,0,.3); }
-.mnya-size-btn:hover { background: color-mix(in srgb,var(--mnya-accent) 20%,transparent); }
-.mnya-glow { position: absolute; left: 50%; transform: translateX(-50%); bottom: 6%;
-  width: 80%; height: 24%; pointer-events: none; z-index: 0; }
-.mnya-glow-a { position: absolute; left: 0; right: 0; bottom: 0; height: 100%;
-  background: color-mix(in srgb,var(--mnya-accent) 25%,transparent); filter: blur(40px); border-radius: 50%; }
-.mnya-glow-b { position: absolute; left: 20%; right: 20%; bottom: 0; height: 160%;
-  background: linear-gradient(to top, color-mix(in srgb,#67e8f9 30%,transparent), color-mix(in srgb,var(--mnya-accent) 10%,transparent), transparent);
-  filter: blur(6px); }
-.mnya-video-wrap { position: relative; z-index: 1; transition: filter .3s; cursor: grab; }
+  background: var(--surface-card); border: 1px solid var(--border-color); color: var(--text-secondary);
+  border-radius: 9999px; cursor: pointer; transition: .15s; box-shadow: var(--shadow-sm); opacity: 0; }
+.mnya-mascot:hover .mnya-size-btn { opacity: 1; }
+.mnya-size-btn:hover { color: var(--primary); border-color: var(--primary); }
+.mnya-glow, .mnya-glow-a, .mnya-glow-b { display: none; }
+.mnya-video-wrap { position: relative; z-index: 1; cursor: grab; }
 .mnya-video-wrap.dragging { cursor: grabbing; }
-.mnya-video-wrap:hover { filter: drop-shadow(0 0 24px rgba(0,207,255,.4)); }
 .mnya-video { width: 100%; height: auto; pointer-events: none; background: transparent; display: block; }
 
 .mnya-hint { position: absolute; top: -8px; left: 50%; transform: translate(-50%, -100%);
   pointer-events: none; z-index: 10; }
-.mnya-hint-box { position: relative; background: color-mix(in srgb,var(--mnya-navy800) 95%,transparent);
-  border: 1px solid color-mix(in srgb,var(--mnya-accent) 30%,transparent); backdrop-filter: blur(6px);
-  padding: 8px 12px; font-size: 12px; color: #e5e7eb; border-radius: 8px; white-space: nowrap; }
-.mnya-hint-tail { position: absolute; left: 50%; transform: translateX(-50%) rotate(45deg); bottom: -6px;
-  width: 10px; height: 10px; background: color-mix(in srgb,var(--mnya-navy800) 95%,transparent);
-  border-right: 1px solid color-mix(in srgb,var(--mnya-accent) 30%,transparent);
-  border-bottom: 1px solid color-mix(in srgb,var(--mnya-accent) 30%,transparent); }
+.mnya-hint-box { position: relative; background: var(--surface-card);
+  border: 1px solid var(--border-color); box-shadow: var(--shadow-md);
+  padding: 8px 12px; font-size: 12px; color: var(--text-primary); border-radius: 10px; white-space: nowrap; }
+.mnya-hint-tail { position: absolute; left: 50%; transform: translateX(-50%) rotate(45deg); bottom: -5px;
+  width: 9px; height: 9px; background: var(--surface-card);
+  border-right: 1px solid var(--border-color); border-bottom: 1px solid var(--border-color); }
 
 @media (max-width: 768px) {
   .mnya-root { right: 12px; bottom: 12px; }
@@ -270,6 +260,22 @@ function useInjectStyles() {
   }, []);
 }
 
+/**
+ * Замораживает видео-маскот на одном кадре (прозрачность webm сохраняется,
+ * в отличие от непрозрачного jpg-постера). autoPlay заставляет браузер
+ * декодировать и отрисовать кадр, после чего сразу ставим на паузу → маскот
+ * статичен, ничего не «дёргается».
+ */
+function freezeFrame(e: React.SyntheticEvent<HTMLVideoElement>) {
+  const v = e.currentTarget;
+  try {
+    v.pause();
+    v.currentTime = v.duration && isFinite(v.duration) ? Math.min(0.5, v.duration / 2) : 0.4;
+  } catch {
+    /* ignore */
+  }
+}
+
 function ManyashaAvatar({
   video,
   poster,
@@ -283,7 +289,6 @@ function ManyashaAvatar({
     <video
       src={video}
       poster={poster}
-      loop
       muted
       playsInline
       autoPlay
@@ -291,6 +296,8 @@ function ManyashaAvatar({
       draggable={false}
       className="mnya-avatar-video"
       aria-label={name}
+      onLoadedData={freezeFrame}
+      onPlay={(e) => { try { e.currentTarget.pause(); } catch { /* ignore */ } }}
     />
   );
 }
@@ -312,6 +319,7 @@ export default function ManyashaChat({ config, onSpeak }: Props) {
   const [hydrated, setHydrated] = useState(false);
   const [pathname, setPathname] = useState<string | null>(null);
   const [compactViewport, setCompactViewport] = useState(false);
+  const [assistantHidden] = useAssistantHidden();
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -491,7 +499,7 @@ export default function ManyashaChat({ config, onSpeak }: Props) {
     (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
   };
 
-  if (hideWidget) return null;
+  if (hideWidget || assistantHidden) return null;
 
   const rootStyle: CSSProperties = {
     transform: `translate(${pos.x}px, ${pos.y}px)`,
@@ -649,9 +657,11 @@ export default function ManyashaChat({ config, onSpeak }: Props) {
           <video
             src={cfg.mascotVideo}
             poster={cfg.mascotPoster}
-            loop muted playsInline autoPlay preload="auto"
+            muted playsInline autoPlay preload="auto"
             draggable={false}
             className="mnya-video"
+            onLoadedData={freezeFrame}
+            onPlay={(e) => { try { e.currentTarget.pause(); } catch { /* ignore */ } }}
           />
         </div>
 

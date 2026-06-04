@@ -15,6 +15,12 @@ import {
   Zap,
   RefreshCw,
   Tag,
+  ClipboardList,
+  Scale,
+  Target,
+  Gavel,
+  User,
+  Users,
 } from "lucide-react";
 import AuthLayout from "@/components/layout/AuthLayout";
 import { KnowledgeBaseBrowser } from "@/components/pvp/KnowledgeBaseBrowser";
@@ -26,12 +32,12 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { AbstractBackdrop } from "@/components/ui/AbstractBackdrop";
 
 const QUICK_TOPICS = [
-  { title: "Процедуры банкротства", icon: "📋", description: "Наблюдение, реструктуризация, конкурсное производство", category: "procedure" },
-  { title: "Оспаривание сделок", icon: "⚖️", description: "Ст. 61.2, ст. 61.3 — подозрительные и преференциальные", category: "property" },
-  { title: "Субсидиарная ответственность", icon: "🎯", description: "КДЛ, доказывание, размер ответственности", category: "consequences" },
-  { title: "Торги и реализация", icon: "🔨", description: "Порядок проведения, оспаривание результатов", category: "costs" },
-  { title: "Банкротство физлиц", icon: "👤", description: "Процедура, ограничения, списание долгов", category: "eligibility" },
-  { title: "Работа с кредиторами", icon: "👥", description: "Реестр, собрания, голосование, очерёдность", category: "creditors" },
+  { title: "Процедуры банкротства", icon: ClipboardList, description: "Наблюдение, реструктуризация, конкурсное производство", category: "procedure" },
+  { title: "Оспаривание сделок", icon: Scale, description: "Ст. 61.2, ст. 61.3 — подозрительные и преференциальные", category: "property" },
+  { title: "Субсидиарная ответственность", icon: Target, description: "КДЛ, доказывание, размер ответственности", category: "consequences" },
+  { title: "Торги и реализация", icon: Gavel, description: "Порядок проведения, оспаривание результатов", category: "costs" },
+  { title: "Банкротство физлиц", icon: User, description: "Процедура, ограничения, списание долгов", category: "eligibility" },
+  { title: "Работа с кредиторами", icon: Users, description: "Реестр, собрания, голосование, очерёдность", category: "creditors" },
 ];
 
 interface KnowledgeStats {
@@ -231,6 +237,7 @@ export default function KnowledgePage() {
                 <div className="mb-10 grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4">
                   {QUICK_TOPICS.map((topic) => {
                     const active = selectedCategory === topic.category;
+                    const TopicIcon = topic.icon;
                     return (
                     <Card key={topic.title} variant="interactive" accentTop={active} role="button" tabIndex={0}
                       aria-pressed={active}
@@ -240,7 +247,12 @@ export default function KnowledgePage() {
                       style={{ height: "100%", borderColor: active ? "var(--primary)" : "var(--border-color)", background: active ? "var(--primary-muted)" : "var(--surface-card)" }}
                     >
                       <div className="mb-3 flex items-start justify-between">
-                        <span className="text-2xl leading-none">{topic.icon}</span>
+                        <span
+                          className="flex h-10 w-10 items-center justify-center rounded-xl"
+                          style={{ background: active ? "var(--surface-card)" : "var(--primary-muted)", border: "1px solid var(--border-color)" }}
+                        >
+                          <TopicIcon size={20} style={{ color: "var(--primary)" }} />
+                        </span>
                         <ArrowRight size={14} className={`transition-opacity ${active ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`} style={{ color: "var(--primary)" }} />
                       </div>
                       <h4 className="text-[15px] font-semibold leading-snug tracking-tight" style={{ color: "var(--text-primary)" }}>{topic.title}</h4>

@@ -6,18 +6,19 @@ import { motion, Reorder } from "framer-motion";
 import AuthLayout from "@/components/layout/AuthLayout";
 import { api } from "@/lib/api";
 
-/* ── Palette (editorial / malvah-abstract) ─────────────────── */
-const PAPER = "#F2F0EB";
-const PAPER_RAISED = "#FBFAF7";
-const INK = "#16140F";
-const INK_SOFT = "#5C574E";
-const INK_FAINT = "#928C81";
-const RULE = "rgba(22,20,15,0.14)";
-const RULE_SOFT = "rgba(22,20,15,0.07)";
-const BRAND = "#7C3AED"; // сиреневый — прогресс, акценты
-const BRAND_SOFT = "rgba(124,58,237,0.10)";
-const RIGHT = "#1F5C46"; // deep green
-const WRONG = "#9A3528"; // brick
+/* ── Palette (editorial / malvah-abstract) — theme-aware via tokens, so the
+   page follows light/dark like the rest of the app. ─────────────────────── */
+const PAPER = "var(--bg-primary)";
+const PAPER_RAISED = "var(--surface-card)";
+const INK = "var(--text-primary)";
+const INK_SOFT = "var(--text-secondary)";
+const INK_FAINT = "var(--text-muted)";
+const RULE = "var(--border-color)";
+const RULE_SOFT = "var(--border-color)";
+const BRAND = "var(--primary)"; // акцент — прогресс
+const BRAND_SOFT = "var(--primary-muted)";
+const RIGHT = "var(--success)"; // зелёный — верно
+const WRONG = "var(--danger)"; // ошибка
 const EASE: [number, number, number, number] = [0.22, 1, 0.36, 1];
 
 /* ── Types (mirror backend contract) ───────────────────────── */
@@ -768,7 +769,7 @@ function Stage2({
                 value={item}
                 className="cursor-grab active:cursor-grabbing"
                 style={{ background: PAPER_RAISED, border: `1px solid ${RULE}`, borderRadius: 8 }}
-                whileDrag={{ scale: 1.015, boxShadow: "0 8px 24px rgba(22,20,15,0.12)" }}
+                whileDrag={{ scale: 1.015, boxShadow: "var(--shadow-md)" }}
               >
                 <div className="flex items-center gap-4 px-5 py-4">
                   <span
@@ -851,7 +852,7 @@ function Stage2Review({ submit, onFinish, busy }: { submit: SubmitResponse; onFi
 
       <div className="mt-3 space-y-px" style={{ background: RULE_SOFT }}>
         {submit.feedback.map((f) => {
-          const tone = f.is_distractor ? WRONG : f.placed_correctly ? RIGHT : "#B8791F";
+          const tone = f.is_distractor ? WRONG : f.placed_correctly ? RIGHT : "var(--warning)";
           const tag = f.is_distractor ? "ЛИШНИЙ" : f.placed_correctly ? "ВЕРНО" : "НЕ ТА ПОЗИЦИЯ";
           return (
             <div key={f.id} style={{ background: PAPER }} className="py-5">

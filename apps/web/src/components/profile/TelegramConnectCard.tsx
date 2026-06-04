@@ -55,8 +55,12 @@ export function TelegramConnectCard() {
     <div
       className="relative overflow-hidden rounded-2xl"
       style={{
-        background: `linear-gradient(135deg, rgba(${TG_BLUE},0.08), rgba(${TG_BLUE},0.02))`,
-        border: `1px solid rgba(${TG_BLUE},0.22)`,
+        // Solid surface (token-based) — раньше плашка была полупрозрачной
+        // (rgba TG-blue 0.08→0.02) и «протекала» сквозь фон страницы в тёмной
+        // теме. Телеграм-синий оставляем только на иконке и кнопке как акцент.
+        background: "var(--surface-card)",
+        border: "1px solid var(--border-color)",
+        boxShadow: "var(--shadow-sm)",
       }}
     >
       <div className="flex items-center gap-4 p-5">
