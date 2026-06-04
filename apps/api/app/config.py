@@ -125,6 +125,19 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("EXAM_MODEL"),
     )
     local_llm_persona_model: str = ""
+    # 2026-06-04: model-level fallback chain on navy.api. The primary model
+    # (``local_llm_model``, deepseek-v4-pro) is a reasoning model that
+    # occasionally lags or 500s. When a request to the primary fails/times out,
+    # ``_call_with_backoff`` retries the SAME request against these models in
+    # order (first healthy answer wins, response flagged ``is_fallback``).
+    # gpt-5.5 rejects non-default temperature, so ``_call_navy`` omits the
+    # temperature param for gpt-5.x models. Empty string = no fallback (legacy
+    # retry-primary-only behaviour). Verified live on navy.api 2026-06-04:
+    # gemini-3.5-flash ✓ (~1.4s), gpt-5.5 ✓ (needs default temp).
+    local_llm_fallback_models: str = Field(
+        default="gpt-5.5,gemini-3.5-flash",
+        validation_alias=AliasChoices("NAVY_LLM_FALLBACK_MODELS"),
+    )
     # Context window of the local LLM — controls when auto-router pushes to cloud.
     # 128K fits Claude/GPT-4/Gemini Pro via navy.api. Set to 6000 for local Gemma 4 (limited).
     local_llm_context_window: int = 128000
