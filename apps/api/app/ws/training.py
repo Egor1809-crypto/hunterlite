@@ -6727,25 +6727,18 @@ async def training_websocket(websocket: WebSocket) -> None:
 
     # FIX P2: health-check STT provider instead of just checking config
     async def _check_stt_available() -> bool:
+        # 2026-06-06: РАНЬШЕ здесь был GET /v1/models как health-probe. Он
+        # флапает (таймаут/холодный старт/разовый не-200) и давал ложный
+        # stt_available=false → фронт ОТКЛЮЧАЛ микрофон в чате (handleMicPress
+        # гейтит на sttAvailable, кнопка disabled), хотя сама транскрипция через
+        # navy /v1/audio/transcriptions РАБОТАЕТ. Доверяем конфигу: есть
+        # провайдер + ключ = доступно. Реальные сбои ловятся в рантайме
+        # (stt.unavailable), не блокируя ввод заранее.
         if settings.deepgram_api_key:
-            return True  # Deepgram streaming — always available if key set
-        if not settings.whisper_url:
-            return False
-        try:
-            _base = settings.whisper_url.rstrip("/")
-            if _base.endswith("/v1"):
-                _base = _base[:-3]
-            _headers = {}
-            if settings.whisper_api_key:
-                _headers["Authorization"] = f"Bearer {settings.whisper_api_key}"
-            # 2026-04-22: 3.0 → 10.0s. Whisper model cold-start takes 6-10s
-            # after idle unload; 3s default reported stt_available=false
-            # until the model was warmed by a failed request.
-            async with httpx.AsyncClient(timeout=10.0) as _c:
-                _r = await _c.get(f"{_base}/v1/models", headers=_headers)
-                return _r.status_code == 200
-        except Exception:
-            return False
+            return True
+        if settings.whisper_url and (settings.whisper_api_key or settings.local_llm_api_key):
+            return True
+        return bool(settings.whisper_url)
 
     try:
         stt_ok = await _check_stt_available()
