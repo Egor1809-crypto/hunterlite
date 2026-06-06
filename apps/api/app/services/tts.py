@@ -1436,30 +1436,29 @@ async def get_tts_audio_b64(
     factors = [HumanFactor.from_dict(f) for f in (active_factors or [])]
     pad = PADState.from_dict(pad_state)
 
-    # Ensure voice is assigned
-    if client_story_id and str(client_story_id) not in _story_voice_cache:
-        # Try session fallback
-        assignment = get_session_assignment(session_id)
-        if not assignment:
-            try:
-                pick_voice_for_session(session_id)
-                assignment = get_session_assignment(session_id)
-            except TTSError:
-                return None
+    # Ensure voice is assigned. ElevenLabs needs a per-session voice_id;
+    # navy-only setups (no ElevenLabs voices configured) make
+    # pick_voice_for_session raise TTSError("No ElevenLabs voices configured").
+    # That is NOT fatal: navy TTS uses its own voice (settings.navy_tts_voice),
+    # so fall through with voice_id=None instead of returning None.
+    #
+    # 2026-06-06 BUGFIX: previously this returned None on that TTSError, so on
+    # navy-only deployments EVERY call to get_tts_audio_b64 was silent — the
+    # WS handler never emitted tts.audio and users heard nothing on voice
+    # calls, even though _synthesize_navy itself works fine. synthesize_speech
+    # routes voice_id=None straight to the navy-primary path.
+    if client_story_id and str(client_story_id) in _story_voice_cache:
+        assignment = _story_voice_cache.get(str(client_story_id))
     else:
-        assignment = (
-            _story_voice_cache.get(str(client_story_id))
-            if client_story_id
-            else get_session_assignment(session_id)
-        )
-        if not assignment:
-            try:
-                pick_voice_for_session(session_id)
-                assignment = get_session_assignment(session_id)
-            except TTSError:
-                return None
+        assignment = get_session_assignment(session_id)
+    if not assignment:
+        try:
+            pick_voice_for_session(session_id)
+            assignment = get_session_assignment(session_id)
+        except TTSError:
+            assignment = None  # navy-only — no ElevenLabs voice to assign
 
-    voice_id = assignment["voice_id"]
+    voice_id = assignment["voice_id"] if assignment else None
 
     # Calculate modulated params (full pipeline)
     params = get_modulated_params(session_id, emotion, factors, pad, client_story_id)
