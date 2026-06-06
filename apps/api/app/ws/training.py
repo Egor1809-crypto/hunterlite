@@ -1972,12 +1972,21 @@ async def _generate_character_reply(
                     })
                     _chunk_buffer = ""
 
-                # Streaming TTS — launch synth on sentence boundary
+                # Streaming TTS — launch synth on sentence boundary.
+                # 2026-06-06 (latency): для ПЕРВОЙ озвучки хода режем раньше —
+                # по первому клаузу (запятая/тире/двоеточие), чтобы первый звук
+                # ИИ пошёл быстрее (не ждём конца длинного предложения).
+                _buf_r = _tts_sentence_buffer.rstrip()
+                _sentence_end = bool(_buf_r) and _buf_r[-1] in ".!?…"
+                _first_clause = (
+                    not _stream_tts_used
+                    and len(_buf_r) >= 20
+                    and (_buf_r[-1] in ",—–:;")
+                )
                 if (
                     _tts_stream_enabled
                     and not _tts_disabled_due_to_error
-                    and _tts_sentence_buffer.rstrip()
-                    and _tts_sentence_buffer.rstrip()[-1] in ".!?…"
+                    and (_sentence_end or _first_clause)
                 ):
                     # Clean stage directions inline (may span tokens, so strip the whole buffer)
                     _clean_sent = _STAGE_DIR_RE.sub("", _tts_sentence_buffer).strip()
