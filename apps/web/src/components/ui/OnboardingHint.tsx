@@ -135,7 +135,7 @@ export function OnboardingHint({
                 style={{ borderBottom: "1px solid var(--border-color)" }}
               >
                 <span
-                  className="font-mono text-sm tabular-nums pt-0.5"
+                  className="w-6 shrink-0 whitespace-nowrap pt-0.5 font-mono text-sm tabular-nums"
                   style={{ color: "var(--text-muted)" }}
                   aria-hidden
                 >

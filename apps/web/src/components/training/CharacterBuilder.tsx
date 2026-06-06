@@ -5,9 +5,10 @@ import { useRouter } from "next/navigation";
 import { logger } from "@/lib/logger";
 
 import { useNotificationStore } from "@/stores/useNotificationStore";
-import { Loader2, Lock, MessageCircle, Phone, ChevronLeft, ChevronDown, ArrowRight } from "lucide-react";
+import { Loader2, Lock, MessageCircle, Phone, ChevronLeft, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { OnboardingHint } from "@/components/ui/OnboardingHint";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/Select";
 import { api, ApiError } from "@/lib/api";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -113,7 +114,7 @@ export default function CharacterBuilder({ onGoToTests }: CharacterBuilderProps)
   const [selectedSlug, setSelectedSlug] = useState<string | null>(null);
   const [difficultyFilter, setDifficultyFilter] = useState<Difficulty | null>(null);
   const [archetypeFilter, setArchetypeFilter] = useState<string | null>(null);
-  const [starting, setStarting] = useState(false);
+  const [startingMode, setStartingMode] = useState<"chat" | "call" | null>(null);
 
   useEffect(() => {
     if (unlocked !== true) return;
@@ -175,7 +176,7 @@ export default function CharacterBuilder({ onGoToTests }: CharacterBuilderProps)
   // строя custom_params (включая persona_brief = client_brief → досье в AI).
   const handleStart = async (sessionMode: "chat" | "call") => {
     if (!selected) return;
-    setStarting(true);
+    setStartingMode(sessionMode);
     try {
       const session = await api.post("/training/sessions", {
         reference_persona_slug: selected.slug,
@@ -218,7 +219,7 @@ export default function CharacterBuilder({ onGoToTests }: CharacterBuilderProps)
       ) {
         setUnlockHint((err.detail as { message?: string }).message || "");
         setUnlocked(false);
-        setStarting(false);
+        setStartingMode(null);
         return;
       }
       useNotificationStore.getState().addToast({
@@ -226,7 +227,7 @@ export default function CharacterBuilder({ onGoToTests }: CharacterBuilderProps)
         body: err instanceof Error ? err.message : "Не удалось создать сессию",
         type: "error",
       });
-      setStarting(false);
+      setStartingMode(null);
     }
   };
 
@@ -343,16 +344,16 @@ export default function CharacterBuilder({ onGoToTests }: CharacterBuilderProps)
             <Button
               variant="primary"
               onClick={() => handleStart("chat")}
-              disabled={starting}
-              loading={starting}
+              disabled={startingMode !== null}
+              loading={startingMode === "chat"}
               icon={<MessageCircle size={16} />}
             >
               Чат
             </Button>
             <Button
               onClick={() => handleStart("call")}
-              disabled={starting}
-              loading={starting}
+              disabled={startingMode !== null}
+              loading={startingMode === "call"}
               icon={<Phone size={16} />}
               style={{ borderColor: "var(--accent)", color: "var(--accent)", background: "var(--accent-muted)" }}
             >
@@ -438,28 +439,20 @@ export default function CharacterBuilder({ onGoToTests }: CharacterBuilderProps)
               );
             })}
             {archetypeOptions.length > 1 && (
-              <div className="relative">
-                <select
-                  value={archetypeFilter ?? ""}
-                  onChange={(e) => setArchetypeFilter(e.target.value || null)}
-                  className="appearance-none cursor-pointer rounded-full pl-3.5 pr-9 py-1.5 text-xs font-medium outline-none"
-                  style={{
-                    background: "transparent",
-                    color: archetypeFilter ? "var(--accent)" : "var(--text-muted)",
-                    border: `1px solid ${archetypeFilter ? "var(--accent)" : "var(--border-color)"}`,
-                  }}
-                >
-                  <option value="">Любой характер</option>
+              <Select
+                value={archetypeFilter ?? "__all__"}
+                onValueChange={(v) => setArchetypeFilter(v === "__all__" ? null : v)}
+              >
+                <SelectTrigger className="h-auto w-auto min-w-[160px] gap-2 px-3.5 py-1.5 text-xs font-medium">
+                  <SelectValue placeholder="Любой характер" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__all__">Любой характер</SelectItem>
                   {archetypeOptions.map((a) => (
-                    <option key={a.code} value={a.code}>{a.label}</option>
+                    <SelectItem key={a.code} value={a.code}>{a.label}</SelectItem>
                   ))}
-                </select>
-                <ChevronDown
-                  size={13}
-                  className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2"
-                  style={{ color: archetypeFilter ? "var(--accent)" : "var(--text-muted)" }}
-                />
-              </div>
+                </SelectContent>
+              </Select>
             )}
           </div>
           <p className="font-mono text-[11px] uppercase tracking-[0.14em]" style={{ color: "var(--text-muted)" }}>
@@ -495,10 +488,10 @@ export default function CharacterBuilder({ onGoToTests }: CharacterBuilderProps)
             >
               {/* Верхняя строка: индекс + индикатор сложности (точка + mono-лейбл). */}
               <div className="flex items-center justify-between">
-                <span className="font-mono text-[11px] tabular-nums tracking-widest" style={{ color: "var(--text-muted)" }}>
+                <span className="shrink-0 whitespace-nowrap font-mono text-[11px] tabular-nums tracking-widest" style={{ color: "var(--text-muted)" }}>
                   {String(i + 1).padStart(2, "0")}
                 </span>
-                <span className="inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.14em]" style={{ color: dm.tone }}>
+                <span className="shrink-0 whitespace-nowrap inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.14em]" style={{ color: dm.tone }}>
                   <span className="h-1.5 w-1.5 rounded-full" style={{ background: dm.tone }} aria-hidden />
                   {dm.label}
                 </span>

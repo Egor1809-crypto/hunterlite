@@ -2414,6 +2414,10 @@ async def generate_recommendations(
             "Тон спокойный, без продажного жаргона. Пиши на русском."
         )
 
+        # 2026-06-05 (latency): рекомендации — блокирующий шаг перед /results
+        # (пользователь ждёт). Уводим на быструю модель (gemini-3.5-flash, ~2с)
+        # вместо медленного reasoning-дефолта. Пустой override → дефолт.
+        _fast_model = (settings.local_llm_persona_model or "").strip() or None
         result = await generate_response(
             system_prompt=system_prompt,
             messages=[{
@@ -2422,7 +2426,8 @@ async def generate_recommendations(
             }],
             emotion_state="cold",
             task_type="coach",
-            prefer_provider="cloud",
+            prefer_provider="local",
+            model_override=_fast_model,
         )
         if result and result.content and len(result.content) > 20:
             return result.content  # LLM succeeded — use richer response
