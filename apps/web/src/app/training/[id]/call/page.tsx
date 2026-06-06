@@ -827,7 +827,12 @@ export default function TrainingCallPage() {
           break;
 
         case "character.response": {
-          const text = (data.data.text as string) || "";
+          // 2026-06-06 FIX: payload carries `content`, не `text` — из-за этого
+          // браузерный fallback НЕ планировался, и при зависании navy TTS звука
+          // не было вовсе. Теперь читаем content → если navy не пришлёт аудио,
+          // через 2.5с реплику озвучит браузерный голос (cancelFallback в
+          // обработчиках tts.audio/_chunk отменяет его, когда navy успел).
+          const text = (data.data.content as string) || (data.data.text as string) || "";
           if (text) tts.scheduleFallback(text, 2500);
           if (data.data.emotion) s.setEmotion(data.data.emotion as EmotionState);
           break;

@@ -1858,8 +1858,11 @@ async def _generate_character_reply(
                 Hard timeout prevents a slow TTS provider from hanging the session.
                 """
                 try:
-                    # Per-sentence budget = ElevenLabs timeout + 2s grace (covers Navy fallback)
-                    _sent_budget = float(settings.elevenlabs_timeout_seconds) + 2.0
+                    # 2026-06-06: жёсткий короткий бюджет на синтез предложения.
+                    # navy TTS в норме ~1-2с, но иногда зависает >12с — раньше это
+                    # морозило весь ход и аудио терялось. Теперь fail-fast (5с):
+                    # если navy не успел, фронт озвучит текст браузерным голосом.
+                    _sent_budget = 5.0
                     r = await asyncio.wait_for(
                         get_tts_audio_b64(
                             _text, str(session_id),
