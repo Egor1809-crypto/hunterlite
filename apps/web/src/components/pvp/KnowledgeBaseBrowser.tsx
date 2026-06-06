@@ -23,7 +23,6 @@ import {
   Check,
   BookOpen,
   AlertTriangle,
-  Sparkles,
   ChevronDown,
   ChevronUp,
 } from "lucide-react";
@@ -86,11 +85,11 @@ function CopyButton({ text }: { text: string }) {
           /* ignore */
         }
       }}
-      className="inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[10px] uppercase tracking-wide transition-colors"
+      className="inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] uppercase tracking-wide transition-colors"
       style={{
-        background: copied ? "rgba(34,197,94,0.18)" : "rgba(255,255,255,0.06)",
+        background: copied ? "var(--success-muted)" : "var(--bg-tertiary)",
         color: copied ? "var(--success)" : "var(--text-muted)",
-        border: "1px solid rgba(255,255,255,0.08)",
+        border: "1px solid var(--border-color)",
       }}
       title="Скопировать"
     >
@@ -120,28 +119,28 @@ function ChunkCard({ chunk }: { chunk: RagChunk }) {
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1.5 flex-wrap">
             <span
-              className="font-medium text-[10px] uppercase tracking-wide px-1.5 py-0.5"
+              className="font-medium text-[11px] uppercase tracking-wide px-1.5 py-0.5"
               style={{
-                color: "var(--accent)",
-                background: "color-mix(in srgb, var(--accent) 12%, transparent)",
-                border: "1px solid color-mix(in srgb, var(--accent) 30%, transparent)",
+                color: "var(--primary)",
+                background: "color-mix(in srgb, var(--primary) 12%, transparent)",
+                border: "1px solid color-mix(in srgb, var(--primary) 30%, transparent)",
               }}
             >
               {catLabel}
             </span>
             <span
-              className="font-mono text-[10px] uppercase tracking-wide"
+              className="font-mono text-[11px] uppercase tracking-wide"
               style={{ color: "var(--text-muted)" }}
             >
               сложность {chunk.difficulty}/5
             </span>
             {chunk.is_court_practice && (
               <span
-                className="font-mono text-[10px] uppercase tracking-wide px-1.5 py-0.5"
+                className="font-mono text-[11px] uppercase tracking-wide px-1.5 py-0.5"
                 style={{
-                  color: "#a78bfa",
-                  background: "rgba(167,139,250,0.12)",
-                  border: "1px solid rgba(167,139,250,0.3)",
+                  color: "var(--primary)",
+                  background: "var(--primary-muted)",
+                  border: "1px solid color-mix(in srgb, var(--primary) 30%, transparent)",
                 }}
               >
                 судебная практика
@@ -158,7 +157,7 @@ function ChunkCard({ chunk }: { chunk: RagChunk }) {
             className="mt-1 text-xs font-mono"
             style={{ color: "var(--text-muted)" }}
           >
-            📑 {chunk.law_article}
+            {chunk.law_article}
           </div>
         </div>
         <span className="shrink-0 mt-1" style={{ color: "var(--text-muted)" }}>
@@ -169,18 +168,18 @@ function ChunkCard({ chunk }: { chunk: RagChunk }) {
       {expanded && (
         <div
           className="px-4 pb-4 space-y-3 border-t"
-          style={{ borderColor: "rgba(255,255,255,0.06)" }}
+          style={{ borderColor: "var(--border-color)" }}
         >
           {/* Full fact text */}
           <Section
-            label="📖 Факт целиком"
+            label="Факт целиком"
             content={chunk.fact_text}
             copyText={chunk.fact_text}
           />
 
           {/* Article */}
           <Section
-            label="📑 Статья"
+            label="Статья"
             content={chunk.law_article}
             copyText={chunk.law_article}
           />
@@ -188,7 +187,7 @@ function ChunkCard({ chunk }: { chunk: RagChunk }) {
           {/* Correct response hint */}
           {chunk.correct_response_hint && (
             <Section
-              label="✓ Эталонный ответ (correct_response_hint)"
+              label="Эталонный ответ"
               content={chunk.correct_response_hint}
               copyText={chunk.correct_response_hint}
               accent="var(--success)"
@@ -199,7 +198,7 @@ function ChunkCard({ chunk }: { chunk: RagChunk }) {
           {chunk.common_errors.length > 0 && (
             <div>
               <Header
-                label="⚠ Распространённые ошибки (common_errors)"
+                label="Частые ошибки"
                 accent="var(--warning)"
               />
               <ul className="mt-1.5 space-y-1">
@@ -233,12 +232,12 @@ function ChunkCard({ chunk }: { chunk: RagChunk }) {
                 className="font-medium text-[11px] uppercase tracking-wide mb-2"
                 style={{ color: "var(--warning)" }}
               >
-                ⚡ БЛИЦ Q&A
+                Блиц Q&A
               </div>
               {chunk.blitz_question && (
                 <div className="mb-2">
                   <div
-                    className="text-[10px] uppercase tracking-wide mb-0.5"
+                    className="text-[11px] uppercase tracking-wide mb-0.5"
                     style={{ color: "var(--text-muted)" }}
                   >
                     Вопрос
@@ -252,7 +251,7 @@ function ChunkCard({ chunk }: { chunk: RagChunk }) {
               {chunk.blitz_answer && (
                 <div>
                   <div
-                    className="text-[10px] uppercase tracking-wide mb-0.5"
+                    className="text-[11px] uppercase tracking-wide mb-0.5"
                     style={{ color: "var(--text-muted)" }}
                   >
                     Эталонный ответ
@@ -269,7 +268,7 @@ function ChunkCard({ chunk }: { chunk: RagChunk }) {
           {/* Question templates */}
           {chunk.question_templates.length > 0 && (
             <div>
-              <Header label="📝 Заготовленные вопросы (question_templates)" accent="var(--accent)" />
+              <Header label="Вопросы" accent="var(--primary)" />
               <ul className="mt-1.5 space-y-1">
                 {chunk.question_templates.map((tmpl, i) => {
                   const text = typeof tmpl === "string" ? tmpl : tmpl?.text || "";
@@ -281,11 +280,11 @@ function ChunkCard({ chunk }: { chunk: RagChunk }) {
                       style={{ color: "var(--text-secondary)" }}
                     >
                       <span>
-                        <span style={{ color: "var(--accent)" }}>{i + 1}. </span>
+                        <span style={{ color: "var(--primary)" }}>{i + 1}. </span>
                         {text}
                         {typeof tmpl === "object" && tmpl.difficulty && (
                           <span
-                            className="ml-2 text-[10px]"
+                            className="ml-2 text-[11px]"
                             style={{ color: "var(--text-muted)" }}
                           >
                             (D{tmpl.difficulty})
@@ -303,7 +302,7 @@ function ChunkCard({ chunk }: { chunk: RagChunk }) {
           {/* Follow-up questions */}
           {chunk.follow_up_questions.length > 0 && (
             <div>
-              <Header label="↻ Углубляющие вопросы (follow_up)" accent="#60a5fa" />
+              <Header label="Углубляющие вопросы" accent="var(--primary)" />
               <ul className="mt-1.5 space-y-1">
                 {chunk.follow_up_questions.map((q, i) => (
                   <li
@@ -312,7 +311,7 @@ function ChunkCard({ chunk }: { chunk: RagChunk }) {
                     style={{ color: "var(--text-secondary)" }}
                   >
                     <span>
-                      <span style={{ color: "#60a5fa" }}>{i + 1}. </span>
+                      <span style={{ color: "var(--primary)" }}>{i + 1}. </span>
                       {q}
                     </span>
                     <CopyButton text={q} />
@@ -325,15 +324,15 @@ function ChunkCard({ chunk }: { chunk: RagChunk }) {
           {/* Match keywords */}
           {chunk.match_keywords.length > 0 && (
             <div>
-              <Header label="🔑 Ключевые слова (match_keywords)" accent="var(--text-muted)" />
+              <Header label="Ключевые слова" accent="var(--text-muted)" />
               <div className="mt-1.5 flex flex-wrap gap-1.5 pl-3">
                 {chunk.match_keywords.map((kw, i) => (
                   <span
                     key={i}
                     className="font-mono text-[11px] px-1.5 py-0.5 rounded"
                     style={{
-                      background: "rgba(255,255,255,0.05)",
-                      border: "1px solid rgba(255,255,255,0.08)",
+                      background: "var(--bg-tertiary)",
+                      border: "1px solid var(--border-color)",
                       color: "var(--text-secondary)",
                     }}
                   >
@@ -347,20 +346,19 @@ function ChunkCard({ chunk }: { chunk: RagChunk }) {
           {/* Court case reference */}
           {chunk.court_case_reference && (
             <Section
-              label="⚖ Судебная практика"
+              label="Судебная практика"
               content={chunk.court_case_reference}
               copyText={chunk.court_case_reference}
-              accent="#a78bfa"
+              accent="var(--primary)"
             />
           )}
 
-          {/* Tags + ID */}
-          <div className="flex items-center justify-between gap-2 pt-2 text-[10px] font-mono" style={{ color: "var(--text-muted)" }}>
-            <span>id: {chunk.id.slice(0, 8)}…</span>
-            {chunk.tags.length > 0 && (
-              <span>теги: {chunk.tags.join(", ")}</span>
-            )}
-          </div>
+          {/* Tags */}
+          {chunk.tags.length > 0 && (
+            <div className="pt-2 text-[11px] font-mono" style={{ color: "var(--text-muted)" }}>
+              теги: {chunk.tags.join(", ")}
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -457,28 +455,16 @@ export function KnowledgeBaseBrowser({ initialCategory }: { initialCategory?: st
 
   return (
     <div className="space-y-4">
-      <div
-        className="rounded-xl p-4"
-        style={{
-          background: "color-mix(in srgb, var(--accent) 8%, transparent)",
-          border: "1px solid color-mix(in srgb, var(--accent) 25%, transparent)",
-        }}
-      >
-        <div className="flex items-center gap-2 mb-2">
-          <BookOpen size={16} style={{ color: "var(--accent)" }} />
-          <div
-            className="font-medium text-sm uppercase tracking-wide"
-            style={{ color: "var(--accent)" }}
-          >
-            База знаний ФЗ-127 (RAG)
-          </div>
+      <div className="border-b pb-4" style={{ borderColor: "var(--border-color)" }}>
+        <div className="flex items-center gap-2.5">
+          <BookOpen size={13} style={{ color: "var(--text-muted)" }} />
+          <span className="font-mono text-[11px] uppercase tracking-[0.16em]" style={{ color: "var(--text-secondary)" }}>
+            Справочник ФЗ-127
+          </span>
+          <div className="h-px flex-1" style={{ background: "var(--border-color)" }} />
         </div>
-        <p className="text-xs leading-relaxed" style={{ color: "var(--text-secondary)" }}>
-          Полная база фактов по которой работает AI-судья. Каждый блок —
-          один чанк: текст факта, статья, эталонный ответ, частые
-          ошибки, блиц Q&A, заготовленные вопросы. Любой текст можно
-          скопировать. Если AI принял неправильный ответ — найди
-          здесь чем должен был ответить.
+        <p className="mt-3 text-[13px] leading-relaxed" style={{ color: "var(--text-muted)", maxWidth: 560 }}>
+          Все факты, статьи и эталонные ответы по банкротству физлиц. Любой текст можно скопировать.
         </p>
       </div>
 
@@ -489,7 +475,7 @@ export function KnowledgeBaseBrowser({ initialCategory }: { initialCategory?: st
           style={{
             background: "var(--input-bg)",
             border: "1px solid var(--border-color)",
-            borderRadius: 0,
+            borderRadius: 8,
           }}
         >
           <Search size={14} style={{ color: "var(--text-muted)" }} />
@@ -515,10 +501,10 @@ export function KnowledgeBaseBrowser({ initialCategory }: { initialCategory?: st
             }}
             className="px-2.5 py-1 text-[11px] uppercase tracking-wide font-medium"
             style={{
-              background: !category ? "var(--accent)" : "var(--bg-panel)",
+              background: !category ? "var(--primary)" : "var(--bg-panel)",
               color: !category ? "#fff" : "var(--text-muted)",
-              border: `1px solid ${!category ? "var(--accent)" : "var(--border-color)"}`,
-              borderRadius: 0,
+              border: `1px solid ${!category ? "var(--primary)" : "var(--border-color)"}`,
+              borderRadius: 8,
             }}
           >
             все ({data?.total ?? 0})
@@ -535,10 +521,10 @@ export function KnowledgeBaseBrowser({ initialCategory }: { initialCategory?: st
                 }}
                 className="px-2.5 py-1 text-[11px] uppercase tracking-wide font-medium"
                 style={{
-                  background: active ? "var(--accent)" : "var(--bg-panel)",
+                  background: active ? "var(--primary)" : "var(--bg-panel)",
                   color: active ? "#fff" : "var(--text-secondary)",
-                  border: `1px solid ${active ? "var(--accent)" : "var(--border-color)"}`,
-                  borderRadius: 0,
+                  border: `1px solid ${active ? "var(--primary)" : "var(--border-color)"}`,
+                  borderRadius: 8,
                 }}
               >
                 {CATEGORY_LABELS[cat] ?? cat} ({n})
@@ -549,10 +535,10 @@ export function KnowledgeBaseBrowser({ initialCategory }: { initialCategory?: st
 
         <div className="flex flex-wrap gap-1.5">
           <span
-            className="font-medium text-[10px] uppercase tracking-wide self-center mr-1"
+            className="font-medium text-[11px] uppercase tracking-wide self-center mr-1"
             style={{ color: "var(--text-muted)" }}
           >
-            ▸ сложность:
+            Сложность
           </span>
           {[null, 1, 2, 3, 4, 5].map((d) => {
             const active = difficulty === d;
@@ -565,12 +551,12 @@ export function KnowledgeBaseBrowser({ initialCategory }: { initialCategory?: st
                   setDifficulty(d);
                   setOffset(0);
                 }}
-                className="px-2 py-0.5 text-[10px] uppercase tracking-wide font-medium"
+                className="px-2 py-0.5 text-[11px] uppercase tracking-wide font-medium"
                 style={{
                   background: active ? "var(--warning)" : "var(--bg-panel)",
-                  color: active ? "#0b0b14" : "var(--text-muted)",
+                  color: active ? "#fff" : "var(--text-muted)",
                   border: `1px solid ${active ? "var(--warning)" : "var(--border-color)"}`,
-                  borderRadius: 0,
+                  borderRadius: 8,
                 }}
               >
                 {label}
@@ -583,7 +569,7 @@ export function KnowledgeBaseBrowser({ initialCategory }: { initialCategory?: st
       {/* Results */}
       {loading ? (
         <div className="flex items-center justify-center py-16">
-          <Loader2 size={20} className="animate-spin" style={{ color: "var(--accent)" }} />
+          <Loader2 size={20} className="animate-spin" style={{ color: "var(--primary)" }} />
         </div>
       ) : !data || data.chunks.length === 0 ? (
         <div
@@ -600,10 +586,9 @@ export function KnowledgeBaseBrowser({ initialCategory }: { initialCategory?: st
         </div>
       ) : (
         <>
-          <div className="flex items-center justify-between text-xs" style={{ color: "var(--text-muted)" }}>
+          <div className="flex items-center justify-between font-mono text-[11px]" style={{ color: "var(--text-muted)" }}>
             <span>
-              <Sparkles size={11} className="inline mr-1" style={{ color: "var(--accent)" }} />
-              {data.total} чанков · показано {data.chunks.length}
+              {data.total} фактов · показано {data.chunks.length}
             </span>
             {totalPages > 1 && (
               <span>
@@ -628,7 +613,7 @@ export function KnowledgeBaseBrowser({ initialCategory }: { initialCategory?: st
                 style={{
                   background: "var(--bg-panel)",
                   border: "1px solid var(--border-color)",
-                  borderRadius: 0,
+                  borderRadius: 8,
                   color: "var(--text-secondary)",
                 }}
               >
@@ -645,7 +630,7 @@ export function KnowledgeBaseBrowser({ initialCategory }: { initialCategory?: st
                 style={{
                   background: "var(--bg-panel)",
                   border: "1px solid var(--border-color)",
-                  borderRadius: 0,
+                  borderRadius: 8,
                   color: "var(--text-secondary)",
                 }}
               >
