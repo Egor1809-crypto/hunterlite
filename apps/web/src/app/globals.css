@@ -919,7 +919,9 @@ html.light main [role="button"] {
 
   @media (min-width: 1024px) {
     .training-session-grid {
-      grid-template-columns: minmax(260px, 0.85fr) minmax(320px, 1.3fr) minmax(320px, 1fr);
+      /* 2026-06-06 (#4): center avatar column removed on desktop — 2-col now
+         (chat | coaching). The center <section> is lg:hidden in the JSX. */
+      grid-template-columns: minmax(360px, 1.55fr) minmax(340px, 1fr);
       align-items: stretch;
       gap: 0.75rem;
     }
@@ -928,7 +930,7 @@ html.light main [role="button"] {
 
   @media (min-width: 1440px) {
     .training-session-grid {
-      grid-template-columns: minmax(320px, 0.95fr) minmax(400px, 1.3fr) minmax(360px, 1fr);
+      grid-template-columns: minmax(440px, 1.6fr) minmax(380px, 1fr);
       gap: 1rem;
       max-width: 1440px;
       margin-inline: auto;
@@ -937,7 +939,7 @@ html.light main [role="button"] {
 
   @media (min-width: 1800px) {
     .training-session-grid {
-      grid-template-columns: minmax(380px, 1fr) minmax(480px, 1.3fr) minmax(400px, 0.95fr);
+      grid-template-columns: minmax(560px, 1.65fr) minmax(420px, 1fr);
       gap: 1.25rem;
     }
   }

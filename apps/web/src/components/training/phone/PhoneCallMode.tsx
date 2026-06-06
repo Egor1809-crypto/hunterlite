@@ -25,7 +25,7 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { Mic, MicOff, Volume2, Volume1, PhoneOff } from "lucide-react";
 import type { EmotionState } from "@/types";
 import { EMOTION_MAP } from "@/types";
@@ -176,6 +176,10 @@ interface Props {
   elapsed: number;
   /** Mic muted (user-side). */
   muted: boolean;
+  /** 2026-06-06 (#6): true while the user's mic is actively capturing
+   *  speech (STT listening). Drives the "Слушаю вас" who-is-speaking
+   *  indicator so it's unambiguous whose turn it is on the call. */
+  userSpeaking?: boolean;
   /** Speaker on speaker-mode (louder). */
   speakerOn: boolean;
   /** Scene background id, usually from session.custom_bg_noise. */
@@ -239,6 +243,7 @@ export function PhoneCallMode({
   audioLevel = 0,
   elapsed,
   muted,
+  userSpeaking = false,
   speakerOn,
   sceneId,
   clientCard,
@@ -303,13 +308,21 @@ export function PhoneCallMode({
   // actively speaking. Intensity scales with audioLevel when present.
   const breathingScale = useMemo(() => 1 + Math.min(0.08, audioLevel * 0.12), [audioLevel]);
 
+  // 2026-06-06 (#6): who-is-speaking is derived from TTS amplitude (the
+  // client/AI talking) vs the user's mic capture (userSpeaking). The AI
+  // takes precedence — if its audio is playing, that's who you hear.
+  const aiSpeaking = audioLevel > 0.05 && sessionState !== "completed";
+  const firstName = characterName?.split(" ")[0] || "клиент";
+
   // Status line reflects both WS lifecycle and TTS activity.
   const statusLine = sessionState === "connecting"
     ? "Соединение…"
     : sessionState === "completed"
     ? "Звонок завершён"
-    : audioLevel > 0.05
-    ? "Говорит…"
+    : aiSpeaking
+    ? `Говорит ${firstName}`
+    : userSpeaking
+    ? "Слушаю вас…"
     : "В сети";
 
   // Timer turns to a calm warning token once the call runs long (>= 5 min)
@@ -516,6 +529,50 @@ export function PhoneCallMode({
               {clientCard.age ? `, ${clientCard.age} лет` : ""}
             </div>
           )}
+
+          {/* 2026-06-06 (#6): prominent who-is-speaking pill. Accent when the
+              client/AI is talking, success-green when the user is being heard,
+              quiet neutral on idle. Removes the "кто говорит?" ambiguity. */}
+          <div className="mt-4 flex justify-center" aria-live="polite">
+            <AnimatePresence mode="wait">
+              {aiSpeaking ? (
+                <motion.div
+                  key="ai-speaks"
+                  initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }}
+                  className="flex items-center gap-2 rounded-full px-4 py-1.5 text-sm font-semibold"
+                  style={{ background: "var(--accent-muted)", color: "var(--accent)" }}
+                >
+                  <Volume2 size={15} />
+                  Говорит {firstName}
+                  <span className="flex gap-0.5">
+                    {[0, 1, 2].map((i) => (
+                      <motion.span key={i} className="h-1 w-1 rounded-full" style={{ background: "var(--accent)" }}
+                        animate={{ opacity: [0.3, 1, 0.3] }} transition={{ duration: 0.8, repeat: Infinity, delay: i * 0.2 }} />
+                    ))}
+                  </span>
+                </motion.div>
+              ) : userSpeaking ? (
+                <motion.div
+                  key="user-speaks"
+                  initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }}
+                  className="flex items-center gap-2 rounded-full px-4 py-1.5 text-sm font-semibold"
+                  style={{ background: "var(--success-muted)", color: "var(--success)" }}
+                >
+                  <Mic size={15} className="animate-pulse" />
+                  Слушаю вас…
+                </motion.div>
+              ) : sessionState === "ready" ? (
+                <motion.div
+                  key="idle"
+                  initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                  className="flex items-center gap-2 rounded-full px-4 py-1.5 text-sm font-medium"
+                  style={{ background: "var(--bg-secondary)", color: "var(--text-muted)", border: "1px solid var(--border-color)" }}
+                >
+                  Ваш ход — нажмите «Говорить»
+                </motion.div>
+              ) : null}
+            </AnimatePresence>
+          </div>
         </div>
       </div>
 

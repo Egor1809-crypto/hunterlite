@@ -1510,6 +1510,7 @@ export default function TrainingCallPage() {
         audioLevel={tts.audioLevel}
         elapsed={s.elapsed}
         muted={muted}
+        userSpeaking={stt.status === "listening"}
         speakerOn={speakerOn}
         sceneId={sceneBg}
         clientCard={s.clientCard}
