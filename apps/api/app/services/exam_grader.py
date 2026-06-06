@@ -338,7 +338,10 @@ async def grade_item(
             logger.info("exam_grader upstream %d (attempt %d/%d)", resp.status_code, attempt_no + 1, _MAX_ATTEMPTS)
             continue
         try:
-            raw_content = resp.json()["choices"][0]["message"]["content"]
+            _msg = resp.json()["choices"][0]["message"]
+            # 2026-06-04 (ultrareview M3): reasoning models (deepseek-v4-pro)
+            # can return empty `content` with the answer in `reasoning_content`.
+            raw_content = _msg.get("content") or _msg.get("reasoning_content") or ""
         except (KeyError, IndexError, ValueError) as e:
             logger.warning("exam_grader malformed response (attempt %d/%d): %s", attempt_no + 1, _MAX_ATTEMPTS, e)
             continue
@@ -382,8 +385,12 @@ def _enforce_required(g: ExamGrade, points: list, max_score: float) -> ExamGrade
                     if p.get("required") and str(p.get("id", "")).strip()]
     if not required_ids:
         return g
-    covered_join = " ".join(g.covered).lower()
-    missing = [rid for rid in required_ids if rid.lower() not in covered_join]
+    # 2026-06-04 (ultrareview M2): set-equality, NOT substring. The old
+    # `rid not in covered_join` made e.g. "kp1" count as covered when only
+    # "kp10"/"kp11" were present → the required-points safety cap silently
+    # didn't fire for rubrics with ≥10 points.
+    covered_set = {str(c).strip().lower() for c in g.covered}
+    missing = [rid for rid in required_ids if rid.lower() not in covered_set]
     if not missing or g.percent <= _REQUIRED_MISS_CAP:
         return g
     capped = _REQUIRED_MISS_CAP

@@ -171,6 +171,7 @@ jobs:
             tests/test_client_profile_clamp.py \
             tests/test_ai_filter_task_type.py \
             tests/test_ai_radar_classifier_fix.py \
+            tests/test_ai_f2_fixes.py \
             tests/test_training_rework_p3_scoring.py
 
   frontend:

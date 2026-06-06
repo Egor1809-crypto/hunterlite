@@ -2618,11 +2618,12 @@ async def ask_coach(
         cited_ctx = "\nУже выявленные проблемы:\n" + "\n".join(cited_lines)
 
     coach_prompt = (
-        "Ты — AI-тренер по продажам банкротства физических лиц (127-ФЗ). "
-        "Менеджер прошёл тренировочную сессию и задаёт вопрос по разбору. "
+        "Ты — наставник юриста-консультанта по банкротству физических лиц (127-ФЗ). "
+        "Специалист прошёл тренировочную консультацию и задаёт вопрос по разбору. "
         "Отвечай конкретно, ссылаясь на реплики из разговора по номерам [N]. "
-        "Давай практичные советы — что конкретно сказать, как перефразировать. "
-        "Приводи примеры фраз. Не повторяй то что уже было сказано.\n\n"
+        "Давай практичные советы — что выяснить, как корректнее объяснить норму ФЗ-127, "
+        "как снять страхи должника без ложных гарантий. Приводи примеры фраз. "
+        "Не повторяй то, что уже было сказано.\n\n"
         f"Сценарий: {scenario.title if scenario else '?'} (сложность {difficulty}/10)\n"
         f"{score_summary}{stage_ctx}{skill_ctx}{cited_ctx}\n\n"
         f"Разговор:\n{conversation_text}\n\n"
@@ -2640,9 +2641,13 @@ async def ask_coach(
             prefer_provider="cloud",
         )
         answer = response.content
+        # 2026-06-04 (ultrareview M14): empty content or the neutral scripted
+        # degrade (navy down) must become a clear message, not a blank answer.
+        if not answer or not answer.strip() or response.model == "scripted":
+            answer = "AI-наставник временно недоступен. Попробуйте позже."
     except Exception as e:
         logger.error("Coach LLM failed: %s", e)
-        answer = "К сожалению, AI-Coach временно недоступен. Попробуйте позже."
+        answer = "AI-наставник временно недоступен. Попробуйте позже."
 
     # Find cited message indices in the answer
     import re
@@ -2672,12 +2677,22 @@ async def coach_chat_endpoint(
 ):
     """Chat with AI Coach. Coach knows your patterns, techniques, and weak spots."""
     from app.services.ai_coach import coach_chat
-    result = await coach_chat(user.id, body.message, db)
-    return {
-        "text": result.text,
-        "action": result.action,
-        "action_data": result.action_data,
-    }
+    # 2026-06-04 (ultrareview M12): guard against an unhandled error in coach_chat
+    # surfacing as a raw 500 — degrade to a neutral message instead.
+    try:
+        result = await coach_chat(user.id, body.message, db)
+        return {
+            "text": result.text,
+            "action": result.action,
+            "action_data": result.action_data,
+        }
+    except Exception:
+        logger.exception("coach_chat failed for user=%s", user.id)
+        return {
+            "text": "AI-наставник временно недоступен. Попробуйте позже.",
+            "action": None,
+            "action_data": None,
+        }
 
 
 @router.get("/coach/tip")
