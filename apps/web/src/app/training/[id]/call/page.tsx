@@ -1191,39 +1191,76 @@ export default function TrainingCallPage() {
       startSegmentRef.current();
       logger.log("[CALL] live: mic open (continuous)");
 
-      // VAD-петля по analyser. Один интервал на весь режим (stream не рвётся).
+      // ── VAD-петля (адаптивная под шум микрофона) ──────────────────────
+      // 2026-06-06 fix: фиксированный порог (14) был НИЖЕ шумового пола
+      // некоторых микрофонов (fifine + autoGain) → «тишина» не наступала
+      // никогда → сегмент рос до 500КБ и Whisper падал (stt.unavailable).
+      // Теперь порог ОТНОСИТЕЛЬНЫЙ: floor = тихий фон (бежит к минимуму),
+      // речь = avg > floor + MARGIN. Плюс жёсткий потолок длины сегмента и
+      // отправка ТОЛЬКО если реально была речь.
+      const TICK = 100;
       const buf = new Uint8Array(analyser.frequencyBinCount);
-      let spoke = false;
+      let spoke = false;            // была ли речь в текущем сегменте
       let lastLoud = Date.now();
       let prevSpeaking = false;
-      const SILENCE_MS = 600;   // 2026-06-06: 700→600 — реплика уходит снапп.
-      const SPEAK = 14;         // средняя амплитуда (0-255) — порог «говорят»
+      let floor = 40;               // оценка шумового пола (0-255), адаптируется
+      let loudStreak = 0;
+      let segStart = Date.now();
+      const SILENCE_MS = 650;       // пауза → конец реплики
+      const MARGIN = 12;            // насколько громче фона = «говорят»
+      const MAX_SEG_MS = 12000;     // потолок: не даём сегменту распухнуть
+      const resetSeg = () => { spoke = false; loudStreak = 0; floor = 40; segStart = Date.now(); lastLoud = Date.now(); };
+
       liveVadRef.current = setInterval(() => {
         if (!liveOnRef.current || !liveAnalyserRef.current) return;
+        // Пока говорит ИИ — не слушаем (и не копим сегмент).
         if (ttsSpeakingRef.current) {
-          lastLoud = Date.now(); spoke = false; prevSpeaking = true;
+          spoke = false; loudStreak = 0; lastLoud = Date.now(); prevSpeaking = true;
           setLiveListening(false);
           return;
         }
-        // ИИ только что договорил → выбрасываем буфер, записанный во время его
-        // речи (эхо/хвост), и начинаем чистый сегмент под ответ пользователя.
+        // ИИ только что договорил → выбросить буфер с эхом, чистый сегмент.
         if (prevSpeaking) {
           prevSpeaking = false;
-          lastLoud = Date.now();
           flushSegmentRef.current(false);
+          resetSeg();
         }
+
         liveAnalyserRef.current.getByteFrequencyData(buf);
         let sum = 0;
         for (let i = 0; i < buf.length; i++) sum += buf[i];
         const avg = sum / buf.length;
-        if (avg > SPEAK) { spoke = true; lastLoud = Date.now(); }
-        setLiveListening(spoke);
-        if (spoke && Date.now() - lastLoud > SILENCE_MS) {
-          spoke = false;
-          setLiveListening(false);
-          flushSegmentRef.current(true);   // отправить реплику + сразу новый сегмент
+
+        // Адаптивный шумовой пол: мгновенно опускается к тишине,
+        // медленно поднимается (≈3/сек), чтобы переоценивать фон.
+        if (avg < floor) floor = avg;
+        else floor += 0.3;
+
+        const isLoud = avg > floor + MARGIN;
+        if (isLoud) {
+          loudStreak += 1;
+          if (loudStreak >= 2) { spoke = true; lastLoud = Date.now(); } // дебаунс шумовых всплесков
+        } else {
+          loudStreak = 0;
         }
-      }, 120);
+        setLiveListening(spoke);
+
+        const now = Date.now();
+        // Конец реплики: была речь + пауза. Либо жёсткий потолок длины.
+        if (spoke && now - lastLoud > SILENCE_MS) {
+          setLiveListening(false);
+          flushSegmentRef.current(true);   // отправить + сразу новый сегмент
+          resetSeg();
+        } else if (spoke && now - segStart > MAX_SEG_MS) {
+          // длинная реплика без паузы — режем, чтобы blob не распух
+          flushSegmentRef.current(true);
+          resetSeg();
+        } else if (!spoke && now - segStart > MAX_SEG_MS) {
+          // только шум, речи не было — перезапускаем сегмент БЕЗ отправки
+          flushSegmentRef.current(false);
+          resetSeg();
+        }
+      }, TICK);
     } catch (err) {
       liveOnRef.current = false;
       setLiveMode(false);
