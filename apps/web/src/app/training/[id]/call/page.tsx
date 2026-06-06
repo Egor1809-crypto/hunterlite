@@ -1090,34 +1090,92 @@ export default function TrainingCallPage() {
   // 2026-06-06 (#2): input-bar mic toggle — MediaRecorder + backend Whisper
   // (the path that works in training mode). Click to start capturing, click
   // again to stop → blob → audio.end. Bypasses the flaky Web Speech API.
-  const toggleVoiceMic = useCallback(async () => {
-    if (microphoneFallback.recordingState === "recording") {
-      const blob = await microphoneFallback.stopRecording();
-      if (blob) sendAudioBlobRef.current?.(blob);
-      return;
-    }
-    if (!microphoneFallback.isSupported) {
-      toast.error("Браузер не поддерживает запись с микрофона");
-      return;
-    }
-    try { tts.stop(); } catch { /* noop — pause AI so we don't record it */ }
-    const ok = await microphoneFallback.startRecording();
-    if (!ok) {
-      // 2026-06-06 (#2): immediate, specific feedback instead of silent fail.
-      const reason = microphoneFallback.errorReason;
-      const msg =
-        reason === "denied" ? "Доступ к микрофону запрещён — разрешите в адресной строке 🔒"
-        : reason === "in_use" ? "Микрофон занят другим приложением/вкладкой — закройте их (Zoom, Meet, другая вкладка) и попробуйте снова"
-        : reason === "not_found" ? "Микрофон не найден — проверьте подключение"
-        : reason === "insecure" ? "Запись доступна только на https/localhost"
-        : "Не удалось запустить микрофон — попробуйте ещё раз или перезагрузите вкладку";
-      toast.error("Микрофон не запустился", { description: msg });
-    }
-  }, [microphoneFallback, tts]);
-
   // 2026-06-06 (#2): "is the user capturing voice right now" for the mic
   // button + the who-is-speaking pill (MediaRecorder path, not Web Speech).
   const micRecording = microphoneFallback.recordingState === "recording";
+
+  // ─────────────────────────────────────────────────────────────────────
+  // 2026-06-06 (#1): ЖИВОЙ режим звонка (VAD, hands-free).
+  // Тап по кнопке = микрофон включён (зелёный). Дальше как настоящий звонок:
+  // говоришь → пауза ~1.3с → реплика СРАЗУ уходит к ИИ → ИИ отвечает голосом →
+  // снова слушаем тебя. Никаких «нажми ещё раз чтобы отправить». Тап ещё раз —
+  // выключить микрофон. Запись через MediaRecorder + Whisper (надёжно).
+  // ─────────────────────────────────────────────────────────────────────
+  const [liveMode, setLiveMode] = useState(false);
+
+  // refs — читаются внутри VAD-интервала без устаревания замыкания
+  const audioLevelRef = useRef(0);
+  audioLevelRef.current = microphoneFallback.audioLevel;
+  const recStateRef = useRef(microphoneFallback.recordingState);
+  recStateRef.current = microphoneFallback.recordingState;
+  const ttsSpeakingRef = useRef(tts.speaking);
+  ttsSpeakingRef.current = tts.speaking;
+  const liveModeRef = useRef(false);
+  liveModeRef.current = liveMode;
+  const segmentingRef = useRef(false); // защита от двойной отправки/перезапуска
+
+  const startRec = useCallback(async () => {
+    if (recStateRef.current === "recording") return;
+    try { tts.stop(); } catch { /* pause AI so we don't capture it */ }
+    const ok = await microphoneFallback.startRecording();
+    if (!ok) {
+      setLiveMode(false);
+      const reason = microphoneFallback.errorReason;
+      toast.error("Микрофон не запустился", {
+        description:
+          reason === "in_use" ? "Микрофон занят другим приложением/вкладкой — закройте их и попробуйте снова"
+          : reason === "denied" ? "Доступ к микрофону запрещён — разрешите в адресной строке 🔒"
+          : "Проверьте доступ к микрофону или перезагрузите вкладку",
+      });
+    }
+  }, [microphoneFallback, tts]);
+
+  const toggleLiveMode = useCallback(() => {
+    setLiveMode((v) => {
+      const next = !v;
+      if (next) void startRec();
+      else void microphoneFallback.stopRecording();
+      return next;
+    });
+  }, [startRec, microphoneFallback]);
+
+  useEffect(() => {
+    if (!liveMode) return;
+    let spoke = false;
+    let lastLoud = Date.now();
+    const SILENCE_MS = 1300;   // тишина после речи → конец реплики
+    const SPEAK_LVL = 8;       // audioLevel 0-100 — порог «говорят»
+    const id = setInterval(() => {
+      if (!liveModeRef.current) return;
+      // Пока говорит ИИ — мик не пишем (нет эха, нет ИИ в записи юзера).
+      if (ttsSpeakingRef.current) {
+        lastLoud = Date.now();
+        spoke = false;
+        if (recStateRef.current === "recording" && !segmentingRef.current) {
+          segmentingRef.current = true;
+          void microphoneFallback.stopRecording().finally(() => { segmentingRef.current = false; });
+        }
+        return;
+      }
+      // ИИ молчит, но запись не идёт (после отправки/паузы ИИ) → возобновляем.
+      if (recStateRef.current !== "recording") {
+        if (!segmentingRef.current) void startRec();
+        return;
+      }
+      // Идёт запись пользователя — следим за концом реплики.
+      if (audioLevelRef.current > SPEAK_LVL) { spoke = true; lastLoud = Date.now(); }
+      if (spoke && Date.now() - lastLoud > SILENCE_MS && !segmentingRef.current) {
+        spoke = false;
+        segmentingRef.current = true;
+        void (async () => {
+          const blob = await microphoneFallback.stopRecording();
+          if (blob) sendAudioBlobRef.current?.(blob);   // → backend Whisper → ответ ИИ
+          segmentingRef.current = false;
+        })();
+      }
+    }, 180);
+    return () => clearInterval(id);
+  }, [liveMode, startRec, microphoneFallback]);
 
   // Kick-start the session on WS ready. The chat flow sends
   // session.start with the REST-created session_id; backend resumes
@@ -1779,25 +1837,24 @@ export default function TrainingCallPage() {
             border: "1px solid var(--border-color)",
           }}
         >
-          {/* 2026-06-06 (#2): mic on/off lives in the input bar now (controls
-              row removed). Off → MicOff/accent; capturing → Mic/green pulse.
-              Click triggers getUserMedia, so this is also the natural
-              "re-request permission" action when the mic was blocked. */}
+          {/* 2026-06-06 (#1): ЖИВОЙ режим. Зелёная = микрофон включён, идёт
+              живой диалог 1-на-1 (говоришь → пауза → реплика сразу уходит ИИ →
+              ИИ отвечает голосом → снова слушаем). Тап ещё раз — выключить. */}
           <button
             type="button"
-            onClick={toggleVoiceMic}
+            onClick={toggleLiveMode}
             disabled={connectionState !== "connected" || !microphoneFallback.isSupported}
-            aria-label={micRecording ? "Остановить запись" : "Говорить голосом"}
-            title={micRecording ? "Идёт запись — нажмите, чтобы отправить" : "Нажмите и говорите; нажмите ещё раз, чтобы отправить"}
+            aria-label={liveMode ? "Выключить микрофон" : "Включить живой разговор"}
+            title={liveMode ? "Микрофон включён — говорите, реплика уйдёт сама. Нажмите, чтобы выключить" : "Включить живой разговор (hands-free)"}
             className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-colors disabled:opacity-40"
             style={{
-              background: micRecording ? "var(--success-muted)" : "var(--accent-muted)",
-              color: micRecording ? "var(--success)" : "var(--accent)",
-              border: `1px solid ${micRecording ? "var(--success)" : "var(--accent)"}`,
+              background: liveMode ? "var(--success-muted)" : "var(--accent-muted)",
+              color: liveMode ? "var(--success)" : "var(--accent)",
+              border: `1px solid ${liveMode ? "var(--success)" : "var(--accent)"}`,
             }}
           >
-            {micRecording
-              ? <Mic size={16} strokeWidth={1.8} className="animate-pulse" />
+            {liveMode
+              ? <Mic size={16} strokeWidth={1.8} className={micRecording ? "animate-pulse" : undefined} />
               : <MicOff size={16} strokeWidth={1.8} />}
           </button>
 
@@ -1807,7 +1864,7 @@ export default function TrainingCallPage() {
             onChange={(e) => setTextInput(e.target.value)}
             placeholder={
               connectionState === "connected"
-                ? (micRecording ? "Идёт запись… говорите, потом нажмите 🎤" : "Введите сообщение клиенту…")
+                ? (liveMode ? "Живой разговор включён — просто говорите…" : "Введите сообщение клиенту…")
                 : "Подключаемся… (или нажмите «Принять» заново)"
             }
             aria-label="Сообщение клиенту текстом"

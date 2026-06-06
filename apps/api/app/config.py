@@ -470,7 +470,10 @@ class Settings(BaseSettings):
     # is verified working (mp3). Prod can override via NAVY_TTS_* env.
     navy_tts_enabled: bool = True
     navy_tts_model: str = "tts-1"
-    navy_tts_voice: str = "alloy"  # alloy, echo, fable, onyx, nova, shimmer
+    # 2026-06-06: женский голос. «alloy» звучал нейтрально-«афроамерикански»
+    # (жалоба). «shimmer» — мягкий женский; «nova» — звонкий женский. Меняется
+    # через NAVY_TTS_VOICE без правки кода.
+    navy_tts_voice: str = "shimmer"  # alloy, echo, fable, onyx, nova, shimmer
     elevenlabs_proxy: str = ""  # HTTP/SOCKS5 proxy for geo-blocked regions, e.g. socks5://127.0.0.1:1080
 
     @property
