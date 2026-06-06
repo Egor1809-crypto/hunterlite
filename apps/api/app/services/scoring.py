@@ -2414,6 +2414,10 @@ async def generate_recommendations(
             "Тон спокойный, без продажного жаргона. Пиши на русском."
         )
 
+        # 2026-06-05 (latency): рекомендации — блокирующий шаг перед /results.
+        # task_type="coach" + prefer_provider="local" маршрутизирует на быструю
+        # модель (gemini-3.5-flash, ~2с) вместо reasoning-дефолта. Роутинг — в
+        # generate_response (см. _persona_model_override).
         result = await generate_response(
             system_prompt=system_prompt,
             messages=[{
@@ -2422,7 +2426,7 @@ async def generate_recommendations(
             }],
             emotion_state="cold",
             task_type="coach",
-            prefer_provider="cloud",
+            prefer_provider="local",
         )
         if result and result.content and len(result.content) > 20:
             return result.content  # LLM succeeded — use richer response

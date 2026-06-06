@@ -1400,9 +1400,9 @@ html.light main [role="button"] {
   }
   .emotion-flash { animation: emotion-flash 0.6s ease-out forwards; pointer-events: none; }
 
-  /* ── Mic glow ───────────────────────────────────────────── */
+  /* ── Mic glow (neon removed — editorial no-op) ──────────── */
   .global-mic-glow {
-    background: radial-gradient(circle at center, rgba(8, 145, 178, 0.10) 0%, transparent 70%);
+    background: transparent;
     opacity: 0; transition: opacity 0.4s ease; pointer-events: none;
   }
   .global-mic-glow.active { opacity: 1; }

@@ -5,8 +5,10 @@ import { useRouter } from "next/navigation";
 import { logger } from "@/lib/logger";
 
 import { useNotificationStore } from "@/stores/useNotificationStore";
-import { Loader2, Lock, MessageCircle, Phone, ChevronLeft } from "lucide-react";
+import { Loader2, Lock, MessageCircle, Phone, ChevronLeft, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/Button";
+import { OnboardingHint } from "@/components/ui/OnboardingHint";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/Select";
 import { api, ApiError } from "@/lib/api";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -57,6 +59,15 @@ function difficultyMeta(code: string) {
   return DIFFICULTY_META[code] ?? { label: code, tone: "var(--text-muted)", bg: "var(--input-bg)" };
 }
 
+// Русское склонение по числу: plural(n, "клиент", "клиента", "клиентов").
+function plural(n: number, one: string, few: string, many: string): string {
+  const mod10 = n % 10;
+  const mod100 = n % 100;
+  if (mod10 === 1 && mod100 !== 11) return one;
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) return few;
+  return many;
+}
+
 // Короткая ситуация для карточки: предпочитаем диапазон долга, иначе — первую
 // строку client_brief. Без юридического жаргона, одна строка.
 function shortSituation(p: ReferencePersona): string {
@@ -103,7 +114,7 @@ export default function CharacterBuilder({ onGoToTests }: CharacterBuilderProps)
   const [selectedSlug, setSelectedSlug] = useState<string | null>(null);
   const [difficultyFilter, setDifficultyFilter] = useState<Difficulty | null>(null);
   const [archetypeFilter, setArchetypeFilter] = useState<string | null>(null);
-  const [starting, setStarting] = useState(false);
+  const [startingMode, setStartingMode] = useState<"chat" | "call" | null>(null);
 
   useEffect(() => {
     if (unlocked !== true) return;
@@ -165,7 +176,7 @@ export default function CharacterBuilder({ onGoToTests }: CharacterBuilderProps)
   // строя custom_params (включая persona_brief = client_brief → досье в AI).
   const handleStart = async (sessionMode: "chat" | "call") => {
     if (!selected) return;
-    setStarting(true);
+    setStartingMode(sessionMode);
     try {
       const session = await api.post("/training/sessions", {
         reference_persona_slug: selected.slug,
@@ -208,7 +219,7 @@ export default function CharacterBuilder({ onGoToTests }: CharacterBuilderProps)
       ) {
         setUnlockHint((err.detail as { message?: string }).message || "");
         setUnlocked(false);
-        setStarting(false);
+        setStartingMode(null);
         return;
       }
       useNotificationStore.getState().addToast({
@@ -216,7 +227,7 @@ export default function CharacterBuilder({ onGoToTests }: CharacterBuilderProps)
         body: err instanceof Error ? err.message : "Не удалось создать сессию",
         type: "error",
       });
-      setStarting(false);
+      setStartingMode(null);
     }
   };
 
@@ -265,10 +276,10 @@ export default function CharacterBuilder({ onGoToTests }: CharacterBuilderProps)
       <div className="mt-8 mx-auto max-w-3xl">
         <button
           onClick={() => setSelectedSlug(null)}
-          className="mb-8 inline-flex items-center gap-1.5 text-sm transition-colors"
+          className="mb-8 inline-flex items-center gap-1.5 font-mono text-[11px] uppercase tracking-[0.14em] transition-opacity hover:opacity-60"
           style={{ color: "var(--text-muted)" }}
         >
-          <ChevronLeft size={16} />
+          <ChevronLeft size={14} />
           Все клиенты
         </button>
 
@@ -283,6 +294,9 @@ export default function CharacterBuilder({ onGoToTests }: CharacterBuilderProps)
           {/* Имя крупно, мета мелко и приглушённо — контраст масштаба. */}
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div className="min-w-0">
+              <p className="font-mono text-[11px] uppercase tracking-[0.18em] mb-3" style={{ color: "var(--text-muted)" }}>
+                Досье клиента
+              </p>
               <h1 className="font-display text-3xl sm:text-4xl font-bold leading-tight" style={{ color: "var(--text-primary)" }}>
                 {selected.name}
               </h1>
@@ -294,21 +308,19 @@ export default function CharacterBuilder({ onGoToTests }: CharacterBuilderProps)
                 )}
               </div>
             </div>
-            <span
-              className="shrink-0 rounded-full px-3 py-1 text-xs font-medium"
-              style={{ background: dm.bg, color: dm.tone }}
-            >
+            <span className="shrink-0 inline-flex items-center gap-1.5 font-mono text-[11px] uppercase tracking-[0.14em]" style={{ color: dm.tone }}>
+              <span className="h-1.5 w-1.5 rounded-full" style={{ background: dm.tone }} aria-hidden />
               {dm.label}
             </span>
           </div>
 
           {/* Кто / ситуация */}
           {selected.client_brief && (
-            <div className="mt-8">
-              <div className="text-xs font-medium uppercase tracking-wide mb-2" style={{ color: "var(--text-muted)" }}>
+            <div className="mt-8 pt-8" style={{ borderTop: "1px solid var(--border-color)" }}>
+              <div className="font-mono text-[11px] uppercase tracking-[0.16em] mb-3" style={{ color: "var(--text-muted)" }}>
                 Кто перед вами
               </div>
-              <p className="text-sm leading-relaxed whitespace-pre-line" style={{ color: "var(--text-secondary)" }}>
+              <p className="text-sm sm:text-[15px] leading-relaxed whitespace-pre-line" style={{ color: "var(--text-secondary)" }}>
                 {selected.client_brief}
               </p>
             </div>
@@ -316,11 +328,9 @@ export default function CharacterBuilder({ onGoToTests }: CharacterBuilderProps)
 
           {/* На что обратить внимание (тренировочная подсказка юристу) */}
           {selected.lawyer_brief && (
-            <div
-              className="mt-6 rounded-xl p-5"
-              style={{ background: "var(--input-bg)", border: "1px solid var(--border-color)" }}
-            >
-              <div className="text-xs font-medium uppercase tracking-wide mb-2" style={{ color: "var(--text-muted)" }}>
+            <div className="relative mt-6 overflow-hidden rounded-xl p-5 sm:p-6" style={{ background: "var(--bg-secondary)" }}>
+              <span aria-hidden className="absolute left-0 top-0 h-full w-[3px]" style={{ background: "var(--accent)" }} />
+              <div className="font-mono text-[11px] uppercase tracking-[0.16em] mb-3" style={{ color: "var(--accent)" }}>
                 На что обратить внимание
               </div>
               <p className="text-sm leading-relaxed whitespace-pre-line" style={{ color: "var(--text-secondary)" }}>
@@ -330,20 +340,20 @@ export default function CharacterBuilder({ onGoToTests }: CharacterBuilderProps)
           )}
 
           {/* Действия */}
-          <div className="mt-9 flex flex-wrap gap-3">
+          <div className="mt-9 flex flex-wrap items-center gap-3">
             <Button
               variant="primary"
               onClick={() => handleStart("chat")}
-              disabled={starting}
-              loading={starting}
+              disabled={startingMode !== null}
+              loading={startingMode === "chat"}
               icon={<MessageCircle size={16} />}
             >
               Чат
             </Button>
             <Button
               onClick={() => handleStart("call")}
-              disabled={starting}
-              loading={starting}
+              disabled={startingMode !== null}
+              loading={startingMode === "call"}
               icon={<Phone size={16} />}
               style={{ borderColor: "var(--accent)", color: "var(--accent)", background: "var(--accent-muted)" }}
             >
@@ -358,65 +368,98 @@ export default function CharacterBuilder({ onGoToTests }: CharacterBuilderProps)
   // ─── Render: gallery grid ───
   return (
     <div className="mt-8">
-      {/* Заголовок-интро: whitespace-first, сдержанная типографика. */}
+      {/* Заголовок-интро: whitespace-first, editorial-типографика. */}
       <div className="mb-8">
-        <h1 className="font-display text-2xl sm:text-3xl font-bold" style={{ color: "var(--text-primary)" }}>
+        <p className="font-mono text-[11px] uppercase tracking-[0.18em] mb-3" style={{ color: "var(--text-muted)" }}>
+          Практика · {personas.length} клиент{plural(personas.length, "", "а", "ов")}
+        </p>
+        <h1 className="font-display text-3xl sm:text-4xl font-bold leading-tight" style={{ color: "var(--text-primary)" }}>
           Мои клиенты
         </h1>
-        <p className="mt-2 text-sm" style={{ color: "var(--text-muted)" }}>
-          Выберите клиента, чтобы начать чат или звонок.
+        <p className="mt-3 max-w-xl text-sm sm:text-[15px] leading-relaxed" style={{ color: "var(--text-muted)" }}>
+          Подберите должника и проведите консультацию по ФЗ-127 — в чате или по звонку.
         </p>
       </div>
 
-      {/* Опциональные фильтры — по сложности и архетипу. */}
+      {/* Онбординг «как пользоваться»: при первом заходе развёрнут, дальше
+          сворачивается в «i» и сам не выскакивает (запоминается в localStorage). */}
+      <OnboardingHint
+        id="my-clients-guide"
+        eyebrow="Как это работает"
+        title="Тренажёр приёма должника"
+        intro="Каждая карточка — это живой клиент со своим делом о банкротстве физлица (ФЗ-127). ИИ отыгрывает его характер и держится фактов его ситуации. Вы — юрист на консультации: ваша задача провести приём грамотно, а не «продать» услугу."
+        steps={[
+          {
+            title: "Выберите клиента",
+            body: "Откроется досье: кто перед вами, состав и сумма долгов, и на что обратить внимание именно в этом деле.",
+          },
+          {
+            title: "Начните чат или звонок",
+            body: "Клиент отвечает в своём характере — тревожный, агрессивный, скептик — и опирается на факты своего дела. Разговор идёт как настоящий приём.",
+          },
+          {
+            title: "Проведите консультацию",
+            body: "Выясните обстоятельства (долги, доход, иждивенцы, жильё в залоге), предложите верный путь — реструктуризация, реализация имущества или внесудебное МФЦ. Без обещаний «всё спишут».",
+          },
+          {
+            title: "Завершите и посмотрите разбор",
+            body: "После «Завершить разговор» откроется оценка: правовая точность по ФЗ-127, полнота выяснения обстоятельств, корректность рекомендаций и работа с сомнениями клиента.",
+          },
+        ]}
+      >
+        <p className="mt-5 text-sm leading-relaxed" style={{ color: "var(--text-muted)" }}>
+          Сложность и характер клиента — фильтрами ниже. Если только осваиваетесь, начните с «Просто».
+        </p>
+      </OnboardingHint>
+
+      {/* Фильтры — по сложности и характеру, со счётчиком показанных. */}
       {(personas.length > 0) && (
-        <div className="mb-8 flex flex-wrap items-center gap-2">
-          <button
-            onClick={() => setDifficultyFilter(null)}
-            className="rounded-full px-3 py-1 text-xs transition-colors"
-            style={{
-              background: !difficultyFilter ? "var(--accent-muted)" : "transparent",
-              color: !difficultyFilter ? "var(--accent)" : "var(--text-muted)",
-              border: `1px solid ${!difficultyFilter ? "var(--accent)" : "var(--border-color)"}`,
-            }}
-          >
-            Все
-          </button>
-          {(["easy", "medium", "hard"] as Difficulty[]).map((d) => {
-            const m = difficultyMeta(d);
-            const active = difficultyFilter === d;
-            return (
-              <button
-                key={d}
-                onClick={() => setDifficultyFilter(active ? null : d)}
-                className="rounded-full px-3 py-1 text-xs transition-colors"
-                style={{
-                  background: active ? m.bg : "transparent",
-                  color: active ? m.tone : "var(--text-muted)",
-                  border: `1px solid ${active ? m.tone : "var(--border-color)"}`,
-                }}
+        <div className="mb-8 flex flex-wrap items-center justify-between gap-y-4">
+          <div className="flex flex-wrap items-center gap-2">
+            {[
+              { key: null as Difficulty | null, label: "Все" },
+              { key: "easy" as Difficulty, label: difficultyMeta("easy").label },
+              { key: "medium" as Difficulty, label: difficultyMeta("medium").label },
+              { key: "hard" as Difficulty, label: difficultyMeta("hard").label },
+            ].map(({ key, label }) => {
+              const active = difficultyFilter === key;
+              return (
+                <button
+                  key={label}
+                  onClick={() => setDifficultyFilter(key)}
+                  className="rounded-full px-3.5 py-1.5 text-xs font-medium transition-colors"
+                  style={{
+                    background: active ? "var(--accent-muted)" : "transparent",
+                    color: active ? "var(--accent)" : "var(--text-muted)",
+                    border: `1px solid ${active ? "var(--accent)" : "var(--border-color)"}`,
+                  }}
+                >
+                  {label}
+                </button>
+              );
+            })}
+            {archetypeOptions.length > 1 && (
+              <Select
+                value={archetypeFilter ?? "__all__"}
+                onValueChange={(v) => setArchetypeFilter(v === "__all__" ? null : v)}
               >
-                {m.label}
-              </button>
-            );
-          })}
-          {archetypeOptions.length > 1 && (
-            <select
-              value={archetypeFilter ?? ""}
-              onChange={(e) => setArchetypeFilter(e.target.value || null)}
-              className="rounded-full px-3 py-1 text-xs outline-none"
-              style={{
-                background: "transparent",
-                color: archetypeFilter ? "var(--accent)" : "var(--text-muted)",
-                border: `1px solid ${archetypeFilter ? "var(--accent)" : "var(--border-color)"}`,
-              }}
-            >
-              <option value="">Любой характер</option>
-              {archetypeOptions.map((a) => (
-                <option key={a.code} value={a.code}>{a.label}</option>
-              ))}
-            </select>
-          )}
+                <SelectTrigger className="h-auto w-auto min-w-[160px] gap-2 px-3.5 py-1.5 text-xs font-medium">
+                  <SelectValue placeholder="Любой характер" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__all__">Любой характер</SelectItem>
+                  {archetypeOptions.map((a) => (
+                    <SelectItem key={a.code} value={a.code}>{a.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          </div>
+          <p className="font-mono text-[11px] uppercase tracking-[0.14em]" style={{ color: "var(--text-muted)" }}>
+            {filtered.length === personas.length
+              ? `${personas.length} ${plural(personas.length, "клиент", "клиента", "клиентов")}`
+              : `${filtered.length} из ${personas.length}`}
+          </p>
         </div>
       )}
 
@@ -432,49 +475,56 @@ export default function CharacterBuilder({ onGoToTests }: CharacterBuilderProps)
         </div>
       )}
 
-      {/* Редакторский грид карточек. */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {filtered.map((p) => {
+      {/* Editorial-грид карточек: индекс, точка-сложность, hover-стрелка, hairline + lift. */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
+        {filtered.map((p, i) => {
           const dm = difficultyMeta(p.difficulty);
           const situation = shortSituation(p);
           return (
             <button
               key={p.slug}
               onClick={() => setSelectedSlug(p.slug)}
-              className="group text-left rounded-2xl p-6 transition-all"
-              style={{
-                background: "var(--surface-card)",
-                border: "1px solid var(--border-color)",
-                boxShadow: "var(--shadow-sm)",
-              }}
+              className="group relative flex flex-col text-left rounded-2xl p-6 sm:p-7 bg-[var(--surface-card)] border border-[var(--border-color)] [box-shadow:var(--shadow-sm)] transition-all duration-200 hover:-translate-y-0.5 hover:border-[var(--accent)] hover:[box-shadow:var(--shadow-md)]"
             >
-              <div className="flex items-start justify-between gap-3">
-                {/* Крупное имя */}
-                <h3 className="font-display text-lg font-semibold leading-snug" style={{ color: "var(--text-primary)" }}>
-                  {p.name}
-                </h3>
-                <span
-                  className="shrink-0 rounded-full px-2.5 py-0.5 text-[11px] font-medium"
-                  style={{ background: dm.bg, color: dm.tone }}
-                >
+              {/* Верхняя строка: индекс + индикатор сложности (точка + mono-лейбл). */}
+              <div className="flex items-center justify-between">
+                <span className="shrink-0 whitespace-nowrap font-mono text-[11px] tabular-nums tracking-widest" style={{ color: "var(--text-muted)" }}>
+                  {String(i + 1).padStart(2, "0")}
+                </span>
+                <span className="shrink-0 whitespace-nowrap inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.14em]" style={{ color: dm.tone }}>
+                  <span className="h-1.5 w-1.5 rounded-full" style={{ background: dm.tone }} aria-hidden />
                   {dm.label}
                 </span>
               </div>
 
-              {/* Мелкая мьютед мета: архетип + эмоция */}
-              <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs" style={{ color: "var(--text-muted)" }}>
+              {/* Имя крупно. */}
+              <h3 className="mt-4 font-display text-xl font-semibold leading-snug" style={{ color: "var(--text-primary)" }}>
+                {p.name}
+              </h3>
+
+              {/* Мета: характер · эмоция. */}
+              <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs" style={{ color: "var(--text-muted)" }}>
                 {p.archetype_label && <span>{p.archetype_label}</span>}
                 {emotionLabel(p.emotion_preset) && (
                   <><span aria-hidden>·</span><span>{emotionLabel(p.emotion_preset)}</span></>
                 )}
               </div>
 
-              {/* Одна строка ситуации */}
+              {/* Ситуация — одна-две строки. */}
               {situation && (
                 <p className="mt-4 text-sm leading-relaxed line-clamp-2" style={{ color: "var(--text-secondary)" }}>
                   {situation}
                 </p>
               )}
+
+              {/* Hover-аффорданс: «Открыть досье →». */}
+              <span
+                className="mt-5 inline-flex items-center gap-1.5 font-mono text-[11px] uppercase tracking-[0.14em] transition-colors group-hover:text-[var(--accent)]"
+                style={{ color: "var(--text-muted)" }}
+              >
+                Открыть досье
+                <ArrowRight size={13} className="transition-transform group-hover:translate-x-0.5" />
+              </span>
             </button>
           );
         })}

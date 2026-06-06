@@ -150,22 +150,12 @@ function startAmbientNoise(sceneKey: string, masterGain = 0.06): () => void {
   };
 }
 
-// Scene backdrops — each value comes from CharacterBuilder's NOISES array.
-// We map audio-noise tags to visual scenes: an "office" noise implies
-// the client is calling from an office, "street" = outdoors, "children" or
-// "tv" = home, "none" = neutral backdrop.
-const SCENE_GRADIENTS: Record<string, string> = {
-  office:
-    "linear-gradient(135deg, #1b2a3a 0%, #2a3f57 45%, #0f1822 100%)",
-  street:
-    "linear-gradient(135deg, #2c2626 0%, #433436 45%, #0b0a0a 100%)",
-  children:
-    "linear-gradient(135deg, #3c2238 0%, #5a2d55 45%, #1a1420 100%)",
-  tv:
-    "linear-gradient(135deg, #2a1f3d 0%, #3d2e56 45%, #150f22 100%)",
-  none:
-    "linear-gradient(135deg, #0e0e14 0%, #16161f 45%, #05050a 100%)",
-};
+// Scene tags — each key comes from CharacterBuilder's NOISES array.
+// We map audio-noise tags to a quiet, neutral editorial backdrop. The
+// scene only changes the ambient *sound* (see startAmbientNoise) and the
+// eyebrow *label* — the visual surface stays calm so the avatar + script
+// remain the focus (no coloured gradient scenery, per editorial spec).
+const SCENE_KEYS = ["office", "street", "children", "tv", "none"] as const;
 
 const SCENE_LABEL: Record<string, string> = {
   office: "Офис",
@@ -263,8 +253,9 @@ export function PhoneCallMode({
   endInFlight = false,
   onCopyExample,
 }: Props) {
-  const sceneKey = (sceneId || "none") in SCENE_GRADIENTS ? (sceneId || "none") : "none";
-  const sceneGradient = SCENE_GRADIENTS[sceneKey];
+  const sceneKey = (SCENE_KEYS as readonly string[]).includes(sceneId || "none")
+    ? (sceneId || "none")
+    : "none";
   const sceneLabel = SCENE_LABEL[sceneKey];
   const ec = EMOTION_MAP[emotion] || EMOTION_MAP.cold;
 
@@ -321,64 +312,67 @@ export function PhoneCallMode({
     ? "Говорит…"
     : "В сети";
 
+  // Timer turns to a calm warning token once the call runs long (>= 5 min)
+  // — replaces the old animate-pulse neon. Static colour, no glow.
+  const timerWarning = elapsed >= 300;
+
   return (
     <div
-      className="fixed inset-0 flex flex-col overflow-hidden text-white"
+      className="fixed inset-0 flex flex-col overflow-hidden"
       style={{
-        background: sceneGradient,
-        backgroundAttachment: "fixed",
+        background: "var(--bg-primary)",
+        color: "var(--text-primary)",
       }}
     >
-      {/* Ambient radial vignette tied to emotion glow for subtle mood. */}
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0"
-        style={{
-          background: `radial-gradient(ellipse at 50% 30%, ${ec.glow} 0%, transparent 55%)`,
-          opacity: 0.45,
-        }}
-      />
-
       {/*
-        Top meta row.
-        2026-05-10 (pixel polish): font-mono+sans → font-medium uppercase
-        14-22px, rounded-full emotion pill → square 2px solid pixel,
-        чтобы консистентно с остальным аркадным UI.
+        Top meta row — editorial mono-eyebrow labels + tabular timer.
+        Scene + status are quiet eyebrows; the emotion is a hairline pill
+        on a -muted surface (no neon, no caps screaming, one accent only).
       */}
       <div className="relative z-10 flex items-start justify-between px-6 pt-5">
         <div className="flex flex-col">
           <span
-            className="font-medium uppercase tracking-wide"
-            style={{ color: "rgba(255,255,255,0.7)", fontSize: 14 }}
+            className="font-mono uppercase"
+            style={{
+              color: "var(--text-muted)",
+              fontSize: 11,
+              letterSpacing: "0.16em",
+            }}
           >
             {sceneLabel}
           </span>
           <span
-            className="font-medium mt-1 tabular-nums"
-            style={{ color: ec.color, fontSize: 22, textShadow: `0 0 10px ${ec.glow}` }}
+            className="font-mono mt-1 tabular-nums"
+            style={{
+              color: timerWarning ? "var(--warning)" : "var(--text-primary)",
+              fontSize: 22,
+            }}
           >
             {formatElapsed(elapsed)}
           </span>
         </div>
         <div className="flex flex-col items-end">
           <span
-            className="font-medium uppercase tracking-wide"
-            style={{ color: "rgba(255,255,255,0.7)", fontSize: 14 }}
+            className="font-mono uppercase"
+            style={{
+              color: "var(--text-muted)",
+              fontSize: 11,
+              letterSpacing: "0.16em",
+            }}
           >
             {statusLine}
           </span>
           <span
-            className="mt-1.5 rounded-sm px-2.5 py-1 font-medium uppercase tracking-wide"
+            className="mt-1.5 rounded-full px-3 py-1 font-mono uppercase"
             style={{
-              background: `${ec.color}22`,
-              color: ec.color,
-              border: `2px solid ${ec.color}`,
-              fontSize: 14,
-              letterSpacing: "0.18em",
-              boxShadow: `0 0 8px ${ec.glow}`,
+              background: "var(--bg-secondary)",
+              color: "var(--text-secondary)",
+              border: "1px solid var(--border-color)",
+              fontSize: 11,
+              letterSpacing: "0.16em",
             }}
           >
-            {ec.label}
+            {ec.labelRu}
           </span>
         </div>
       </div>
@@ -401,12 +395,15 @@ export function PhoneCallMode({
           aria-valuemax={stage.total}
           aria-valuenow={stage.current}
           aria-valuetext={`Этап ${stage.current} из ${stage.total}${stage.label ? `: ${stage.label}` : ""}`}
-          className="relative z-10 mx-auto mt-3 flex w-[min(560px,calc(100vw-48px))] items-center gap-3 rounded-sm bg-black/40 px-4 py-2 backdrop-blur-sm lg:hidden"
-          style={{ border: "2px solid rgba(255,255,255,0.18)" }}
+          className="relative z-10 mx-auto mt-3 flex w-[min(560px,calc(100vw-48px))] items-center gap-3 rounded-xl px-4 py-2 lg:hidden"
+          style={{
+            background: "var(--surface-card)",
+            border: "1px solid var(--border-color)",
+          }}
         >
           <span
-            className="font-medium tabular-nums uppercase tracking-wide"
-            style={{ color: "rgba(255,255,255,0.85)", fontSize: 14, letterSpacing: "0.18em" }}
+            className="font-mono tabular-nums uppercase"
+            style={{ color: "var(--text-secondary)", fontSize: 11, letterSpacing: "0.16em" }}
           >
             {stage.current}/{stage.total}
           </span>
@@ -420,18 +417,20 @@ export function PhoneCallMode({
                   className="h-1.5 flex-1 rounded-full transition-colors"
                   style={{
                     background: done
-                      ? "rgba(61, 220, 132, 0.8)"
+                      ? "var(--success)"
                       : isCur
-                      ? "rgba(255, 255, 255, 0.6)"
-                      : "rgba(255, 255, 255, 0.12)",
-                    boxShadow: isCur ? "0 0 8px rgba(255,255,255,0.4)" : "none",
+                      ? "var(--accent)"
+                      : "var(--bg-tertiary)",
                   }}
                 />
               );
             })}
           </div>
           {stage.label && (
-            <span className="truncate text-white/80" style={{ maxWidth: 140 }}>
+            <span
+              className="truncate"
+              style={{ maxWidth: 140, color: "var(--text-secondary)" }}
+            >
               {stage.label}
             </span>
           )}
@@ -453,52 +452,50 @@ export function PhoneCallMode({
           // pointer-events-auto is belt-and-braces: even if a future
           // ancestor disables pointer events for the whole call surface,
           // the script panel stays interactive.
-          className="hidden lg:block absolute right-4 top-20 z-30 pointer-events-auto w-[300px] max-h-[calc(100vh-180px)] overflow-y-auto rounded-2xl p-4 backdrop-blur-lg"
+          className="hidden lg:block absolute right-4 top-20 z-30 pointer-events-auto w-[300px] max-h-[calc(100vh-180px)] overflow-y-auto rounded-2xl p-4"
           style={{
-            background: "rgba(10,8,20,0.58)",
-            border: "1px solid rgba(255,255,255,0.08)",
-            boxShadow: "0 12px 36px rgba(0,0,0,0.4)",
+            background: "var(--surface-card)",
+            border: "1px solid var(--border-color)",
+            boxShadow: "var(--shadow-md)",
           }}
         >
           <ScriptPanel compactHeader onCopyExample={onCopyExample} />
         </aside>
       )}
 
-      {/* Central avatar + ring. */}
+      {/* Central avatar — calm token ring, no colour blob / neon glow. */}
       <div className="relative z-10 flex flex-1 flex-col items-center justify-center">
         <motion.div
           className="relative flex items-center justify-center"
           animate={{ scale: breathingScale }}
           transition={{ duration: 0.35 }}
         >
-          {/* Outer pulse ring. */}
+          {/* Soft breathing ring — subtle accent-muted, no glow shadow. */}
           <motion.div
             aria-hidden
             className="absolute rounded-full"
             animate={{
               scale: [1, 1 + Math.max(0.03, audioLevel * 0.35), 1],
-              opacity: [0.55, 0.85, 0.55],
+              opacity: [0.35, 0.6, 0.35],
             }}
             transition={{ duration: 1.6, repeat: Infinity, ease: "easeInOut" }}
             style={{
               width: 280,
               height: 280,
-              border: `2px solid ${ec.color}`,
-              boxShadow: `0 0 48px ${ec.glow}`,
+              border: "1px solid var(--accent-muted)",
             }}
           />
-          {/* Inner avatar disc. */}
+          {/* Inner avatar disc — surface card + 1px hairline ring. */}
           <div
             className="flex items-center justify-center rounded-full"
             style={{
               width: 220,
               height: 220,
-              background: "rgba(255,255,255,0.04)",
-              border: `3px solid ${ec.color}`,
-              boxShadow: `inset 0 0 24px ${ec.glow}`,
+              background: "var(--bg-secondary)",
+              border: "1px solid var(--border-color)",
               fontSize: 80,
-              fontWeight: 700,
-              color: ec.color,
+              fontWeight: 600,
+              color: "var(--text-secondary)",
               letterSpacing: "-0.02em",
             }}
           >
@@ -507,9 +504,14 @@ export function PhoneCallMode({
         </motion.div>
 
         <div className="mt-8 text-center">
-          <div className="text-2xl font-semibold tracking-wide">{characterName}</div>
+          <div
+            className="text-2xl font-semibold tracking-wide"
+            style={{ color: "var(--text-primary)" }}
+          >
+            {characterName}
+          </div>
           {clientCard?.city && (
-            <div className="mt-1 text-sm opacity-60">
+            <div className="mt-1 text-sm" style={{ color: "var(--text-muted)" }}>
               {clientCard.city}
               {clientCard.age ? `, ${clientCard.age} лет` : ""}
             </div>
@@ -527,7 +529,11 @@ export function PhoneCallMode({
       {coachingHint && coachingHint.message && (
         <div className="relative z-10 px-6 pb-2">
           <div
-            className="mx-auto flex max-w-md items-center gap-2.5 rounded-full bg-black/45 px-4 py-2 text-left ring-1 ring-white/10 backdrop-blur-md"
+            className="mx-auto flex max-w-md items-center gap-2.5 rounded-full px-4 py-2 text-left"
+            style={{
+              background: "var(--surface-card)",
+              border: "1px solid var(--border-color)",
+            }}
             aria-live="polite"
           >
             <span
@@ -536,20 +542,16 @@ export function PhoneCallMode({
               style={{
                 background:
                   coachingHint.priority === "high"
-                    ? "#ef4444"
+                    ? "var(--danger)"
                     : coachingHint.priority === "medium"
-                    ? "#f59e0b"
-                    : "#60a5fa",
-                boxShadow: `0 0 8px ${
-                  coachingHint.priority === "high"
-                    ? "rgba(239,68,68,0.6)"
-                    : coachingHint.priority === "medium"
-                    ? "rgba(245,158,11,0.6)"
-                    : "rgba(96,165,250,0.6)"
-                }`,
+                    ? "var(--warning)"
+                    : "var(--accent)",
               }}
             />
-            <span className="flex-1 text-sm text-white/95 leading-snug">
+            <span
+              className="flex-1 text-sm leading-snug"
+              style={{ color: "var(--text-primary)" }}
+            >
               {coachingHint.message}
             </span>
           </div>
@@ -574,12 +576,20 @@ export function PhoneCallMode({
         */}
         {typeof volume === "number" && onVolumeChange && showVolumePopover && (
           <div data-volume-popover className="mx-auto mb-4 max-w-md px-8">
-            <div className="relative flex items-center gap-3 rounded-2xl bg-black/40 px-4 py-3 backdrop-blur-md ring-1 ring-white/10">
+            <div
+              className="relative flex items-center gap-3 rounded-2xl px-4 py-3"
+              style={{
+                background: "var(--surface-card)",
+                border: "1px solid var(--border-color)",
+                boxShadow: "var(--shadow-sm)",
+              }}
+            >
               <button
                 type="button"
                 onClick={() => onVolumeChange(volume > 0 ? 0 : 0.7)}
                 aria-label={volume > 0 ? "Выключить звук" : "Включить звук"}
-                className="flex h-8 w-8 items-center justify-center rounded-full text-white/80 transition hover:bg-white/10"
+                className="flex h-8 w-8 items-center justify-center rounded-full transition"
+                style={{ color: "var(--text-secondary)" }}
               >
                 {volume === 0 ? <Volume1 size={18} /> : <Volume2 size={18} />}
               </button>
@@ -591,9 +601,13 @@ export function PhoneCallMode({
                 value={volume}
                 onChange={(e) => onVolumeChange(parseFloat(e.target.value))}
                 aria-label="Громкость"
-                className="h-1 flex-1 cursor-pointer appearance-none rounded-full bg-white/20 accent-white"
+                className="h-1 flex-1 cursor-pointer appearance-none rounded-full"
+                style={{ background: "var(--bg-tertiary)", accentColor: "var(--accent)" }}
               />
-              <span className="min-w-[3ch] text-right font-mono text-xs text-white/60">
+              <span
+                className="min-w-[3ch] text-right font-mono text-xs"
+                style={{ color: "var(--text-muted)" }}
+              >
                 {Math.round(volume * 100)}%
               </span>
             </div>
@@ -688,20 +702,17 @@ export function PhoneCallMode({
 }
 
 /**
- * 2026-04-23 redesign: explicit semantic states replace the old boolean
- * `active` prop. The previous design rendered `active=true` as a white
- * pill regardless of meaning — «mic muted» and «speaker on» looked
- * identical, and users read «white = pressed/live» either way. Now:
+ * Editorial restyle: round pill controls on calm tokens, one accent only,
+ * no gradients, no neon glow. Semantic states map to colour *tokens*:
  *
- *   - success-on  : green fill (mic live / speaker live)
- *   - danger-off  : red outlined button with red icon (mic/speaker muted)
- *   - accent-on   : brand purple fill (generic "enabled")
- *   - accent-open : brighter purple (popover/menu is currently open)
- *   - neutral     : translucent white (idle)
+ *   - success-on  : success-muted fill + success ring (mic live)
+ *   - danger-off  : danger-muted fill + danger ring (mic / speaker muted)
+ *   - accent-on   : accent-muted fill + accent ring (enabled)
+ *   - accent-open : accent fill (popover/menu currently open)
+ *   - neutral     : bg-secondary + hairline (idle)
  *
- * Subtitle slot shows a second-line status chip under the icon
- * («в эфире» / «выключен») — makes the state readable without icon
- * interpretation.
+ * Subtitle slot shows a quiet mono second line under the icon
+ * («в эфире» / «выключен») so the state reads without icon interpretation.
  */
 type CallButtonState =
   | "success-on"
@@ -710,11 +721,6 @@ type CallButtonState =
   | "accent-open"
   | "neutral";
 
-/*
- * 2026-05-10 (pixel polish): rounded-full → rounded-sm 2px solid borders,
- * font-medium uppercase 14px (вместо text-[10px]) для лейблов. Логика
- * STATE_PALETTE и aria-pressed без изменений.
- */
 function CallButton({
   children,
   onClick,
@@ -738,28 +744,27 @@ function CallButton({
       className="flex flex-col items-center gap-2"
     >
       <span
-        className="flex h-16 w-16 items-center justify-center rounded-sm transition-all duration-200 active:scale-95"
+        className="flex h-16 w-16 items-center justify-center rounded-full transition-all duration-200 active:scale-95"
         style={{
           background: palette.bg,
           color: palette.fg,
-          border: `2px solid ${palette.border}`,
-          boxShadow: palette.shadow,
+          border: `1px solid ${palette.border}`,
         }}
       >
         {children}
       </span>
       <span
-        className="font-medium uppercase tracking-wide"
-        style={{ color: palette.labelFg, opacity: 0.92, fontSize: 14 }}
+        className="font-mono uppercase"
+        style={{ color: palette.labelFg, fontSize: 11, letterSpacing: "0.14em" }}
       >
         {label}
       </span>
       {subtitle && (
         <span
-          className="font-medium uppercase tracking-wide"
-          style={{ color: palette.subtitleFg, fontSize: 12 }}
+          className="font-mono uppercase"
+          style={{ color: palette.subtitleFg, fontSize: 10, letterSpacing: "0.14em" }}
         >
-          {subtitle.toUpperCase()}
+          {subtitle}
         </span>
       )}
     </button>
@@ -772,63 +777,55 @@ const STATE_PALETTE: Record<
     bg: string;
     fg: string;
     border: string;
-    shadow: string;
     labelFg: string;
     subtitleFg: string;
   }
 > = {
   "success-on": {
-    // Green — live/broadcasting. Mic is picking up, speaker is active.
-    bg: "linear-gradient(135deg, rgba(61,220,132,0.95) 0%, rgba(46,180,106,0.95) 100%)",
-    fg: "#062a13",
-    border: "rgba(61,220,132,0.9)",
-    shadow: "0 6px 22px rgba(61,220,132,0.35), inset 0 0 0 1px rgba(255,255,255,0.25)",
-    labelFg: "rgba(255,255,255,0.95)",
-    subtitleFg: "rgba(61,220,132,0.95)",
+    // Live / broadcasting — calm success token, no neon.
+    bg: "var(--success-muted)",
+    fg: "var(--success)",
+    border: "var(--success)",
+    labelFg: "var(--text-secondary)",
+    subtitleFg: "var(--success)",
   },
   "danger-off": {
-    // Red outline — muted/blocked. Not harmful in itself, but user needs
-    // to know "this is off" at a glance.
-    bg: "rgba(255,59,89,0.08)",
-    fg: "rgba(255,100,125,0.95)",
-    border: "rgba(255,59,89,0.75)",
-    shadow: "inset 0 0 0 1px rgba(255,59,89,0.18)",
-    labelFg: "rgba(255,255,255,0.85)",
-    subtitleFg: "rgba(255,120,140,0.95)",
+    // Muted / off — danger token surface + ring.
+    bg: "var(--danger-muted)",
+    fg: "var(--danger)",
+    border: "var(--danger)",
+    labelFg: "var(--text-secondary)",
+    subtitleFg: "var(--danger)",
   },
   "accent-on": {
-    // Brand purple — enabled, default "positive" state for non-mic controls.
-    bg: "linear-gradient(135deg, rgba(120,92,220,0.92) 0%, rgba(79,48,184,0.95) 100%)",
-    fg: "#ffffff",
-    border: "rgba(120,92,220,0.6)",
-    shadow: "0 6px 20px rgba(49,21,115,0.38), inset 0 0 0 1px rgba(255,255,255,0.18)",
-    labelFg: "rgba(255,255,255,0.95)",
-    subtitleFg: "rgba(180,160,255,0.95)",
+    // Enabled — single accent token.
+    bg: "var(--accent-muted)",
+    fg: "var(--accent)",
+    border: "var(--accent)",
+    labelFg: "var(--text-secondary)",
+    subtitleFg: "var(--accent)",
   },
   "accent-open": {
-    // Popover/menu currently shown — brighter highlight so user knows
-    // the overlay is tied to this button.
-    bg: "rgba(255,255,255,0.92)",
-    fg: "#311573",
-    border: "rgba(255,255,255,0.9)",
-    shadow: "0 8px 24px rgba(49,21,115,0.45)",
-    labelFg: "rgba(255,255,255,0.95)",
-    subtitleFg: "rgba(200,190,255,0.95)",
+    // Popover open — solid accent fill so the tie to the overlay is clear.
+    bg: "var(--accent)",
+    fg: "var(--accent-contrast, #fff)",
+    border: "var(--accent)",
+    labelFg: "var(--text-secondary)",
+    subtitleFg: "var(--accent)",
   },
   neutral: {
-    bg: "rgba(255,255,255,0.12)",
-    fg: "#ffffff",
-    border: "rgba(255,255,255,0.18)",
-    shadow: "none",
-    labelFg: "rgba(255,255,255,0.7)",
-    subtitleFg: "rgba(255,255,255,0.5)",
+    bg: "var(--bg-secondary)",
+    fg: "var(--text-secondary)",
+    border: "var(--border-color)",
+    labelFg: "var(--text-muted)",
+    subtitleFg: "var(--text-muted)",
   },
 };
 
 /*
- * 2026-05-10 (pixel polish): rounded-full → rounded-sm 3px solid red,
- * font-medium uppercase 14px вместо text-[10px]. Логика loading + aria
- * + animate boxShadow на pulsing — без изменений.
+ * Editorial restyle: round danger-muted pill, danger ring, no gradient /
+ * no neon glow. Loading state swaps the icon for a quiet token spinner
+ * (no pulsing boxShadow). Logic (disabled, aria, loading) unchanged.
  */
 function CallHangup({
   onClick,
@@ -850,44 +847,34 @@ function CallHangup({
     >
       <motion.span
         whileTap={loading ? undefined : { scale: 0.9 }}
-        animate={
-          loading
-            ? {
-                boxShadow: [
-                  "0 0 18px rgba(248,113,113,0.55)",
-                  "0 0 36px rgba(248,113,113,0.95)",
-                  "0 0 18px rgba(248,113,113,0.55)",
-                ],
-              }
-            : undefined
-        }
-        transition={loading ? { duration: 1.2, repeat: Infinity, ease: "easeInOut" } : undefined}
-        className="flex h-16 w-16 items-center justify-center rounded-sm"
+        className="flex h-16 w-16 items-center justify-center rounded-full"
         style={{
-          background: loading
-            ? "linear-gradient(135deg, #fb7185 0%, #f87171 100%)"
-            : "#f87171",
-          color: "#0b0b14",
-          border: "3px solid #fff",
-          boxShadow: "0 0 18px rgba(248,113,113,0.6)",
+          background: "var(--danger-muted)",
+          color: "var(--danger)",
+          border: "1px solid var(--danger)",
         }}
       >
         {loading ? (
           <motion.span
             animate={{ rotate: 360 }}
             transition={{ duration: 0.9, repeat: Infinity, ease: "linear" }}
-            className="inline-block rounded-sm border-[3px] border-[#0b0b14]/30 border-t-[#0b0b14]"
-            style={{ width: 22, height: 22 }}
+            className="inline-block rounded-full"
+            style={{
+              width: 22,
+              height: 22,
+              border: "2px solid var(--danger-muted)",
+              borderTopColor: "var(--danger)",
+            }}
           />
         ) : (
-          <PhoneOff size={28} strokeWidth={2.4} />
+          <PhoneOff size={28} strokeWidth={2.2} />
         )}
       </motion.span>
       <span
-        className="font-medium uppercase tracking-wide"
-        style={{ color: "#fca5a5", fontSize: 14 }}
+        className="font-mono uppercase"
+        style={{ color: "var(--danger)", fontSize: 11, letterSpacing: "0.14em" }}
       >
-        {loading ? "ЗАВЕРШАЕМ…" : "ЗАВЕРШИТЬ"}
+        {loading ? "Завершаем…" : "Завершить"}
       </span>
     </button>
   );

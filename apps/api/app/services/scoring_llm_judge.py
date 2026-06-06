@@ -425,9 +425,10 @@ async def _invoke_llm(transcript_prompt: str) -> tuple[str, str, int]:
         system_prompt=_SYSTEM_PROMPT,
         messages=[{"role": "user", "content": transcript_prompt}],
         emotion_state="cold",
+        # 2026-06-05 (latency): task_type="judge" теперь маршрутизирует на быструю
+        # модель (local_llm_persona_model = gemini-3.5-flash, ~2с) — судья это
+        # блокирующий шаг перед /results. Маршрутизация — в generate_response.
         task_type="judge",
-        # Prefer local (navy.api / Haiku-class) so we don't burn cloud budget
-        # on every session-finalize. The fallback chain handles outages.
         prefer_provider="local",
         temperature=0.2,
         max_tokens=600,

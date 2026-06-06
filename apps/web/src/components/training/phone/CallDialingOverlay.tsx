@@ -146,8 +146,12 @@ export default function CallDialingOverlay({
   }, [visible]);
 
   /*
-   * 2026-05-10 (pixel redesign): rounded-full + emerald → square pixel
-   * рамки + accent-цвет из общей палитры. Аудио (425 Hz русский гудок)
+   * 2026-06-06 (editorial restyle, референс malvah.co/abstract.com):
+   * эмеральд-неон «Соединение…» полностью убран. Спокойный нейтральный
+   * фон var(--bg-primary), круглая иконка Phone в кружке var(--accent-muted)
+   * с тонким токенным кольцом, текст обычным регистром var(--text-secondary).
+   * Без неон-glow, без квадратных pulse-ring, без dashed scanline, без ASCII
+   * ▰…▰, без textShadow и hex-градиентов. Аудио (425 Hz русский гудок)
    * НЕ ТРОНУТО — функция playRussianRingback осталась как была.
    */
   return (
@@ -161,57 +165,34 @@ export default function CallDialingOverlay({
           transition={{ duration: 0.25 }}
           className="absolute inset-0 z-50 flex flex-col items-center justify-center"
           style={{
-            background: "linear-gradient(180deg, rgba(8,5,18,0.96), rgba(16,12,28,0.98), rgba(8,5,18,0.96))",
-            backdropFilter: "blur(8px)",
+            background: "var(--bg-primary)",
           }}
           aria-live="polite"
           aria-label="Соединение"
         >
-          {/* Pulsing square pixel rings around the phone icon (rounded-full → rounded-sm) */}
-          <div className="relative flex h-44 w-44 items-center justify-center">
+          {/* Round phone icon in a soft accent disc + one gentle token ring */}
+          <div className="relative flex h-36 w-36 items-center justify-center">
             <motion.span
               aria-hidden
-              className="absolute h-full w-full rounded-sm"
+              className="absolute h-24 w-24 rounded-full"
               style={{
-                background: "rgba(74,222,128,0.12)",
-                border: "2px solid rgba(74,222,128,0.45)",
-                boxShadow: "0 0 18px rgba(74,222,128,0.25)",
+                border: "1px solid var(--accent-muted)",
               }}
-              animate={{ scale: [1, 1.6, 1.6], opacity: [0.6, 0, 0] }}
-              transition={{ duration: 1.4, repeat: Infinity, ease: "easeOut" }}
+              animate={{ scale: [1, 1.5, 1.5], opacity: [0.5, 0, 0] }}
+              transition={{ duration: 1.8, repeat: Infinity, ease: "easeOut" }}
             />
-            <motion.span
-              aria-hidden
-              className="absolute h-full w-full rounded-sm"
+            <div
+              className="relative flex h-24 w-24 items-center justify-center rounded-full"
               style={{
-                background: "rgba(74,222,128,0.08)",
-                border: "2px solid rgba(74,222,128,0.3)",
-              }}
-              animate={{ scale: [1, 1.8, 1.8], opacity: [0.5, 0, 0] }}
-              transition={{ duration: 1.4, repeat: Infinity, ease: "easeOut", delay: 0.4 }}
-            />
-            <motion.div
-              className="relative flex h-24 w-24 items-center justify-center rounded-sm"
-              style={{
-                background: "rgba(74,222,128,0.22)",
-                border: "3px solid #4ade80",
-                boxShadow: "0 0 22px rgba(74,222,128,0.5), inset 0 0 10px rgba(0,0,0,0.4)",
-              }}
-              animate={{
-                rotate: [0, -8, 8, -4, 4, 0],
-                scale: [1, 1.05, 1, 1.05, 1],
-              }}
-              transition={{
-                duration: 1.4,
-                repeat: Infinity,
-                ease: "easeInOut",
+                background: "var(--accent-muted)",
+                border: "1px solid var(--border-color)",
               }}
             >
-              <Phone className="h-10 w-10" strokeWidth={2.5} style={{ color: "#4ade80", filter: "drop-shadow(0 0 6px rgba(74,222,128,0.8))" }} />
-            </motion.div>
+              <Phone className="h-9 w-9" strokeWidth={1.8} style={{ color: "var(--accent)" }} />
+            </div>
           </div>
 
-          {/* Status text — pixel-style, минимум 14px */}
+          {/* Status text — editorial, обычный регистр, токены */}
           <motion.div
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
@@ -220,56 +201,30 @@ export default function CallDialingOverlay({
           >
             {calleeName && (
               <div
-                className="font-medium uppercase tracking-wide"
-                style={{
-                  color: "var(--text-primary)",
-                  fontSize: "clamp(20px, 3vw, 28px)",
-                  letterSpacing: "0.08em",
-                  textShadow: "0 0 12px rgba(74,222,128,0.55)",
-                }}
+                className="text-2xl font-medium"
+                style={{ color: "var(--text-primary)" }}
               >
                 {calleeName}
               </div>
             )}
             <DialingStatusText />
           </motion.div>
-
-          {/* Scanline effect — pixel-style: bright dashed line, ползёт сверху вниз */}
-          <motion.div
-            aria-hidden
-            className="pointer-events-none absolute inset-x-0"
-            style={{
-              height: 0,
-              borderTop: "1px dashed rgba(74,222,128,0.55)",
-              boxShadow: "0 0 8px rgba(74,222,128,0.6)",
-            }}
-            initial={{ y: "0%" }}
-            animate={{ y: "100%" }}
-            transition={{ duration: 1.6, repeat: Infinity, ease: "linear" }}
-          />
         </motion.div>
       )}
     </AnimatePresence>
   );
 }
 
-/** Cycles "Соединение..." → "Гудки идут..." каждые ~700ms. */
+/** Cycles "Соединение…" → "Гудки идут…" каждые ~700ms. Editorial: обычный
+ *  регистр, var(--text-secondary), без неона и ASCII-декора. */
 function DialingStatusText() {
-  const messages = ["▰ СОЕДИНЕНИЕ ▰", "▰ ГУДКИ ИДУТ ▰"];
+  const messages = ["Соединение…", "Гудки идут…"];
   return (
     <div
-      className="font-medium uppercase tracking-wide"
-      style={{
-        color: "rgba(74,222,128,0.95)",
-        fontSize: 14,
-      }}
+      className="text-sm"
+      style={{ color: "var(--text-secondary)" }}
     >
-      <motion.span
-        animate={{ opacity: [0.6, 1, 0.6] }}
-        transition={{ duration: 1.6, repeat: Infinity }}
-      >
-        <CycleText messages={messages} intervalMs={700} />
-      </motion.span>
+      <CycleText messages={messages} intervalMs={700} />
     </div>
   );
 }
