@@ -1983,7 +1983,7 @@ async def _generate_character_reply(
                 _sentence_end = bool(_buf_r) and _buf_r[-1] in ".!?…"
                 _first_clause = (
                     not _stream_tts_used
-                    and len(_buf_r) >= 20
+                    and len(_buf_r) >= 14
                     and (_buf_r[-1] in ",—–:;")
                 )
                 if (
