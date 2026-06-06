@@ -446,7 +446,7 @@ export function PhoneCallMode({
           // pointer-events-auto is belt-and-braces: even if a future
           // ancestor disables pointer events for the whole call surface,
           // the script panel stays interactive.
-          className="hidden lg:block absolute right-4 top-20 z-30 pointer-events-auto w-[300px] max-h-[calc(100vh-180px)] overflow-y-auto rounded-2xl p-4"
+          className="hidden lg:block absolute right-4 top-20 z-30 pointer-events-auto w-[min(440px,34vw)] max-h-[calc(100vh-180px)] overflow-y-auto rounded-2xl p-5"
           style={{
             background: "var(--surface-card)",
             border: "1px solid var(--border-color)",

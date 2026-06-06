@@ -1126,7 +1126,12 @@ async def _synthesize_navy(text: str, voice: str | None = None, speed: float = 1
 
     try:
         client = _get_shared_client()
-        response = await client.post(url, json=payload, headers=headers)
+        # 2026-06-06: navy TTS gets its OWN generous timeout, not the shared
+        # 10s ElevenLabs budget. The first call after an idle period cold-starts
+        # the TLS connection + remote model and can exceed 10s → ReadTimeout →
+        # None → silent call ("в ответ ничего не слышно"). 30s covers cold start;
+        # warm calls return in ~1-2s regardless.
+        response = await client.post(url, json=payload, headers=headers, timeout=30.0)
     except (httpx.ConnectError, httpx.TimeoutException, httpx.HTTPError) as exc:
         logger.error("Navy TTS unavailable: %s", exc)
         raise TTSError(f"Navy TTS unavailable: {exc}")
