@@ -149,6 +149,27 @@ _PII_PATTERNS = [
 
 _pii_compiled = [re.compile(p, re.UNICODE) for p in _PII_PATTERNS]
 
+# 2026-06-04 (ultrareview M16): the bare-number INN/OGRN/account patterns (a run
+# of exactly 10/12/13/15/20 digits with no contextual keyword) over-matched in
+# the legal RAG corpus — case numbers, statute references, contiguous sums — and
+# blanked legitimate content with [ДАННЫЕ СКРЫТЫ] BEFORE it reached the model.
+# For RAG sanitization use a HIGH-CONFIDENCE subset only (phone/email/passport/
+# SNILS + keyword-prefixed ИНН/БИК/р-с + card + plate). User-input filtering
+# keeps the full strict set (short text, real client PII more likely).
+_BARE_NUMBER_PII = frozenset({
+    r"\b\d{10}\b(?=\D|$)",
+    r"\b\d{12}\b(?=\D|$)",
+    r"\b\d{13}\b(?=\D|$)",
+    r"\b\d{15}\b(?=\D|$)",
+    r"\b\d{20}\b(?=\D|$)",
+    # The "card" pattern matches any 13-19 contiguous digit run → also blanks
+    # OGRN/account/case numbers in the static legal corpus. Dropped for RAG
+    # (the corpus holds legislation, not client card numbers; real client PII is
+    # still caught by phone/email/passport/SNILS patterns).
+    r"\b(?:\d[\s\-]?){13,19}\b",
+})
+_rag_pii_compiled = [re.compile(p, re.UNICODE) for p in _PII_PATTERNS if p not in _BARE_NUMBER_PII]
+
 # ─── Role break patterns (AI output) ────────────────────────────────────────
 
 _ROLE_BREAK_PATTERNS = [
@@ -296,8 +317,9 @@ def _sanitize_rag_field(text: str, field_name: str, chunk_id: str = "") -> tuple
                 field_name, chunk_id, pattern.pattern[:60],
             )
 
-    # 2. PII stripping
-    for pattern in _pii_compiled:
+    # 2. PII stripping — RAG-safe subset (M16): high-confidence patterns only,
+    # so legal reference numbers / sums are not blanked as false-positive PII.
+    for pattern in _rag_pii_compiled:
         if pattern.search(cleaned):
             cleaned = pattern.sub("[ДАННЫЕ СКРЫТЫ]", cleaned)
             if f"rag_pii:{field_name}" not in violations:
@@ -576,12 +598,19 @@ def filter_ai_output(text: str) -> tuple[str, list[str]]:
             filtered = filtered[:last_period + 1]
         violations.append("length_exceeded")
 
-    # Role break detection (collect all violations, no early break — S1-02 2.2.7)
+    # Role break detection + removal (S1-02 2.2.7). 2026-06-04 (ultrareview M17):
+    # actually STRIP the AI-disclaimer phrase ("как языковая модель" / "as an AI")
+    # — previously it was only detected/flagged and still reached the user on
+    # non-roleplay surfaces (where the roleplay filler isn't substituted).
     for pattern in _role_break_compiled:
         if pattern.search(filtered):
             if "role_break" not in violations:
                 violations.append("role_break")
-            logger.warning("AI role break detected in output")
+            filtered = pattern.sub("", filtered)
+            logger.warning("AI role break detected and stripped from output")
+    if "role_break" in violations:
+        # tidy up double spaces left by the excision
+        filtered = re.sub(r"\s{2,}", " ", filtered).strip()
 
     # PII leak detection
     for pattern in _pii_compiled:
