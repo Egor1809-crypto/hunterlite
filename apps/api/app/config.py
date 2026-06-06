@@ -464,7 +464,11 @@ class Settings(BaseSettings):
     elevenlabs_enabled: bool = False  # Enable when API key is set
     # Navy/OpenAI-compat TTS (fallback when ElevenLabs is down/exhausted)
     # Base URL uses local_llm_url if empty. Example: https://api.navy/v1, key = local_llm_api_key.
-    navy_tts_enabled: bool = False
+    # 2026-06-04: voice via navy.api (OpenAI-compatible /v1/audio/speech) — ON by
+    # default. ElevenLabs key is empty in dev, so without this the call had NO
+    # voice (is_tts_available()=False → backend never sent tts.audio). navy tts-1
+    # is verified working (mp3). Prod can override via NAVY_TTS_* env.
+    navy_tts_enabled: bool = True
     navy_tts_model: str = "tts-1"
     navy_tts_voice: str = "alloy"  # alloy, echo, fable, onyx, nova, shimmer
     elevenlabs_proxy: str = ""  # HTTP/SOCKS5 proxy for geo-blocked regions, e.g. socks5://127.0.0.1:1080
