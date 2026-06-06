@@ -3121,8 +3121,8 @@ async def generate_ideal_response(
     if stage_data:
         stages_completed = stage_data.get("stages_completed", [])
         stage_names = {
-            1: "Приветствие", 2: "Контакт", 3: "Квалификация",
-            4: "Презентация", 5: "Возражения", 6: "Встреча", 7: "Закрытие",
+            1: "Представление", 2: "Контакт", 3: "Выяснение обстоятельств",
+            4: "Правовой анализ", 5: "Снятие страхов", 6: "Рекомендация", 7: "Следующий шаг",
         }
         completed_names = [stage_names.get(s, str(s)) for s in stages_completed]
         score_ctx_parts.append(f"Пройденные этапы: {', '.join(completed_names) or 'нет'}.")
