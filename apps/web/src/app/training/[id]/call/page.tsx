@@ -427,6 +427,13 @@ export default function TrainingCallPage() {
   const [pushTalkActive, setPushTalkActive] = useState(false);
   const sendAudioBlobRef = useRef<((blob: Blob) => void) | null>(null);
 
+  // 2026-06-06 (≤3с): тайминг одного хода. turnT0 = момент отправки реплики
+  // (после паузы VAD). Меряем STT / первый чанк LLM / первый звук TTS, чтобы
+  // видеть, где именно уходит время и держать «речь → ответ ИИ» ≤ 3с.
+  const turnT0Ref = useRef(0);
+  const turnGotChunkRef = useRef(false);
+  const turnGotAudioRef = useRef(false);
+
   // --- Mount guard: verify session_mode, hydrate store --------------------
   /*
    * 2026-05-10 FIND-010 fix: устранён eslint-disable.
@@ -667,6 +674,20 @@ export default function TrainingCallPage() {
     onMessage: (data: WSMessage) => {
       if (!data.data || typeof data.data !== "object") data.data = {};
       logger.log("[CALL]", data.type, data.data);
+      // ── Тайминг хода (цель «речь→ответ ИИ» ≤ 3с) ──
+      if (turnT0Ref.current) {
+        const dt = Date.now() - turnT0Ref.current;
+        if (data.type === "transcription.result") {
+          logger.log(`[CALL] ⏱ STT: ${dt}мс`);
+        } else if (data.type === "character.response_chunk" && !turnGotChunkRef.current) {
+          turnGotChunkRef.current = true;
+          logger.log(`[CALL] ⏱ LLM первый чанк: ${dt}мс`);
+        } else if (data.type === "tts.audio_chunk" && !turnGotAudioRef.current) {
+          turnGotAudioRef.current = true;
+          logger.log(`[CALL] ⏱ ИТОГО речь→звук ИИ: ${dt}мс (+ пауза VAD ~0.45с)`);
+          turnT0Ref.current = 0;
+        }
+      }
       switch (data.type) {
         case "auth.success":
         case "session.ready":
@@ -1145,6 +1166,9 @@ export default function TrainingCallPage() {
         const blob = new Blob(chunks, { type: chunks[0]?.type || "audio/webm" });
         if (blob.size > 1500) {            // отсекаем «пшики» < ~1.5КБ
           logger.log("[CALL] live: sending utterance", blob.size, "bytes");
+          turnT0Ref.current = Date.now();  // старт тайминга хода
+          turnGotChunkRef.current = false;
+          turnGotAudioRef.current = false;
           sendAudioBlobRef.current?.(blob); // → backend Whisper → ответ ИИ
         }
       }
@@ -1206,7 +1230,7 @@ export default function TrainingCallPage() {
       let floor = 40;               // оценка шумового пола (0-255), адаптируется
       let loudStreak = 0;
       let segStart = Date.now();
-      const SILENCE_MS = 650;       // пауза → конец реплики
+      const SILENCE_MS = 450;       // 2026-06-06: 650→450 — меньше «мёртвой» паузы до отправки (бюджет ≤3с)
       const MARGIN = 12;            // насколько громче фона = «говорят»
       const MAX_SEG_MS = 12000;     // потолок: не даём сегменту распухнуть
       const resetSeg = () => { spoke = false; loudStreak = 0; floor = 40; segStart = Date.now(); lastLoud = Date.now(); };
