@@ -460,6 +460,22 @@ export function PhoneCallMode({
           }}
         >
           <ScriptPanel compactHeader onCopyExample={onCopyExample} />
+
+          {/* 2026-06-06 (#3): «Как пользоваться звонком» — короткая памятка
+              под скриптом (стиль malvah: чистый текст, без эмодзи). */}
+          <div className="mt-5 pt-4" style={{ borderTop: "1px solid var(--border-color)" }}>
+            <div
+              className="text-[10px] font-semibold uppercase tracking-[0.16em] mb-2"
+              style={{ color: "var(--text-muted)" }}
+            >
+              Как пользоваться
+            </div>
+            <ul className="space-y-1.5 text-xs leading-relaxed" style={{ color: "var(--text-secondary)" }}>
+              <li><span style={{ color: "var(--text-primary)" }}>Микрофон (зелёный)</span> — живой разговор: говорите, реплика уйдёт сама после паузы.</li>
+              <li><span style={{ color: "var(--text-primary)" }}>Поле ввода</span> — то же самое текстом, если удобнее писать.</li>
+              <li><span style={{ color: "var(--text-primary)" }}>Красная трубка</span> — завершить звонок.</li>
+            </ul>
+          </div>
         </aside>
       )}
 

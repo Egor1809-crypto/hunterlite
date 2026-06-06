@@ -176,10 +176,7 @@ export default function ScriptPanel({
       >
         <motion.div
           className="h-full rounded-full"
-          style={{
-            background: "linear-gradient(90deg, var(--success), var(--accent))",
-            boxShadow: "0 0 6px rgba(61,220,132,0.3)",
-          }}
+          style={{ background: "var(--accent)" }}
           animate={{ width: `${progressPct}%` }}
           transition={{ duration: 0.6, ease: "easeOut" }}
         />
@@ -242,9 +239,7 @@ export default function ScriptPanel({
                 <div
                   className="flex-1 h-px"
                   style={{
-                    background: prevCompleted
-                      ? "var(--success, #00FF94)"
-                      : "var(--border-color)",
+                    background: prevCompleted ? "var(--accent)" : "var(--border-color)",
                   }}
                 />
               )}
@@ -257,12 +252,12 @@ export default function ScriptPanel({
                     transition={{ type: "spring", stiffness: 500, damping: 20 }}
                     className="flex items-center justify-center w-5 h-5 rounded-full"
                     style={{
-                      background: "var(--success-muted)",
-                      border: "1.5px solid var(--success, #00FF94)",
+                      background: "var(--accent-muted)",
+                      border: "1.5px solid var(--accent)",
                     }}
                     aria-label={`Этап ${num} пройден`}
                   >
-                    <Check size={10} strokeWidth={3} style={{ color: "#fff" }} />
+                    <Check size={10} strokeWidth={3} style={{ color: "var(--accent)" }} />
                   </motion.div>
                 ) : isCurrent ? (
                   <motion.div
@@ -323,12 +318,12 @@ export default function ScriptPanel({
                           exit={{ opacity: 0, y: -4 }}
                           transition={{ duration: 0.15 }}
                           data-stage-tooltip
-                          className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-44 max-w-[80vw] rounded-lg px-2.5 py-2 text-[11px] leading-snug text-left z-40"
+                          className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-52 max-w-[80vw] max-h-48 overflow-y-auto rounded-lg px-2.5 py-2 text-[11px] leading-snug text-left z-50 break-words [overflow-wrap:anywhere]"
                           style={{
-                            background: "var(--bg-primary, #0e0e14)",
+                            background: "var(--surface-card)",
                             border: "1px solid var(--border-color)",
                             color: "var(--text-secondary)",
-                            boxShadow: "0 8px 20px rgba(0,0,0,0.4)",
+                            boxShadow: "var(--shadow-md)",
                           }}
                         >
                           <div
@@ -363,14 +358,14 @@ export default function ScriptPanel({
             transition={{ duration: 0.22, ease: "easeOut" }}
             className="overflow-hidden"
           >
-            <div className="mt-3 space-y-3 text-xs leading-relaxed">
+            <div className="mt-3 space-y-3 text-xs leading-relaxed break-words [overflow-wrap:anywhere]">
               {/* Task */}
               <div>
                 <div
-                  className="text-[10px] font-bold uppercase tracking-wider mb-1"
-                  style={{ color: "var(--accent)" }}
+                  className="text-[10px] font-semibold uppercase tracking-[0.16em] mb-1"
+                  style={{ color: "var(--text-muted)" }}
                 >
-                  📋 Задача
+                  Задача
                 </div>
                 <div style={{ color: "var(--text-primary)" }}>
                   {guidance.task_ru}
@@ -381,10 +376,10 @@ export default function ScriptPanel({
               {guidance.examples.length > 0 && (
                 <div>
                   <div
-                    className="text-[10px] font-bold uppercase tracking-wider mb-1"
-                    style={{ color: "var(--accent)" }}
+                    className="text-[10px] font-semibold uppercase tracking-[0.16em] mb-1"
+                    style={{ color: "var(--text-muted)" }}
                   >
-                    💬 Примеры фраз
+                    Примеры фраз
                   </div>
                   <ul className="space-y-1.5">
                     {guidance.examples.map((ex, i) => (
@@ -434,10 +429,10 @@ export default function ScriptPanel({
               {guidance.common_mistakes.length > 0 && (
                 <div>
                   <div
-                    className="text-[10px] font-bold uppercase tracking-wider mb-1"
-                    style={{ color: "var(--warning, #f59e0b)" }}
+                    className="text-[10px] font-semibold uppercase tracking-[0.16em] mb-1"
+                    style={{ color: "var(--text-muted)" }}
                   >
-                    ⚠ Типичные ошибки
+                    Типичные ошибки
                   </div>
                   <ul
                     className="space-y-1 list-disc pl-4"
@@ -472,10 +467,10 @@ export default function ScriptPanel({
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -6 }}
             transition={{ duration: 0.25 }}
-            className="mt-3 rounded-lg p-2.5 text-xs"
+            className="mt-3 rounded-lg p-2.5 text-xs break-words [overflow-wrap:anywhere]"
             style={{
-              background: "rgba(234,179,8,0.08)",
-              border: "1px solid rgba(234,179,8,0.4)",
+              background: "var(--bg-secondary)",
+              border: "1px solid var(--border-color)",
               color: "var(--text-primary)",
             }}
             role="alert"
@@ -483,7 +478,7 @@ export default function ScriptPanel({
             <div className="flex items-start gap-2">
               <AlertTriangle
                 size={14}
-                style={{ color: "#EAB308", flexShrink: 0, marginTop: 1 }}
+                style={{ color: "var(--text-muted)", flexShrink: 0, marginTop: 1 }}
                 aria-hidden
               />
               <div className="flex-1">
