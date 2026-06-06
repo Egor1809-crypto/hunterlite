@@ -73,9 +73,21 @@ function isUuid(part: string): boolean {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(part);
 }
 
-/** Short id to display when we can't resolve name. */
-function shortId(part: string): string {
-  return `#${part.slice(0, 8)}`;
+/**
+ * Человекочитаемая подпись для UUID-сегмента вместо «#abbf8698».
+ * Берём существительное по родительской секции (/results/<id> → «Отчёт»).
+ */
+const UUID_CONTEXT: Record<string, string> = {
+  results: "Отчёт",
+  training: "Сессия",
+  cases: "Кейс",
+  exam: "Экзамен",
+  clients: "Клиент",
+  pvp: "Бой",
+};
+
+function uuidLabel(parentSegment: string | undefined): string {
+  return (parentSegment && UUID_CONTEXT[parentSegment]) || "Подробнее";
 }
 
 export function AutoBreadcrumbs() {
@@ -99,7 +111,7 @@ export function AutoBreadcrumbs() {
 
     let label: string;
     if (isUuid(part)) {
-      label = shortId(part);
+      label = uuidLabel(parts[i - 1]);
     } else {
       label = LABEL_MAP[part] ?? part;
     }

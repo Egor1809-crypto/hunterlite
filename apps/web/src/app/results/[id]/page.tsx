@@ -182,7 +182,7 @@ export default function ResultsPage() {
 
   if (loading) {
     return (
-      <AuthLayout>
+      <AuthLayout showBreadcrumbs={false}>
         <div className="flex items-center justify-center min-h-screen">
           <PageSkeleton />
         </div>
@@ -192,7 +192,7 @@ export default function ResultsPage() {
 
   if (loadError) {
     return (
-      <AuthLayout>
+      <AuthLayout showBreadcrumbs={false}>
         <div className="flex min-h-screen items-center justify-center" style={{ background: "var(--bg-primary)" }}>
           <div className="text-center" style={{ maxWidth: 400 }}>
             <AlertCircle size={48} style={{ color: "var(--danger)", margin: "0 auto 16px" }} />
@@ -328,7 +328,7 @@ export default function ResultsPage() {
   }
 
   return (
-    <AuthLayout>
+    <AuthLayout showBreadcrumbs={false}>
       {/* AchievementToast removed */}
 
       {/* Phase C (2026-05-08): for error outcomes show CallDroppedCard

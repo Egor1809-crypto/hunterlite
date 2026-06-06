@@ -31,6 +31,7 @@ from app.models.exam import (
     ExamItemAttempt,
 )
 from app.models.knowledge import KnowledgeQuizSession, QuizSessionStatus
+from app.models.persona_snapshot import PersonaSnapshot
 from app.models.roleplay import ClientStory
 from app.models.training import SessionStatus, TrainingSession
 from app.models.user import User
@@ -157,12 +158,25 @@ async def unified_history(
             deep_link=f"/results/{latest.id}",
         ))
 
+    # Human title for standalone sessions: the client's name from PersonaSnapshot
+    # (keyed by session_id). NEVER show the raw scenario UUID — fall back to a
+    # clean "Тренировка" when there's no snapshot.
+    persona_names: dict[uuid.UUID, str] = {}
+    if standalone:
+        ps_result = await db.execute(
+            select(PersonaSnapshot.session_id, PersonaSnapshot.full_name).where(
+                PersonaSnapshot.session_id.in_([s.id for s in standalone])
+            )
+        )
+        persona_names = {sid: name for sid, name in ps_result.all() if name}
+
     for s in standalone:
+        client_name = persona_names.get(s.id)
         items.append(UnifiedHistoryItem(
             kind="session",
             id=str(s.id),
             date=s.started_at,
-            title=str(s.scenario_id) if s.scenario_id else "Тренировка",
+            title=f"Тренировка · {client_name}" if client_name else "Тренировка",
             metrics={
                 "score_total": _round(s.score_total),
                 "score_human_factor": _round(s.score_human_factor),
