@@ -48,60 +48,23 @@ interface VerdictMeta {
   border: string;
 }
 
+// 2026-06-06 (редизайн): убран «светофор» из эмодзи (🟢🟡🔴) и цветных плашек.
+// Один спокойный акцент на бейдж вердикта — смысл несёт подпись, не цвет.
 function getVerdictMeta(verdict: JudgeVerdictData["verdict"]): VerdictMeta {
-  switch (verdict) {
-    case "excellent":
-      return {
-        emoji: "🟢",
-        label: "Отличный звонок",
-        color: "var(--success)",
-        bg: "rgba(61,220,132,0.12)",
-        border: "rgba(61,220,132,0.45)",
-      };
-    case "good":
-      return {
-        emoji: "🟢",
-        label: "Хороший звонок",
-        color: "var(--success)",
-        bg: "rgba(61,220,132,0.10)",
-        border: "rgba(61,220,132,0.35)",
-      };
-    case "mixed":
-      return {
-        emoji: "🟡",
-        label: "Смешанный результат",
-        color: "var(--warning)",
-        bg: "rgba(255,184,0,0.10)",
-        border: "rgba(255,184,0,0.35)",
-      };
-    case "poor":
-      return {
-        emoji: "🔴",
-        label: "Слабый звонок",
-        color: "var(--danger)",
-        bg: "rgba(239,68,68,0.10)",
-        border: "rgba(239,68,68,0.35)",
-      };
-    case "red_flag":
-      return {
-        emoji: "⛔",
-        label: "Критические ошибки",
-        color: "var(--danger)",
-        bg: "rgba(239,68,68,0.18)",
-        border: "rgba(239,68,68,0.55)",
-      };
-    default:
-      // P0 (training-rework): never render a raw String(verdict) — null /
-      // unknown / unexpected values used to surface as literal "undefined".
-      // Fall back to a calm, neutral "mixed result" label instead.
-      return {
-        emoji: "⚪",
-        label: "Смешанный итог",
-        color: "var(--text-secondary)",
-        bg: "rgba(255,255,255,0.05)",
-        border: "var(--border-color)",
-      };
-  }
+  const labels: Record<string, string> = {
+    excellent: "Отличный звонок",
+    good: "Хороший звонок",
+    mixed: "Смешанный результат",
+    poor: "Слабый звонок",
+    red_flag: "Критические ошибки",
+  };
+  return {
+    emoji: "",
+    label: labels[verdict as string] ?? "Смешанный итог",
+    color: "var(--accent)",
+    bg: "var(--accent-muted)",
+    border: "var(--border-color)",
+  };
 }
 
 function formatAdjust(n: number): string {
@@ -112,7 +75,7 @@ function formatAdjust(n: number): string {
 export default function JudgeVerdictCard({ judge, onJumpToMessage }: JudgeVerdictCardProps) {
   const meta = getVerdictMeta(judge.verdict);
   const adjust = Number(judge.score_adjust ?? 0);
-  const adjustColor = adjust >= 0 ? "var(--success)" : "var(--danger)";
+  const adjustColor = "var(--text-primary)";
 
   const strengths = (Array.isArray(judge.strengths) ? judge.strengths : [])
     .map(normalizeStrength)
@@ -146,7 +109,6 @@ export default function JudgeVerdictCard({ judge, onJumpToMessage }: JudgeVerdic
           className="inline-flex items-center gap-2 rounded-xl px-4 py-2 font-display text-base md:text-lg tracking-wide"
           style={{ background: meta.bg, border: `1px solid ${meta.border}`, color: meta.color }}
         >
-          <span aria-hidden>{meta.emoji}</span>
           <span>«{meta.label}»</span>
         </div>
         <div className="flex flex-col items-end">
@@ -158,7 +120,7 @@ export default function JudgeVerdictCard({ judge, onJumpToMessage }: JudgeVerdic
           </span>
           <span
             className="font-display text-3xl font-bold"
-            style={{ color: adjustColor, textShadow: `0 0 10px ${adjustColor}` }}
+            style={{ color: adjustColor }}
           >
             {formatAdjust(adjust)}
           </span>
@@ -180,7 +142,7 @@ export default function JudgeVerdictCard({ judge, onJumpToMessage }: JudgeVerdic
         <div>
           <div
             className="font-mono text-xs uppercase tracking-widest mb-2"
-            style={{ color: "var(--success)" }}
+            style={{ color: "var(--text-muted)" }}
           >
             Сильные стороны
           </div>
@@ -198,12 +160,12 @@ export default function JudgeVerdictCard({ judge, onJumpToMessage }: JudgeVerdic
                     disabled={!clickable}
                     className={
                       "inline-flex items-center rounded-full px-3 py-1 text-xs font-mono transition-colors " +
-                      (clickable ? "cursor-pointer hover:bg-emerald-500/20" : "cursor-default")
+                      (clickable ? "cursor-pointer hover:bg-white/[0.04]" : "cursor-default")
                     }
                     style={{
-                      background: "rgba(61,220,132,0.10)",
-                      border: "1px solid rgba(61,220,132,0.35)",
-                      color: "var(--success)",
+                      background: "var(--bg-secondary)",
+                      border: "1px solid var(--border-color)",
+                      color: "var(--text-secondary)",
                     }}
                   >
                     {s.label}
@@ -221,7 +183,7 @@ export default function JudgeVerdictCard({ judge, onJumpToMessage }: JudgeVerdic
         <div>
           <div
             className="font-mono text-xs uppercase tracking-widest mb-2"
-            style={{ color: "var(--danger)" }}
+            style={{ color: "var(--text-muted)" }}
           >
             Что улучшить
           </div>
@@ -242,12 +204,12 @@ export default function JudgeVerdictCard({ judge, onJumpToMessage }: JudgeVerdic
                     disabled={!clickable}
                     className={
                       "inline-flex items-center rounded-full px-3 py-1 text-xs font-mono transition-colors " +
-                      (clickable ? "cursor-pointer hover:bg-red-500/20" : "cursor-default")
+                      (clickable ? "cursor-pointer hover:bg-white/[0.04]" : "cursor-default")
                     }
                     style={{
-                      background: "rgba(239,68,68,0.10)",
-                      border: "1px solid rgba(239,68,68,0.35)",
-                      color: "var(--danger)",
+                      background: "var(--bg-secondary)",
+                      border: "1px solid var(--border-color)",
+                      color: "var(--text-secondary)",
                     }}
                   >
                     {f.label}

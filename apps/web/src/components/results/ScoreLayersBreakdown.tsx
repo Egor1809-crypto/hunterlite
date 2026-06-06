@@ -60,20 +60,20 @@ const LAYER_DEFS: LayerScore[] = [
   { key: "score_legal", label: "Правовая точность ФЗ-127", shortLabel: "Правовая точность ФЗ-127", description: "Корректность ссылок на 127-ФЗ", value: 0, maxValue: 25, icon: Scales },
 ];
 
-function getBarColor(pct: number, isModifier: boolean): string {
-  if (isModifier) return "var(--accent)";
-  if (pct >= 80) return "var(--success)";
-  if (pct >= 60) return "var(--warning, #E8A630)";
-  if (pct >= 40) return "var(--info, #5B9EE9)";
-  return "var(--danger)";
+// 2026-06-06 (редизайн): убран «светофор» (green/orange/blue/red). Один акцент
+// на всё — значение несёт число «X/max», а не цвет. Спокойный редакторский вид.
+function getBarColor(_pct: number, _isModifier: boolean): string {
+  return "var(--accent)";
 }
 
+// Грейд-лейбл остаётся текстом, но без цветовой заливки — нейтральный.
 function getGradeLabel(pct: number): { label: string; color: string } {
-  if (pct >= 90) return { label: "Отлично", color: "var(--success)" };
-  if (pct >= 70) return { label: "Хорошо", color: "var(--success)" };
-  if (pct >= 50) return { label: "Средне", color: "var(--warning, var(--gf-xp))" };
-  if (pct >= 25) return { label: "Слабо", color: "var(--warning)" };
-  return { label: "Критично", color: "var(--danger)" };
+  const color = "var(--text-secondary)";
+  if (pct >= 90) return { label: "Отлично", color };
+  if (pct >= 70) return { label: "Хорошо", color };
+  if (pct >= 50) return { label: "Средне", color };
+  if (pct >= 25) return { label: "Слабо", color };
+  return { label: "Критично", color };
 }
 
 interface Props {
@@ -227,7 +227,6 @@ export default function ScoreLayersBreakdown({ scoreBreakdown, totalScore, layer
                       transition={{ duration: 0.6, delay: i * 0.05 }}
                       style={{
                         background: barColor,
-                        boxShadow: `0 0 6px ${colorAlpha(barColor, 25)}`,
                         minWidth: pct > 0 ? "2px" : "0",
                       }}
                     />
@@ -265,10 +264,8 @@ export default function ScoreLayersBreakdown({ scoreBreakdown, totalScore, layer
                               key={hi}
                               className="flex items-start gap-2.5 rounded-lg px-3 py-2"
                               style={{
-                                background: h.delta < 0 ? "var(--danger-muted)" : h.delta > 0 ? "var(--success-muted)" : "rgba(255,255,255,0.02)",
-                                borderLeft: h.delta !== 0
-                                  ? `3px solid ${h.delta < 0 ? "var(--danger)" : "var(--success)"}`
-                                  : "3px solid var(--border-color)",
+                                background: "var(--bg-secondary)",
+                                borderLeft: `3px solid ${h.delta !== 0 ? "var(--accent)" : "var(--border-color)"}`,
                               }}
                             >
                               <ChatCircle weight="duotone" size={12} className="mt-0.5 shrink-0" style={{ color: "var(--text-muted)" }} />
@@ -281,10 +278,10 @@ export default function ScoreLayersBreakdown({ scoreBreakdown, totalScore, layer
                                     &ldquo;{h.excerpt}&rdquo;
                                   </p>
                                 )}
-                                <p className="text-sm mt-1" style={{ color: h.delta < 0 ? "var(--danger)" : h.delta > 0 ? "var(--success)" : "var(--text-secondary)" }}>
+                                <p className="text-sm mt-1" style={{ color: "var(--text-secondary)" }}>
                                   {h.impact}
                                   {h.delta !== 0 && (
-                                    <span className="ml-2 font-mono font-bold">
+                                    <span className="ml-2 font-mono font-bold" style={{ color: "var(--text-primary)" }}>
                                       {h.delta > 0 ? "+" : ""}{h.delta.toFixed(1)}
                                     </span>
                                   )}
