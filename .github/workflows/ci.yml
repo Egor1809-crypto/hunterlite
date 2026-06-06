@@ -169,6 +169,8 @@ jobs:
             tests/test_llm_model_fallback.py \
             tests/test_consent_routes.py \
             tests/test_client_profile_clamp.py \
+            tests/test_ai_filter_task_type.py \
+            tests/test_ai_radar_classifier_fix.py \
             tests/test_training_rework_p3_scoring.py
 
   frontend:

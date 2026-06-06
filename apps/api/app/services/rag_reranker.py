@@ -75,10 +75,14 @@ def _get_client() -> httpx.AsyncClient:
 
 
 async def _call_llm(user_prompt: str) -> str | None:
-    url_base = os.environ.get("LOCAL_LLM_URL", "https://api.navy/v1").rstrip("/")
-    api_key = os.environ.get("LOCAL_LLM_API_KEY", "")
+    # 2026-06-04 (ultrareview C6): read from pydantic `settings`, not os.environ
+    # (project sets NAVY_LLM_* into settings, never into os.environ → old lookups
+    # were always empty → reranker silently disabled).
+    from app.config import settings
+    url_base = (settings.local_llm_url or "https://api.navy/v1").rstrip("/")
+    api_key = settings.local_llm_api_key or ""
     if not api_key:
-        logger.warning("rag_reranker: LOCAL_LLM_API_KEY missing")
+        logger.warning("rag_reranker: navy api key missing (settings.local_llm_api_key)")
         return None
     try:
         r = await _get_client().post(

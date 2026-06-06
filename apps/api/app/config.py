@@ -64,7 +64,13 @@ class Settings(BaseSettings):
     # TZ-5 input funnel models (PR #102 + owner override 2026-04-29).
     # Both routed via the navy proxy (`local_llm_url`).
     tz5_extractor_model: str = "gpt-5.4"
-    tz5_classifier_model: str = "gemini-3.1-pro-preview"
+    # 2026-06-04 (ultrareview C4): was "gemini-3.1-pro-preview" — a REASONING
+    # model that burned the entire max_tokens=300 budget on hidden reasoning
+    # (finish_reason=length, content truncated to `{"route_type": "`), so the
+    # LLM classifier was dead 100% of the time and always fell back to the
+    # mislabelling heuristic. gemini-3.5-flash is non-reasoning and returns the
+    # small JSON cleanly.
+    tz5_classifier_model: str = "gemini-3.5-flash"
     llm_timeout_seconds: int = 60
     llm_max_history_messages: int = 20
 

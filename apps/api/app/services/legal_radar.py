@@ -226,14 +226,18 @@ async def _save_updates(db: AsyncSession, updates: list[dict]) -> int:
 
 async def fetch_updates(db: AsyncSession) -> int:
     updates = await _try_rss_sources()
-
-    if not updates:
-        updates = await _ai_generate_updates()
-
     relevant = [u for u in updates if u.get("relevance_score", 0) > 0.3]
 
+    # 2026-06-04 (ultrareview C5): trigger the AI fallback when nothing RELEVANT
+    # was found — not only when RSS returned nothing at all. RSS frequently
+    # returns sub-threshold items (non-empty `updates`), which previously made
+    # the `if not updates` interlock skip AI → radar produced 0 updates forever.
     if not relevant:
-        logger.info("Legal radar: no relevant updates found")
+        ai_updates = await _ai_generate_updates()
+        relevant = [u for u in ai_updates if u.get("relevance_score", 0) > 0.3]
+
+    if not relevant:
+        logger.info("Legal radar: no relevant updates found (rss + ai fallback)")
         return 0
 
     saved = await _save_updates(db, relevant)

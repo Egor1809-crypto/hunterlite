@@ -71,10 +71,16 @@ async def get_query_embedding_gemini(text: str) -> list[float] | None:
     Independent of the shared `get_embedding()` helper which may still
     point at text-embedding-3-small during the transition.
     """
-    url_base = os.environ.get("LOCAL_EMBEDDING_URL", "https://api.navy/v1").rstrip("/")
-    api_key = os.environ.get("LOCAL_EMBEDDING_API_KEY", "")
+    # 2026-06-04 (ultrareview C6): read from pydantic `settings`, NOT os.environ.
+    # The project sets NAVY_LLM_* (loaded into settings, never exported to
+    # os.environ), so the old os.environ['LOCAL_EMBEDDING_*'] lookups were always
+    # empty → embedding=None → 0 grounded chunks whenever v2 was enabled.
+    url_base = (
+        getattr(settings, "local_embedding_url", "") or settings.local_llm_url or "https://api.navy/v1"
+    ).rstrip("/")
+    api_key = settings.local_llm_api_key or ""
     if not api_key:
-        logger.warning("rag_legal_v2: LOCAL_EMBEDDING_API_KEY missing — cannot query")
+        logger.warning("rag_legal_v2: navy api key missing (settings.local_llm_api_key) — cannot query")
         return None
     try:
         r = await _get_http_client().post(

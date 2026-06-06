@@ -336,6 +336,27 @@ def _clamp_message_index(payload: dict, max_index: int) -> None:
                 item["message_index"] = idx
 
 
+def _salvage_truncated_judge_json(text: str) -> dict | None:
+    """Best-effort recovery of a truncated judge JSON object.
+
+    Extracts verdict / score_adjust / rationale_ru via regex when the JSON was
+    cut off (unterminated string). Returns a dict (schema-validated downstream)
+    or None if even the verdict can't be found.
+    """
+    import re as _re
+    m = _re.search(r'"verdict"\s*:\s*"([a-zA-Z_]+)"', text)
+    if not m:
+        return None
+    out: dict = {"verdict": m.group(1)}
+    sa = _re.search(r'"score_adjust"\s*:\s*(-?\d+)', text)
+    if sa:
+        out["score_adjust"] = int(sa.group(1))
+    rat = _re.search(r'"rationale_ru"\s*:\s*"(.*?)(?:"\s*[,}]|$)', text, _re.DOTALL)
+    if rat:
+        out["rationale_ru"] = rat.group(1).strip()
+    return out
+
+
 def _parse_verdict(
     raw_content: str,
     *,
@@ -352,8 +373,14 @@ def _parse_verdict(
     try:
         payload = json.loads(text)
     except json.JSONDecodeError:
-        logger.warning("LLM judge returned non-JSON: %r", text[:200])
-        return _default_verdict(_PARSE_FAIL_RATIONALE, model_used=model_used, latency_ms=latency_ms)
+        # 2026-06-04 (ultrareview): salvage a truncated/unterminated JSON object
+        # (e.g. rationale_ru cut off by the token cap) so a near-complete verdict
+        # isn't thrown away as a parse-fail "mixed".
+        payload = _salvage_truncated_judge_json(text)
+        if payload is None:
+            logger.warning("LLM judge returned non-JSON: %r", text[:200])
+            return _default_verdict(_PARSE_FAIL_RATIONALE, model_used=model_used, latency_ms=latency_ms)
+        logger.warning("LLM judge JSON truncated — salvaged verdict=%s", payload.get("verdict"))
 
     if not isinstance(payload, dict):
         return _default_verdict(_PARSE_FAIL_RATIONALE, model_used=model_used, latency_ms=latency_ms)
@@ -431,7 +458,9 @@ async def _invoke_llm(transcript_prompt: str) -> tuple[str, str, int]:
         task_type="judge",
         prefer_provider="local",
         temperature=0.2,
-        max_tokens=600,
+        # 2026-06-04 (ultrareview): 600 truncated rationale_ru mid-string →
+        # invalid JSON → parse-fail → judge always defaulted to "mixed".
+        max_tokens=1400,
     )
     latency_ms = int((time.monotonic() - start) * 1000)
 
