@@ -7,6 +7,7 @@ RAG-grounded "разбор" (post-mortem) for any single attempt.
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 import uuid
@@ -58,9 +59,15 @@ MANYASHA_SYSTEM_PROMPT = (
     "5. Короткий дисклеймер."
 )
 
-_MODEL = os.getenv("KNOWLEDGE_AI_MODEL", "deepseek-v4-pro")
-_MAX_TOKENS = max(4096, int(os.getenv("KNOWLEDGE_AI_MAX_TOKENS", "4096")))
+# 2026-06-04: the history «Разбор от Маняши» must generate fast (≤7s) and
+# reliably. deepseek-v4-pro AND gpt-5.5 are REASONING models — too slow for a
+# 1.4k-token report (>7.5s → timeout → "временно недоступен"). gemini-3.5-flash
+# is non-reasoning (~2s), handles RU well, no tools needed here. Wrapped in a
+# hard 7s timeout below.
+_MODEL = os.getenv("HISTORY_EXPLAIN_MODEL", "gemini-3.5-flash")
+_MAX_TOKENS = int(os.getenv("HISTORY_EXPLAIN_MAX_TOKENS", "1400"))
 _TEMPERATURE = float(os.getenv("KNOWLEDGE_AI_TEMPERATURE", "0.3"))
+_EXPLAIN_TIMEOUT_S = float(os.getenv("HISTORY_EXPLAIN_TIMEOUT_S", "7.5"))
 
 _FALLBACK_REPORT = "Разбор временно недоступен — попробуйте позже."
 
@@ -391,16 +398,24 @@ async def _generate_report(
 
     try:
         client = _get_ai_client()
-        response = await client.chat.completions.create(
-            model=_MODEL,
-            messages=[
+        _create_kwargs: dict = {
+            "model": _MODEL,
+            "messages": [
                 {"role": "system", "content": MANYASHA_SYSTEM_PROMPT},
                 {"role": "user", "content": user_prompt},
             ],
-            max_tokens=_MAX_TOKENS,
-            temperature=_TEMPERATURE,
+            "max_tokens": _MAX_TOKENS,
+        }
+        # gpt-5.x reject a custom temperature (400) — omit it for them.
+        if not _MODEL.lower().startswith("gpt-5"):
+            _create_kwargs["temperature"] = _TEMPERATURE
+        # Hard timeout so the «Разбор» never hangs past ~7s.
+        response = await asyncio.wait_for(
+            client.chat.completions.create(**_create_kwargs),
+            timeout=_EXPLAIN_TIMEOUT_S,
         )
-        report_text = (response.choices[0].message.content or "").strip()
+        _msg = response.choices[0].message if response.choices else None
+        report_text = ((getattr(_msg, "content", None) or getattr(_msg, "reasoning_content", None) or "") if _msg else "").strip()
         if not report_text:
             return _FALLBACK_REPORT, _build_sources(rag_ctx)
         return report_text, _build_sources(rag_ctx)
