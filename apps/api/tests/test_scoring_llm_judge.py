@@ -113,7 +113,9 @@ async def test_valid_json_parses_into_verdict(monkeypatch: pytest.MonkeyPatch) -
     assert verdict.verdict == "good"
     assert verdict.score_adjust == 3
     assert "выдержал паузу" in verdict.rationale_ru
-    assert verdict.strengths == ["эмпатичный отклик"]
+    # strengths are normalised to objects (label/message_index/excerpt); a legacy
+    # list[str] payload becomes a single item with that label.
+    assert [s.label for s in verdict.strengths] == ["эмпатичный отклик"]
     assert verdict.red_flags == []
     assert stub.calls == 1
 
@@ -384,7 +386,8 @@ async def test_timeout_returns_fail_soft(monkeypatch: pytest.MonkeyPatch) -> Non
 def test_transcript_format_uses_M_and_K_prefixes() -> None:
     out = judge_mod._format_transcript(["один", "два"], ["alpha", "beta"])
     lines = out.split("\n")
-    assert lines == ["M: один", "К: alpha", "M: два", "К: beta"]
+    # M[i] carries the manager-line index so the judge can cite a specific reply.
+    assert lines == ["M[0]: один", "К: alpha", "M[1]: два", "К: beta"]
 
 
 def test_transcript_format_caps_to_last_turns() -> None:

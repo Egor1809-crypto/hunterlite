@@ -142,19 +142,23 @@ def _extract_tags(text: str) -> list[str]:
 
 
 async def _ai_generate_updates() -> list[dict]:
-    client = _get_ai_client()
+    # 2026-06-04 (ultrareview M18): route through generate_response so AI radar
+    # generation gets the circuit-breaker + model fallback chain (deepseek is
+    # flaky/500s) instead of a raw single-shot client. task_type="structured"
+    # passes the JSON through un-mangled. If navy is fully down (model=scripted),
+    # return nothing rather than fabricate ungrounded "legal news".
+    from app.services.llm import generate_response
     try:
-        response = await client.chat.completions.create(
-            model=_MODEL,
-            messages=[
-                {"role": "system", "content": "Отвечай строго в JSON формате. Без markdown."},
-                {"role": "user", "content": AI_GENERATION_PROMPT},
-            ],
+        response = await generate_response(
+            system_prompt="Отвечай строго в JSON формате. Без markdown.",
+            messages=[{"role": "user", "content": AI_GENERATION_PROMPT}],
+            task_type="structured",
             max_tokens=3000,
             temperature=0.4,
         )
-        raw = response.choices[0].message.content or "[]"
-        raw = raw.strip()
+        if not response or response.model == "scripted":
+            return []
+        raw = (response.content or "[]").strip()
         if raw.startswith("```"):
             raw = raw.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
 

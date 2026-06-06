@@ -758,7 +758,18 @@ async def get_embeddings_batch(texts: list[str]) -> list[list[float]] | None:
                 embeddings_data = data.get("data", [])
                 if embeddings_data:
                     sorted_data = sorted(embeddings_data, key=lambda x: x.get("index", 0))
-                    return [e.get("embedding", []) for e in sorted_data]
+                    result = [e.get("embedding", []) for e in sorted_data]
+                    # 2026-06-04 (ultrareview minor): guard the pgvector vector(768)
+                    # schema — a model returning a different dimension would
+                    # silently break inserts/search. Fail closed (None) so the
+                    # caller degrades instead of persisting a wrong-dim vector.
+                    if result and result[0] and len(result[0]) != 768:
+                        logger.error(
+                            "embedding dim mismatch: got %d, expected 768 (model=%s)",
+                            len(result[0]), embedding_model,
+                        )
+                        return None
+                    return result
             else:
                 logger.debug("Local embedding returned %d", resp.status_code)
         except (httpx.ConnectError, httpx.TimeoutException) as e:

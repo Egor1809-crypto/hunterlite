@@ -81,7 +81,11 @@ async def _probe_one(client: openai.AsyncOpenAI, model: str, slow_ms: int, timeo
             {"role": "system", "content": PING_SYSTEM},
             {"role": "user", "content": PING_USER},
         ],
-        "max_tokens": 16,
+        # 2026-06-04: 16 was too small for gpt-5.x reasoning models — they spend
+        # the budget on hidden reasoning and hit the output limit → the probe
+        # falsely reported them "down". 256 gives reasoning models room to also
+        # emit the visible answer.
+        "max_tokens": 256,
     }
     if not model.lower().startswith("gpt-5"):
         create_kwargs["temperature"] = 0.0
