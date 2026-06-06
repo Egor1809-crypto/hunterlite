@@ -13,53 +13,44 @@ interface CategoryMeta {
   positive?: boolean;
 }
 
+// 2026-06-06 (редизайн malvah): без эмодзи — чистые текстовые подписи.
 const CATEGORY_LABELS: Record<string, CategoryMeta> = {
-  monologue: { label: "🎙 Монолог" },
-  mistake_monologue: { label: "🎙 Монолог" },
-  no_open_question: { label: "❓ Нет открытых вопросов" },
-  mistake_no_open_question: { label: "❓ Нет открытых вопросов" },
-  talk_ratio_high: { label: "🔊 Доминирует в речи" },
-  mistake_talk_ratio_high: { label: "🔊 Доминирует в речи" },
-  repeated_argument: { label: "🔁 Повтор аргумента" },
-  mistake_repeated_argument: { label: "🔁 Повтор аргумента" },
-  early_pricing: { label: "💰 Раннее ценообразование" },
-  mistake_early_pricing: { label: "💰 Раннее ценообразование" },
-  false_promises: { label: "⚠️ Ложные обещания" },
-  intimidation: { label: "😨 Запугивание" },
-  incorrect_info: { label: "❌ Неверная информация" },
-  disrespect_to_client: { label: "🤬 Грубость с клиентом" },
-  zero_open_questions: { label: "❓ Ни одного открытого вопроса" },
-  mode_switch_to_on_task: { label: "🧭 Переход к делу замечен", positive: true },
+  monologue: { label: "Монолог" },
+  mistake_monologue: { label: "Монолог" },
+  no_open_question: { label: "Нет открытых вопросов" },
+  mistake_no_open_question: { label: "Нет открытых вопросов" },
+  talk_ratio_high: { label: "Доминирует в речи" },
+  mistake_talk_ratio_high: { label: "Доминирует в речи" },
+  repeated_argument: { label: "Повтор аргумента" },
+  mistake_repeated_argument: { label: "Повтор аргумента" },
+  early_pricing: { label: "Раннее ценообразование" },
+  mistake_early_pricing: { label: "Раннее ценообразование" },
+  false_promises: { label: "Ложные обещания" },
+  intimidation: { label: "Запугивание" },
+  incorrect_info: { label: "Неверная информация" },
+  disrespect_to_client: { label: "Грубость с клиентом" },
+  zero_open_questions: { label: "Ни одного открытого вопроса" },
+  mode_switch_to_on_task: { label: "Переход к делу замечен", positive: true },
 };
 
 function getCategoryMeta(category: string): CategoryMeta {
   return CATEGORY_LABELS[category] ?? { label: category };
 }
 
+// 2026-06-06 (редизайн malvah): монохром — число «−5 / +5» само несёт знак,
+// без цветной заливки. Спокойный нейтральный чип.
 function formatPenalty(p: number | undefined): { text: string; color: string; bg: string; border: string } {
   const value = typeof p === "number" ? p : 0;
-  if (value < 0) {
-    const text = `−${Math.abs(value).toFixed(2).replace(/\.00$/, "")}`;
-    return {
-      text,
-      color: "var(--danger)",
-      bg: "rgba(239,68,68,0.12)",
-      border: "rgba(239,68,68,0.35)",
-    };
-  }
-  if (value > 0) {
-    const text = `+${value.toFixed(2).replace(/\.00$/, "")}`;
-    return {
-      text,
-      color: "var(--success)",
-      bg: "rgba(61,220,132,0.12)",
-      border: "rgba(61,220,132,0.35)",
-    };
-  }
+  const text =
+    value < 0
+      ? `−${Math.abs(value).toFixed(2).replace(/\.00$/, "")}`
+      : value > 0
+        ? `+${value.toFixed(2).replace(/\.00$/, "")}`
+        : "0";
   return {
-    text: "0",
-    color: "var(--text-muted)",
-    bg: "rgba(255,255,255,0.04)",
+    text,
+    color: "var(--text-secondary)",
+    bg: "var(--bg-secondary)",
     border: "var(--border-color)",
   };
 }
@@ -77,10 +68,7 @@ export default function MistakesBreakdown({ items }: MistakesBreakdownProps) {
       <div
         className="absolute top-0 left-0 right-0 h-[2px]"
         style={{
-          background:
-            list.length === 0
-              ? "linear-gradient(90deg, transparent, var(--accent), transparent)"
-              : "linear-gradient(90deg, transparent, var(--danger), transparent)",
+          background: "linear-gradient(90deg, transparent, var(--border-color), transparent)",
         }}
       />
 
@@ -90,7 +78,7 @@ export default function MistakesBreakdown({ items }: MistakesBreakdownProps) {
       >
         <AlertTriangle
           size={18}
-          style={{ color: list.length === 0 ? "var(--accent)" : "var(--danger)" }}
+          style={{ color: "var(--text-muted)" }}
         />{" "}
         ОШИБКИ И НАРУШЕНИЯ
       </h2>
@@ -113,7 +101,7 @@ export default function MistakesBreakdown({ items }: MistakesBreakdownProps) {
           {list.map((item, i) => {
             const meta = getCategoryMeta(item.category);
             const penalty = formatPenalty(item.penalty);
-            const labelColor = meta.positive ? "var(--success)" : "var(--text-primary)";
+            const labelColor = meta.positive ? "var(--accent)" : "var(--text-primary)";
 
             return (
               <div

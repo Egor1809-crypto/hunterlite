@@ -323,7 +323,13 @@ export function PhoneCallMode({
     <div
       className="fixed inset-0 flex flex-col overflow-hidden"
       style={{
-        background: "var(--bg-primary)",
+        // 2026-06-06 (редизайн): спокойный редакторский фон вместо плоской
+        // заливки — мягкое сияние акцента сверху + лёгкая виньетка снизу.
+        // Без неона, в духе minimal-studio (malvah): тонко и дорого.
+        backgroundColor: "var(--bg-primary)",
+        backgroundImage:
+          "radial-gradient(120% 70% at 50% -10%, var(--accent-muted) 0%, transparent 55%), " +
+          "radial-gradient(90% 60% at 50% 115%, color-mix(in srgb, var(--text-primary) 6%, transparent) 0%, transparent 60%)",
         color: "var(--text-primary)",
       }}
     >
