@@ -16,12 +16,6 @@ import {
   FileText,
   Star,
   X,
-  Scale,
-  Users,
-  Gavel,
-  ShieldAlert,
-  Trophy,
-  type LucideIcon,
 } from "lucide-react";
 import AuthLayout from "@/components/layout/AuthLayout";
 import { EditorialHeader } from "@/components/ui/EditorialHeader";
@@ -31,20 +25,10 @@ import { Card } from "@/components/ui/Card";
 import { AbstractBackdrop } from "@/components/ui/AbstractBackdrop";
 import { CertificatePreview, CERT_TOKEN_PALETTE } from "@/components/certificate/CertificatePreview";
 
-// Lucide icons — same library / tile style as /home (центр).
-const EXAM_ICONS: Record<string, LucideIcon> = {
-  "exam-1": Scale,
-  "exam-2": Users,
-  "exam-3": Gavel,
-  "exam-4": ShieldAlert,
-  "exam-5": Trophy,
-};
-
-// 2026-06-04: ONE restrained brand accent for every card (was a per-exam
-// rainbow that read as gamey/chaotic). Editorial calm (malvah/abstract) =
-// neutral surfaces + a single accent. The accent is a fixed brand purple so
-// the hex-alpha tints below resolve correctly in both light and dark.
-const ACCENT = "#7C3AED";
+// ONE restrained brand accent for every card — the platform token var(--primary)
+// so it follows the theme (purple in light, blue in dark) like the rest of the
+// app. Tints go through color-mix instead of hardcoded hex-alpha.
+const accentMix = (pct: number) => `color-mix(in srgb, var(--primary) ${pct}%, transparent)`;
 
 // The mechanic is the new differentiator — surface it on every card.
 const MECHANIC_META: Record<string, { label: string; ai: boolean }> = {
@@ -76,9 +60,8 @@ interface ExamItem {
 }
 
 function ExamCard({ exam, onStart }: { exam: ExamItem; onStart: () => void }) {
-  const Icon = EXAM_ICONS[exam.id] ?? GraduationCap;
   const isFinal = exam.id === "exam-5";
-  const accent = ACCENT;
+  const accent = "var(--primary)";
   const mech = MECHANIC_META[exam.mechanic] ?? { label: exam.mechanic, ai: false };
 
   return (
@@ -87,19 +70,12 @@ function ExamCard({ exam, onStart }: { exam: ExamItem; onStart: () => void }) {
       className="group relative overflow-hidden"
       style={{ opacity: exam.is_locked ? 0.55 : 1 }}
     >
-      {/* accent strip — per-exam identity */}
-      <div className="h-[3px] w-full" style={{ background: `linear-gradient(90deg, ${accent}, ${accent}22 70%, transparent)` }} />
+      {/* accent strip */}
+      <div className="h-[3px] w-full" style={{ background: `linear-gradient(90deg, var(--primary), ${accentMix(13)} 70%, transparent)` }} />
 
       <div className="p-5 sm:p-6">
-        {/* Header */}
+        {/* Header — no icon-tile; mono eyebrow carries identity */}
         <div className="flex items-start gap-4">
-          <span
-            className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl"
-            style={{ background: `${accent}14`, border: `1px solid ${accent}33` }}
-          >
-            <Icon size={22} strokeWidth={1.9} style={{ color: accent }} />
-          </span>
-
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
               <span className="font-mono text-[11px] font-bold uppercase tracking-[0.14em]" style={{ color: accent }}>
@@ -108,7 +84,7 @@ function ExamCard({ exam, onStart }: { exam: ExamItem; onStart: () => void }) {
               {/* mechanic pill — the differentiator */}
               <span
                 className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-semibold"
-                style={{ background: `${accent}16`, color: accent, border: `1px solid ${accent}30` }}
+                style={{ background: accentMix(9), color: accent, border: `1px solid ${accentMix(19)}` }}
               >
                 <span className="h-1.5 w-1.5 rounded-full" style={{ background: accent }} />
                 {mech.label}
@@ -194,7 +170,7 @@ function ExamCard({ exam, onStart }: { exam: ExamItem; onStart: () => void }) {
             <button
               onClick={onStart}
               className="flex w-full items-center justify-center gap-2 rounded-xl py-3.5 text-[14px] font-semibold text-white transition-transform active:scale-[0.99]"
-              style={{ background: accent, boxShadow: `0 6px 20px -8px ${accent}` }}
+              style={{ background: accent, boxShadow: "var(--shadow-sm)" }}
             >
               <GraduationCap size={17} />
               {exam.passed ? "Пересдать экзамен" : "Начать экзамен"}
@@ -390,7 +366,7 @@ export default function ExamPage() {
                 <ul className="space-y-1.5 text-[13px] leading-relaxed" style={{ color: "var(--text-secondary)" }}>
                   <li>Все экзамены открыты — проходите в любом порядке.</li>
                   <li>У каждого экзамена своя механика; порог сдачи везде — 88%.</li>
-                  <li>Задания формируются по плану экзамена; сложные ответы оценивает ИИ-эксперт (deepseek) по рубрике.</li>
+                  <li>Задания формируются по плану экзамена; сложные ответы оценивает ИИ-эксперт по рубрике.</li>
                   <li>Таймер проверяется на сервере; сертификат — только при проходе в срок.</li>
                   <li>При успешной сдаче выдаётся сертификат с кодом верификации.</li>
                 </ul>
@@ -404,7 +380,7 @@ export default function ExamPage() {
       <AnimatePresence>
         {showCert && (
           <motion.div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-            <div className="absolute inset-0" style={{ background: "rgba(8,6,12,0.62)", backdropFilter: "blur(6px)" }} onClick={() => { setShowCert(false); setShowSample(false); }} />
+            <div className="absolute inset-0" style={{ background: "var(--overlay-bg)", backdropFilter: "blur(6px)" }} onClick={() => { setShowCert(false); setShowSample(false); }} />
             <motion.div
               className="relative w-full max-w-[820px]"
               initial={{ scale: 0.95, y: 16 }}
@@ -431,7 +407,7 @@ export default function ExamPage() {
                 <CertificatePreview
                   variant="locked"
                   palette={CERT_TOKEN_PALETTE}
-                  lockTitle="Сдайте экзамен на проходной балл — и получите сертификат, заверенный лучшими юристами РФ."
+                  lockTitle="Сдайте экзамен на проходной балл — и получите сертификат об аттестации."
                   lockSubtitle="Станьте экспертом в процедуре банкротства физических лиц."
                   ctaLabel="К экзаменам"
                   onCta={() => { setShowCert(false); setShowSample(false); }}
