@@ -433,8 +433,18 @@ async def refresh_radar(
     db: AsyncSession = Depends(get_db),
 ):
     from app.services.legal_radar import fetch_updates
-    saved = await fetch_updates(db)
-    return {"status": "ok", "saved": saved}
+    # 2026-06-04 (ultrareview M19): distinguish "ran, nothing new" from a failure
+    # so the operator isn't left guessing on {saved: 0}.
+    try:
+        saved = await fetch_updates(db)
+    except Exception:
+        logger.exception("radar refresh failed")
+        return {"status": "error", "saved": 0, "detail": "Не удалось обновить радар — см. логи."}
+    return {
+        "status": "ok",
+        "saved": saved,
+        "detail": (f"Добавлено обновлений: {saved}." if saved else "Новых релевантных обновлений не найдено."),
+    }
 
 
 @router.get("/stats", response_model=StatsResponse)

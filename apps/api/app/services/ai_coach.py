@@ -136,15 +136,24 @@ async def coach_chat(
     try:
         if rag_ctx and rag_result and hasattr(rag_result, "wiki_pages") and len(rag_result.wiki_pages or []) >= 2:
             from app.services.rag_wiki import compound_knowledge
+            from app.database import async_session
             import asyncio
             _source_pages = [p.get("page_path", "") for p in (rag_result.wiki_pages or [])]
-            asyncio.create_task(compound_knowledge(
-                manager_id=user_id,
-                query=message,
-                synthesis=result.content,
-                source_pages=_source_pages,
-                db=db,
-            ))
+
+            # 2026-06-04 (ultrareview M13): fire-and-forget must NOT reuse the
+            # request-scoped `db` — it's closed when the request returns, so the
+            # background task would hit a dead session. Open its own session.
+            async def _compound_bg(mid, q, synth, pages):
+                try:
+                    async with async_session() as bg_db:
+                        await compound_knowledge(
+                            manager_id=mid, query=q, synthesis=synth,
+                            source_pages=pages, db=bg_db,
+                        )
+                except Exception:
+                    logger.debug("background compound_knowledge failed (non-critical)", exc_info=True)
+
+            asyncio.create_task(_compound_bg(user_id, message, result.content, _source_pages))
     except Exception:
         pass  # compounding is non-critical fire-and-forget
 
