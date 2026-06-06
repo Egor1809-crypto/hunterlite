@@ -15,6 +15,15 @@ for p in [_API_DIR / ".env", _PROJECT_ROOT / ".env"]:
     if p.exists():
         _ENV_FILES.append(str(p))
 
+# 2026-06-06: СТАБИЛЬНЫЕ dev-секреты (НЕ для прода — в production валидаторы
+# требуют реальные значения из env). Раньше пустой JWT_SECRET/CSRF_SECRET в dev
+# давал новый случайный секрет на КАЖДЫЙ перезапуск процесса → токены/CSRF-cookie
+# инвалидировались, и юзер ловил auth.error/refresh-401/403 после каждого
+# рестарта бэка. Фиксированные dev-значения переживают рестарты. Это локальная
+# разработка; утечки нет (prod использует свои env-секреты).
+_DEV_STABLE_JWT_SECRET = "dev-only-stable-jwt-secret-do-not-use-in-production-0a1b2c3d"
+_DEV_STABLE_CSRF_SECRET = "dev-only-stable-csrf-secret-do-not-use-in-production-9z8y7x6w"
+
 
 class Settings(BaseSettings):
     # Database (no default credentials — must come from .env)
@@ -804,12 +813,17 @@ class Settings(BaseSettings):
             if v and v.lower().strip() in _INSECURE_PLACEHOLDERS:
                 import logging
                 logging.getLogger(__name__).warning(
-                    "JWT_SECRET is using a placeholder value — auto-generating a random secret. "
+                    "JWT_SECRET is a placeholder — using a STABLE dev secret. "
                     "Set a proper JWT_SECRET in .env before deploying to production."
                 )
-                return secrets.token_hex(32)
+                return _DEV_STABLE_JWT_SECRET
             if not v:
-                return secrets.token_hex(32)
+                # 2026-06-06: РАНЬШЕ тут был secrets.token_hex(32) — НОВЫЙ секрет
+                # на КАЖДЫЙ старт процесса. В dev это означало, что любой
+                # перезапуск бэкенда инвалидировал все токены пользователя →
+                # auth.error + refresh 401 + бесконечный reconnect. Теперь в dev
+                # секрет СТАБИЛЕН между рестартами (prod по-прежнему требует env).
+                return _DEV_STABLE_JWT_SECRET
         return v
 
     @field_validator("csrf_secret")
@@ -857,12 +871,15 @@ class Settings(BaseSettings):
         if v and v.lower().strip() in _placeholders:
             import logging
             logging.getLogger(__name__).warning(
-                "CSRF_SECRET is a placeholder value — auto-generating. "
+                "CSRF_SECRET is a placeholder — using a STABLE dev secret. "
                 "Set CSRF_SECRET in .env before production deploy."
             )
-            return secrets.token_hex(32)
+            return _DEV_STABLE_CSRF_SECRET
         if not v:
-            return secrets.token_hex(32)
+            # 2026-06-06: стабильный dev-секрет вместо random-per-start (см.
+            # JWT_SECRET выше) — иначе перезапуск бэка 403-ил все POST до
+            # повторного логина. Prod по-прежнему требует CSRF_SECRET в env.
+            return _DEV_STABLE_CSRF_SECRET
         return v
 
     model_config = {"env_file": _ENV_FILES or [".env", "../../.env"], "env_file_encoding": "utf-8", "extra": "ignore"}
