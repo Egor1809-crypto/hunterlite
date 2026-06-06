@@ -12,6 +12,7 @@ import {
   Volume2,
   VolumeX,
   Mic,
+  Keyboard,
   Loader2,
   Target,
   Activity,
@@ -1343,6 +1344,75 @@ export default function TrainingSessionPage() {
             border: "1px solid var(--border-color)",
           }}
         >
+          {/* ── Chat panel header (2026-06-06 #4/#6) ──────────────
+              Client identity + emotion + a live "who is speaking" pill.
+              Replaces the info that used to live in the (now removed on
+              desktop) center avatar column, and gives unambiguous
+              who-is-talking feedback in voice mode. */}
+          <div
+            className="shrink-0 flex items-center justify-between gap-3 px-5 py-3"
+            style={{ borderBottom: "1px solid var(--border-color)", background: "var(--bg-primary)" }}
+          >
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-semibold text-white"
+                style={{ background: EMOTION_MAP[s.emotion]?.color || "var(--accent)" }}
+              >
+                {(s.characterName || "К").charAt(0).toUpperCase()}
+              </div>
+              <div className="min-w-0">
+                <div className="text-sm font-semibold truncate" style={{ color: "var(--text-primary)" }}>
+                  {s.characterName || "Клиент"}
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full" style={{ background: EMOTION_MAP[s.emotion]?.color || "var(--accent)" }} />
+                  <span className="text-xs truncate" style={{ color: "var(--text-muted)" }}>
+                    {EMOTION_MAP[s.emotion]?.labelRu || EMOTION_MAP[s.emotion]?.label || "Нейтрально"}
+                  </span>
+                </div>
+              </div>
+            </div>
+            {/* Who is speaking — clear color-coded pill */}
+            <AnimatePresence mode="wait">
+              {tts.speaking ? (
+                <motion.div
+                  key="who-ai"
+                  initial={{ opacity: 0, scale: 0.92 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.92 }}
+                  className="flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold"
+                  style={{ background: "var(--accent-muted)", color: "var(--accent)" }}
+                >
+                  <Volume2 size={13} />
+                  Говорит {s.characterName?.split(" ")[0] || "клиент"}
+                  <span className="flex gap-0.5 ml-0.5">
+                    {[0, 1, 2].map((i) => (
+                      <motion.span key={i} className="h-1 w-1 rounded-full" style={{ background: "var(--accent)" }}
+                        animate={{ opacity: [0.3, 1, 0.3] }} transition={{ duration: 0.8, repeat: Infinity, delay: i * 0.2 }} />
+                    ))}
+                  </span>
+                </motion.div>
+              ) : (s.micActive || microphone.recordingState === "recording" || speech.status === "listening") ? (
+                <motion.div
+                  key="who-me"
+                  initial={{ opacity: 0, scale: 0.92 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.92 }}
+                  className="flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold"
+                  style={{ background: "var(--success-muted)", color: "var(--success)" }}
+                >
+                  <Mic size={13} />
+                  Слушаю вас
+                </motion.div>
+              ) : (
+                <motion.div
+                  key="who-idle"
+                  initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                  className="flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium"
+                  style={{ background: "var(--bg-tertiary)", color: "var(--text-muted)" }}
+                >
+                  Ваш ход
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+
           {/* Messages area */}
           {/* 2026-04-18 scroll fix: explicit min-h-0 on flex parent forces proper
               inner scrollbar, padding-bottom gives breathing room above input bar */}
@@ -1459,45 +1529,91 @@ export default function TrainingSessionPage() {
                     training is persona-driven, not CRM-linked. Input row is now
                     just textarea + send/mic. */}
                 <div className="flex items-end gap-2">
-                  <textarea
-                    ref={textareaRef}
-                    value={s.input}
-                    onChange={(e) => s.setInput(e.target.value)}
-                    onKeyDown={handleKeyDown}
-                    placeholder={s.transcription.status === "preview" ? "Редактируйте и нажмите Enter..." : "Введите сообщение..."}
-                    disabled={s.sessionState !== "ready"}
-                    rows={1}
-                    aria-label="Введите сообщение"
-                    /* 2026-04-18: max-h bumped 112 → 240 px so long STT/reply quotes fit */
-                    className="vh-input min-h-[44px] flex-1 resize-none text-sm"
-                    style={{
-                      maxHeight: 240,
-                      ...(s.transcription.status === "preview"
-                        ? { borderColor: "var(--accent)" }
-                        : {}),
-                    }}
-                    onInput={(e) => {
-                      const t = e.target as HTMLTextAreaElement;
-                      t.style.height = "auto";
-                      t.style.height = Math.min(t.scrollHeight, 240) + "px";
-                    }}
-                  />
+                  {/* 2026-06-06 (#4): text/voice toggle relocated here from
+                      the (removed-on-desktop) center column. Sits at the head
+                      of the input row; switches the whole input between the
+                      textarea and the hold-to-talk mic. */}
                   <motion.button
                     onClick={() => {
-                      // Clear preview state on send
-                      if (s.transcription.status === "preview") {
-                        s.setTranscription({ status: "idle", partial: "", final: "" });
-                      }
-                      handleSend();
+                      const goingToText = !s.textMode;
+                      s.setTextMode(goingToText);
+                      if (goingToText) setTimeout(() => textareaRef.current?.focus(), 100);
                     }}
-                    disabled={!s.input.trim() || s.sessionState !== "ready" || connectionState !== "connected" || s.isTyping}
-                    aria-label="Отправить"
-                    className="flex h-[44px] w-[44px] shrink-0 items-center justify-center rounded-xl text-white"
-                    style={{ background: "var(--accent)", opacity: !s.input.trim() || s.sessionState !== "ready" || s.isTyping ? 0.4 : 1 }}
+                    disabled={s.sessionState !== "ready" || (!s.sttAvailable && !speech.isSupported)}
+                    aria-label={s.textMode ? "Переключить на голосовой режим" : "Переключить на текстовый режим"}
+                    title={s.textMode ? "Голосовой режим" : "Текстовый режим"}
+                    className="flex h-[44px] w-[44px] shrink-0 items-center justify-center rounded-xl transition-colors"
+                    style={{
+                      background: s.textMode ? "var(--bg-tertiary)" : "var(--accent-muted)",
+                      color: s.textMode ? "var(--text-secondary)" : "var(--accent)",
+                      border: "1px solid var(--border-color)",
+                      opacity: s.sessionState !== "ready" || (!s.sttAvailable && !speech.isSupported) ? 0.4 : 1,
+                    }}
                     whileTap={{ scale: 0.95 }}
                   >
-                    {s.isTyping ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
+                    {s.textMode ? <Mic size={18} /> : <Keyboard size={18} />}
                   </motion.button>
+
+                  {s.textMode ? (
+                    <>
+                      <textarea
+                        ref={textareaRef}
+                        value={s.input}
+                        onChange={(e) => s.setInput(e.target.value)}
+                        onKeyDown={handleKeyDown}
+                        placeholder={s.transcription.status === "preview" ? "Редактируйте и нажмите Enter..." : "Введите сообщение..."}
+                        disabled={s.sessionState !== "ready"}
+                        rows={1}
+                        aria-label="Введите сообщение"
+                        /* 2026-04-18: max-h bumped 112 → 240 px so long STT/reply quotes fit */
+                        className="vh-input min-h-[44px] flex-1 resize-none text-sm"
+                        style={{
+                          maxHeight: 240,
+                          ...(s.transcription.status === "preview"
+                            ? { borderColor: "var(--accent)" }
+                            : {}),
+                        }}
+                        onInput={(e) => {
+                          const t = e.target as HTMLTextAreaElement;
+                          t.style.height = "auto";
+                          t.style.height = Math.min(t.scrollHeight, 240) + "px";
+                        }}
+                      />
+                      <motion.button
+                        onClick={() => {
+                          // Clear preview state on send
+                          if (s.transcription.status === "preview") {
+                            s.setTranscription({ status: "idle", partial: "", final: "" });
+                          }
+                          handleSend();
+                        }}
+                        disabled={!s.input.trim() || s.sessionState !== "ready" || connectionState !== "connected" || s.isTyping}
+                        aria-label="Отправить"
+                        className="flex h-[44px] w-[44px] shrink-0 items-center justify-center rounded-xl text-white"
+                        style={{ background: "var(--accent)", opacity: !s.input.trim() || s.sessionState !== "ready" || s.isTyping ? 0.4 : 1 }}
+                        whileTap={{ scale: 0.95 }}
+                      >
+                        {s.isTyping ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
+                      </motion.button>
+                    </>
+                  ) : (
+                    /* Voice mode: hold-to-talk mic fills the input row. */
+                    <div className="flex-1 flex items-center justify-center py-1">
+                      <CrystalMic
+                        mode="hold"
+                        isRecording={microphone.recordingState === "recording" || speech.status === "listening"}
+                        isProcessing={microphone.recordingState === "processing" || s.transcription.status === "transcribing"}
+                        audioLevel={microphone.audioLevel || speech.audioLevel}
+                        onPress={handleMicPress}
+                        onRelease={handleMicRelease}
+                        onTextMode={() => {
+                          s.setTextMode(true);
+                          setTimeout(() => textareaRef.current?.focus(), 100);
+                        }}
+                        disabled={s.sessionState !== "ready" || (!s.sttAvailable && !speech.isSupported)}
+                      />
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -1505,9 +1621,14 @@ export default function TrainingSessionPage() {
 
         </aside>
 
-        {/* CENTER: Avatar + Mic */}
+        {/* CENTER: Avatar + Mic — 2026-06-06 (#4): hidden on desktop (lg+).
+            The avatar column is gone on desktop; this <section> now serves
+            only the mobile/tablet view (where the left chat aside + right
+            coaching aside are `hidden lg:flex`). Desktop voice input lives
+            in the left chat input row; client identity + who-is-speaking
+            moved to the chat panel header. */}
         <section
-          className="training-session-panel training-session-center rounded-2xl relative flex flex-col items-center justify-center overflow-hidden"
+          className="training-session-panel training-session-center rounded-2xl relative flex flex-col items-center justify-center overflow-hidden lg:hidden"
           style={{
             background: "var(--bg-secondary)",
             border: "1px solid var(--border-color)",
