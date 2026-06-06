@@ -555,46 +555,44 @@ export function PhoneCallMode({
             </AnimatePresence>
           </div>
         </div>
-      </div>
 
-      {/*
-        Coach Pill (2026-04-21): floating rail over controls row that
-        shows the latest whisper.coaching message. Stays visible until
-        the next whisper replaces it (voice users can't re-glance mid-
-        sentence, auto-dismiss is wrong here). Priority dot colors
-        match the chat WhisperPanel conventions.
-      */}
-      {coachingHint && coachingHint.message && (
-        <div className="relative z-10 px-6 pb-2">
-          <div
-            className="mx-auto flex max-w-md items-center gap-2.5 rounded-full px-4 py-2 text-left"
-            style={{
-              background: "var(--surface-card)",
-              border: "1px solid var(--border-color)",
-            }}
-            aria-live="polite"
-          >
-            <span
-              aria-hidden
-              className="h-2 w-2 flex-shrink-0 rounded-full"
+        {/* 2026-06-06 (#1): coaching / stage hint moved INTO the centered
+            avatar block. Before, it was a bottom-flow pill that dropped to the
+            very bottom after the controls row was removed and collided with the
+            call input bar. Now it sits just under the avatar, centered, and
+            doesn't steal vertical space from the input. */}
+        {coachingHint && coachingHint.message && (
+          <div className="mt-5 w-full max-w-md px-6">
+            <div
+              className="mx-auto flex items-center gap-2.5 rounded-full px-4 py-2 text-left"
               style={{
-                background:
-                  coachingHint.priority === "high"
-                    ? "var(--danger)"
-                    : coachingHint.priority === "medium"
-                    ? "var(--warning)"
-                    : "var(--accent)",
+                background: "var(--surface-card)",
+                border: "1px solid var(--border-color)",
               }}
-            />
-            <span
-              className="flex-1 text-sm leading-snug"
-              style={{ color: "var(--text-primary)" }}
+              aria-live="polite"
             >
-              {coachingHint.message}
-            </span>
+              <span
+                aria-hidden
+                className="h-2 w-2 flex-shrink-0 rounded-full"
+                style={{
+                  background:
+                    coachingHint.priority === "high"
+                      ? "var(--danger)"
+                      : coachingHint.priority === "medium"
+                      ? "var(--warning)"
+                      : "var(--accent)",
+                }}
+              />
+              <span
+                className="flex-1 text-sm leading-snug"
+                style={{ color: "var(--text-primary)" }}
+              >
+                {coachingHint.message}
+              </span>
+            </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* 2026-06-06: controls row (Говорить / Завершить / Громкость)
           removed — mic toggle + end-call now live in the call

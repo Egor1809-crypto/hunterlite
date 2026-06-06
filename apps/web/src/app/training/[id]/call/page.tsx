@@ -85,6 +85,16 @@ interface SessionMeta {
 // browser storage facility being writable.
 const _ACCEPTED_SESSIONS_RUNTIME = new Set<string>();
 
+// 2026-06-06 (#2): the call mic uses MediaRecorder + backend Whisper — the
+// SAME pipeline the training session page uses successfully — instead of the
+// browser Web Speech API. Web Speech depends on Google's cloud and routinely
+// fails on localhost / без интернета / в части сборок Chrome, throwing
+// `not-allowed`/`network`/`service-not-allowed`, which surfaced as a false
+// «Доступ к микрофону запрещён» banner even though getUserMedia works fine
+// (training mode проves it). With this flag the Web Speech auto-start is
+// disabled; the input-bar mic records a blob → `audio.end`.
+const VOICE_USES_WHISPER = true;
+
 export default function TrainingCallPage() {
   const router = useRouter();
   const params = useParams();
@@ -1077,6 +1087,24 @@ export default function TrainingCallPage() {
     if (blob) sendAudioBlobRef.current?.(blob);
   }, [microphoneFallback, pushTalkActive]);
 
+  // 2026-06-06 (#2): input-bar mic toggle — MediaRecorder + backend Whisper
+  // (the path that works in training mode). Click to start capturing, click
+  // again to stop → blob → audio.end. Bypasses the flaky Web Speech API.
+  const toggleVoiceMic = useCallback(async () => {
+    if (microphoneFallback.recordingState === "recording") {
+      const blob = await microphoneFallback.stopRecording();
+      if (blob) sendAudioBlobRef.current?.(blob);
+      return;
+    }
+    if (!microphoneFallback.isSupported) return;
+    try { tts.stop(); } catch { /* noop — pause AI so we don't record it */ }
+    await microphoneFallback.startRecording();
+  }, [microphoneFallback, tts]);
+
+  // 2026-06-06 (#2): "is the user capturing voice right now" for the mic
+  // button + the who-is-speaking pill (MediaRecorder path, not Web Speech).
+  const micRecording = microphoneFallback.recordingState === "recording";
+
   // Kick-start the session on WS ready. The chat flow sends
   // session.start with the REST-created session_id; backend resumes
   // and emits session.started/character.response/tts.audio. Without
@@ -1120,6 +1148,7 @@ export default function TrainingCallPage() {
   const sttStopListening = stt.stopListening;
   const sttIsSupported = stt.isSupported;
   useEffect(() => {
+    if (VOICE_USES_WHISPER) return;   // 2026-06-06 (#2): no Web Speech auto-start
     if (modeOk !== true) return;
     if (connectionState !== "connected") return;
     if (muted) {
@@ -1148,6 +1177,7 @@ export default function TrainingCallPage() {
   const sttRetryAttemptRef = useRef(0);
   const sttStatus = stt.status;
   useEffect(() => {
+    if (VOICE_USES_WHISPER) return;   // 2026-06-06 (#2): no Web Speech watchdog
     if (modeOk !== true) return;
     if (connectionState !== "connected") return;
     if (muted) return;
@@ -1510,7 +1540,7 @@ export default function TrainingCallPage() {
         audioLevel={tts.audioLevel}
         elapsed={s.elapsed}
         muted={muted}
-        userSpeaking={stt.status === "listening"}
+        userSpeaking={micRecording}
         speakerOn={speakerOn}
         sceneId={sceneBg}
         clientCard={s.clientCard}
@@ -1737,25 +1767,18 @@ export default function TrainingCallPage() {
               "re-request permission" action when the mic was blocked. */}
           <button
             type="button"
-            onClick={() => {
-              if (stt.status === "listening") {
-                stt.stopListening();
-              } else {
-                try { tts.stop(); } catch { /* noop */ }
-                stt.startListening();
-              }
-            }}
-            disabled={connectionState !== "connected"}
-            aria-label={stt.status === "listening" ? "Выключить микрофон" : "Включить микрофон"}
-            title={stt.status === "listening" ? "Микрофон включён — нажмите, чтобы выключить" : "Включить микрофон (говорить голосом)"}
+            onClick={toggleVoiceMic}
+            disabled={connectionState !== "connected" || !microphoneFallback.isSupported}
+            aria-label={micRecording ? "Остановить запись" : "Говорить голосом"}
+            title={micRecording ? "Идёт запись — нажмите, чтобы отправить" : "Нажмите и говорите; нажмите ещё раз, чтобы отправить"}
             className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-colors disabled:opacity-40"
             style={{
-              background: stt.status === "listening" ? "var(--success-muted)" : "var(--accent-muted)",
-              color: stt.status === "listening" ? "var(--success)" : "var(--accent)",
-              border: `1px solid ${stt.status === "listening" ? "var(--success)" : "var(--accent)"}`,
+              background: micRecording ? "var(--success-muted)" : "var(--accent-muted)",
+              color: micRecording ? "var(--success)" : "var(--accent)",
+              border: `1px solid ${micRecording ? "var(--success)" : "var(--accent)"}`,
             }}
           >
-            {stt.status === "listening"
+            {micRecording
               ? <Mic size={16} strokeWidth={1.8} className="animate-pulse" />
               : <MicOff size={16} strokeWidth={1.8} />}
           </button>
@@ -1766,7 +1789,7 @@ export default function TrainingCallPage() {
             onChange={(e) => setTextInput(e.target.value)}
             placeholder={
               connectionState === "connected"
-                ? (stt.status === "listening" ? "Слушаю вас… или напишите текстом" : "Введите сообщение клиенту…")
+                ? (micRecording ? "Идёт запись… говорите, потом нажмите 🎤" : "Введите сообщение клиенту…")
                 : "Подключаемся… (или нажмите «Принять» заново)"
             }
             aria-label="Сообщение клиенту текстом"
