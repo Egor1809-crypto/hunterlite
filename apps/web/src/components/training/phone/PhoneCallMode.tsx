@@ -26,9 +26,8 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Mic, MicOff, Volume2, Volume1, PhoneOff } from "lucide-react";
+import { Mic, Volume2 } from "lucide-react";
 import type { EmotionState } from "@/types";
-import { EMOTION_MAP } from "@/types";
 import type { ClientCardData } from "@/components/training/ClientCard";
 import ScriptPanel from "@/components/training/ScriptPanel";
 
@@ -238,31 +237,25 @@ function formatElapsed(sec: number): string {
 
 export function PhoneCallMode({
   characterName,
-  emotion,
   sessionState,
   audioLevel = 0,
   elapsed,
-  muted,
   userSpeaking = false,
-  speakerOn,
   sceneId,
   clientCard,
-  onToggleMute,
-  onToggleSpeaker,
-  onHangup,
-  micSlot,
   volume,
-  onVolumeChange,
   stage,
   coachingHint,
-  endInFlight = false,
   onCopyExample,
 }: Props) {
+  // 2026-06-06 (#2): muted/speakerOn/onToggleMute/onToggleSpeaker/onHangup/
+  // micSlot/onVolumeChange/endInFlight are no longer consumed here — the
+  // controls row was removed and mic/end-call moved to the call page input
+  // bar. They stay OPTIONAL on Props so the call page keeps compiling.
   const sceneKey = (SCENE_KEYS as readonly string[]).includes(sceneId || "none")
     ? (sceneId || "none")
     : "none";
   const sceneLabel = SCENE_LABEL[sceneKey];
-  const ec = EMOTION_MAP[emotion] || EMOTION_MAP.cold;
 
   // 2026-04-22: ambient procedural noise. Starts on the first user gesture
   // (browsers block AudioContext otherwise) — usually the user has clicked
@@ -287,11 +280,8 @@ export function PhoneCallMode({
     };
   }, [sceneKey, volume]);
 
-  // Volume popover state: the speaker/volume button acts as a disclosure
-  // trigger. First tap opens a slider popover above it; second tap hides.
-  // Auto-closes on outside tap (see effect below). Only enabled when the
-  // parent wired `volume` + `onVolumeChange` — otherwise speaker button
-  // retains its legacy preset-toggle behavior.
+  // 2026-06-06 (#2): volume popover removed with the controls row.
+  // (Volume still ducks the ambient noise via the `volume` prop above.)
   const [showVolumePopover, setShowVolumePopover] = useState(false);
   useEffect(() => {
     if (!showVolumePopover) return;
@@ -375,18 +365,9 @@ export function PhoneCallMode({
           >
             {statusLine}
           </span>
-          <span
-            className="mt-1.5 rounded-full px-3 py-1 font-mono uppercase"
-            style={{
-              background: "var(--bg-secondary)",
-              color: "var(--text-secondary)",
-              border: "1px solid var(--border-color)",
-              fontSize: 11,
-              letterSpacing: "0.16em",
-            }}
-          >
-            {ec.labelRu}
-          </span>
+          {/* 2026-06-06: emotion label (ХОЛОДНЫЙ/ГОРЯЧИЙ) removed per request —
+              the manager shouldn't see the client's "mood meter" over the
+              script. Who-is-speaking state is shown under the avatar instead. */}
         </div>
       </div>
 
@@ -615,324 +596,9 @@ export function PhoneCallMode({
         </div>
       )}
 
-      {/* Controls row. */}
-      {/*
-        pb-24 (2026-04-22): bumped from pb-10 so call/page.tsx's text-
-        input fallback bar (fixed bottom-0) doesn't cover the speaker /
-        volume buttons. Text input is ~50px tall with its padding; pb-24
-        (96px) leaves visible gap between the controls row and the
-        typing bar below.
-      */}
-      <div className="relative z-10 pb-24 pt-6">
-        {/*
-          Volume popover (2026-04-21): parent passes volume + onVolumeChange.
-          Tapping the speaker button now TOGGLES a slider popover anchored
-          above the button, instead of flipping between two hardcoded
-          levels. Backwards-compatible: if parent doesn't pass volume,
-          we fall back to onToggleSpeaker on click like before.
-        */}
-        {typeof volume === "number" && onVolumeChange && showVolumePopover && (
-          <div data-volume-popover className="mx-auto mb-4 max-w-md px-8">
-            <div
-              className="relative flex items-center gap-3 rounded-2xl px-4 py-3"
-              style={{
-                background: "var(--surface-card)",
-                border: "1px solid var(--border-color)",
-                boxShadow: "var(--shadow-sm)",
-              }}
-            >
-              <button
-                type="button"
-                onClick={() => onVolumeChange(volume > 0 ? 0 : 0.7)}
-                aria-label={volume > 0 ? "Выключить звук" : "Включить звук"}
-                className="flex h-8 w-8 items-center justify-center rounded-full transition"
-                style={{ color: "var(--text-secondary)" }}
-              >
-                {volume === 0 ? <Volume1 size={18} /> : <Volume2 size={18} />}
-              </button>
-              <input
-                type="range"
-                min={0}
-                max={1}
-                step={0.05}
-                value={volume}
-                onChange={(e) => onVolumeChange(parseFloat(e.target.value))}
-                aria-label="Громкость"
-                className="h-1 flex-1 cursor-pointer appearance-none rounded-full"
-                style={{ background: "var(--bg-tertiary)", accentColor: "var(--accent)" }}
-              />
-              <span
-                className="min-w-[3ch] text-right font-mono text-xs"
-                style={{ color: "var(--text-muted)" }}
-              >
-                {Math.round(volume * 100)}%
-              </span>
-            </div>
-          </div>
-        )}
-        <div className="mx-auto flex max-w-md items-center justify-between px-10">
-          {/*
-            2026-04-21 layout fix — was previously two separate mic buttons:
-            a mute-toggle here (which flipped a React state that nothing
-            else read, i.e. dead) AND a real push-to-talk mic rendered in
-            the micSlot below. That looked like duplicated UI to the user.
-            Now: if the parent supplies micSlot, THAT becomes the left-most
-            button — single source of truth for mic control. Parents that
-            don't wire micSlot get the legacy mute-toggle as a fallback
-            (backwards-compat for older callers).
-          */}
-          {micSlot ? (
-            // The provided slot is expected to own its own flex-col button
-            // layout (see call/page.tsx). Render it directly so the ring
-            // stays symmetrical with the other two CallButtons.
-            micSlot
-          ) : (
-            // 2026-04-23 UX: semantic states.
-            // muted=true  → mic OFF → red outline + slash icon + label "Включить"
-            // muted=false → mic ON (green pulse while speaking) + label "Выключить"
-            // User immediately reads: red = off, green = live.
-            <CallButton
-              label={muted ? "Включить микрофон" : "Микрофон включён"}
-              subtitle={muted ? "выключен" : "в эфире"}
-              onClick={onToggleMute}
-              state={muted ? "danger-off" : "success-on"}
-            >
-              {muted ? <MicOff size={26} /> : <Mic size={26} />}
-            </CallButton>
-          )}
-
-          <CallHangup onClick={onHangup} loading={endInFlight} />
-
-          <span data-volume-button>
-            {/* 2026-04-23 UX: speaker mute state is visually unmistakable.
-                volume > 0  → accent purple, Volume2 icon, label with % — ON
-                volume === 0 → red outline, Volume1 slash icon — OFF
-                When volume popover is open — muted state is overridden with
-                the open-state accent fill (so user sees popover is live). */}
-            <CallButton
-              label={
-                typeof volume === "number"
-                  ? volume === 0
-                    ? "Включить звук"
-                    : `Громкость ${Math.round(volume * 100)}%`
-                  : speakerOn
-                  ? "Обычный звук"
-                  : "Громкая связь"
-              }
-              subtitle={
-                typeof volume === "number"
-                  ? volume === 0
-                    ? "выключен"
-                    : "в эфире"
-                  : undefined
-              }
-              onClick={() => {
-                if (typeof volume === "number" && onVolumeChange) {
-                  setShowVolumePopover((v) => !v);
-                } else {
-                  onToggleSpeaker();
-                }
-              }}
-              state={
-                typeof volume === "number"
-                  ? showVolumePopover
-                    ? "accent-open"
-                    : volume === 0
-                    ? "danger-off"
-                    : "accent-on"
-                  : speakerOn
-                  ? "accent-on"
-                  : "neutral"
-              }
-            >
-              {(typeof volume === "number" ? volume > 0 : speakerOn) ? (
-                <Volume2 size={26} />
-              ) : (
-                <Volume1 size={26} />
-              )}
-            </CallButton>
-          </span>
-        </div>
-      </div>
+      {/* 2026-06-06: controls row (Говорить / Завершить / Громкость)
+          removed — mic toggle + end-call now live in the call
+          page input bar. */}
     </div>
-  );
-}
-
-/**
- * Editorial restyle: round pill controls on calm tokens, one accent only,
- * no gradients, no neon glow. Semantic states map to colour *tokens*:
- *
- *   - success-on  : success-muted fill + success ring (mic live)
- *   - danger-off  : danger-muted fill + danger ring (mic / speaker muted)
- *   - accent-on   : accent-muted fill + accent ring (enabled)
- *   - accent-open : accent fill (popover/menu currently open)
- *   - neutral     : bg-secondary + hairline (idle)
- *
- * Subtitle slot shows a quiet mono second line under the icon
- * («в эфире» / «выключен») so the state reads without icon interpretation.
- */
-type CallButtonState =
-  | "success-on"
-  | "danger-off"
-  | "accent-on"
-  | "accent-open"
-  | "neutral";
-
-function CallButton({
-  children,
-  onClick,
-  label,
-  subtitle,
-  state = "neutral",
-}: {
-  children: React.ReactNode;
-  onClick: () => void;
-  label: string;
-  subtitle?: string;
-  state?: CallButtonState;
-}) {
-  const palette = STATE_PALETTE[state];
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-label={label}
-      aria-pressed={state === "accent-on" || state === "success-on"}
-      className="flex flex-col items-center gap-2"
-    >
-      <span
-        className="flex h-16 w-16 items-center justify-center rounded-full transition-all duration-200 active:scale-95"
-        style={{
-          background: palette.bg,
-          color: palette.fg,
-          border: `1px solid ${palette.border}`,
-        }}
-      >
-        {children}
-      </span>
-      <span
-        className="font-mono uppercase"
-        style={{ color: palette.labelFg, fontSize: 11, letterSpacing: "0.14em" }}
-      >
-        {label}
-      </span>
-      {subtitle && (
-        <span
-          className="font-mono uppercase"
-          style={{ color: palette.subtitleFg, fontSize: 10, letterSpacing: "0.14em" }}
-        >
-          {subtitle}
-        </span>
-      )}
-    </button>
-  );
-}
-
-const STATE_PALETTE: Record<
-  CallButtonState,
-  {
-    bg: string;
-    fg: string;
-    border: string;
-    labelFg: string;
-    subtitleFg: string;
-  }
-> = {
-  "success-on": {
-    // Live / broadcasting — calm success token, no neon.
-    bg: "var(--success-muted)",
-    fg: "var(--success)",
-    border: "var(--success)",
-    labelFg: "var(--text-secondary)",
-    subtitleFg: "var(--success)",
-  },
-  "danger-off": {
-    // Muted / off — danger token surface + ring.
-    bg: "var(--danger-muted)",
-    fg: "var(--danger)",
-    border: "var(--danger)",
-    labelFg: "var(--text-secondary)",
-    subtitleFg: "var(--danger)",
-  },
-  "accent-on": {
-    // Enabled — single accent token.
-    bg: "var(--accent-muted)",
-    fg: "var(--accent)",
-    border: "var(--accent)",
-    labelFg: "var(--text-secondary)",
-    subtitleFg: "var(--accent)",
-  },
-  "accent-open": {
-    // Popover open — solid accent fill so the tie to the overlay is clear.
-    bg: "var(--accent)",
-    fg: "var(--accent-contrast, #fff)",
-    border: "var(--accent)",
-    labelFg: "var(--text-secondary)",
-    subtitleFg: "var(--accent)",
-  },
-  neutral: {
-    bg: "var(--bg-secondary)",
-    fg: "var(--text-secondary)",
-    border: "var(--border-color)",
-    labelFg: "var(--text-muted)",
-    subtitleFg: "var(--text-muted)",
-  },
-};
-
-/*
- * Editorial restyle: round danger-muted pill, danger ring, no gradient /
- * no neon glow. Loading state swaps the icon for a quiet token spinner
- * (no pulsing boxShadow). Logic (disabled, aria, loading) unchanged.
- */
-function CallHangup({
-  onClick,
-  loading = false,
-}: {
-  onClick: () => void;
-  /** 2026-04-23: when true, button is disabled + spinner replaces icon.
-   *  Used to prevent double-click-while-scoring races. */
-  loading?: boolean;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={loading ? undefined : onClick}
-      disabled={loading}
-      aria-label="Завершить звонок"
-      aria-busy={loading}
-      className="flex flex-col items-center gap-2 disabled:cursor-wait"
-    >
-      <motion.span
-        whileTap={loading ? undefined : { scale: 0.9 }}
-        className="flex h-16 w-16 items-center justify-center rounded-full"
-        style={{
-          background: "var(--danger-muted)",
-          color: "var(--danger)",
-          border: "1px solid var(--danger)",
-        }}
-      >
-        {loading ? (
-          <motion.span
-            animate={{ rotate: 360 }}
-            transition={{ duration: 0.9, repeat: Infinity, ease: "linear" }}
-            className="inline-block rounded-full"
-            style={{
-              width: 22,
-              height: 22,
-              border: "2px solid var(--danger-muted)",
-              borderTopColor: "var(--danger)",
-            }}
-          />
-        ) : (
-          <PhoneOff size={28} strokeWidth={2.2} />
-        )}
-      </motion.span>
-      <span
-        className="font-mono uppercase"
-        style={{ color: "var(--danger)", fontSize: 11, letterSpacing: "0.14em" }}
-      >
-        {loading ? "Завершаем…" : "Завершить"}
-      </span>
-    </button>
   );
 }

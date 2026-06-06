@@ -24,7 +24,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { Mic, MicOff, Send } from "lucide-react";
+import { Mic, MicOff, Send, PhoneOff } from "lucide-react";
 import { useSessionStore } from "@/stores/useSessionStore";
 import { PhoneCallMode } from "@/components/training/phone/PhoneCallMode";
 import { usePolicyStore } from "@/stores/usePolicyStore";
@@ -1545,64 +1545,6 @@ export default function TrainingCallPage() {
           // B6 (2026-05-03): APPEND to existing text instead of REPLACE.
           setTextInput((cur) => (cur.trim() ? cur + (cur.endsWith(" ") ? "" : " ") + text : text));
         }}
-        micSlot={
-          /*
-            2026-06-06 (editorial restyle): круглая токенная кнопка-микрофон.
-            Неон boxShadow по audioLevel убран — состояние записи показывает
-            мягкий токенный пульс (animate-pulse внутри кольца), цвета в
-            токены (danger-muted/danger при записи, accent-muted/accent в
-            покое). Логика TTS-pause + STT не тронута.
-          */
-          <button
-            type="button"
-            aria-label={stt.status === "listening" ? "Остановить запись" : "Начать запись"}
-            onClick={() => {
-              if (stt.status === "listening") {
-                stt.stopListening();
-              } else {
-                // Pause TTS so we don't record our own output into STT.
-                try { tts.stop(); } catch { /* noop */ }
-                stt.startListening();
-              }
-            }}
-            className="flex flex-col items-center gap-2"
-          >
-            <span
-              className="relative flex h-16 w-16 items-center justify-center rounded-full transition-colors duration-150 active:scale-95"
-              style={{
-                background:
-                  stt.status === "listening"
-                    ? "var(--danger-muted)"
-                    : "var(--accent-muted)",
-                color: stt.status === "listening" ? "var(--danger)" : "var(--accent)",
-                border: stt.status === "listening"
-                  ? "1px solid var(--danger)"
-                  : "1px solid var(--accent)",
-              }}
-            >
-              {stt.status === "listening" && (
-                <span
-                  aria-hidden
-                  className="absolute inset-0 rounded-full animate-pulse"
-                  style={{ border: "1px solid var(--danger-muted)" }}
-                />
-              )}
-              {stt.status === "listening" ? (
-                <MicOff size={26} strokeWidth={1.8} />
-              ) : (
-                <Mic size={26} strokeWidth={1.8} />
-              )}
-            </span>
-            <span
-              className="text-sm font-medium"
-              style={{
-                color: stt.status === "listening" ? "var(--danger)" : "var(--text-muted)",
-              }}
-            >
-              {stt.status === "listening" ? "Слушаю…" : "Говорить"}
-            </span>
-          </button>
-        }
       />
 
       {/*
@@ -1781,7 +1723,7 @@ export default function TrainingCallPage() {
             e.preventDefault();
             sendText();
           }}
-          className="flex w-full max-w-lg items-center gap-2 rounded-full px-4 py-2"
+          className="flex w-full max-w-lg items-center gap-2 rounded-full px-3 py-2"
           style={{
             // 2026-06-06 (editorial): глассморфизм bg-black/50 ring-white/10
             // backdrop-blur заменён на чистую карточку с hairline-границей.
@@ -1789,13 +1731,42 @@ export default function TrainingCallPage() {
             border: "1px solid var(--border-color)",
           }}
         >
+          {/* 2026-06-06 (#2): mic on/off lives in the input bar now (controls
+              row removed). Off → MicOff/accent; capturing → Mic/green pulse.
+              Click triggers getUserMedia, so this is also the natural
+              "re-request permission" action when the mic was blocked. */}
+          <button
+            type="button"
+            onClick={() => {
+              if (stt.status === "listening") {
+                stt.stopListening();
+              } else {
+                try { tts.stop(); } catch { /* noop */ }
+                stt.startListening();
+              }
+            }}
+            disabled={connectionState !== "connected"}
+            aria-label={stt.status === "listening" ? "Выключить микрофон" : "Включить микрофон"}
+            title={stt.status === "listening" ? "Микрофон включён — нажмите, чтобы выключить" : "Включить микрофон (говорить голосом)"}
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-colors disabled:opacity-40"
+            style={{
+              background: stt.status === "listening" ? "var(--success-muted)" : "var(--accent-muted)",
+              color: stt.status === "listening" ? "var(--success)" : "var(--accent)",
+              border: `1px solid ${stt.status === "listening" ? "var(--success)" : "var(--accent)"}`,
+            }}
+          >
+            {stt.status === "listening"
+              ? <Mic size={16} strokeWidth={1.8} className="animate-pulse" />
+              : <MicOff size={16} strokeWidth={1.8} />}
+          </button>
+
           <input
             type="text"
             value={textInput}
             onChange={(e) => setTextInput(e.target.value)}
             placeholder={
               connectionState === "connected"
-                ? "Введите сообщение клиенту…"
+                ? (stt.status === "listening" ? "Слушаю вас… или напишите текстом" : "Введите сообщение клиенту…")
                 : "Подключаемся… (или нажмите «Принять» заново)"
             }
             aria-label="Сообщение клиенту текстом"
@@ -1815,6 +1786,24 @@ export default function TrainingCallPage() {
             aria-label="Отправить сообщение"
           >
             <Send size={16} strokeWidth={1.8} />
+          </button>
+
+          {/* 2026-06-06 (#2): end-call moved into the input bar — the only
+              call-control button left, clearly red. */}
+          <button
+            type="button"
+            onClick={onHangup}
+            disabled={hangupInProgress}
+            aria-label="Завершить звонок"
+            title="Завершить звонок"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-colors disabled:opacity-50"
+            style={{
+              background: "var(--danger-muted)",
+              color: "var(--danger)",
+              border: "1px solid var(--danger)",
+            }}
+          >
+            <PhoneOff size={16} strokeWidth={1.8} />
           </button>
         </form>
       </div>
