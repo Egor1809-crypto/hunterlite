@@ -279,11 +279,6 @@ export default function EmotionTimeline({ timeline, journeySummary, onReplayMess
     },
   };
 
-  // Build emotion legend from unique states
-  const uniqueStates = [...new Set(timeline.map((e) => e.state))];
-  const hasFakes = timeline.some((e) => e.is_fake);
-  const hasRollbacks = timeline.some((e) => e.rollback);
-
   // ── Recommendations derived from journey ──────────────────────
   const tips: Array<{ tone: "warn" | "good" | "info"; title: string; body: string }> = [];
   if (journeySummary) {
@@ -359,49 +354,8 @@ export default function EmotionTimeline({ timeline, journeySummary, onReplayMess
         <Line data={chartData} options={options} />
       </div>
 
-      {/* Emotion legend with dot indicators */}
-      <div className="flex flex-wrap gap-2 px-1">
-        {uniqueStates.map((state) => {
-          const em = EMOTION_MAP[state as EmotionState];
-          if (!em) return null;
-          return (
-            <span
-              key={state}
-              className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-sm font-mono uppercase tracking-wider"
-              style={{
-                background: em.color + "1A",
-                color: em.color,
-                border: `1px solid ${em.color}33`,
-              }}
-            >
-              <span
-                className={`emotion-dot emotion-dot--${state}`}
-                style={{ width: 6, height: 6 }}
-              />
-              {em.label}
-            </span>
-          );
-        })}
-        {/* Marker legend for fake/rollback */}
-        {hasFakes && (
-          <span
-            className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-sm font-mono uppercase tracking-wider"
-            style={{ background: "var(--danger-muted)", color: "var(--danger)", border: "1px solid var(--danger-muted)" }}
-          >
-            <span style={{ width: 7, height: 7, transform: "rotate(45deg)", background: "var(--danger)", display: "inline-block" }} />
-            Фейк
-          </span>
-        )}
-        {hasRollbacks && (
-          <span
-            className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-sm font-mono uppercase tracking-wider"
-            style={{ background: "rgba(245,158,11,0.1)", color: "var(--warning)", border: "1px solid rgba(245,158,11,0.2)" }}
-          >
-            <span style={{ width: 0, height: 0, display: "inline-block", borderLeft: "4px solid transparent", borderRight: "4px solid transparent", borderBottom: "7px solid #f59e0b" }} />
-            Откат
-          </span>
-        )}
-      </div>
+      {/* 2026-06-06 (редизайн malvah): цветные легенда-пилюли (COLD и пр.)
+          + fake/rollback маркеры убраны — шкала по оси Y самодостаточна. */}
 
       {/* Journey summary stats */}
       {journeySummary && (journeySummary.total_transitions || journeySummary.fake_count || journeySummary.rollback_count) && (
