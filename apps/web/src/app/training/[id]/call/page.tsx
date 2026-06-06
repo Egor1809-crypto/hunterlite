@@ -1240,7 +1240,8 @@ export default function TrainingCallPage() {
       let segStart = Date.now();
       const SILENCE_MS = 450;       // 2026-06-06: 650→450 — меньше «мёртвой» паузы до отправки (бюджет ≤3с)
       const MARGIN = 12;            // насколько громче фона = «говорят»
-      const MAX_SEG_MS = 8000;      // 12с→8с: короче сегмент = быстрее STT + нет «монстров» 160КБ
+      const MAX_SEG_MS = 8000;      // потолок реплики без паузы
+      const IDLE_RESET_MS = 1200;   // пока речи нет — сбрасываем тишину каждые 1.2с (короткий пре-ролл)
       const resetSeg = () => { spoke = false; loudStreak = 0; floor = 40; segStart = Date.now(); lastLoud = Date.now(); };
 
       liveVadRef.current = setInterval(() => {
@@ -1287,8 +1288,12 @@ export default function TrainingCallPage() {
           // длинная реплика без паузы — режем, чтобы blob не распух
           flushSegmentRef.current(true);
           resetSeg();
-        } else if (!spoke && now - segStart > MAX_SEG_MS) {
-          // только шум, речи не было — перезапускаем сегмент БЕЗ отправки
+        } else if (!spoke && now - segStart > IDLE_RESET_MS) {
+          // 2026-06-06 (молчание): пока речи НЕТ — каждые ~1.2с выбрасываем
+          // накопленную тишину и стартуем свежий сегмент. Так блоб реплики =
+          // только речь + короткий пре-ролл, а не 8с тишины перед словами.
+          // Это убирает главный «слой» задержки: Whisper больше не молотит
+          // секунды пустоты (было: 1.2с речи → блоб 83КБ → STT 6.9с).
           flushSegmentRef.current(false);
           resetSeg();
         }
