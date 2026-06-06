@@ -22,10 +22,10 @@ interface MetricConfig {
   pct: number;
 }
 
-function getRatingColor(r: Rating): string {
-  if (r === "good") return "var(--success)";
-  if (r === "ok") return "var(--warning)";
-  return "var(--danger)";
+// 2026-06-06 (редизайн): убран «светофор» — один акцент. Рейтинг
+// читается из подписи «Хорошо/Норм/Плохо», а не из цвета.
+function getRatingColor(_r: Rating): string {
+  return "var(--accent)";
 }
 
 function getRatingLabel(r: Rating): string {
@@ -104,10 +104,10 @@ export default function SoftSkillsCard({ skills }: SoftSkillsCardProps) {
                   <span className="text-sm" style={{ color: "var(--text-secondary)" }}>{m.label}</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="font-mono text-sm" style={{ color }}>{m.value}</span>
+                  <span className="font-mono text-sm" style={{ color: "var(--text-primary)" }}>{m.value}</span>
                   <span
                     className="rounded-full px-2 py-0.5 text-sm font-mono"
-                    style={{ background: `color-mix(in srgb, ${color} 8%, transparent)`, color }}
+                    style={{ background: "var(--bg-secondary)", color: "var(--text-muted)", border: "1px solid var(--border-color)" }}
                   >
                     {getRatingLabel(m.rating)}
                   </span>
@@ -116,7 +116,7 @@ export default function SoftSkillsCard({ skills }: SoftSkillsCardProps) {
               <div className="h-1 rounded-full overflow-hidden" style={{ background: "var(--input-bg)" }}>
                 <motion.div
                   className="h-full rounded-full"
-                  style={{ background: color, boxShadow: `0 0 4px ${color}` }}
+                  style={{ background: color }}
                   initial={{ width: 0 }}
                   animate={{ width: `${Math.max(5, m.pct)}%` }}
                   transition={{ duration: 0.8 }}

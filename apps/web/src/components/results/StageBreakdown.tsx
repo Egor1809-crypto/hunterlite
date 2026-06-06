@@ -155,14 +155,10 @@ export default function StageBreakdown({
           const isCurrent = num === finalStage && !isCompleted;
           const isHangupStage = isHangup && num === finalStage;
 
-          // Score color
-          let scorePct = score !== null ? Math.round(score * 100) : null;
-          let scoreColor = "var(--text-muted)";
-          if (scorePct !== null) {
-            if (scorePct >= 50) scoreColor = "var(--success)";
-            else if (scorePct >= 20) scoreColor = "var(--warning)";
-            else scoreColor = "var(--danger)";
-          }
+          // 2026-06-06 (редизайн): без «светофора» — один акцент, значение
+          // несёт число. scoreColor = accent для пройденных, muted для пустых.
+          const scorePct = score !== null ? Math.round(score * 100) : null;
+          const scoreColor = scorePct !== null ? "var(--accent)" : "var(--text-muted)";
 
           return (
             <motion.div

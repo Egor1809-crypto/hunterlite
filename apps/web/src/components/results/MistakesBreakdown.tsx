@@ -79,7 +79,7 @@ export default function MistakesBreakdown({ items }: MistakesBreakdownProps) {
         style={{
           background:
             list.length === 0
-              ? "linear-gradient(90deg, transparent, var(--success), transparent)"
+              ? "linear-gradient(90deg, transparent, var(--accent), transparent)"
               : "linear-gradient(90deg, transparent, var(--danger), transparent)",
         }}
       />
@@ -90,7 +90,7 @@ export default function MistakesBreakdown({ items }: MistakesBreakdownProps) {
       >
         <AlertTriangle
           size={18}
-          style={{ color: list.length === 0 ? "var(--success)" : "var(--danger)" }}
+          style={{ color: list.length === 0 ? "var(--accent)" : "var(--danger)" }}
         />{" "}
         ОШИБКИ И НАРУШЕНИЯ
       </h2>
@@ -99,12 +99,12 @@ export default function MistakesBreakdown({ items }: MistakesBreakdownProps) {
         <div
           className="flex items-center gap-3 rounded-xl p-4"
           style={{
-            background: "rgba(61,220,132,0.08)",
-            border: "1px solid rgba(61,220,132,0.30)",
+            background: "var(--accent-muted)",
+            border: "1px solid var(--border-color)",
           }}
         >
-          <CheckCircle size={20} style={{ color: "var(--success)" }} />
-          <span style={{ color: "var(--success)" }} className="font-medium">
+          <CheckCircle size={20} style={{ color: "var(--accent)" }} />
+          <span style={{ color: "var(--text-secondary)" }} className="font-medium">
             Нарушений и ошибок не обнаружено
           </span>
         </div>
