@@ -107,6 +107,13 @@ export default function EmotionTimeline({ timeline, journeySummary, onReplayMess
   const tickColor = isDark ? "rgba(255,255,255,0.5)" : "rgba(0,0,0,0.5)";
   const tooltipBg = isDark ? "rgba(5,5,5,0.9)" : "rgba(255,255,255,0.95)";
   const tooltipText = isDark ? "#fff" : "#1a1a1a";
+  // 2026-06-06: шрифт графика — основной Geist Sans платформы (был JetBrains
+  // Mono, который выбивался из стиля и читался «по-айтишному»).
+  const sansFont =
+    typeof window !== "undefined"
+      ? getComputedStyle(document.documentElement).getPropertyValue("--font-geist-sans").trim() ||
+        "system-ui, sans-serif"
+      : "system-ui, sans-serif";
 
   // 2026-04-20: the backend (services/emotion.py::set_emotion_state) writes
   // `timestamp` as an ISO-8601 string (`datetime.now(utc).isoformat()`), but
@@ -214,7 +221,7 @@ export default function EmotionTimeline({ timeline, journeySummary, onReplayMess
           // 2026-04-20: bumped from 13 → 15 + stronger weight. Previous size
           // was subjectively "AI-ish / unreadable" at real screen density,
           // especially for compound labels ("Холодный / Враждебный").
-          font: { family: "JetBrains Mono", size: 15, weight: 600 },
+          font: { family: sansFont, size: 14, weight: 600 },
           color: tickColor,
           autoSkip: false,
           padding: 10,
@@ -226,7 +233,7 @@ export default function EmotionTimeline({ timeline, journeySummary, onReplayMess
         ticks: {
           // 2026-04-20: bumped from 13 → 14 for readability; limited tick
           // count so labels don't cram into each other on dense timelines.
-          font: { family: "JetBrains Mono", size: 14, weight: 500 },
+          font: { family: sansFont, size: 13, weight: 500 },
           color: tickColor,
           padding: 8,
           maxRotation: 0,
