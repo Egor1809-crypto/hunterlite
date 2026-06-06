@@ -96,8 +96,11 @@ async def warmup_whisper(timeout_seconds: float = 30.0) -> bool:
         "response_format": "verbose_json",
     }
     headers: dict[str, str] = {}
-    if settings.whisper_api_key:
-        headers["Authorization"] = f"Bearer {settings.whisper_api_key}"
+    # 2026-06-04: fall back to the navy key (default whisper_url is navy.api,
+    # which requires Authorization) — parity with stt.transcribe_audio.
+    _stt_key = settings.whisper_api_key or settings.local_llm_api_key
+    if _stt_key:
+        headers["Authorization"] = f"Bearer {_stt_key}"
 
     started = time.monotonic()
     try:
