@@ -66,7 +66,7 @@ const stages = [
   { key: "tests", title: "Тесты", href: "/training", icon: ListChecks },
   { key: "cases", title: "Кейсы", href: "/cases", icon: FolderOpen },
   { key: "exams", title: "Экзамены", href: "/exam", icon: BadgeCheck },
-  { key: "practice", title: "Практика", href: "/training", icon: MessageCircle },
+  { key: "practice", title: "Практика", href: "/training?tab=builder", icon: MessageCircle },
 ];
 
 function getTimeGreeting(): string {
