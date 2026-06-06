@@ -139,3 +139,45 @@ async def warmup_whisper_background() -> None:
     # (LLM health probe, BlitzPool warmup, etc).
     await asyncio.sleep(3.0)
     await warmup_whisper(timeout_seconds=30.0)
+
+
+async def navy_keepalive_loop(interval_seconds: float = 120.0) -> None:
+    """Keep the navy voice pipeline HOT so live-call turns don't cold-start.
+
+    2026-06-06 (speed): per-turn latency a user feels on a call is
+    STT + LLM + TTS. The FIRST call after an idle gap pays a cold tax — a
+    fresh TLS handshake to api.navy plus the remote model loading (navy STT/
+    TTS occasionally exceeded 10s cold vs ~1-2s warm). This loop fires a tiny
+    request to each of the three navy services every ``interval_seconds`` so
+    the pooled httpx connections stay open and remote models stay resident.
+    Best-effort: each branch isolates+swallows its own errors; never raises.
+
+    Cost is negligible — 100ms silent WAV (STT), one-word TTS, ~8-token LLM.
+    """
+    await asyncio.sleep(15.0)  # let startup settle first
+    while True:
+        try:
+            await warmup_whisper(timeout_seconds=20.0)
+        except Exception:  # noqa: BLE001 — keep-alive must never crash
+            logger.debug("navy_keepalive: STT ping failed", exc_info=True)
+
+        try:
+            from app.services.tts import get_tts_audio_b64, _is_configured
+            if _is_configured():
+                await get_tts_audio_b64("Да.", "navy-keepalive", emotion="neutral")
+        except Exception:  # noqa: BLE001
+            logger.debug("navy_keepalive: TTS ping failed", exc_info=True)
+
+        try:
+            from app.services.llm import generate_response
+            if settings.local_llm_enabled:
+                await generate_response(
+                    messages=[{"role": "user", "content": "."}],
+                    task_type="roleplay",
+                    system_prompt="Ответь одним словом: Да.",
+                    max_tokens=8,
+                )
+        except Exception:  # noqa: BLE001
+            logger.debug("navy_keepalive: LLM ping failed", exc_info=True)
+
+        await asyncio.sleep(interval_seconds)

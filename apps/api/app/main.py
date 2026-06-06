@@ -218,6 +218,17 @@ async def lifespan(application: FastAPI):
     except Exception:
         logger.warning("Lifespan: failed to schedule whisper warmup", exc_info=True)
 
+    # 2026-06-06 (speed): keep the whole navy voice pipeline (STT+TTS+LLM)
+    # warm so live-call turns don't pay the cold-start tax mid-session.
+    try:
+        from app.services.whisper_warmup import navy_keepalive_loop
+        application.state.navy_keepalive_task = asyncio.create_task(
+            navy_keepalive_loop()
+        )
+        logger.info("Lifespan: navy keep-alive loop scheduled (STT+TTS+LLM warm)")
+    except Exception:
+        logger.warning("Lifespan: failed to schedule navy keep-alive", exc_info=True)
+
     # Telegram bot webhook
     try:
         from app.telegram.webhook import setup_webhook as _tg_setup

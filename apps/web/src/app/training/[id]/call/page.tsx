@@ -1196,7 +1196,7 @@ export default function TrainingCallPage() {
       let spoke = false;
       let lastLoud = Date.now();
       let prevSpeaking = false;
-      const SILENCE_MS = 700;   // пауза → конец реплики
+      const SILENCE_MS = 600;   // 2026-06-06: 700→600 — реплика уходит снапп.
       const SPEAK = 14;         // средняя амплитуда (0-255) — порог «говорят»
       liveVadRef.current = setInterval(() => {
         if (!liveOnRef.current || !liveAnalyserRef.current) return;
