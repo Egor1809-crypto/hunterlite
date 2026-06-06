@@ -1096,9 +1096,23 @@ export default function TrainingCallPage() {
       if (blob) sendAudioBlobRef.current?.(blob);
       return;
     }
-    if (!microphoneFallback.isSupported) return;
+    if (!microphoneFallback.isSupported) {
+      toast.error("Браузер не поддерживает запись с микрофона");
+      return;
+    }
     try { tts.stop(); } catch { /* noop — pause AI so we don't record it */ }
-    await microphoneFallback.startRecording();
+    const ok = await microphoneFallback.startRecording();
+    if (!ok) {
+      // 2026-06-06 (#2): immediate, specific feedback instead of silent fail.
+      const reason = microphoneFallback.errorReason;
+      const msg =
+        reason === "denied" ? "Доступ к микрофону запрещён — разрешите в адресной строке 🔒"
+        : reason === "in_use" ? "Микрофон занят другим приложением/вкладкой — закройте их (Zoom, Meet, другая вкладка) и попробуйте снова"
+        : reason === "not_found" ? "Микрофон не найден — проверьте подключение"
+        : reason === "insecure" ? "Запись доступна только на https/localhost"
+        : "Не удалось запустить микрофон — попробуйте ещё раз или перезагрузите вкладку";
+      toast.error("Микрофон не запустился", { description: msg });
+    }
   }, [microphoneFallback, tts]);
 
   // 2026-06-06 (#2): "is the user capturing voice right now" for the mic
@@ -1461,8 +1475,12 @@ export default function TrainingCallPage() {
   const rawBannerKind = pickBannerKind({
     wsDead,
     sttSupported,
-    sttErrorCode: stt.errorCode,
-    micErrorReason: null,
+    // 2026-06-06 (#2): surface the REAL MediaRecorder error (denied / in_use /
+    // not_found …). Web Speech is disabled (VOICE_USES_WHISPER), so sttErrorCode
+    // is irrelevant; the mic now runs through MediaRecorder. Previously this was
+    // hard-coded null → mic failures were invisible (click, nothing happens).
+    sttErrorCode: null,
+    micErrorReason: microphoneFallback.errorReason,
   });
   // 2026-05-07 (B6): when STT is blocked/unsupported but the Whisper
   // push-to-talk fallback is ready, suppress the loud orange "Голосовое
