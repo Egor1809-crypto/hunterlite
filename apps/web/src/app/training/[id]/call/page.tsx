@@ -433,6 +433,11 @@ export default function TrainingCallPage() {
   const turnT0Ref = useRef(0);
   const turnGotChunkRef = useRef(false);
   const turnGotAudioRef = useRef(false);
+  // 2026-06-06: пришло ли navy-аудио для ТЕКУЩЕГО ответа. Сбрасывается на старте
+  // ответа (avatar.typing=true), ставится на tts.audio/_chunk. Нужен, чтобы НЕ
+  // планировать браузерный fallback, если navy уже озвучил (иначе короткие
+  // реплики звучали дважды: navy + повтор браузером через 2.5с).
+  const respHadAudioRef = useRef(false);
 
   // --- Mount guard: verify session_mode, hydrate store --------------------
   /*
@@ -674,6 +679,12 @@ export default function TrainingCallPage() {
     onMessage: (data: WSMessage) => {
       if (!data.data || typeof data.data !== "object") data.data = {};
       logger.log("[CALL]", data.type, data.data);
+      // navy-аудио пришло для текущего ответа → fallback не нужен.
+      if (data.type === "tts.audio" || data.type === "tts.audio_chunk") {
+        respHadAudioRef.current = true;
+      } else if (data.type === "avatar.typing" && (data.data as { is_typing?: boolean }).is_typing) {
+        respHadAudioRef.current = false; // новый ответ начался — аудио ещё не было
+      }
       // ── Тайминг хода (цель «речь→ответ ИИ» ≤ 3с) ──
       if (turnT0Ref.current) {
         const dt = Date.now() - turnT0Ref.current;
@@ -833,7 +844,9 @@ export default function TrainingCallPage() {
           // через 2.5с реплику озвучит браузерный голос (cancelFallback в
           // обработчиках tts.audio/_chunk отменяет его, когда navy успел).
           const text = (data.data.content as string) || (data.data.text as string) || "";
-          if (text) tts.scheduleFallback(text, 2500);
+          // Браузерный fallback планируем ТОЛЬКО если navy-аудио для этого
+          // ответа не пришло — иначе короткая реплика звучала бы дважды.
+          if (text && !respHadAudioRef.current) tts.scheduleFallback(text, 2500);
           if (data.data.emotion) s.setEmotion(data.data.emotion as EmotionState);
           break;
         }

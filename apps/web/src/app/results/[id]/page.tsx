@@ -481,7 +481,7 @@ export default function ResultsPage() {
               <motion.span
                 className="flex items-center gap-2 rounded-lg px-6 py-3 font-mono text-xs uppercase tracking-[0.16em] transition-colors"
                 style={{ background: "var(--primary-muted)", border: "1px solid var(--primary)", color: "var(--primary)" }}
-                whileHover={{ background: "var(--primary)", color: "white" }}
+                whileHover={{ background: "var(--primary)", color: "#ffffff" }}
                 whileTap={{ scale: 0.97 }}
               >
                 <RotateCcw size={14} /> Новая тренировка
