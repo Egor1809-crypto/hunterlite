@@ -14,7 +14,6 @@ import {
   AlertTriangle,
   CheckCircle,
   RotateCcw,
-  Crosshair,
   Repeat,
     Share2,
     Check,
@@ -31,9 +30,6 @@ import { PageSkeleton } from "@/components/ui/Skeleton";
 import dynamic from "next/dynamic";
 import { Skeleton } from "@/components/ui/Skeleton";
 
-const PentagramChart = dynamic(() => import("@/components/results/PentagramChart"), {
-  loading: () => <Skeleton height={280} width="100%" rounded="12px" />, ssr: false,
-});
 const EmotionTimeline = dynamic(() => import("@/components/results/EmotionTimeline"), {
   loading: () => <Skeleton height={200} width="100%" rounded="12px" />, ssr: false,
 });
@@ -314,28 +310,6 @@ export default function ResultsPage() {
     { label: "Этические нарушения", value: Math.max(0, 15 + (session.score_anti_patterns ?? 0)), max: 15 },
   ];
 
-  // Phase C: previous-session overlay extracted from `score_breakdown`
-  // for the same 5 axes. Falls back to absent overlay when the prior
-  // session has no comparable data (first session, error session, etc).
-  const prevScoreItems = previousSkillRadar
-    ? [
-        // _skill_radar from history may still carry older wider sets;
-        // we map the 5 canonical axes from whatever's present, falling
-        // back to 0 silently. Order must match `scoreItems` above:
-        // Полнота / Правовая точность / Корректность / Сомнения / Этич.нарушения.
-        Math.min(100, Math.max(0, (previousSkillRadar.script_adherence ?? 0))),
-        Math.min(100, Math.max(0, (previousSkillRadar.legal ?? 0))),
-        Math.min(100, Math.max(0, (previousSkillRadar.result ?? 0))),
-        Math.min(100, Math.max(0, (previousSkillRadar.objection_handling ?? 0))),
-        Math.min(100, Math.max(0, (previousSkillRadar.anti_patterns ?? 0))),
-      ]
-    : undefined;
-
-  const pentagramData = {
-    labels: scoreItems.map((s) => s.label),
-    values: scoreItems.map((s) => (s.max > 0 ? (s.value / s.max) * 100 : 0)),
-    previousValues: prevScoreItems,
-  };
 
   // Stage progress data (from stage tracker)
   const stageProgress = (result.score_breakdown as Record<string, unknown> | null)?._stage_progress as
@@ -612,37 +586,9 @@ export default function ResultsPage() {
         )}
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 flex-1">
-          {/* LEFT: Pentagram */}
-          {hasScores && (
-            <motion.div
-              initial={{ opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.1 }}
-              className="col-span-1 lg:col-span-5 glass-panel rounded-2xl p-6 md:p-8 flex flex-col relative overflow-hidden"
-            >
-
-              <h2 className="font-display text-lg tracking-widest flex items-center gap-2 border-b pb-3 z-10 mb-6" style={{ color: "var(--text-primary)", borderColor: "var(--border-color)" }}>
-                <Crosshair size={18} style={{ color: "var(--primary)" }} /> ПЕНТАГРАММА НАВЫКОВ
-              </h2>
-
-              <div className="flex-1 relative z-10">
-                <PentagramChart data={pentagramData} />
-              </div>
-
-              <div className="mt-4 flex flex-wrap justify-center gap-6 z-10 font-mono text-sm">
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 border" style={{ background: "var(--primary-muted)", borderColor: "var(--primary)" }} />
-                  <span style={{ color: "var(--text-secondary)" }}>Ваш профиль</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 border border-dashed" style={{ background: "var(--bg-tertiary)", borderColor: "var(--text-muted)" }} />
-                  <span style={{ color: "var(--text-muted)" }}>Идеальная модель</span>
-                </div>
-              </div>
-            </motion.div>
-          )}
-
-          <div className={`col-span-1 ${hasScores ? "lg:col-span-7" : "lg:col-span-12"} flex flex-col gap-8`}>
+          {/* 2026-06-06: пентаграмма убрана со страницы результатов по запросу;
+              карта эмоций теперь во всю ширину. */}
+          <div className="col-span-1 lg:col-span-12 flex flex-col gap-8">
             {/* Emotion Timeline */}
             {timeline.length > 0 && (
               <motion.div
