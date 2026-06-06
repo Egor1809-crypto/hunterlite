@@ -1,8 +1,13 @@
 "use client";
 
+import { Mic } from "lucide-react";
+
 /**
- * Stub replacement for the deleted CrystalMic 3D component.
- * Renders a simple mic indicator. Accepts all original props for compat.
+ * Editorial mic button (replaces the deleted 3D "crystal" component).
+ * Calm, token-only round mic button. Accepts all original props for compat.
+ * - idle/active: var(--accent-muted) / var(--accent)
+ * - recording:   var(--danger-muted) / var(--danger)
+ * - soft token pulse while recording, no neon glow, no gradients.
  */
 export function CrystalMic({
   active,
@@ -13,6 +18,7 @@ export function CrystalMic({
   onClick,
   onPress,
   onRelease,
+  disabled,
 }: {
   active?: boolean;
   isRecording?: boolean;
@@ -30,21 +36,42 @@ export function CrystalMic({
   [key: string]: unknown;
 }) {
   const isActive = active || isRecording;
+  const iconSize = Math.round(size * 0.42);
+
   return (
     <button
       type="button"
-      className={className}
+      disabled={disabled}
+      aria-pressed={isActive}
+      className={`rounded-full ${className ?? ""}`}
       style={{
         width: size,
         height: size,
         borderRadius: "50%",
-        background: isActive ? "var(--accent)" : "var(--input-bg)",
-        border: `2px solid ${isActive ? "var(--accent)" : "var(--border-color)"}`,
+        background: isRecording
+          ? "var(--danger-muted)"
+          : isActive
+            ? "var(--accent)"
+            : "var(--accent-muted)",
+        color: isRecording
+          ? "var(--danger)"
+          : isActive
+            ? "var(--accent-contrast, #fff)"
+            : "var(--accent)",
+        border: `1px solid ${
+          isRecording
+            ? "var(--danger)"
+            : isActive
+              ? "var(--accent)"
+              : "var(--border-color)"
+        }`,
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        transition: "all 0.2s ease",
-        cursor: "pointer",
+        transition: "background 0.2s ease, color 0.2s ease, border-color 0.2s ease",
+        cursor: disabled ? "default" : "pointer",
+        opacity: disabled ? 0.5 : 1,
+        boxShadow: "var(--shadow-sm)",
         ...style,
       }}
       onClick={onClick}
@@ -53,7 +80,11 @@ export function CrystalMic({
       onTouchStart={onPress}
       onTouchEnd={onRelease}
     >
-      <span style={{ fontSize: size * 0.4, color: isActive ? "#fff" : "var(--text-muted)" }}>🎤</span>
+      <Mic
+        size={iconSize}
+        strokeWidth={1.75}
+        className={isRecording ? "animate-pulse" : undefined}
+      />
     </button>
   );
 }

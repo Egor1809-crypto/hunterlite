@@ -3,26 +3,33 @@
 /**
  * IncomingCallScreen (2026-04-23, Sprint 5 / Zone 2 of plan moonlit-baking-crane.md)
  *
- * iPhone-style «входящий звонок» screen with full client context on the
- * phone UI. Replaces the old inline accept-gate in call/page.tsx (which
- * had only «📞 Входящий звонок» + one Accept button without any client
- * data, no Decline, no loop ringback).
+ * «Входящий звонок» screen with full client context on the phone UI.
+ * Replaces the old inline accept-gate in call/page.tsx (which had only
+ * «Входящий звонок» + one Accept button without any client data, no
+ * Decline, no loop ringback).
  *
  * Key UX goals:
  *   - User immediately sees WHO is calling (name, age, city, profession,
  *     lead source, debt amount) before accepting — sells «CRM-driven
  *     training» positioning.
- *   - Two large buttons: Accept (green gradient, pulse) / Decline (red
+ *   - Two pill buttons: Accept (primary accent) / Decline (secondary
  *     outline). Real phone-call feel.
- *   - Framer Motion animations (outer ring pulse, breathing scale, text
- *     stagger) make the screen feel alive while waiting for client_card
- *     to arrive via WS.
+ *   - Framer Motion animations (one soft ring pulse, text stagger) make
+ *     the screen feel alive while waiting for client_card via WS.
  *   - clientCard prop is nullable — component renders minimal state and
  *     fills in details when parent gets WS session.started event.
  *
  * The component itself is presentational — all audio (loop ringback),
  * sessionStorage persist, WS gate, POST /decline are orchestrated by
  * the parent (call/page.tsx).
+ *
+ * 2026-06-06 (editorial restyle, malvah/abstract reference): убран
+ * radial-gradient фиолетово-чёрный фон, квадратный аватар с неон-кольцами,
+ * капс «▰ ВХОДЯЩИЙ ЗВОНОК ▰», textShadow-неон, gradient/glow кнопки.
+ * Теперь: спокойный var(--bg-primary), круглый аватар с тонким кольцом,
+ * одно мягкое токенное pulse-ring, имя обычным регистром, mono-eyebrow,
+ * primary/secondary пилюли rounded-full. ВСЯ логика (accept/reject/busy,
+ * accepting/declining, callbacks, exit-animation) и props сохранены.
  */
 
 import { useMemo } from "react";
@@ -97,7 +104,9 @@ export default function IncomingCallScreen({
 }: IncomingCallScreenProps) {
   const sceneKey = sceneId && sceneId in SCENE_LABEL ? sceneId : "none";
   const sceneLabel = SCENE_LABEL[sceneKey];
-  const ec = EMOTION_MAP[emotion || "cold"] || EMOTION_MAP.cold;
+  // emotion kept for API compatibility; visual ring no longer color-coded.
+  void emotion;
+  void EMOTION_MAP;
 
   // Derived client info. All fields can be missing if clientCard hasn't
   // arrived yet — use graceful fallbacks so the minimal render still
@@ -122,13 +131,6 @@ export default function IncomingCallScreen({
   const busy = accepting || declining;
 
   /*
-   * 2026-05-10 (pixel redesign): iPhone-style rounded-full → square pixel.
-   * Сохранены ВСЕ анимации (pulse outer ring, breathing scale, stagger
-   * entry), ВСЯ логика accepting/declining/busy, callbacks (onAccept,
-   * onDecline). Поменял только rounded → rounded-sm + 3px solid borders,
-   * font-display/sans → font-medium uppercase tracking-widest, размер
-   * шрифтов поднят до ≥14px по консистентности с остальным сайтом.
-   *
    * Phase A (2026-05-08): exit animation off `busy` сохранена — parent
    * defer'ит setCallAccepted на 220ms, экран успевает fade+shrink.
    */
@@ -142,12 +144,11 @@ export default function IncomingCallScreen({
       transition={{ duration: busy ? 0.2 : 0.3, ease: "easeOut" }}
       className="fixed inset-0 z-50 flex flex-col items-center overflow-y-auto"
       style={{
-        background:
-          "radial-gradient(ellipse at center, rgba(42,26,74,0.96) 0%, rgba(20,9,30,0.98) 55%, rgba(6,3,12,1) 100%)",
+        background: "var(--bg-primary)",
         color: "var(--text-primary)",
       }}
     >
-      {/* Top strip — «▰ ВХОДЯЩИЙ ЗВОНОК ▰» + scene hint, font-medium 14px */}
+      {/* Top strip — mono-eyebrow «Входящий звонок» + scene hint */}
       <motion.div
         initial={{ y: -12, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
@@ -155,14 +156,22 @@ export default function IncomingCallScreen({
         className="flex w-full items-center justify-between px-6 pt-8 md:pt-10"
       >
         <span
-          className="font-medium uppercase tracking-wide"
-          style={{ color: "rgba(255,255,255,0.6)", fontSize: 14 }}
+          className="font-mono uppercase"
+          style={{
+            color: "var(--text-muted)",
+            fontSize: 11,
+            letterSpacing: "0.16em",
+          }}
         >
-          ▰ ВХОДЯЩИЙ ЗВОНОК ▰
+          Входящий звонок
         </span>
         <span
-          className="font-medium uppercase tracking-wide"
-          style={{ color: "rgba(255,255,255,0.5)", fontSize: 14 }}
+          className="font-mono uppercase"
+          style={{
+            color: "var(--text-muted)",
+            fontSize: 11,
+            letterSpacing: "0.16em",
+          }}
         >
           {sceneLabel}
         </span>
@@ -170,112 +179,86 @@ export default function IncomingCallScreen({
 
       {/* Flex spacer + avatar block */}
       <div className="flex flex-1 flex-col items-center justify-center px-6 pt-6 md:pt-0">
-        {/* Avatar + outer pulse — square pixel вместо rounded-full */}
-        <motion.div
-          className="relative flex items-center justify-center"
-          animate={{ scale: [1, 1.04, 1] }}
-          transition={{
-            duration: 3,
-            repeat: Infinity,
-            ease: "easeInOut",
-          }}
-        >
-          {/* Outer pulse ring — square pixel */}
+        {/* Avatar — круглый, тонкое кольцо, одно мягкое токенное pulse-ring */}
+        <div className="relative flex items-center justify-center">
+          {/* Single soft pulse ring — токенное, без glow */}
           <motion.div
             aria-hidden
-            className="absolute rounded-sm"
+            className="absolute rounded-full"
             animate={{
-              scale: [1, 1.12, 1],
-              opacity: [0.4, 0.7, 0.4],
+              scale: [1, 1.14, 1],
+              opacity: [0.5, 0, 0.5],
             }}
-            transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+            transition={{ duration: 2.4, repeat: Infinity, ease: "easeInOut" }}
             style={{
-              width: 280,
-              height: 280,
-              border: `2px solid ${ec.color}`,
-              boxShadow: `0 0 60px ${ec.glow}`,
+              width: 200,
+              height: 200,
+              border: "1px solid var(--accent-muted)",
             }}
           />
-          {/* Inner pulse — даём двойной ring для аркадного «таргета» */}
-          <motion.div
-            aria-hidden
-            className="absolute rounded-sm"
-            animate={{
-              scale: [1, 1.06, 1],
-              opacity: [0.25, 0.55, 0.25],
-            }}
-            transition={{ duration: 2, repeat: Infinity, ease: "easeInOut", delay: 0.5 }}
-            style={{
-              width: 250,
-              height: 250,
-              border: `1px dashed ${ec.color}`,
-            }}
-          />
-          {/* Avatar square с пиксельными инициалами */}
+          {/* Avatar circle с инициалом */}
           <div
-            className="flex items-center justify-center rounded-sm font-medium"
+            className="flex items-center justify-center rounded-full font-display"
             style={{
-              width: 220,
-              height: 220,
-              background: "rgba(255,255,255,0.04)",
-              border: `4px solid ${ec.color}`,
-              boxShadow: `inset 0 0 30px ${ec.glow}, 0 0 24px ${ec.glow}`,
-              color: ec.color,
-              fontSize: 92,
+              width: 200,
+              height: 200,
+              background: "var(--bg-secondary)",
+              border: "1px solid var(--border-color)",
+              boxShadow: "inset 0 0 0 4px var(--bg-primary)",
+              color: "var(--text-secondary)",
+              fontSize: 84,
               lineHeight: 1,
-              letterSpacing: "0.02em",
-              textShadow: `0 0 16px ${ec.glow}`,
             }}
             aria-hidden
           >
             {initial}
           </div>
-        </motion.div>
+        </div>
 
-        {/* Name — font-medium large */}
+        {/* Name — обычный регистр, крупно, без textShadow */}
         <motion.h1
           initial={{ y: 12, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           transition={{ delay: 0.25, duration: 0.35 }}
-          className="mt-8 text-center font-medium"
+          className="mt-8 text-center font-display"
           style={{
             fontSize: "clamp(28px, 5vw, 38px)",
-            letterSpacing: "0.04em",
-            textShadow: "0 0 14px rgba(167,139,250,0.4)",
+            color: "var(--text-primary)",
+            lineHeight: 1.1,
           }}
         >
           {displayName}
         </motion.h1>
 
-        {/* Age + city — font-medium 14px */}
+        {/* Age + city — мелко, var(--text-muted) */}
         {ageCity && (
           <motion.div
             initial={{ y: 8, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             transition={{ delay: 0.33, duration: 0.35 }}
-            className="mt-3 flex items-center gap-2 font-medium uppercase tracking-wide"
-            style={{ color: "rgba(255,255,255,0.7)", fontSize: 14, letterSpacing: "0.18em" }}
+            className="mt-3 flex items-center gap-1.5"
+            style={{ color: "var(--text-muted)", fontSize: 14 }}
           >
-            <MapPin size={14} className="opacity-60" aria-hidden />
+            <MapPin size={14} aria-hidden />
             <span>{ageCity}</span>
           </motion.div>
         )}
 
-        {/* Profession */}
+        {/* Profession — мелко, var(--text-muted) */}
         {profession && (
           <motion.div
             initial={{ y: 8, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             transition={{ delay: 0.41, duration: 0.35 }}
-            className="mt-1.5 flex items-center gap-2 font-medium uppercase tracking-wide"
-            style={{ color: "rgba(255,255,255,0.7)", fontSize: 14, letterSpacing: "0.18em" }}
+            className="mt-1.5 flex items-center gap-1.5"
+            style={{ color: "var(--text-muted)", fontSize: 14 }}
           >
-            <Briefcase size={14} className="opacity-60" aria-hidden />
+            <Briefcase size={14} aria-hidden />
             <span>{profession}</span>
           </motion.div>
         )}
 
-        {/* Lead-source badge + debt chip — square pixel 2px solid */}
+        {/* Lead-source + debt — чистые пилюли rounded-full, токенные */}
         <motion.div
           initial={{ y: 8, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
@@ -284,13 +267,12 @@ export default function IncomingCallScreen({
         >
           {leadSource && (
             <span
-              className="inline-flex items-center rounded-sm px-3 py-1.5 font-medium uppercase tracking-wide"
+              className="inline-flex items-center rounded-full px-3 py-1"
               style={{
-                background: "rgba(167,139,250,0.18)",
-                color: "rgba(220,210,255,0.95)",
-                border: "2px solid rgba(167,139,250,0.5)",
-                fontSize: 14,
-                letterSpacing: "0.18em",
+                background: "var(--bg-secondary)",
+                color: "var(--text-secondary)",
+                border: "1px solid var(--border-color)",
+                fontSize: 13,
               }}
             >
               {leadSource}
@@ -298,17 +280,16 @@ export default function IncomingCallScreen({
           )}
           {debtStr && (
             <span
-              className="inline-flex items-center gap-1.5 rounded-sm px-3 py-1.5 font-medium uppercase tracking-wide"
+              className="inline-flex items-center gap-1.5 rounded-full px-3 py-1"
               style={{
-                background: "rgba(255,200,100,0.14)",
-                color: "rgba(255,220,140,0.98)",
-                border: "2px solid rgba(255,200,100,0.45)",
-                fontSize: 14,
-                letterSpacing: "0.18em",
+                background: "var(--warning-muted)",
+                color: "var(--warning)",
+                border: "1px solid var(--warning)",
+                fontSize: 13,
               }}
             >
-              <Wallet size={13} className="opacity-90" aria-hidden />
-              ДОЛГ: {debtStr}
+              <Wallet size={13} aria-hidden />
+              Долг: {debtStr}
             </span>
           )}
         </motion.div>
@@ -317,125 +298,84 @@ export default function IncomingCallScreen({
         {!clientCard && (
           <motion.div
             initial={{ opacity: 0 }}
-            animate={{ opacity: 0.55 }}
+            animate={{ opacity: 1 }}
             transition={{ delay: 0.6 }}
-            className="mt-4 font-medium uppercase tracking-wide"
-            style={{ color: "rgba(255,255,255,0.45)", fontSize: 14 }}
+            className="mt-4"
+            style={{ color: "var(--text-muted)", fontSize: 13 }}
           >
             Подключаем детали клиента…
           </motion.div>
         )}
       </div>
 
-      {/* Action row — Decline + Accept */}
+      {/* Action row — Decline (secondary) + Accept (primary), пилюли */}
       <motion.div
         initial={{ y: 16, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ delay: 0.55, duration: 0.4 }}
         className="w-full pb-10 md:pb-14"
       >
-        <div className="mx-auto flex max-w-md items-center justify-around gap-6 px-6 md:gap-10">
-          {/* Decline — square pixel 3px solid red */}
-          <button
-            type="button"
-            onClick={busy ? undefined : onDecline}
-            disabled={busy}
-            aria-label="Отклонить звонок"
-            className="group flex flex-col items-center gap-2 transition disabled:cursor-wait"
-          >
-            <motion.span
-              whileTap={busy ? undefined : { scale: 0.92 }}
-              whileHover={busy ? undefined : { scale: 1.04 }}
-              className="flex items-center justify-center rounded-sm"
-              style={{
-                width: 76,
-                height: 76,
-                background: declining
-                  ? "rgba(248,113,113,0.92)"
-                  : "rgba(248,113,113,0.12)",
-                border: "3px solid #f87171",
-                color: declining ? "#0b0b14" : "#fca5a5",
-                boxShadow: declining
-                  ? "0 0 22px rgba(248,113,113,0.7)"
-                  : "0 0 14px rgba(248,113,113,0.35)",
-              }}
-            >
-              <PhoneOff size={30} strokeWidth={2.4} />
-            </motion.span>
-            <span
-              className="font-medium uppercase tracking-wide"
-              style={{ color: "#fca5a5", fontSize: 14 }}
-            >
-              {declining ? "ОТМЕНЯЕМ…" : "ОТКЛОНИТЬ"}
-            </span>
-          </button>
-
-          {/* Accept — square pixel green с pulsing glow */}
+        <div className="mx-auto flex max-w-md flex-col items-center gap-3 px-6 sm:flex-row sm:justify-center">
+          {/* Accept — primary пилюля rounded-full, var(--accent) */}
           <button
             type="button"
             onClick={busy ? undefined : onAccept}
             disabled={busy}
             aria-label="Принять звонок"
-            className="group flex flex-col items-center gap-2 transition disabled:cursor-wait"
+            className="inline-flex w-full items-center justify-center gap-2 rounded-full px-6 py-3 font-medium transition disabled:cursor-wait sm:w-auto"
+            style={{
+              background: "var(--accent)",
+              color: "var(--accent-contrast, #fff)",
+              border: "1px solid var(--accent)",
+              boxShadow: "var(--shadow-sm)",
+              opacity: busy && !accepting ? 0.6 : 1,
+            }}
           >
-            <motion.span
-              whileTap={busy ? undefined : { scale: 0.92 }}
-              whileHover={busy ? undefined : { scale: 1.04 }}
-              animate={
-                accepting
-                  ? { scale: 0.96 }
-                  : busy
-                  ? undefined
-                  : {
-                      boxShadow: [
-                        "0 0 18px rgba(74,222,128,0.45)",
-                        "0 0 38px rgba(74,222,128,0.85)",
-                        "0 0 18px rgba(74,222,128,0.45)",
-                      ],
-                    }
-              }
-              transition={
-                busy
-                  ? undefined
-                  : {
-                      duration: 1.6,
-                      repeat: Infinity,
-                      ease: "easeInOut",
-                    }
-              }
-              className="flex items-center justify-center rounded-sm"
-              style={{
-                width: 76,
-                height: 76,
-                background:
-                  "linear-gradient(135deg, #4ade80 0%, #22c55e 100%)",
-                border: "3px solid #062a13",
-                color: "#062a13",
-              }}
-            >
-              {accepting ? (
-                <motion.span
-                  animate={{ rotate: 360 }}
-                  transition={{ duration: 0.9, repeat: Infinity, ease: "linear" }}
-                  className="inline-block rounded-sm border-[3px] border-[#062a13]/30 border-t-[#062a13]"
-                  style={{ width: 22, height: 22 }}
-                />
-              ) : (
-                <Phone size={30} strokeWidth={2.4} />
-              )}
-            </motion.span>
-            <span
-              className="font-medium uppercase tracking-wide"
-              style={{ color: "rgba(180,255,210,0.95)", fontSize: 14 }}
-            >
-              {accepting ? "СОЕДИНЯЕМ…" : "ПРИНЯТЬ"}
+            {accepting ? (
+              <motion.span
+                animate={{ rotate: 360 }}
+                transition={{ duration: 0.9, repeat: Infinity, ease: "linear" }}
+                className="inline-block rounded-full"
+                style={{
+                  width: 18,
+                  height: 18,
+                  border: "2px solid var(--accent-contrast, #fff)",
+                  borderTopColor: "transparent",
+                }}
+                aria-hidden
+              />
+            ) : (
+              <Phone size={18} aria-hidden />
+            )}
+            <span style={{ fontSize: 15 }}>
+              {accepting ? "Соединяем…" : "Принять звонок"}
+            </span>
+          </button>
+
+          {/* Decline — secondary пилюля rounded-full, outline */}
+          <button
+            type="button"
+            onClick={busy ? undefined : onDecline}
+            disabled={busy}
+            aria-label="Отклонить звонок"
+            className="inline-flex w-full items-center justify-center gap-2 rounded-full px-6 py-3 font-medium transition disabled:cursor-wait sm:w-auto"
+            style={{
+              background: declining ? "var(--danger-muted)" : "transparent",
+              color: declining ? "var(--danger)" : "var(--text-muted)",
+              border: `1px solid ${declining ? "var(--danger)" : "var(--border-color)"}`,
+              opacity: busy && !declining ? 0.6 : 1,
+            }}
+          >
+            <PhoneOff size={18} aria-hidden />
+            <span style={{ fontSize: 15 }}>
+              {declining ? "Отменяем…" : "Отклонить"}
             </span>
           </button>
         </div>
 
         <div
-          className="mx-auto mt-5 max-w-md text-center font-medium uppercase tracking-wide"
-          style={{ color: "rgba(255,255,255,0.4)", fontSize: 14, letterSpacing: "0.18em", lineHeight: 1.4 }}
+          className="mx-auto mt-5 max-w-md px-6 text-center"
+          style={{ color: "var(--text-muted)", fontSize: 13, lineHeight: 1.5 }}
         >
           Нажмите «Принять» чтобы подключить звук —<br />
           браузер требует жест пользователя

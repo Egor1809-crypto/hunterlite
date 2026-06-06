@@ -24,7 +24,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { Mic, MicOff } from "lucide-react";
+import { Mic, MicOff, Send } from "lucide-react";
 import { useSessionStore } from "@/stores/useSessionStore";
 import { PhoneCallMode } from "@/components/training/phone/PhoneCallMode";
 import { usePolicyStore } from "@/stores/usePolicyStore";
@@ -1264,7 +1264,10 @@ export default function TrainingCallPage() {
   // Still loading mode guard
   if (modeOk === null) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-black text-white/60 text-sm">
+      <div
+        className="flex min-h-screen items-center justify-center text-sm"
+        style={{ background: "var(--bg-primary)", color: "var(--text-muted)" }}
+      >
         Подключаемся к звонку…
       </div>
     );
@@ -1543,10 +1546,11 @@ export default function TrainingCallPage() {
         }}
         micSlot={
           /*
-            P1 (training-rework): микрофон-индикатор сохранён (audio-level
-            пульс при слушании — это и есть индикатор), но неон смягчён:
-            цвета в токены (danger/accent), тонкая рамка, амплитуда glow
-            уменьшена. Логика TTS-pause + STT не тронута.
+            2026-06-06 (editorial restyle): круглая токенная кнопка-микрофон.
+            Неон boxShadow по audioLevel убран — состояние записи показывает
+            мягкий токенный пульс (animate-pulse внутри кольца), цвета в
+            токены (danger-muted/danger при записи, accent-muted/accent в
+            покое). Логика TTS-pause + STT не тронута.
           */
           <button
             type="button"
@@ -1563,26 +1567,29 @@ export default function TrainingCallPage() {
             className="flex flex-col items-center gap-2"
           >
             <span
-              className="flex h-16 w-16 items-center justify-center rounded-2xl transition-all duration-150 active:scale-95"
+              className="relative flex h-16 w-16 items-center justify-center rounded-full transition-colors duration-150 active:scale-95"
               style={{
                 background:
                   stt.status === "listening"
-                    ? "var(--danger)"
+                    ? "var(--danger-muted)"
                     : "var(--accent-muted)",
-                color: stt.status === "listening" ? "#fff" : "var(--accent)",
+                color: stt.status === "listening" ? "var(--danger)" : "var(--accent)",
                 border: stt.status === "listening"
                   ? "1px solid var(--danger)"
                   : "1px solid var(--accent)",
-                boxShadow:
-                  stt.status === "listening"
-                    ? `0 0 ${8 + stt.audioLevel * 16}px var(--danger-muted)`
-                    : "none",
               }}
             >
+              {stt.status === "listening" && (
+                <span
+                  aria-hidden
+                  className="absolute inset-0 rounded-full animate-pulse"
+                  style={{ border: "1px solid var(--danger-muted)" }}
+                />
+              )}
               {stt.status === "listening" ? (
-                <MicOff size={28} strokeWidth={2.4} />
+                <MicOff size={26} strokeWidth={1.8} />
               ) : (
-                <Mic size={28} strokeWidth={2.4} />
+                <Mic size={26} strokeWidth={1.8} />
               )}
             </span>
             <span
@@ -1591,7 +1598,7 @@ export default function TrainingCallPage() {
                 color: stt.status === "listening" ? "var(--danger)" : "var(--text-muted)",
               }}
             >
-              {stt.status === "listening" ? "Слушаю..." : "Говорить"}
+              {stt.status === "listening" ? "Слушаю…" : "Говорить"}
             </span>
           </button>
         }
@@ -1609,16 +1616,17 @@ export default function TrainingCallPage() {
         <div
           className="fixed inset-0 z-[160] flex items-end justify-center p-4 sm:items-center"
           style={{
-            background: "rgba(0,0,0,0.72)",
-            backdropFilter: "blur(6px)",
+            // 2026-06-06 (editorial): scrim в токен --bg-secondary вместо
+            // rgba(0,0,0,..); карточка модалки — surface-card + hairline.
+            background: "var(--bg-secondary)",
           }}
         >
           <div
             className="w-full max-w-md rounded-2xl p-5"
             style={{
-              background: "var(--bg-panel)",
+              background: "var(--surface-card)",
               border: "1px solid var(--border-color)",
-              boxShadow: "var(--shadow-lg)",
+              boxShadow: "var(--shadow-sm)",
             }}
           >
             <div className="mb-4">
@@ -1703,14 +1711,14 @@ export default function TrainingCallPage() {
             disabled={connectionState !== "connected"}
             className="flex items-center gap-2 rounded-full px-5 py-3 text-sm font-medium transition-all"
             style={{
-              // P1 (training-rework): неон-градиент + glow убраны, цвета в
-              // токены. Активное состояние — нейтральный danger-токен (идёт
-              // запись), покой — акцент. Микрофон-индикатор сохранён.
-              background: pushTalkActive ? "var(--danger)" : "var(--accent-muted)",
+              // 2026-06-06 (editorial restyle): неон-градиент + glow убраны,
+              // цвета строго в токены. Активное состояние — danger-muted/danger
+              // (идёт запись), покой — accent-muted/accent. Без hex.
+              background: pushTalkActive ? "var(--danger-muted)" : "var(--accent-muted)",
               border: pushTalkActive
                 ? "1px solid var(--danger)"
                 : "1px solid var(--accent)",
-              color: pushTalkActive ? "#fff" : "var(--accent)",
+              color: pushTalkActive ? "var(--danger)" : "var(--accent)",
               transition: "background 0.15s, color 0.15s, opacity 0.15s",
               opacity: connectionState === "connected" ? 1 : 0.5,
               touchAction: "none",
@@ -1742,17 +1750,21 @@ export default function TrainingCallPage() {
         microphone is broken / denied / browser doesn't support STT.
         Push-to-talk mic remains in the control row for voice users.
       */}
-      <div className="fixed bottom-0 left-0 right-0 z-20 flex flex-col items-center bg-gradient-to-t from-black/70 to-transparent px-4 pb-3 pt-10">
+      <div
+        className="fixed bottom-0 left-0 right-0 z-20 flex flex-col items-center px-4 pb-3 pt-10"
+        style={{
+          background: "linear-gradient(to top, var(--bg-primary), transparent)",
+        }}
+      >
         {/* P0 (training-rework): CRM-link chip + attachment removed — only the
             WS-status dot remains in this secondary bar above the input. */}
         <div className="mb-1.5 flex w-full max-w-lg items-center gap-2 px-2">
           <span
             className="flex h-2 w-2 shrink-0 rounded-full"
             style={{
-              background: connectionState === "connected" ? "#22c55e" : "#ef4444",
-              boxShadow: connectionState === "connected"
-                ? "0 0 6px #22c55e"
-                : "0 0 6px #ef4444",
+              // 2026-06-06 (editorial): hex + неон-glow убраны — токены
+              // success/danger без свечения; разрыв связи мягко пульсирует.
+              background: connectionState === "connected" ? "var(--success)" : "var(--danger)",
               animation: connectionState === "connected" ? undefined : "pulse 1s infinite",
             }}
             title={
@@ -1768,7 +1780,13 @@ export default function TrainingCallPage() {
             e.preventDefault();
             sendText();
           }}
-          className="flex w-full max-w-lg items-center gap-2 rounded-full bg-black/50 px-4 py-2 ring-1 ring-white/10 backdrop-blur-md"
+          className="flex w-full max-w-lg items-center gap-2 rounded-full px-4 py-2"
+          style={{
+            // 2026-06-06 (editorial): глассморфизм bg-black/50 ring-white/10
+            // backdrop-blur заменён на чистую карточку с hairline-границей.
+            background: "var(--bg-secondary)",
+            border: "1px solid var(--border-color)",
+          }}
         >
           <input
             type="text"
@@ -1780,16 +1798,22 @@ export default function TrainingCallPage() {
                 : "Подключаемся… (или нажмите «Принять» заново)"
             }
             aria-label="Сообщение клиенту текстом"
-            className="flex-1 bg-transparent px-2 text-base text-white placeholder:text-white/40 outline-none"
+            className="flex-1 bg-transparent px-2 text-base outline-none"
+            style={{ color: "var(--text-primary)" }}
             disabled={connectionState !== "connected"}
           />
           <button
             type="submit"
             disabled={!textInput.trim() || connectionState !== "connected"}
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/15 text-white transition-opacity hover:bg-white/25 disabled:cursor-not-allowed disabled:opacity-30"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-opacity disabled:cursor-not-allowed disabled:opacity-30"
+            style={{
+              background: "var(--accent-muted)",
+              color: "var(--accent)",
+              border: "1px solid var(--accent)",
+            }}
             aria-label="Отправить сообщение"
           >
-            ▶
+            <Send size={16} strokeWidth={1.8} />
           </button>
         </form>
       </div>

@@ -36,7 +36,7 @@ export function CallButton({ sessionId, difficulty, disabled }: Props) {
       type="button"
       disabled={disabled}
       onClick={() => router.push(`/training/${sessionId}/call`)}
-      className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium transition-all disabled:opacity-40"
+      className="flex items-center gap-2 rounded-full px-3 py-1.5 text-sm font-medium transition-all disabled:opacity-40"
       style={{
         background: "var(--accent-muted)",
         color: "var(--accent)",

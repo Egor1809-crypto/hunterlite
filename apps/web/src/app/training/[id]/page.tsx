@@ -1256,10 +1256,8 @@ export default function TrainingSessionPage() {
     <TrainingErrorBoundary sessionId={routeId}>
     <div className="flex h-screen flex-col overflow-hidden" style={{ background: "var(--bg-primary)" }}>
 
-      {/* Subtle mic-active indicator — softened from the old neon glow,
-          the global-mic-glow class is kept (shared) but only active while
-          the mic is held. */}
-      <div className={`fixed inset-0 global-mic-glow z-50 ${s.micActive ? "active" : ""}`} style={{ opacity: 0.35 }} />
+      {/* 2026-06-06 editorial refine: removed the full-screen .global-mic-glow
+          neon overlay. Mic-active feedback now lives on the CrystalMic itself. */}
 
       {/* ── Top header ───────────────────────────────────── */}
       <header
@@ -1277,7 +1275,7 @@ export default function TrainingSessionPage() {
         {/* Center: timer */}
         <div className="flex items-center gap-2">
           <div
-            className={`font-mono text-xl font-semibold tabular-nums ${s.elapsed >= 1500 ? "animate-pulse" : ""}`}
+            className="font-mono text-xl font-semibold tabular-nums"
             style={{ color: s.elapsed >= 1500 ? "var(--warning)" : "var(--text-secondary)" }}
           >
             {formatTime(s.elapsed)}
@@ -1293,7 +1291,7 @@ export default function TrainingSessionPage() {
           <motion.button
             onClick={() => tts.setEnabled(!tts.enabled)}
             className="flex items-center justify-center rounded-xl p-2"
-            style={{ background: "rgba(255,255,255,0.04)" }}
+            style={{ background: "var(--bg-secondary)", border: "1px solid var(--border-color)" }}
             whileTap={{ scale: 0.95 }}
             aria-label={tts.enabled ? "Выключить голос AI" : "Включить голос AI"}
             title={`Голос AI: ${tts.mode === "elevenlabs" ? "ElevenLabs" : "Браузер"}`}
@@ -1305,7 +1303,7 @@ export default function TrainingSessionPage() {
             onClick={() => s.setShowAbortModal(true)}
             disabled={s.sessionState !== "ready"}
             className="rounded-xl px-4 py-2 text-sm font-semibold transition-all"
-            style={{ background: "var(--danger-muted)", color: "var(--danger)", border: "1px solid rgba(239,68,68,0.25)" }}
+            style={{ background: "var(--danger-muted)", color: "var(--danger)", border: "1px solid var(--danger-muted)" }}
             aria-label="Прервать тренировку"
           >
             Завершить
@@ -1323,9 +1321,8 @@ export default function TrainingSessionPage() {
             className="fixed top-2 left-1/2 -translate-x-1/2 z-50 rounded-xl px-4 py-2 text-sm font-medium flex items-center gap-2"
             style={{
               background: connectionState === "reconnecting" ? "var(--warning-muted)" : "var(--danger-muted)",
-              border: `1px solid ${connectionState === "reconnecting" ? "rgba(245,158,11,0.3)" : "rgba(239,68,68,0.3)"}`,
+              border: `1px solid ${connectionState === "reconnecting" ? "var(--warning-muted)" : "var(--danger-muted)"}`,
               color: connectionState === "reconnecting" ? "var(--warning)" : "var(--danger)",
-              backdropFilter: "blur(12px)",
             }}
           >
             <div className="w-2 h-2 rounded-full animate-pulse" style={{ background: connectionState === "reconnecting" ? "var(--warning)" : "var(--danger)" }} />
@@ -1406,14 +1403,14 @@ export default function TrainingSessionPage() {
 
           {/* Text input — always visible at bottom */}
           {s.sessionState === "ready" && (
-            <div className="shrink-0" style={{ borderTop: "1px solid rgba(255,255,255,0.06)", background: "rgba(0,0,0,0.2)" }}>
+            <div className="shrink-0" style={{ borderTop: "1px solid var(--border-color)", background: "var(--bg-primary)" }}>
               {/* Transcription preview bar */}
               {s.transcription.status === "preview" && s.input.trim() && (
                 <motion.div
                   initial={{ opacity: 0, y: 8 }}
                   animate={{ opacity: 1, y: 0 }}
                   className="px-4 py-2 flex items-center gap-2"
-                  style={{ borderBottom: "1px solid rgba(255,255,255,0.06)", background: "rgba(var(--accent-rgb, 107,77,199), 0.08)" }}
+                  style={{ borderBottom: "1px solid var(--border-color)", background: "var(--accent-muted)" }}
                 >
                   <Mic size={14} style={{ color: "var(--accent)", flexShrink: 0 }} />
                   <span className="text-xs truncate" style={{ color: "var(--accent)" }}>
@@ -1476,7 +1473,7 @@ export default function TrainingSessionPage() {
                     style={{
                       maxHeight: 240,
                       ...(s.transcription.status === "preview"
-                        ? { borderColor: "var(--accent)", boxShadow: "0 0 0 1px var(--accent-glow)" }
+                        ? { borderColor: "var(--accent)" }
                         : {}),
                     }}
                     onInput={(e) => {
@@ -1522,23 +1519,15 @@ export default function TrainingSessionPage() {
               {s.characterName || "Клиент"}
             </div>
             <div className="flex items-center gap-2">
-              <motion.div
+              <div
                 className="w-2 h-2 rounded-full"
-                style={{ background: EMOTION_MAP[s.emotion]?.color || "var(--brand-deep)" }}
-                animate={{
-                  boxShadow: [
-                    `0 0 4px ${EMOTION_MAP[s.emotion]?.glow || "rgba(109,40,217,0.4)"}`,
-                    `0 0 12px ${EMOTION_MAP[s.emotion]?.glow || "rgba(109,40,217,0.4)"}`,
-                    `0 0 4px ${EMOTION_MAP[s.emotion]?.glow || "rgba(109,40,217,0.4)"}`,
-                  ],
-                }}
-                transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+                style={{ background: EMOTION_MAP[s.emotion]?.color || "var(--accent)" }}
               />
               <AnimatePresence mode="wait">
                 <motion.span
                   key={s.emotion}
                   className="text-sm font-semibold"
-                  style={{ color: EMOTION_MAP[s.emotion]?.color || "var(--brand-deep)" }}
+                  style={{ color: EMOTION_MAP[s.emotion]?.color || "var(--accent)" }}
                   initial={{ opacity: 0, x: -8 }}
                   animate={{ opacity: 1, x: 0 }}
                   exit={{ opacity: 0, x: 8 }}
@@ -1558,7 +1547,7 @@ export default function TrainingSessionPage() {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -8 }}
               className="absolute top-6 right-6 z-30 flex items-center gap-2 rounded-xl px-3 py-2 text-xs"
-              style={{ background: "rgba(245,158,11,0.1)", border: "1px solid rgba(245,158,11,0.2)", color: "var(--warning)" }}
+              style={{ background: "var(--warning-muted)", border: "1px solid var(--warning-muted)", color: "var(--warning)" }}
             >
               <AlertTriangle size={14} />
               Голосовой режим недоступен. Используйте текстовый чат.
@@ -1571,9 +1560,8 @@ export default function TrainingSessionPage() {
 
           {/* Avatar */}
           <div className="relative w-full max-w-[min(65vh,560px)] aspect-square flex items-center justify-center z-10">
-            <div className="absolute inset-0 rounded-full opacity-20 blur-[60px] transition-colors duration-1000"
-              style={{ background: EMOTION_MAP[s.emotion]?.color || "var(--brand-deep)" }}
-            />
+            {/* 2026-06-06 editorial refine: removed the emotion-colored blur blob
+                behind the avatar (no glow/blob per editorial spec). */}
             <StylizedAvatar
               emotion={s.emotion}
               isSpeaking={tts.speaking || s.micActive}
@@ -1591,8 +1579,8 @@ export default function TrainingSessionPage() {
                 <motion.button
                   onClick={() => s.setTextMode(false)}
                   className="flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium transition-colors"
-                  style={{ background: "rgba(255,255,255,0.05)", color: "var(--text-muted)", border: "1px solid rgba(255,255,255,0.08)" }}
-                  whileHover={{ background: "rgba(255,255,255,0.08)" }}
+                  style={{ background: "var(--bg-tertiary)", color: "var(--text-muted)", border: "1px solid var(--border-color)" }}
+                  whileHover={{ background: "var(--surface-card)" }}
                   whileTap={{ scale: 0.97 }}
                 >
                   <Mic size={16} />
@@ -1757,7 +1745,7 @@ export default function TrainingSessionPage() {
                       animate={{ opacity: 0 }}
                       exit={{ opacity: 0 }}
                       transition={{ duration: 0.8 }}
-                      style={{ background: "radial-gradient(circle at center, var(--accent-muted) 0%, transparent 70%)" }}
+                      style={{ background: "var(--accent-muted)" }}
                     />
                   )}
                 </AnimatePresence>
@@ -1877,7 +1865,7 @@ export default function TrainingSessionPage() {
       <AnimatePresence>
         {s.sessionState === "completed" && (
           <motion.div key="modal-completed" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[150] flex items-center justify-center" style={{ background: "var(--overlay-bg)", backdropFilter: "blur(8px)" }}>
-            <motion.div initial={{ scale: 0.96, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ type: "spring", stiffness: 300, damping: 24 }} className="glass-panel px-8 sm:px-12 py-8 text-center max-w-md rounded-3xl">
+            <motion.div initial={{ scale: 0.96, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ type: "spring", stiffness: 300, damping: 24 }} className="px-8 sm:px-12 py-8 text-center max-w-md rounded-2xl" style={{ background: "var(--surface-card)", border: "1px solid var(--border-color)", boxShadow: "var(--shadow-sm)" }}>
               <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full" style={{ background: "var(--accent-muted)" }}>
                 <CheckCircle2 size={32} style={{ color: "var(--accent)" }} />
               </div>
@@ -1914,8 +1902,8 @@ export default function TrainingSessionPage() {
       <AnimatePresence>
         {s.showAbortModal && (
           <motion.div key="modal-abort" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[150] flex items-center justify-center p-4" style={{ background: "var(--overlay-bg)", backdropFilter: "blur(8px)" }}>
-            <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} className="glass-panel w-full max-w-md px-6 sm:px-8 py-7 text-center rounded-2xl">
-              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full" style={{ background: "var(--danger-muted)", border: "1px solid rgba(229,72,77,0.2)" }}>
+            <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} className="w-full max-w-md px-6 sm:px-8 py-7 text-center rounded-2xl" style={{ background: "var(--surface-card)", border: "1px solid var(--border-color)", boxShadow: "var(--shadow-sm)" }}>
+              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full" style={{ background: "var(--danger-muted)", border: "1px solid var(--danger-muted)" }}>
                 <XCircle size={26} style={{ color: "var(--danger)" }} />
               </div>
               <h2 className="mt-4 font-display text-xl font-bold" style={{ color: "var(--text-primary)" }}>
@@ -1936,7 +1924,7 @@ export default function TrainingSessionPage() {
                 <motion.button
                   onClick={() => { s.setShowAbortModal(false); handleEnd(); }}
                   className="w-full py-3 text-sm font-medium rounded-xl flex items-center justify-center gap-2 transition-colors"
-                  style={{ background: "var(--danger-muted)", color: "var(--danger)", border: "1px solid rgba(229,72,77,0.25)" }}
+                  style={{ background: "var(--danger-muted)", color: "var(--danger)", border: "1px solid var(--danger-muted)" }}
                   whileTap={{ scale: 0.97 }}
                 >
                   <XCircle size={14} /> Завершить
@@ -1950,8 +1938,8 @@ export default function TrainingSessionPage() {
       <AnimatePresence>
         {s.showSilenceModal && (
           <motion.div key="modal-silence" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[150] flex items-center justify-center p-4" style={{ background: "var(--overlay-bg)", backdropFilter: "blur(8px)" }}>
-            <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} className="glass-panel w-full max-w-md px-6 sm:px-8 py-7 text-center rounded-2xl">
-              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full" style={{ background: "var(--warning-muted)", border: "1px solid rgba(245,158,11,0.2)" }}>
+            <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} className="w-full max-w-md px-6 sm:px-8 py-7 text-center rounded-2xl" style={{ background: "var(--surface-card)", border: "1px solid var(--border-color)", boxShadow: "var(--shadow-sm)" }}>
+              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full" style={{ background: "var(--warning-muted)", border: "1px solid var(--warning-muted)" }}>
                 <AlertTriangle size={26} style={{ color: "var(--warning)" }} />
               </div>
               <h2 className="mt-4 font-display text-xl font-bold" style={{ color: "var(--warning)" }}>
