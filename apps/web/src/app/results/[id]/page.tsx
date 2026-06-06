@@ -52,7 +52,6 @@ import { Button } from "@/components/ui/Button";
 import { Breadcrumb } from "@/components/ui/Breadcrumb";
 import { EMOTION_MAP, type EmotionState, type ChatMessage, type SessionResultResponse } from "@/types";
 import { logger } from "@/lib/logger";
-import { colorAlpha } from "@/lib/utils";
 
 function formatDuration(seconds: number | null): string {
   if (seconds === null || seconds === undefined) return "--:--";
@@ -69,10 +68,6 @@ function emotionColor(state: string): string {
 
 function emotionLabelRu(state: string): string {
   return EMOTION_MAP[state as EmotionState]?.labelRu ?? state;
-}
-
-function getScoreColor(score: number): string {
-  return score >= 70 ? "var(--success)" : score >= 40 ? "var(--warning)" : "var(--danger)";
 }
 
 export default function ResultsPage() {
@@ -201,7 +196,7 @@ export default function ResultsPage() {
             <button
               onClick={() => { setLoadError(null); setLoading(true); window.location.reload(); }}
               className="px-4 py-2 rounded"
-              style={{ background: "var(--accent)", color: "#000" }}
+              style={{ background: "var(--primary)", color: "#000" }}
             >
               Попробовать снова
             </button>
@@ -225,7 +220,6 @@ export default function ResultsPage() {
   const { session, messages } = result;
   const totalScore = session.score_total ?? 0;
   const hasScores = session.score_total !== null;
-  const totalScoreColor = getScoreColor(totalScore);
 
   // Phase C (2026-05-08): branch on terminal_outcome. Sessions that
   // ended due to system error / timeout / operator abort get the
@@ -394,8 +388,8 @@ export default function ResultsPage() {
           <div
             className="mt-3 mb-4 flex items-center gap-3 rounded-2xl border px-4 py-3 text-sm"
             style={{
-              borderColor: "rgba(120,140,255,0.3)",
-              background: "rgba(120,140,255,0.06)",
+              borderColor: "var(--border-color)",
+              background: "var(--bg-secondary)",
               color: "var(--text-muted)",
             }}
           >
@@ -409,8 +403,8 @@ export default function ResultsPage() {
           <div
             className="mt-3 mb-4 flex items-center gap-3 rounded-2xl border px-4 py-3 text-sm"
             style={{
-              borderColor: "rgba(255,180,0,0.3)",
-              background: "rgba(255,180,0,0.06)",
+              borderColor: "var(--warning)",
+              background: "var(--warning-muted)",
               color: "var(--warning)",
             }}
           >
@@ -436,49 +430,25 @@ export default function ResultsPage() {
         >
           <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6">
             <div>
-              <div className="font-mono text-sm tracking-widest mb-2 uppercase" style={{ color: "var(--accent)" }}>
-                Сессия завершена
+              <div className="font-mono text-[11px] uppercase tracking-[0.16em] mb-2" style={{ color: "var(--text-secondary)" }}>
+                Разбор · ФЗ-127
               </div>
-              <h1 className="font-display font-bold text-3xl md:text-4xl tracking-wide uppercase " style={{ color: "var(--text-primary)" }}>
+              <h1 className="font-display font-semibold text-3xl md:text-4xl tracking-tight" style={{ color: "var(--text-primary)" }}>
                 Отчёт по сессии
               </h1>
             </div>
-            <div className="flex items-end gap-8">
-              {hasScores && (
-                <div className="text-right flex flex-col items-center">
-                  <div className="font-mono text-sm tracking-wider mb-2" style={{ color: "var(--text-muted)" }}>ОБЩИЙ БАЛЛ</div>
-                  <div className="score-ring relative" style={{ "--ring-color": totalScoreColor } as React.CSSProperties}>
-                    <svg width="96" height="96" viewBox="0 0 96 96">
-                      <circle cx="48" cy="48" r="42" fill="none" stroke="var(--border-color)" strokeWidth="4" opacity="0.3" />
-                      <circle
-                        cx="48" cy="48" r="42" fill="none"
-                        stroke={totalScoreColor}
-                        strokeWidth="4"
-                        strokeLinecap="round"
-                        strokeDasharray={`${2 * Math.PI * 42 * (totalScore / 100)} ${2 * Math.PI * 42}`}
-                        transform="rotate(-90 48 48)"
-                        style={{ filter: `drop-shadow(0 0 6px ${totalScoreColor})`, transition: "stroke-dasharray 1s ease-out" }}
-                      />
-                    </svg>
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <span className="font-display text-3xl font-bold" style={{ color: totalScoreColor, textShadow: `0 0 10px ${totalScoreColor}` }}>
-                        {Math.round(totalScore)}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              )}
-              <Link href="/training">
-                <motion.span
-                  className="flex items-center gap-2 rounded-lg px-6 py-3 font-mono text-xs tracking-widest transition-colors backdrop-blur"
-                  style={{ background: "var(--accent-muted)", border: "1px solid var(--accent)", color: "var(--accent)" }}
-                  whileHover={{ background: "var(--accent)", color: "white" }}
-                  whileTap={{ scale: 0.97 }}
-                >
-                  <RotateCcw size={14} /> НОВАЯ ТРЕНИРОВКА
-                </motion.span>
-              </Link>
-            </div>
+            {/* Балл живёт в спокойной сводке выше (Итог: N из 100) — здесь без
+                дубля и без неон-кольца. Остаётся только действие. */}
+            <Link href="/training">
+              <motion.span
+                className="flex items-center gap-2 rounded-lg px-6 py-3 font-mono text-xs uppercase tracking-[0.16em] transition-colors"
+                style={{ background: "var(--primary-muted)", border: "1px solid var(--primary)", color: "var(--primary)" }}
+                whileHover={{ background: "var(--primary)", color: "white" }}
+                whileTap={{ scale: 0.97 }}
+              >
+                <RotateCcw size={14} /> Новая тренировка
+              </motion.span>
+            </Link>
           </div>
         </motion.header>
 
@@ -511,10 +481,9 @@ export default function ResultsPage() {
               transition={{ delay: 0.1 }}
               className="col-span-1 lg:col-span-5 glass-panel rounded-2xl p-6 md:p-8 flex flex-col relative overflow-hidden"
             >
-              <div className="absolute -top-20 -left-20 w-64 h-64 rounded-full opacity-20 blur-[100px] pointer-events-none" style={{ background: "var(--accent)" }} />
 
               <h2 className="font-display text-lg tracking-widest flex items-center gap-2 border-b pb-3 z-10 mb-6" style={{ color: "var(--text-primary)", borderColor: "var(--border-color)" }}>
-                <Crosshair size={18} style={{ color: "var(--accent)" }} /> ПЕНТАГРАММА НАВЫКОВ
+                <Crosshair size={18} style={{ color: "var(--primary)" }} /> ПЕНТАГРАММА НАВЫКОВ
               </h2>
 
               <div className="flex-1 relative z-10">
@@ -523,11 +492,11 @@ export default function ResultsPage() {
 
               <div className="mt-4 flex flex-wrap justify-center gap-6 z-10 font-mono text-sm">
                 <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 border" style={{ background: "var(--accent-glow)", borderColor: "var(--accent)" }} />
+                  <div className="w-3 h-3 border" style={{ background: "var(--primary-muted)", borderColor: "var(--primary)" }} />
                   <span style={{ color: "var(--text-secondary)" }}>Ваш профиль</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 border border-dashed" style={{ background: "rgba(255,255,255,0.05)", borderColor: "var(--text-muted)" }} />
+                  <div className="w-3 h-3 border border-dashed" style={{ background: "var(--bg-tertiary)", borderColor: "var(--text-muted)" }} />
                   <span style={{ color: "var(--text-muted)" }}>Идеальная модель</span>
                 </div>
               </div>
@@ -543,10 +512,9 @@ export default function ResultsPage() {
                 transition={{ delay: 0.2 }}
                 className="glass-panel rounded-2xl p-6 md:p-8 flex-1 flex flex-col relative overflow-hidden"
               >
-                <div className="absolute -bottom-20 -right-20 w-64 h-64 rounded-full opacity-10 blur-[100px] pointer-events-none" style={{ background: "var(--magenta)" }} />
 
                 <h2 className="font-display text-lg tracking-widest flex items-center gap-2 border-b pb-3 z-10 mb-6" style={{ color: "var(--text-primary)", borderColor: "var(--border-color)" }}>
-                  <TrendingUp size={18} style={{ color: "var(--magenta)" }} /> ЭМОЦИИ ПО ВРЕМЕНИ
+                  <TrendingUp size={18} style={{ color: "var(--primary)" }} /> ЭМОЦИИ ПО ВРЕМЕНИ
                 </h2>
 
                 <div className="flex-1 w-full relative z-10">
@@ -712,7 +680,7 @@ export default function ResultsPage() {
               <div
                 key={msg.id}
                 data-msg-id={String(msg.id)}
-                className={`flex gap-3 rounded-lg p-2 transition-colors ${msg.role === "user" ? "cursor-pointer hover:ring-1 hover:ring-[var(--accent)]" : ""}`}
+                className={`flex gap-3 rounded-lg p-2 transition-colors ${msg.role === "user" ? "cursor-pointer hover:ring-1 hover:ring-[var(--primary)]" : ""}`}
                 style={{ background: msg.role !== "user" ? "var(--input-bg)" : "transparent" }}
                 onClick={() => {
                   if (msg.role === "user") {
@@ -723,7 +691,7 @@ export default function ResultsPage() {
               >
                 <span
                   className="w-20 shrink-0 font-mono text-sm uppercase"
-                  style={{ color: msg.role === "user" ? "var(--accent)" : emotionColor(msg.emotion_state || "") }}
+                  style={{ color: msg.role === "user" ? "var(--primary)" : emotionColor(msg.emotion_state || "") }}
                 >
                   {msg.role === "user" ? "ВЫ" : "КЛИЕНТ"}
                 </span>
@@ -732,14 +700,14 @@ export default function ResultsPage() {
                   <div className="flex items-center gap-2 mt-1">
                     {msg.emotion_state && (
                       <span className="inline-block rounded-full px-2 py-0.5 text-xs"
-                        style={{ background: "var(--accent-muted)", color: emotionColor(msg.emotion_state) }}
+                        style={{ background: "var(--primary-muted)", color: emotionColor(msg.emotion_state) }}
                       >
                         {emotionLabelRu(msg.emotion_state)}
                       </span>
                     )}
                     {msg.role === "user" && (
                       <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs opacity-50 hover:opacity-100 transition-opacity"
-                        style={{ background: "rgba(138,43,226,0.15)", color: "var(--accent)" }}
+                        style={{ background: "rgba(138,43,226,0.15)", color: "var(--primary)" }}
                       >
                         <Sparkles size={13} /> Разбор
                       </span>
@@ -850,13 +818,13 @@ export default function ResultsPage() {
                         <span className="text-xs font-mono" style={{ color: "var(--text-muted)" }}>/ {item.max}</span>
                       </div>
                     </div>
-                    <div className="h-3 w-full overflow-hidden rounded-full" style={{ background: "rgba(255,255,255,0.12)" }}>
+                    <div className="h-3 w-full overflow-hidden rounded-full" style={{ background: "var(--bg-tertiary)" }}>
                       <motion.div
                         className="h-full rounded-full"
                         initial={{ width: 0 }}
                         animate={{ width: `${Math.min(pct, 100)}%` }}
                         transition={{ duration: 0.8, delay: 0.6 + i * 0.1 }}
-                        style={{ background: barColor, boxShadow: `0 0 8px ${colorAlpha(barColor, 25)}` }}
+                        style={{ background: barColor }}
                       />
                     </div>
                   </motion.div>
