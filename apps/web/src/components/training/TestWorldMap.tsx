@@ -937,8 +937,11 @@ function LevelDetailModal({
             <X size={16} />
           </button>
 
-          {/* Header: eyebrow + large title */}
-          <div className="flex items-start gap-4">
+          {/* Header: eyebrow + large title.
+              2026-06-06 (#2): pr-10 reserves space for the absolute X close
+              button (right-4 top-4) so the «Пройден» badge (ml-auto) no longer
+              sits underneath it — fixes the button overlap. */}
+          <div className="flex items-start gap-4 pr-10">
             <div
               className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl"
               style={{ background: `color-mix(in srgb, var(--primary) 16%, var(--surface-card))`, border: `1px solid color-mix(in srgb, var(--primary) 32%, transparent)` }}
