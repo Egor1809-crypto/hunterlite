@@ -43,14 +43,17 @@ STAGE_ORDER = [
     "closing",
 ]
 
+# 2026-06-04: labels reframed sales→legal consultation (internal keys kept to
+# avoid touching scoring/WS). Flow: представление → контакт → выяснение
+# обстоятельств → правовой анализ → снятие страхов → рекомендация → след. шаг.
 STAGE_LABELS = {
-    "greeting": "Приветствие",
+    "greeting": "Представление",
     "contact": "Контакт",
-    "qualification": "Квалификация",
-    "presentation": "Презентация",
-    "objections": "Возражения",
-    "appointment": "Встреча",
-    "closing": "Закрытие",
+    "qualification": "Выяснение обстоятельств",
+    "presentation": "Правовой анализ",
+    "objections": "Снятие страхов",
+    "appointment": "Рекомендация",
+    "closing": "Следующий шаг",
 }
 
 # Keyword markers for each stage.
