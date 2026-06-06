@@ -2078,9 +2078,15 @@ async def _generate_character_reply(
                 llm_result = LLMResponse(
                     content=_streamed_text,
                     # 2026-05-10 navy-only: только local (=navy.api) ветка
-                    # реально достижима. _prefer всегда резолвится в "local"
-                    # (см. llm._resolve_provider).
-                    model=settings.local_llm_model,
+                    # реально достижима. _prefer всегда резолвится в "local".
+                    # 2026-06-06: для roleplay фактически работает быстрая
+                    # persona-модель (gemini-3.5-flash) — раньше тут хардкодом
+                    # писался deepseek-v4-pro, из-за чего /results и логи
+                    # ошибочно показывали медленную модель. Теперь — реальная.
+                    model=(
+                        settings.local_llm_persona_model
+                        or settings.local_llm_model
+                    ),
                     input_tokens=_est_tokens,
                     output_tokens=len(_streamed_text) // 2,
                     latency_ms=_stream_latency,

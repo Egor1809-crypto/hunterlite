@@ -1103,7 +1103,11 @@ export default function TrainingCallPage() {
   // ─────────────────────────────────────────────────────────────────────
   const [liveMode, setLiveMode] = useState(false);
 
-  // refs — читаются внутри VAD-интервала без устаревания замыкания
+  // refs — читаются/вызываются внутри VAD-интервала без устаревания замыкания.
+  // КРИТИЧНО: интервал зависит ТОЛЬКО от liveMode. Раньше он зависел от
+  // microphoneFallback (новый объект каждый рендер) + audioLevel-рендеры
+  // ~60/сек пересоздавали интервал, сбрасывая таймер тишины → audio.end не
+  // уходил никогда («микрофон не слышит»). Теперь интервал стабильный.
   const audioLevelRef = useRef(0);
   audioLevelRef.current = microphoneFallback.audioLevel;
   const recStateRef = useRef(microphoneFallback.recordingState);
@@ -1112,54 +1116,70 @@ export default function TrainingCallPage() {
   ttsSpeakingRef.current = tts.speaking;
   const liveModeRef = useRef(false);
   liveModeRef.current = liveMode;
-  const segmentingRef = useRef(false); // защита от двойной отправки/перезапуска
+  const segmentingRef = useRef(false); // защита от двойной отправки
+  const startingRef = useRef(false);   // защита от двойного старта записи
+  // стабильные ссылки на методы (хук возвращает новый объект каждый рендер)
+  const micStartRef = useRef(microphoneFallback.startRecording);
+  micStartRef.current = microphoneFallback.startRecording;
+  const micStopRef = useRef(microphoneFallback.stopRecording);
+  micStopRef.current = microphoneFallback.stopRecording;
+  const micErrorRef = useRef(microphoneFallback.errorReason);
+  micErrorRef.current = microphoneFallback.errorReason;
+  const ttsStopRef = useRef(tts.stop);
+  ttsStopRef.current = tts.stop;
 
-  const startRec = useCallback(async () => {
-    if (recStateRef.current === "recording") return;
-    try { tts.stop(); } catch { /* pause AI so we don't capture it */ }
-    const ok = await microphoneFallback.startRecording();
-    if (!ok) {
+  const startRecRef = useRef<() => Promise<void>>(async () => {});
+  startRecRef.current = async () => {
+    if (recStateRef.current === "recording" || startingRef.current) return;
+    startingRef.current = true;
+    try { ttsStopRef.current?.(); } catch { /* pause AI so we don't capture it */ }
+    let ok = false;
+    try { ok = await micStartRef.current(); } finally { startingRef.current = false; }
+    if (ok) {
+      logger.log("[CALL] live: recording started");
+    } else {
       setLiveMode(false);
-      const reason = microphoneFallback.errorReason;
+      const reason = micErrorRef.current;
+      logger.warn("[CALL] live: startRecording failed", reason);
       toast.error("Микрофон не запустился", {
         description:
-          reason === "in_use" ? "Микрофон занят другим приложением/вкладкой — закройте их и попробуйте снова"
+          reason === "in_use" ? "Микрофон занят другим приложением/вкладкой — закройте их (Zoom/Meet/вкладка) и попробуйте снова"
           : reason === "denied" ? "Доступ к микрофону запрещён — разрешите в адресной строке 🔒"
-          : "Проверьте доступ к микрофону или перезагрузите вкладку",
+          : "Проверьте доступ к микрофону или перезагрузите вкладку (Cmd+Shift+R)",
       });
     }
-  }, [microphoneFallback, tts]);
+  };
 
   const toggleLiveMode = useCallback(() => {
     setLiveMode((v) => {
       const next = !v;
-      if (next) void startRec();
-      else void microphoneFallback.stopRecording();
+      if (next) void startRecRef.current();
+      else void micStopRef.current();
       return next;
     });
-  }, [startRec, microphoneFallback]);
+  }, []);
 
   useEffect(() => {
     if (!liveMode) return;
     let spoke = false;
     let lastLoud = Date.now();
-    const SILENCE_MS = 1300;   // тишина после речи → конец реплики
-    const SPEAK_LVL = 8;       // audioLevel 0-100 — порог «говорят»
+    const SILENCE_MS = 1100;   // тишина после речи → конец реплики
+    const SPEAK_LVL = 6;       // audioLevel 0-100 — порог «говорят»
     const id = setInterval(() => {
       if (!liveModeRef.current) return;
       // Пока говорит ИИ — мик не пишем (нет эха, нет ИИ в записи юзера).
       if (ttsSpeakingRef.current) {
         lastLoud = Date.now();
         spoke = false;
-        if (recStateRef.current === "recording" && !segmentingRef.current) {
+        if (recStateRef.current === "recording" && !segmentingRef.current && !startingRef.current) {
           segmentingRef.current = true;
-          void microphoneFallback.stopRecording().finally(() => { segmentingRef.current = false; });
+          void micStopRef.current().finally(() => { segmentingRef.current = false; });
         }
         return;
       }
       // ИИ молчит, но запись не идёт (после отправки/паузы ИИ) → возобновляем.
       if (recStateRef.current !== "recording") {
-        if (!segmentingRef.current) void startRec();
+        if (!segmentingRef.current && !startingRef.current) void startRecRef.current();
         return;
       }
       // Идёт запись пользователя — следим за концом реплики.
@@ -1168,14 +1188,17 @@ export default function TrainingCallPage() {
         spoke = false;
         segmentingRef.current = true;
         void (async () => {
-          const blob = await microphoneFallback.stopRecording();
-          if (blob) sendAudioBlobRef.current?.(blob);   // → backend Whisper → ответ ИИ
+          const blob = await micStopRef.current();
+          if (blob) {
+            logger.log("[CALL] live: sending utterance", blob.size, "bytes");
+            sendAudioBlobRef.current?.(blob);   // → backend Whisper → ответ ИИ
+          }
           segmentingRef.current = false;
         })();
       }
-    }, 180);
+    }, 150);
     return () => clearInterval(id);
-  }, [liveMode, startRec, microphoneFallback]);
+  }, [liveMode]);
 
   // Kick-start the session on WS ready. The chat flow sends
   // session.start with the REST-created session_id; backend resumes
