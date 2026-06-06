@@ -222,8 +222,11 @@ async def _transcribe_whisper(
     # Add Authorization header when calling a cloud Whisper proxy (e.g. navy.api, OpenAI).
     # Self-hosted fedirz/faster-whisper ignores it — safe no-op.
     _headers = {}
-    if settings.whisper_api_key:
-        _headers["Authorization"] = f"Bearer {settings.whisper_api_key}"
+    # 2026-06-04: fall back to the navy key when no dedicated whisper key is set
+    # (default whisper_url is now navy.api, which requires Authorization).
+    _stt_key = settings.whisper_api_key or settings.local_llm_api_key
+    if _stt_key:
+        _headers["Authorization"] = f"Bearer {_stt_key}"
     try:
         async with httpx.AsyncClient(timeout=float(settings.whisper_timeout_seconds)) as client:
             response = await client.post(url, files=files, data=data, headers=_headers)

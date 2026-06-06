@@ -15,7 +15,6 @@ import {
 } from "lucide-react";
 import { useWebSocket } from "@/hooks/useWebSocket";
 import { AppIcon } from "@/components/ui/AppIcon";
-import { useSound } from "@/hooks/useSound";
 import { QuizThinkingIndicator } from "@/components/pvp/QuizThinkingIndicator";
 import { QuizCaseIntro } from "@/components/pvp/QuizCaseIntro";
 import { useKnowledgeStore, type QuizMessage } from "@/stores/useKnowledgeStore";
@@ -90,7 +89,9 @@ function KnowledgeSessionPage() {
   }, [searchParams]);
 
   const store = useKnowledgeStore();
-  const { playSound } = useSound();
+  // 2026-06-04: gamified quiz sounds removed (correct/incorrect/streak/etc.) —
+  // this is a learning test, not a game. No-op keeps all call-sites intact.
+  const playSound = (_name?: string, _vol?: number): void => {};
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
