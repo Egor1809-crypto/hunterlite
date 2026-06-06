@@ -6,7 +6,6 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowRight,
   Search,
-  Clock,
   AlertTriangle,
   BarChart3,
   Sparkles,
@@ -654,26 +653,20 @@ export default function HistoryPage() {
           {/* ── Stats ── */}
           {!loading && items.length > 0 && (
             <div className="mt-6 grid grid-cols-2 gap-3 md:grid-cols-4">
-              {statCards.map((item) => {
-                const Icon = item.icon;
-                return (
-                  <Card key={item.label}>
-                    <div className="flex items-start justify-between">
-                      <span className="flex h-9 w-9 items-center justify-center rounded-lg" style={{ background: "var(--bg-secondary)", color: "var(--text-muted)" }}>
-                        <Icon size={17} />
+              {statCards.map((item) => (
+                <Card key={item.label}>
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="font-mono text-[11px] uppercase tracking-[0.12em]" style={{ color: "var(--text-muted)" }}>{item.label}</div>
+                    {item.trend !== null && (
+                      <span className="flex items-center gap-0.5 font-mono text-[11px] font-semibold tabular-nums" style={{ color: item.trend >= 0 ? "var(--success)" : "var(--danger)" }}>
+                        {item.trend >= 0 ? <TrendingUp size={11} /> : <TrendingDown size={11} />}{item.trend >= 0 ? "+" : ""}{item.trend}
                       </span>
-                      {item.trend !== null && (
-                        <span className="flex items-center gap-0.5 font-mono text-[11px] font-semibold tabular-nums" style={{ color: item.trend >= 0 ? "var(--success)" : "var(--danger)" }}>
-                          {item.trend >= 0 ? <TrendingUp size={11} /> : <TrendingDown size={11} />}{item.trend >= 0 ? "+" : ""}{item.trend}
-                        </span>
-                      )}
-                    </div>
-                    <div className="mt-5 font-mono text-2xl font-semibold tabular-nums tracking-tight sm:text-3xl" style={{ color: "var(--text-primary)" }}>{item.value}</div>
-                    <div className="mt-1 font-mono text-[11px] uppercase tracking-[0.12em]" style={{ color: "var(--text-muted)" }}>{item.label}</div>
-                    {item.spark.length >= 2 && <div className="mt-2"><MiniSparkline values={item.spark} /></div>}
-                  </Card>
-                );
-              })}
+                    )}
+                  </div>
+                  <div className="mt-3 font-mono text-2xl font-semibold tabular-nums tracking-tight sm:text-3xl" style={{ color: "var(--text-primary)" }}>{item.value}</div>
+                  {item.spark.length >= 2 && <div className="mt-2"><MiniSparkline values={item.spark} /></div>}
+                </Card>
+              ))}
             </div>
           )}
 

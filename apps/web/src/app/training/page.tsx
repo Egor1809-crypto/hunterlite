@@ -41,10 +41,9 @@ const TABS: {
   id: Tab;
   label: string;
   icon: React.ComponentType<{ size: number; style?: React.CSSProperties }>;
-  hue: string;
 }[] = [
-  { id: "tests",     label: "Тесты",        icon: MapIcon, hue: "var(--brand-logo-hunter)" },
-  { id: "builder",   label: "Мои клиенты",  icon: Puzzle,  hue: "var(--brand-logo-hunter)" },
+  { id: "tests",     label: "Тесты",        icon: MapIcon },
+  { id: "builder",   label: "Мои клиенты",  icon: Puzzle },
 ];
 
 const LP_STAGES = [

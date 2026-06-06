@@ -188,18 +188,12 @@ export default function KnowledgePage() {
 
           {/* ── Stats ── */}
           <div className="mb-10 grid grid-cols-3 gap-3 sm:gap-4">
-            {statsDisplay.map((stat) => {
-              const Icon = stat.icon;
-              return (
-                <Card key={stat.label}>
-                  <span className="flex h-9 w-9 items-center justify-center rounded-lg" style={{ background: "var(--bg-secondary)", color: "var(--text-muted)" }}>
-                    <Icon size={16} />
-                  </span>
-                  <div className="mt-5 font-mono text-2xl font-semibold tabular-nums tracking-tight sm:text-3xl" style={{ color: "var(--text-primary)" }}>{stat.value}</div>
-                  <div className="mt-1 font-mono text-[11px] uppercase tracking-[0.12em]" style={{ color: "var(--text-muted)" }}>{stat.label}</div>
-                </Card>
-              );
-            })}
+            {statsDisplay.map((stat) => (
+              <Card key={stat.label}>
+                <div className="font-mono text-[11px] uppercase tracking-[0.12em]" style={{ color: "var(--text-muted)" }}>{stat.label}</div>
+                <div className="mt-3 font-mono text-2xl font-semibold tabular-nums tracking-tight sm:text-3xl" style={{ color: "var(--text-primary)" }}>{stat.value}</div>
+              </Card>
+            ))}
           </div>
 
           {/* ── Tabs (hairline underline) ── */}
@@ -272,17 +266,8 @@ export default function KnowledgePage() {
                 {/* Radar header */}
                 <Card accentTop>
                   <div className="flex items-start gap-4">
-                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl" style={{ background: "var(--primary-muted)", color: "var(--primary)" }}>
-                      <Bell size={18} />
-                    </span>
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2.5">
-                        <h3 className="text-lg font-semibold tracking-tight" style={{ color: "var(--text-primary)" }}>Законодательный радар</h3>
-                        <span className="inline-flex items-center gap-1.5 rounded-md px-2 py-0.5" style={{ background: "var(--primary-muted)" }}>
-                          <span className="h-1.5 w-1.5 rounded-full" style={{ background: "var(--primary)" }} />
-                          <span className="font-mono text-[10px] uppercase tracking-wider" style={{ color: "var(--primary)" }}>live</span>
-                        </span>
-                      </div>
+                      <h3 className="text-lg font-semibold tracking-tight" style={{ color: "var(--text-primary)" }}>Законодательный радар</h3>
                       <p className="mt-1 text-[13px] leading-relaxed" style={{ color: "var(--text-secondary)" }}>
                         Изменения в ФЗ-127, разъяснения ВС РФ и практика арбитражных судов.
                       </p>
