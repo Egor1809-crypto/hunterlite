@@ -419,25 +419,17 @@ async def _invoke_llm(transcript_prompt: str) -> tuple[str, str, int]:
     # Lazy import — avoids a heavy import chain at module load and
     # lets tests stub ``generate_response`` via ``monkeypatch.setattr``.
     from app.services.llm import generate_response
-    from app.config import settings
-
-    # 2026-06-05 (latency): пост-сессионный судья — это блокирующий шаг ПЕРЕД
-    # показом результатов (пользователь ждёт на модалке «Тренировка завершена»).
-    # Дефолтный local_llm_model = deepseek-v4-pro (reasoning) упирался в 8с-таймаут.
-    # Уводим судью на быструю модель (local_llm_persona_model = gemini-3.5-flash,
-    # ~2с), как и live-диалог. Пустой override → дефолтная модель (back-compat).
-    _fast_model = (settings.local_llm_persona_model or "").strip() or None
 
     start = time.monotonic()
     response = await generate_response(
         system_prompt=_SYSTEM_PROMPT,
         messages=[{"role": "user", "content": transcript_prompt}],
         emotion_state="cold",
+        # 2026-06-05 (latency): task_type="judge" теперь маршрутизирует на быструю
+        # модель (local_llm_persona_model = gemini-3.5-flash, ~2с) — судья это
+        # блокирующий шаг перед /results. Маршрутизация — в generate_response.
         task_type="judge",
-        # Prefer local (navy.api) so we don't burn cloud budget on every
-        # session-finalize. The fallback chain handles outages.
         prefer_provider="local",
-        model_override=_fast_model,
         temperature=0.2,
         max_tokens=600,
     )

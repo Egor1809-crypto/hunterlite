@@ -2636,9 +2636,13 @@ async def generate_response(
     # because they need stronger reasoning. Forwarded as `model_override`
     # to `_call_with_backoff` only for the `local` provider — gemini /
     # claude / openai branches keep their own model fields.
+    # 2026-06-05 (latency): помимо live-roleplay, на быструю модель уводим и
+    # пост-сессионные блокирующие LLM-шаги — судья (judge) и рекомендации (coach):
+    # они выполняются ПЕРЕД показом /results, пока пользователь ждёт. Дефолтный
+    # reasoning-deepseek добавлял ~10-15с; gemini-3.5-flash отвечает за ~2с.
     _persona_model_override: str | None = None
     if (
-        task_type == "roleplay"
+        task_type in ("roleplay", "judge", "coach")
         and getattr(settings, "local_llm_persona_model", "")
     ):
         _persona_model_override = settings.local_llm_persona_model
