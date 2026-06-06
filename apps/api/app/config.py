@@ -525,9 +525,12 @@ class Settings(BaseSettings):
         """True if SMTP is ready to send."""
         return bool(self.smtp_host and self.smtp_user and self.smtp_password)
 
-    # STT
-    whisper_url: str = "http://localhost:8001"
-    whisper_model: str = "large-v3"
+    # STT — 2026-06-04: default to navy.api (OpenAI-compatible
+    # /v1/audio/transcriptions, model whisper-1) instead of a self-hosted
+    # faster-whisper at :8001 (which is DOWN in dev → speech recognition failed).
+    # navy verified working. Prod can override via WHISPER_URL/WHISPER_MODEL.
+    whisper_url: str = "https://api.navy"
+    whisper_model: str = "whisper-1"
     whisper_language: str = "ru"
     whisper_timeout_seconds: int = 30
     whisper_api_key: str = ""  # Bearer token for cloud Whisper proxy (navy.api, OpenAI). Empty = self-hosted.
