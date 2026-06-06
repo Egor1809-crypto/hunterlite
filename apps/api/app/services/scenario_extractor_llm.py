@@ -179,7 +179,8 @@ async def llm_classify_material(text: str) -> ClassificationResult:
             timeout=LLM_TIMEOUT,
         )
         # Surface token-budget truncation (was silently masked as a heuristic fallback).
-        _finish = resp.choices[0].finish_reason if resp.choices else None
+        # getattr — some SDK/mocked responses don't carry finish_reason.
+        _finish = getattr(resp.choices[0], "finish_reason", None) if resp.choices else None
         if _finish == "length":
             logger.warning(
                 "scenario classifier hit token cap (finish_reason=length, model=%s) — "
