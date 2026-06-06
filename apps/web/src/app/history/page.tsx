@@ -778,6 +778,9 @@ export default function HistoryPage() {
 
                                 <MetricBody item={item} />
 
+                                {/* 2026-06-04: «Разбор от Маняши» убран для экзаменов
+                                    (у экзамена свой по-задачный разбор на странице результата). */}
+                                {item.kind !== "exam" && (<>
                                 <button
                                   type="button"
                                   onClick={(e) => { e.stopPropagation(); toggleExplain(item); }}
@@ -806,6 +809,7 @@ export default function HistoryPage() {
                                     </motion.div>
                                   )}
                                 </AnimatePresence>
+                                </>)}
                               </div>
 
                               <ArrowRight size={16} className="shrink-0 transition-transform group-hover:translate-x-0.5" style={{ color: "var(--text-muted)" }} />
