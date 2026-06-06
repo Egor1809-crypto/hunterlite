@@ -24,6 +24,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import AuthLayout from "@/components/layout/AuthLayout";
+import { EditorialHeader } from "@/components/ui/EditorialHeader";
 import { api } from "@/lib/api";
 import { useAuthStore } from "@/stores/useAuthStore";
 import { Card } from "@/components/ui/Card";
@@ -261,27 +262,22 @@ export default function ExamPage() {
         <div className="relative z-10 mx-auto max-w-[900px] px-5 py-8 sm:px-8 sm:py-12">
           {/* Header */}
           <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.24, ease: "easeOut" }}>
-            <div className="flex items-start justify-between gap-4">
-              <div className="flex items-center gap-5">
-                <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl" style={{ background: "var(--primary-muted)", border: "1px solid var(--border-color)" }}>
-                  <GraduationCap size={24} style={{ color: "var(--primary)" }} />
-                </div>
-                <div>
-                  <div className="font-mono text-[11px] uppercase tracking-[0.16em]" style={{ color: "var(--text-secondary)" }}>Аттестация</div>
-                  <h1 className="mt-1 text-4xl font-semibold tracking-tight sm:text-5xl" style={{ color: "var(--text-primary)" }}>Экзамен</h1>
-                  <p className="mt-2 text-[15px]" style={{ color: "var(--text-secondary)" }}>Подтверждение квалификации по ФЗ-127 — 5 экзаменов, 5 механик, ИИ-оценка.</p>
-                </div>
-              </div>
-
-              <button
-                id="cert-open-btn"
-                onClick={() => setShowCert(true)}
-                className="hidden shrink-0 items-center gap-2 rounded-full px-4 py-2.5 text-sm font-semibold transition-colors sm:inline-flex"
-                style={{ background: "var(--surface-card)", border: "1px solid var(--border-color)", color: "var(--text-primary)" }}
-              >
-                <Award size={16} style={{ color: "var(--primary)" }} /> Сертификат
-              </button>
-            </div>
+            <EditorialHeader
+              eyebrowLeft="Аттестация · ФЗ-127"
+              eyebrowRight="5 экзаменов"
+              title="Экзамен"
+              subtitle="Подтверждение квалификации по ФЗ-127 — 5 экзаменов, 5 механик, ИИ-оценка."
+              right={
+                <button
+                  id="cert-open-btn"
+                  onClick={() => setShowCert(true)}
+                  className="hidden shrink-0 items-center gap-2 rounded-full px-4 py-2.5 text-sm font-semibold transition-colors sm:inline-flex"
+                  style={{ background: "var(--surface-card)", border: "1px solid var(--border-color)", color: "var(--text-primary)" }}
+                >
+                  <Award size={16} style={{ color: "var(--primary)" }} /> Сертификат
+                </button>
+              }
+            />
           </motion.div>
 
           {/* Progress banner */}

@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowRight,
-  History,
   Search,
   Clock,
   AlertTriangle,
@@ -31,6 +30,7 @@ import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { AbstractBackdrop } from "@/components/ui/AbstractBackdrop";
+import { EditorialHeader } from "@/components/ui/EditorialHeader";
 import { ActivityHeatmap } from "@/components/profile/ActivityHeatmap";
 import { api } from "@/lib/api";
 import { scoreColor } from "@/lib/utils";
@@ -603,21 +603,21 @@ export default function HistoryPage() {
         <AbstractBackdrop />
         <div className="app-page relative z-10 max-w-4xl">
 
-          {/* ── Header ── */}
-          <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.24, ease: "easeOut" }} className="flex items-center gap-5">
-            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl" style={{ background: "var(--primary-muted)", border: "1px solid var(--border-color)" }}>
-              <History size={24} style={{ color: "var(--primary)" }} />
-            </div>
-            <div className="flex-1">
-              <div className="font-mono text-[11px] uppercase tracking-[0.16em]" style={{ color: "var(--text-secondary)" }}>Хронология</div>
-              <h1 className="mt-1 text-4xl font-semibold tracking-tight sm:text-5xl" style={{ color: "var(--text-primary)" }}>История</h1>
-              <p className="mt-2 text-[15px]" style={{ color: "var(--text-muted)" }}>Тренировки, тесты, кейсы и экзамены — в одной хронике.</p>
-            </div>
-            {refreshing && (
-              <span className="hidden items-center gap-1.5 font-mono text-[11px] sm:inline-flex" style={{ color: "var(--text-muted)" }}>
-                <Loader2 size={12} className="animate-spin" /> обновляю
-              </span>
-            )}
+          {/* ── Header — единый редакторский паттерн (как /cases) ── */}
+          <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.24, ease: "easeOut" }}>
+            <EditorialHeader
+              eyebrowLeft="Хронология · обучение"
+              eyebrowRight="всё в одном месте"
+              title="История"
+              subtitle="Тренировки, тесты, кейсы и экзамены — в одной хронике."
+              right={
+                refreshing ? (
+                  <span className="hidden items-center gap-1.5 font-mono text-[11px] sm:inline-flex" style={{ color: "var(--text-muted)" }}>
+                    <Loader2 size={12} className="animate-spin" /> обновляю
+                  </span>
+                ) : undefined
+              }
+            />
           </motion.div>
 
           {/* ── Итоги недели от Маняши ── */}

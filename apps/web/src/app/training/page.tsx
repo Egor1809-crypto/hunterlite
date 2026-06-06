@@ -5,7 +5,6 @@ import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Crosshair,
   Puzzle,
   Target,
   BookOpen,
@@ -14,6 +13,7 @@ import {
   GraduationCap,
 } from "lucide-react";
 import AuthLayout from "@/components/layout/AuthLayout";
+import { EditorialHeader } from "@/components/ui/EditorialHeader";
 import CharacterBuilder from "@/components/training/CharacterBuilder";
 import TestWorldMap from "@/components/training/TestWorldMap";
 import { useTrainingMapSync } from "@/hooks/useTrainingMapProgress";
@@ -151,30 +151,14 @@ function TrainingPageContent() {
         <div className="pointer-events-none absolute inset-0 z-0" style={{ backgroundImage: NOISE_SVG, backgroundRepeat: "repeat", opacity: 0.08 }} />
 
         <div className="app-page">
-          {/* Header */}
+          {/* Header — единый редакторский паттерн (как /cases), без иконки-плашки */}
           <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
-            <div className="flex items-start justify-between">
-              <div className="flex items-center gap-4">
-                <div
-                  className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0"
-                  style={{
-                    background: "var(--primary-muted)",
-                    border: "1px solid var(--border-color)",
-                    boxShadow: "var(--shadow-sm)",
-                  }}
-                >
-                  <Crosshair size={22} style={{ color: "var(--brand-logo-hunter)" }} />
-                </div>
-                <div>
-                  <h1 className="text-4xl sm:text-6xl font-semibold tracking-[-0.07em]" style={{ color: "var(--text-primary)" }}>
-                    Обучение
-                  </h1>
-                  <p className="mt-2 text-lg" style={{ color: "var(--text-muted)" }}>
-                    Тесты, AI-клиенты и практические сценарии в одной программе
-                  </p>
-                </div>
-              </div>
-            </div>
+            <EditorialHeader
+              eyebrowLeft="Практикум · обучение"
+              eyebrowRight="ФЗ-127"
+              title="Обучение"
+              subtitle="Тесты, AI-клиенты и практические сценарии в одной программе."
+            />
           </motion.div>
 
           {/* Learning Path Widget */}

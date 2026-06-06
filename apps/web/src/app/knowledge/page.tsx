@@ -30,6 +30,7 @@ import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { AbstractBackdrop } from "@/components/ui/AbstractBackdrop";
+import { EditorialHeader } from "@/components/ui/EditorialHeader";
 
 const QUICK_TOPICS = [
   { title: "Процедуры банкротства", icon: ClipboardList, description: "Наблюдение, реструктуризация, конкурсное производство", category: "procedure" },
@@ -175,21 +176,14 @@ export default function KnowledgePage() {
         <AbstractBackdrop />
         <div className="relative z-10 mx-auto max-w-[1100px] px-5 py-8 sm:px-8 sm:py-12">
 
-          {/* ── Header ── */}
+          {/* ── Header — единый редакторский паттерн (как /cases) ── */}
           <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.24, ease: "easeOut" }} className="mb-10">
-            <div className="flex items-center gap-5">
-              <div
-                className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl"
-                style={{ background: "var(--primary-muted)", border: "1px solid var(--border-color)" }}
-              >
-                <BookOpen size={24} style={{ color: "var(--primary)" }} />
-              </div>
-              <div>
-                <div className="font-mono text-[11px] uppercase tracking-[0.16em]" style={{ color: "var(--text-secondary)" }}>База · ФЗ-127</div>
-                <h1 className="mt-1 text-4xl font-semibold tracking-tight sm:text-5xl" style={{ color: "var(--text-primary)" }}>База знаний</h1>
-                <p className="mt-2 text-[15px]" style={{ color: "var(--text-muted)" }}>Закон, судебная практика, радар изменений и AI-помощник.</p>
-              </div>
-            </div>
+            <EditorialHeader
+              eyebrowLeft="База знаний · ФЗ-127"
+              eyebrowRight="Справочник"
+              title="База знаний"
+              subtitle="Закон, судебная практика, радар изменений и AI-помощник."
+            />
           </motion.div>
 
           {/* ── Stats ── */}
