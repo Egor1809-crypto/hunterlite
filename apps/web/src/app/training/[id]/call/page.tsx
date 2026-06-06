@@ -1232,7 +1232,7 @@ export default function TrainingCallPage() {
       let segStart = Date.now();
       const SILENCE_MS = 450;       // 2026-06-06: 650→450 — меньше «мёртвой» паузы до отправки (бюджет ≤3с)
       const MARGIN = 12;            // насколько громче фона = «говорят»
-      const MAX_SEG_MS = 12000;     // потолок: не даём сегменту распухнуть
+      const MAX_SEG_MS = 8000;      // 12с→8с: короче сегмент = быстрее STT + нет «монстров» 160КБ
       const resetSeg = () => { spoke = false; loudStreak = 0; floor = 40; segStart = Date.now(); lastLoud = Date.now(); };
 
       liveVadRef.current = setInterval(() => {
