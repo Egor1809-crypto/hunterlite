@@ -165,7 +165,11 @@ async def llm_classify_material(text: str) -> ClassificationResult:
         resp = await asyncio.wait_for(
             client.chat.completions.create(
                 model=_model_classifier(),
-                max_tokens=300,
+                # 2026-06-04 (ultrareview C4): 300 was too small even for a
+                # non-reasoning model + leaves zero headroom; 1200 fits the JSON
+                # with margin and protects against a reasoning model being set
+                # via env override.
+                max_tokens=1200,
                 temperature=0.0,
                 messages=[
                     {"role": "system", "content": _CLASSIFIER_SYSTEM},
@@ -174,6 +178,14 @@ async def llm_classify_material(text: str) -> ClassificationResult:
             ),
             timeout=LLM_TIMEOUT,
         )
+        # Surface token-budget truncation (was silently masked as a heuristic fallback).
+        _finish = resp.choices[0].finish_reason if resp.choices else None
+        if _finish == "length":
+            logger.warning(
+                "scenario classifier hit token cap (finish_reason=length, model=%s) — "
+                "raising max_tokens or switching to a non-reasoning model recommended",
+                _model_classifier(),
+            )
         raw = resp.choices[0].message.content or "" if resp.choices else ""
         parsed = _safe_json(raw)
         if not isinstance(parsed, dict):

@@ -443,12 +443,28 @@ _GREETING_RESPONSES = [
 ]
 
 
+_STRUCTURED_TASK_TYPES = frozenset({"judge", "report", "structured"})
+
+# Reasoning/think markers that must trigger a mid-stream hard-stop (ultrareview C1)
+# so a reasoning model's hidden chain-of-thought never streams to screen/TTS.
+# Kept tight to avoid false positives in legitimate roleplay text.
+_STREAM_HARDSTOP_MARKERS = ("```reasoning", "```think", "<think", "</think", "```tool", "```function")
+
+
 def _filter_output(text: str, task_type: str = "default") -> tuple[str, list[str]]:
     """Check LLM output for forbidden content + length bounds.
 
     Delegates profanity/role-break/PII detection to content_filter.py
     (single source of truth), then applies LLM-specific length logic.
     """
+    # 2026-06-04 (ultrareview C2): structured/JSON task types (judge/report/
+    # structured) are PARSED, not shown verbatim. Running the roleplay/reasoning
+    # output filter on them mangled JSON (e.g. ```json fences flagged as
+    # reasoning markers) and the violation path substituted a roleplay
+    # FALLBACK_PHRASE → judge got filler → parse-fail → score 0. Return raw.
+    if task_type in _STRUCTURED_TASK_TYPES:
+        return text, []
+
     # Delegate to unified content_filter (catches profanity, role_break, pii_leak)
     filtered, violations = _cf_filter_ai_output(text)
 
@@ -469,8 +485,14 @@ def _filter_output(text: str, task_type: str = "default") -> tuple[str, list[str
             logger.debug("Output truncated from %d to ~250 words", word_count)
 
     if violations:
-        logger.warning("Output filter triggered: %s", violations)
-        return random.choice(FALLBACK_PHRASES), violations
+        logger.warning("Output filter triggered (task=%s): %s", task_type, violations)
+        # 2026-06-04 (ultrareview C3): the roleplay FALLBACK_PHRASE (an in-character
+        # debtor line) must NEVER replace non-roleplay output (coach advice etc.).
+        # Only roleplay gets the filler; everyone else gets the CLEANED text
+        # (content_filter already stripped profanity/role-break/PII in `filtered`).
+        if task_type == "roleplay":
+            return random.choice(FALLBACK_PHRASES), violations
+        return filtered, violations
 
     return filtered, []
 
@@ -2684,9 +2706,24 @@ async def generate_response(
             if resp is not None:
                 return await _apply_filter(resp)
 
-    # ── Scripted fallback (navy.api unreachable, outside semaphore) ──
-    logger.warning("SCRIPTED FALLBACK: navy.api unreachable for emotion=%s", emotion_state)
-    response = _scripted_response(emotion_state, trimmed)
+    # ── Fallback (navy.api unreachable, outside semaphore) ──
+    # 2026-06-04 (ultrareview C3): only ROLEPLAY may emit the in-character
+    # scripted debtor line. For non-roleplay (coach / judge / report /
+    # recommendations / ideal-response) a debtor line is garbage — return a
+    # neutral degraded response (model="scripted") so callers degrade cleanly.
+    if task_type == "roleplay":
+        logger.warning("SCRIPTED FALLBACK: navy.api unreachable for emotion=%s", emotion_state)
+        response = _scripted_response(emotion_state, trimmed)
+    else:
+        logger.warning("LLM unavailable for task_type=%s — neutral degraded response", task_type)
+        response = LLMResponse(
+            content="Сервис ИИ временно недоступен. Попробуйте позже.",
+            model="scripted",
+            input_tokens=0,
+            output_tokens=0,
+            latency_ms=0,
+            is_fallback=True,
+        )
     await _log_token_usage(response, user_id)
     return response
 
@@ -3165,6 +3202,7 @@ async def generate_response_stream(
                             and getattr(settings, "local_llm_persona_model", "")
                         ):
                             _stream_kwargs["model_override"] = settings.local_llm_persona_model
+                    _hard_stopped = False
                     async for token in _streamer(
                         full_system, trimmed, 60.0,
                         max_tokens=_stream_max_tokens,
@@ -3172,6 +3210,16 @@ async def generate_response_stream(
                         **_stream_kwargs,
                     ):
                         full_response_buf.append(token)
+                        # 2026-06-04 (ultrareview C1): mid-stream guard — if a
+                        # reasoning/think marker appears, STOP emitting so the
+                        # model's hidden chain-of-thought never reaches the
+                        # screen/TTS. (Was: stream delivered everything raw and
+                        # the filter only logged AFTER delivery.)
+                        _tail = "".join(full_response_buf)[-80:].lower()
+                        if any(m in _tail for m in _STREAM_HARDSTOP_MARKERS):
+                            _hard_stopped = True
+                            logger.warning("stream hard-stop: reasoning/think marker detected (task=%s)", task_type)
+                            break
                         yield token
                     streamed = True
         except LLMError as e:
@@ -3180,19 +3228,23 @@ async def generate_response_stream(
             # в blocking fallback ниже, где scripted-фразы.
             logger.debug("navy.api streaming failed (%s), falling back to blocking", e)
 
-        # ── S1-02 BUG3 fix: Post-stream output filter (profanity/PII/role break) ──
+        # ── Post-stream output filter (profanity/PII/role break/reasoning) ──
         if streamed and full_response_buf:
             full_text = "".join(full_response_buf)
-            _, violations = _filter_output(full_text, task_type)
+            # 2026-06-04 (ultrareview C1): PERSIST the FILTERED text, not the raw
+            # buffer — otherwise a reasoning-leak/PII/role-break is saved to the
+            # transcript and replayed on /results even though it was hard-stopped
+            # on screen.
+            filtered_text, violations = _filter_output(full_text, task_type)
             if violations:
                 logger.warning(
-                    "Stream output filter triggered AFTER delivery: violations=%s user=%s text=%.100s",
-                    violations, user_id, full_text,
+                    "Stream output filter triggered (task=%s): violations=%s user=%s",
+                    task_type, violations, user_id,
                 )
             # ── S1-02 BUG4 fix: Log approximate token usage for streaming ──
             approx_tokens = len(full_text) // 2
             stream_response = LLMResponse(
-                content=full_text,
+                content=filtered_text,
                 model=f"stream:{resolved}",
                 input_tokens=int(prompt_tokens),
                 output_tokens=approx_tokens,
