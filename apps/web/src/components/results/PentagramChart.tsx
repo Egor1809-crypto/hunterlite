@@ -42,6 +42,30 @@ export default function PentagramChart({ data }: { data: PentagramData }) {
   const tooltipText = isDark ? "#fff" : "#1a1a1a";
   const pointBorder = isDark ? "#0a0a0f" : "#ffffff";
   const accentHex = cssVar("--accent", "#6B4DC7");
+  // 2026-06-06: красивый шрифт — основной Geist Sans приложения (был Rajdhani).
+  const sansFont =
+    typeof window !== "undefined"
+      ? getComputedStyle(document.documentElement).getPropertyValue("--font-geist-sans").trim() ||
+        "system-ui, sans-serif"
+      : "system-ui, sans-serif";
+
+  // Перенос длинных подписей на несколько строк, чтобы они не обрезались
+  // у краёв карточки (раньше «…ческие нарушения», «Правовая точн…» резались).
+  const wrapLabel = (label: string | number): string | string[] => {
+    const words = String(label).split(" ");
+    const lines: string[] = [];
+    let cur = "";
+    for (const w of words) {
+      if ((cur + " " + w).trim().length > 15 && cur) {
+        lines.push(cur.trim());
+        cur = w;
+      } else {
+        cur = (cur + " " + w).trim();
+      }
+    }
+    if (cur) lines.push(cur);
+    return lines.length > 1 ? lines : lines[0] ?? "";
+  };
 
   // Guard: ensure labels and values arrays are the same length.
   const safeLabels = data.labels;
@@ -112,18 +136,23 @@ export default function PentagramChart({ data }: { data: PentagramData }) {
   const options = {
     responsive: true,
     maintainAspectRatio: false,
+    // 2026-06-06: внутренние отступы, чтобы перенесённые подписи помещались
+    // целиком и не упирались в края карточки.
+    layout: { padding: { top: 8, bottom: 8, left: 28, right: 28 } },
     scales: {
       r: {
         angleLines: { color: gridColor, lineWidth: 1 },
         grid: { color: gridColor, circular: true, lineWidth: 1 },
         pointLabels: {
           font: {
-            family: "'Rajdhani', sans-serif",
-            size: 12,
+            family: sansFont,
+            size: 11.5,
             weight: 600 as const,
+            lineHeight: 1.15,
           },
           color: labelColor,
-          padding: 10,
+          padding: 12,
+          callback: wrapLabel,
         },
         ticks: {
           display: true,
@@ -150,8 +179,8 @@ export default function PentagramChart({ data }: { data: PentagramData }) {
         borderColor: accentHex,
         borderWidth: 1,
         padding: 10,
-        titleFont: { family: "Rajdhani", size: 13, weight: 600 as const },
-        bodyFont: { family: "Space Grotesk", size: 12 },
+        titleFont: { family: sansFont, size: 13, weight: 600 as const },
+        bodyFont: { family: sansFont, size: 12 },
         callbacks: {
           label: (ctx: { dataset: { label?: string }; parsed: { r: number } }) =>
             `${ctx.dataset.label}: ${Math.round(ctx.parsed.r)}%`,
@@ -161,7 +190,7 @@ export default function PentagramChart({ data }: { data: PentagramData }) {
   };
 
   return (
-    <div className="relative w-full" style={{ minHeight: 340 }}>
+    <div className="relative w-full" style={{ minHeight: 380 }}>
       <Radar data={{ labels: safeLabels, datasets }} options={options} />
     </div>
   );

@@ -1163,7 +1163,8 @@ export default function TrainingCallPage() {
     if (!liveMode) return;
     let spoke = false;
     let lastLoud = Date.now();
-    const SILENCE_MS = 1100;   // тишина после речи → конец реплики
+    const SILENCE_MS = 700;    // 2026-06-06: 1100→700 — реплика уходит быстрее
+                               // (ИИ начинает отвечать раньше; цель ≤3с)
     const SPEAK_LVL = 6;       // audioLevel 0-100 — порог «говорят»
     const id = setInterval(() => {
       if (!liveModeRef.current) return;
