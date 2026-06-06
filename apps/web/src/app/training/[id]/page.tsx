@@ -1198,6 +1198,21 @@ export default function TrainingSessionPage() {
     }
   };
 
+  // 2026-06-06 (#2): toggle voice capture — один клик = старт записи, второй
+  // клик = стоп + распознавание. Никакого удержания (как в обычном
+  // голосовом сообщении). Кнопка работает как вкл/выкл микрофона.
+  const handleMicToggle = async () => {
+    const recording =
+      s.micActive ||
+      microphone.recordingState === "recording" ||
+      speech.status === "listening";
+    if (recording) {
+      await handleMicRelease();
+    } else {
+      await handleMicPress();
+    }
+  };
+
   const handleContinueSession = () => {
     s.setShowSilenceModal(false);
     sendMessage({ type: "silence.continue", data: {} });
@@ -1600,12 +1615,11 @@ export default function TrainingSessionPage() {
                     /* Voice mode: hold-to-talk mic fills the input row. */
                     <div className="flex-1 flex items-center justify-center py-1">
                       <CrystalMic
-                        mode="hold"
+                        mode="toggle"
                         isRecording={microphone.recordingState === "recording" || speech.status === "listening"}
                         isProcessing={microphone.recordingState === "processing" || s.transcription.status === "transcribing"}
                         audioLevel={microphone.audioLevel || speech.audioLevel}
-                        onPress={handleMicPress}
-                        onRelease={handleMicRelease}
+                        onClick={handleMicToggle}
                         onTextMode={() => {
                           s.setTextMode(true);
                           setTimeout(() => textareaRef.current?.focus(), 100);
@@ -1709,12 +1723,11 @@ export default function TrainingSessionPage() {
                 </motion.button>
               ) : (
                 <CrystalMic
-                  mode="hold"
+                  mode="toggle"
                   isRecording={microphone.recordingState === "recording" || speech.status === "listening"}
                   isProcessing={microphone.recordingState === "processing" || s.transcription.status === "transcribing"}
                   audioLevel={microphone.audioLevel || speech.audioLevel}
-                  onPress={handleMicPress}
-                  onRelease={handleMicRelease}
+                  onClick={handleMicToggle}
                   onTextMode={() => {
                     s.setTextMode(true);
                     setTimeout(() => textareaRef.current?.focus(), 100);
@@ -1759,12 +1772,11 @@ export default function TrainingSessionPage() {
                 </>
               ) : (
                 <CrystalMic
-                  mode="hold"
+                  mode="toggle"
                   isRecording={microphone.recordingState === "recording" || speech.status === "listening"}
                   isProcessing={microphone.recordingState === "processing" || s.transcription.status === "transcribing"}
                   audioLevel={microphone.audioLevel || speech.audioLevel}
-                  onPress={handleMicPress}
-                  onRelease={handleMicRelease}
+                  onClick={handleMicToggle}
                   onTextMode={() => s.setTextMode(true)}
                   disabled={s.sessionState !== "ready" || (!s.sttAvailable && !speech.isSupported)}
                 />

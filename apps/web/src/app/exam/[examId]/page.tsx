@@ -202,7 +202,7 @@ export default function ExamPlayerPage() {
   // ── loading / error ──────────────────────────────────────────
   if (loading) {
     return (
-      <AuthLayout>
+      <AuthLayout showBreadcrumbs={false}>
         <div className="flex min-h-screen items-center justify-center" style={{ background: "var(--bg-primary)" }}>
           <Loader2 size={32} className="animate-spin" style={{ color }} />
         </div>
@@ -212,7 +212,7 @@ export default function ExamPlayerPage() {
 
   if (error && !result) {
     return (
-      <AuthLayout>
+      <AuthLayout showBreadcrumbs={false}>
         <div className="flex min-h-screen items-center justify-center" style={{ background: "var(--bg-primary)" }}>
           <div className="max-w-sm px-4 text-center">
             <AlertTriangle size={44} className="mx-auto mb-4" style={{ color: "var(--danger)" }} />
@@ -241,7 +241,7 @@ export default function ExamPlayerPage() {
         : { label: "Не сдан", clr: "var(--danger)", Icon: XCircle };
 
     return (
-      <AuthLayout>
+      <AuthLayout showBreadcrumbs={false}>
         <div className="relative min-h-screen overflow-hidden bg-page-glow" style={{ background: "var(--bg-primary)" }}>
           <AbstractBackdrop />
           <div className="relative z-10 mx-auto max-w-[680px] px-5 py-8 sm:px-8 sm:py-12">
@@ -381,7 +381,7 @@ export default function ExamPlayerPage() {
   const lowTime = remainingSeconds < 300;
 
   return (
-    <AuthLayout>
+    <AuthLayout showBreadcrumbs={false}>
       <div className="relative min-h-screen overflow-hidden bg-page-glow" style={{ background: "var(--bg-primary)" }}>
         <AbstractBackdrop />
         <div className="relative z-10 mx-auto max-w-[680px] px-5 py-6 sm:px-8 sm:py-10">
