@@ -177,7 +177,16 @@ function envelope(events: QueuedEvent[]): string {
   });
 }
 
+// 2026-06-06: бэкенд-эндпоинта /api/analytics/events нет, а CSRF-middleware
+// отдаёт 403 на каждый POST → консоль спамилась ошибками. Телеметрия не
+// критична: события по-прежнему логируются локально ([telemetry] …), но в сеть
+// не уходят, пока приёмник не реализован. Включить можно через
+// NEXT_PUBLIC_TELEMETRY_SINK=1.
+const _TELEMETRY_SINK_ENABLED =
+  typeof process !== "undefined" && process.env?.NEXT_PUBLIC_TELEMETRY_SINK === "1";
+
 function flush(useBeacon: boolean): void {
+  if (!_TELEMETRY_SINK_ENABLED) { queue.length = 0; return; }
   if (queue.length === 0) return;
   // Splice up to 100 (server cap). Larger queues drain across
   // multiple flushes — visibility-hidden flushes retry until empty
