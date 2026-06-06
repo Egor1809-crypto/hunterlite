@@ -75,7 +75,10 @@ _MODEL = os.getenv("KNOWLEDGE_AI_MODEL", "gpt-5.5")
 _MAX_TOKENS = max(8000, int(os.getenv("KNOWLEDGE_AI_MAX_TOKENS", "12000")))
 _TEMPERATURE = float(os.getenv("KNOWLEDGE_AI_TEMPERATURE", "0.3"))
 # Multi-step tool loop bound (ТЗ §2.2 реком. 4).
-_MAX_STEPS = int(os.getenv("KNOWLEDGE_AI_MAX_STEPS", "4"))
+# 2026-06-04 (ultrareview M7): 4 was too low — a complex legal question needing
+# several searches (each = 1 step) hit the cap and produced a generic forced
+# answer. 6 gives headroom; used_chunks are preserved on the forced final turn.
+_MAX_STEPS = int(os.getenv("KNOWLEDGE_AI_MAX_STEPS", "6"))
 # Generous per-turn timeout — a tool loop can chain several provider calls.
 _TIMEOUT = float(os.getenv("KNOWLEDGE_AI_TIMEOUT", "90"))
 

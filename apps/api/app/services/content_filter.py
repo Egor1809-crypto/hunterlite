@@ -161,7 +161,11 @@ _ROLE_BREAK_PATTERNS = [
 _role_break_compiled = [re.compile(p, re.IGNORECASE | re.UNICODE) for p in _ROLE_BREAK_PATTERNS]
 
 MAX_ANSWER_LENGTH = 1000
-MAX_AI_RESPONSE_LENGTH = 2000
+# 2026-06-04 (ultrareview M6): 2000 silently truncated long structured legal
+# answers from «Маняша» (knowledge agent). Roleplay replies are short and
+# additionally word-capped in llm._filter_output, so a higher hard backstop here
+# doesn't lengthen roleplay — it only stops cutting legitimate legal content.
+MAX_AI_RESPONSE_LENGTH = 8000
 
 
 def filter_answer_text(text: str) -> tuple[str, bool]:
@@ -202,6 +206,9 @@ def filter_user_input(text: str) -> tuple[str, list[str]]:
 
     Returns: (filtered_text, list_of_violation_types)
     """
+    # 2026-06-04 (ultrareview): None/empty must degrade, not TypeError → 500.
+    if not text:
+        return "", []
     violations = []
     filtered = _safe_truncate(text)
 
@@ -519,6 +526,9 @@ def filter_ai_output(text: str) -> tuple[str, list[str]]:
 
     Returns: (filtered_text, list_of_violation_types)
     """
+    # 2026-06-04 (ultrareview): None/empty must degrade, not TypeError → 500.
+    if not text:
+        return "", []
     violations = []
     filtered = _safe_truncate(text)
 

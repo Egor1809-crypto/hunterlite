@@ -250,6 +250,12 @@ async def _call_with_backoff(
     # NOT open the circuit (the success resets the consecutive-failure count).
     # Only when EVERY model fails do we record a provider failure.
     fallback_models = _resolve_fallback_models(model_override) if provider_name == "local" else []
+    # 2026-06-04 (ultrareview M8): gemini breaks multi-step tool-use via navy
+    # (demands a thought_signature on the 2nd tool turn → 400). When this call
+    # uses tools (e.g. the «Маняша» agent loop), drop gemini from the fallback
+    # chain so a primary failure doesn't fall onto a tool-incompatible model.
+    if tools is not None and fallback_models:
+        fallback_models = [m for m in fallback_models if "gemini" not in m.lower()]
     if fallback_models:
         models_plan: list[str | None] = [model_override, *fallback_models]
         quota_hit = False
@@ -2908,10 +2914,11 @@ async def _stream_navy(
         # bit-for-bit identical apart from the streaming wrapper.
         "max_tokens": max_tokens if max_tokens is not None else 800,
     }
-    if temperature is not None:
-        kwargs["temperature"] = temperature
-    else:
-        kwargs["temperature"] = 0.85
+    # 2026-06-04 (ultrareview M4): gpt-5.x reject any non-default temperature
+    # (400) — parity with _call_navy. Omit it so a gpt-5.x persona model can
+    # stream instead of erroring.
+    if not _effective_model.lower().startswith("gpt-5"):
+        kwargs["temperature"] = temperature if temperature is not None else 0.85
 
     try:
         stream = await asyncio.wait_for(
