@@ -3,7 +3,7 @@ import uuid
 from collections import defaultdict
 
 from app.core.rate_limit import limiter
-from fastapi import APIRouter, Body, Depends, File, HTTPException, Request, UploadFile, status
+from fastapi import APIRouter, BackgroundTasks, Body, Depends, File, HTTPException, Request, UploadFile, status
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -1721,8 +1721,323 @@ async def decline_session(
     return SessionResponse.model_validate(session)
 
 
+async def _score_session_background(
+    session_id: uuid.UUID, state: dict | None = None
+) -> None:
+    """Compute scores + enrichment + recommendations + emit training_completed
+    for an already-finalized session, in the background, on its OWN database
+    session.
+
+    Motivation (2026-06-06): the REST /end and WS end paths used to run the
+    full ~16s scoring pipeline synchronously BEFORE returning control to the
+    frontend, so the user stared at "Тренировка завершена / Переход к
+    результатам" for ~20s. The session is now finalized (status=completed)
+    and control is returned to the client immediately; this function finishes
+    the scoring afterwards. The /results page polls for scores, so it shows
+    the numbers as soon as this commits.
+
+    ``state`` (optional) is the WS-style snapshot dict the WS handler captures
+    at end time — call_outcome, archetype_code, scenario_code, emotion_peak,
+    had_comeback, base_difficulty, user_id, scenario_id and the pre-cleanup
+    ``_emotion_journey_snapshot``. The REST path passes ``None`` (it has no
+    Redis state dict) and the helper synthesises defaults from the session
+    row. WS passes the snapshot so SessionHistory analytics + the
+    emotion-journey enrichment match the old synchronous path. The whole
+    feature is exercised end-to-end on BOTH transports through this single
+    helper, so the signature must accept the WS arity.
+
+    Invariants (CLAUDE.md §3):
+      * The session is ALREADY completed by the time this runs — the request
+        path finalizes via ConversationCompletionPolicy / sm_end_session
+        BEFORE scheduling this task. We fill in scores / scoring_details /
+        feedback_text, the scores-dependent enrichment (XP / SessionHistory),
+        and we EMIT ``training_completed`` here (deferred so the outbox
+        payload carries the real ``score`` and ``weak_legal_categories`` for
+        SRS seeding — emitting it score-less on the request path would freeze
+        the event at score=0 with no weak categories, regressing SRS). The
+        idempotency_key is ``training_completed:{session_id}`` so REST and WS
+        collapse to exactly one OutboxEvent.
+      * Scoring runs exactly ONCE per session. This function opens by checking
+        whether ``score_total`` is already populated; if so it short-circuits.
+        That makes it idempotent across the REST and WS paths and across
+        retries — whichever terminal path schedules the background scorer
+        first wins, the second finds the work already done.
+      * Fail-soft: any exception here is swallowed and logged. A scoring
+        failure must never undo the (already committed) completion.
+    """
+    from app.database import async_session
+
+    state = state or {}
+
+    async with async_session() as db:
+        try:
+            result = await db.execute(
+                select(TrainingSession).where(TrainingSession.id == session_id)
+            )
+            session = result.scalar_one_or_none()
+            if session is None:
+                logger.warning(
+                    "_score_session_background: session %s not found", session_id
+                )
+                return
+
+            # Idempotency / single-scoring guard: if a terminal path already
+            # produced the score, do not score again (REST + WS must score the
+            # session at most once between them).
+            if session.score_total is not None:
+                logger.info(
+                    "_score_session_background: session %s already scored "
+                    "(score_total=%s) — skipping",
+                    session_id, session.score_total,
+                )
+                # Make sure the pending flag is cleared so the FE poller stops.
+                details = dict(session.scoring_details or {})
+                if details.get("_scoring_pending"):
+                    details["_scoring_pending"] = False
+                    session.scoring_details = details
+                    await db.commit()
+                return
+
+            normalized_outcome = (session.scoring_details or {}).get("call_outcome")
+
+            # Calculate scores (emotion_timeline was pre-loaded in the request path)
+            scores = None
+            try:
+                scores = await calculate_scores(session_id, db)
+                session.score_script_adherence = scores.script_adherence
+                session.score_objection_handling = scores.objection_handling
+                session.score_communication = scores.communication
+                session.score_anti_patterns = scores.anti_patterns
+                session.score_result = scores.result
+                session.score_total = scores.total
+
+                # Enrich scoring_details with Wave 2 metadata
+                enriched = dict(scores.details) if scores.details else {}
+                if normalized_outcome:
+                    enriched["call_outcome"] = normalized_outcome
+                try:
+                    from app.models.roleplay import ClientProfile
+                    from app.services.client_generator import get_full_reveal_card
+                    cp_result = await db.execute(
+                        select(ClientProfile).where(ClientProfile.session_id == session_id)
+                    )
+                    cp = cp_result.scalar_one_or_none()
+                    if cp:
+                        enriched["_client_name"] = cp.full_name
+                        enriched["_client_card_reveal"] = get_full_reveal_card(cp)
+                except Exception:
+                    logger.debug("Failed to enrich with client reveal data for %s", session_id)
+
+                # Wave 4: Enrich with layer explanations, skill radar, emotion journey
+                try:
+                    from app.services.scoring import (
+                        generate_layer_explanations,
+                        layer_explanations_to_dict,
+                    )
+                    msg_result = await db.execute(
+                        select(Message)
+                        .where(Message.session_id == session_id)
+                        .order_by(Message.created_at)
+                    )
+                    raw_msgs = msg_result.scalars().all()
+                    msg_dicts = [
+                        {"role": m.role.value if hasattr(m.role, "value") else str(m.role),
+                         "content": m.content or "", "index": i}
+                        for i, m in enumerate(raw_msgs)
+                    ]
+                    explanations = generate_layer_explanations(scores, msg_dicts)
+                    enriched["_layer_explanations"] = layer_explanations_to_dict(explanations)
+                except Exception:
+                    logger.debug("Failed to generate layer explanations for %s", session_id)
+
+                # Skill radar (6-axis computed from L1-L10 weights)
+                try:
+                    enriched["_skill_radar"] = scores.skill_radar
+                except Exception:
+                    logger.debug("Failed to compute skill radar for %s", session_id)
+
+                # Emotion journey summary (timeline + turning points).
+                # Prefer the snapshot the WS handler captured at end-time
+                # (state["_emotion_journey_snapshot"]) — Redis state is wiped
+                # during WS cleanup, so reconstructing from session.emotion_timeline
+                # alone loses turning points the snapshot already computed. The
+                # snapshot is a fully-built {"summary": ..., "timeline": ...}
+                # dict from save_journey_snapshot; if present and non-empty we
+                # use it verbatim and skip the local reconstruction.
+                try:
+                    _journey_snapshot = state.get("_emotion_journey_snapshot")
+                    if (
+                        isinstance(_journey_snapshot, dict)
+                        and _journey_snapshot.get("timeline")
+                    ):
+                        enriched["_emotion_journey"] = _journey_snapshot
+                    else:
+                        timeline = session.emotion_timeline or []
+                        if timeline:
+                            total_transitions = len(timeline)
+                            rollback_count = sum(1 for t in timeline if t.get("rollback"))
+                            fake_count = sum(1 for t in timeline if t.get("is_fake"))
+                            peak_order = ["cold", "skeptical", "guarded", "curious",
+                                          "considering", "warming", "open", "negotiating", "deal"]
+                            peak_idx = 0
+                            for t in timeline:
+                                # NB: do NOT shadow the ``state`` parameter here —
+                                # use a distinct loop var (``t_state``). The
+                                # previous code reassigned ``state`` to a string
+                                # mid-loop, which would corrupt the snapshot
+                                # lookup / enrichment for every subsequent use.
+                                t_state = t.get("state", "cold")
+                                if t_state in peak_order:
+                                    peak_idx = max(peak_idx, peak_order.index(t_state))
+                            turning_points = [
+                                t for t in timeline
+                                if t.get("rollback") or t.get("is_fake")
+                                   or t.get("state") in ("deal", "hangup", "hostile")
+                            ][:5]
+                            enriched["_emotion_journey"] = {
+                                "summary": {
+                                    "total_transitions": total_transitions,
+                                    "rollback_count": rollback_count,
+                                    "peak_state": peak_order[peak_idx] if peak_idx < len(peak_order) else "cold",
+                                    "fake_count": fake_count,
+                                    "turning_points": turning_points,
+                                },
+                                "timeline": timeline,
+                            }
+                except Exception:
+                    logger.debug("Failed to build emotion journey for %s", session_id)
+
+                session.scoring_details = enriched
+            except Exception:
+                logger.exception("Failed to calculate scores for session %s", session_id)
+
+            # Generate AI recommendations
+            try:
+                recommendations = await generate_recommendations(session_id, db, scores)
+                session.feedback_text = recommendations
+            except Exception:
+                logger.exception("Failed to generate recommendations for session %s", session_id)
+
+            # Scores-dependent enrichment (SessionHistory + XP award). This
+            # helper short-circuits when scores is None and is idempotent via
+            # UNIQUE(session_id), so running it here (instead of in the request
+            # path, which no longer has scores) keeps XP awarded exactly once.
+            # ``state`` carries the WS-captured snapshot (call_outcome,
+            # archetype_code, scenario_code, emotion_peak, had_comeback,
+            # base_difficulty) so SessionHistory analytics match the old
+            # synchronous WS path instead of degrading to defaults. REST passes
+            # ``None`` (now {}), and the helper synthesises defaults from the
+            # session row.
+            _enrich_xp = 0
+            try:
+                from app.services.runtime_finalizer import apply_post_finalize_enrichment
+
+                _enrich_result = await apply_post_finalize_enrichment(
+                    db,
+                    session=session,
+                    scores=scores,
+                    state=state,
+                )
+                _enrich_xp = _enrich_result.get("xp_earned") or 0
+            except Exception:
+                logger.warning(
+                    "runtime_finalizer enrichment failed (background) for %s",
+                    session_id, exc_info=True,
+                )
+
+            # ── Emit training_completed HERE (deferred), CLAUDE.md §3 ──────────
+            # The request paths (REST /end, WS session.end) no longer emit this
+            # event score-less — doing so would freeze the OutboxEvent at
+            # score=0 with no weak_legal_categories (the idempotency_key locks
+            # the first emit, the background scorer would be unable to re-emit),
+            # silently regressing SRS weak-ФЗ-127 seeding. We emit AFTER scores
+            # exist so the payload carries the real ``score`` and
+            # ``weak_legal_categories``. The idempotency_key
+            # ``training_completed:{session_id}`` is unchanged, so this single
+            # emit serves BOTH transports (whichever scores first wins; the
+            # other path's background scorer short-circuits on score_total).
+            try:
+                from app.services.event_bus import (
+                    event_bus, GameEvent, EVENT_TRAINING_COMPLETED,
+                )
+
+                event_payload: dict = {
+                    "session_id": str(session.id),
+                    "score": float(session.score_total) if session.score_total is not None else 0.0,
+                    "xp_earned": _enrich_xp,
+                }
+                _scenario_id = state.get("scenario_id")
+                if _scenario_id:
+                    event_payload["scenario_id"] = str(_scenario_id)
+
+                # Weak legal categories for SRS seeding. Now that scores exist,
+                # mine them from the freshly-written scoring_details so the
+                # seeding event carries real ФЗ-127 categories.
+                if scores is not None:
+                    _details = session.scoring_details or {}
+                    _legal = _details.get("legal_accuracy", {}) or {}
+                    weak_cats: list[dict] = []
+                    # Preferred source: explicit weak_categories from the scorer.
+                    for wc in (_legal.get("weak_categories") or [])[:5]:
+                        if isinstance(wc, dict) and wc.get("category"):
+                            weak_cats.append(wc)
+                        elif isinstance(wc, str) and wc:
+                            weak_cats.append({
+                                "category": wc,
+                                "display_name": wc,
+                                "article_refs": [],
+                            })
+                    # Fallback: derive from per-check regex details.
+                    if not weak_cats:
+                        regex_checks = (_legal.get("regex", {}) or {}).get("details", []) or []
+                        for check in regex_checks[:10]:
+                            cat = check.get("category", "")
+                            ref = check.get("law_article", "")
+                            if cat:
+                                weak_cats.append({
+                                    "category": cat,
+                                    "display_name": cat,
+                                    "article_refs": [ref] if ref else [],
+                                })
+                    if weak_cats:
+                        event_payload["weak_legal_categories"] = weak_cats[:5]
+
+                _event_uid = state.get("user_id") or session.user_id
+                await event_bus.emit(
+                    GameEvent(
+                        kind=EVENT_TRAINING_COMPLETED,
+                        user_id=_event_uid,
+                        db=db,
+                        payload=event_payload,
+                    ),
+                    aggregate_id=session.id,
+                    idempotency_key=f"training_completed:{session.id}",
+                )
+            except Exception:
+                logger.exception(
+                    "EventBus failed for training_completed (background) for %s",
+                    session_id,
+                )
+
+            # Clear the pending flag so the /results poller knows scoring is done.
+            details = dict(session.scoring_details or {})
+            details["_scoring_pending"] = False
+            session.scoring_details = details
+
+            await db.commit()
+        except Exception:
+            logger.exception(
+                "_score_session_background: unexpected failure for %s", session_id
+            )
+            try:
+                await db.rollback()
+            except Exception:
+                pass
+
+
 @router.post("/sessions/{session_id}/end", response_model=SessionResponse)
 async def end_session(
+    background_tasks: BackgroundTasks,
     session_id: uuid.UUID,
     body: dict | None = Body(default=None),
     user: User = Depends(get_current_user),
@@ -1834,104 +2149,24 @@ async def end_session(
     except Exception:
         logger.debug("Failed to pre-load emotion timeline for %s", session_id)
 
-    # Calculate scores (now with populated emotion_timeline)
+    # Scoring is deferred to the background (2026-06-06): the ~16s
+    # calculate_scores → enrichment → generate_recommendations pipeline used
+    # to run HERE, synchronously, before we returned control to the frontend,
+    # which left the user staring at "Тренировка завершена / Переход к
+    # результатам" for ~20s. We now finalize the session quickly
+    # (status=completed) and return immediately; the scoring runs in
+    # _score_session_background (scheduled at the very end of this handler,
+    # after finalization + training_completed emission) and the /results page
+    # picks the numbers up via its existing poll. ``scores`` stays None in the
+    # request path on purpose — the downstream event payload tolerates that.
+    #
+    # Mark the session as "scoring pending" so the /results poller keeps
+    # polling until the background job clears the flag.
     scores = None
-    try:
-        scores = await calculate_scores(session_id, db)
-        session.score_script_adherence = scores.script_adherence
-        session.score_objection_handling = scores.objection_handling
-        session.score_communication = scores.communication
-        session.score_anti_patterns = scores.anti_patterns
-        session.score_result = scores.result
-        session.score_total = scores.total
-
-        # Enrich scoring_details with Wave 2 metadata
-        enriched = dict(scores.details) if scores.details else {}
-        if normalized_outcome:
-            enriched["call_outcome"] = normalized_outcome
-        try:
-            from app.models.roleplay import ClientProfile
-            from app.services.client_generator import get_full_reveal_card
-            cp_result = await db.execute(
-                select(ClientProfile).where(ClientProfile.session_id == session_id)
-            )
-            cp = cp_result.scalar_one_or_none()
-            if cp:
-                enriched["_client_name"] = cp.full_name
-                enriched["_client_card_reveal"] = get_full_reveal_card(cp)
-        except Exception:
-            logger.debug("Failed to enrich with client reveal data for %s", session_id)
-
-        # Wave 4: Enrich with layer explanations, skill radar, emotion journey
-        try:
-            from app.services.scoring import (
-                generate_layer_explanations,
-                layer_explanations_to_dict,
-            )
-            msg_result = await db.execute(
-                select(Message)
-                .where(Message.session_id == session_id)
-                .order_by(Message.created_at)
-            )
-            raw_msgs = msg_result.scalars().all()
-            msg_dicts = [
-                {"role": m.role.value if hasattr(m.role, "value") else str(m.role),
-                 "content": m.content or "", "index": i}
-                for i, m in enumerate(raw_msgs)
-            ]
-            explanations = generate_layer_explanations(scores, msg_dicts)
-            enriched["_layer_explanations"] = layer_explanations_to_dict(explanations)
-        except Exception:
-            logger.debug("Failed to generate layer explanations for %s", session_id)
-
-        # Skill radar (6-axis computed from L1-L10 weights)
-        try:
-            enriched["_skill_radar"] = scores.skill_radar
-        except Exception:
-            logger.debug("Failed to compute skill radar for %s", session_id)
-
-        # Emotion journey summary (timeline + turning points)
-        try:
-            timeline = session.emotion_timeline or []
-            if timeline:
-                total_transitions = len(timeline)
-                rollback_count = sum(1 for t in timeline if t.get("rollback"))
-                fake_count = sum(1 for t in timeline if t.get("is_fake"))
-                peak_order = ["cold", "skeptical", "guarded", "curious",
-                              "considering", "warming", "open", "negotiating", "deal"]
-                peak_idx = 0
-                for t in timeline:
-                    state = t.get("state", "cold")
-                    if state in peak_order:
-                        peak_idx = max(peak_idx, peak_order.index(state))
-                turning_points = [
-                    t for t in timeline
-                    if t.get("rollback") or t.get("is_fake")
-                       or t.get("state") in ("deal", "hangup", "hostile")
-                ][:5]
-                enriched["_emotion_journey"] = {
-                    "summary": {
-                        "total_transitions": total_transitions,
-                        "rollback_count": rollback_count,
-                        "peak_state": peak_order[peak_idx] if peak_idx < len(peak_order) else "cold",
-                        "fake_count": fake_count,
-                        "turning_points": turning_points,
-                    },
-                    "timeline": timeline,
-                }
-        except Exception:
-            logger.debug("Failed to build emotion journey for %s", session_id)
-
-        session.scoring_details = enriched
-    except Exception:
-        logger.exception("Failed to calculate scores for session %s", session_id)
-
-    # Generate AI recommendations
-    try:
-        recommendations = await generate_recommendations(session_id, db, scores)
-        session.feedback_text = recommendations
-    except Exception:
-        logger.exception("Failed to generate recommendations for session %s", session_id)
+    _pending_details = dict(session.scoring_details or {})
+    _pending_details["_scoring_pending"] = True
+    session.scoring_details = _pending_details
+    await db.flush()
 
     # Finalize via session_manager (duration, emotion timeline, Redis cleanup)
     try:
@@ -2001,68 +2236,45 @@ async def end_session(
     # report, never fed RAG. The user who ended a session via the call-page
     # hangup (POST /end) lost all of that.
     #
-    # apply_post_finalize_enrichment runs the missing pieces with idempotency
-    # via SessionHistory.session_id UNIQUE: if WS already ran (typical
-    # case — explicit end goes WS), the second writer hits IntegrityError
-    # on flush and the helper short-circuits with the existing row, so XP
-    # is awarded exactly once regardless of which path arrives first.
+    # apply_post_finalize_enrichment depends on the computed ``scores`` — and
+    # since 2026-06-06 scoring is deferred to _score_session_background, the
+    # request path has no scores yet (it short-circuits on scores=None). The
+    # enrichment therefore now runs INSIDE _score_session_background, right
+    # after the scores are computed. Idempotency is unchanged: SessionHistory
+    # has a UNIQUE(session_id), so whichever terminal path (REST/WS) scores
+    # the session first awards XP exactly once; the other path's background
+    # scorer short-circuits on the already-populated score_total.
+
+    # training_completed emission is DEFERRED to _score_session_background.
+    # (2026-06-06) Scoring is now async, so at this point session.score_total
+    # is still NULL and scores is None. Emitting training_completed HERE would
+    # write the OutboxEvent with score=0.0 and an empty weak_legal_categories
+    # list — and because the idempotency_key (`training_completed:{session_id}`)
+    # locks the FIRST emit, the background scorer could never replace it. That
+    # silently regresses SRS weak-ФЗ-127 seeding (a core legal-training
+    # feature). The single emit now lives in _score_session_background, AFTER
+    # scores are computed, so the payload carries the real score + weak
+    # categories. The §3 contract (training_completed/outbox must fire on
+    # completion) is preserved: the background scorer is guaranteed to run
+    # (it is scheduled unconditionally below and is fail-soft per step), and
+    # the idempotency_key keeps REST + WS collapsed to exactly one outbox row.
+
+    # Commit the fast-path finalization (status=completed, _scoring_pending,
+    # policy stamp, outbox emit) BEFORE the response goes out and BEFORE the
+    # background scorer runs. The background task opens its OWN db session, so
+    # it must read an already-committed completed session — not this still-open
+    # request transaction.
     try:
-        from app.services.runtime_finalizer import apply_post_finalize_enrichment
-
-        await apply_post_finalize_enrichment(
-            db,
-            session=session,
-            scores=scores,
-            state=None,  # REST has no Redis state dict; helper synthesises defaults
-        )
+        await db.commit()
     except Exception:
-        logger.warning(
-            "runtime_finalizer enrichment failed (rest) for %s",
-            session_id, exc_info=True,
-        )
+        logger.exception("Failed to commit fast-path finalization for %s", session_id)
 
-    # Emit event → EventBus handles achievements, goals, SRS seeding, notifications
-    try:
-        from app.services.event_bus import event_bus, GameEvent, EVENT_TRAINING_COMPLETED
-
-        # Extract weak legal categories for SRS seeding
-        event_payload: dict = {
-            "session_id": str(session.id),
-            "score": float(session.score_total) if session.score_total else 0.0,
-        }
-        if scores and scores.legal_accuracy < 0:
-            details = session.scoring_details or {}
-            legal_details = details.get("legal_accuracy", {})
-            weak_cats = []
-            regex_checks = legal_details.get("regex", {}).get("details", [])
-            for check in regex_checks[:10]:
-                cat = check.get("category", "")
-                ref = check.get("law_article", "")
-                if cat:
-                    weak_cats.append({
-                        "category": cat,
-                        "display_name": cat,
-                        "article_refs": [ref] if ref else [],
-                    })
-            if weak_cats:
-                event_payload["weak_legal_categories"] = weak_cats[:5]
-
-        # Journal: dedup by session_id so that when BOTH REST /end AND the
-        # WS `session.end` handler complete the same training, we only emit
-        # the event once (UNIQUE(idempotency_key) on OutboxEvent, second
-        # INSERT is caught and skipped inside event_bus.emit).
-        await event_bus.emit(
-            GameEvent(
-                kind=EVENT_TRAINING_COMPLETED,
-                user_id=user.id,
-                db=db,
-                payload=event_payload,
-            ),
-            aggregate_id=session.id,
-            idempotency_key=f"training_completed:{session.id}",
-        )
-    except Exception:
-        logger.exception("EventBus failed for training_completed, user %s", user.id)
+    # Schedule the deferred scoring. The finalization above (sm_end_session →
+    # status=completed, completion_policy stamp, training_completed emission)
+    # has already run and committed, so the background job reads a completed
+    # session. The job is idempotent (it skips if score_total is already set),
+    # which keeps scoring single across the REST and WS terminal paths.
+    background_tasks.add_task(_score_session_background, session_id)
 
     return session
 

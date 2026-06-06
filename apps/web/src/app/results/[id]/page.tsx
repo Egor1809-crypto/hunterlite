@@ -104,11 +104,22 @@ export default function ResultsPage() {
   // instead of a hard skeleton — UX-wise this is gentler than swapping
   // in a full skeleton on every poll cycle.
   const [processing, setProcessing] = useState(true);
+  // Async-results (2026-06-06): when scoring is deferred to a background task,
+  // DeepSeek latency can push calculate_scores past the base 30s poll budget.
+  // We extend the budget while the backend's `_scoring_pending` flag is still
+  // true (up to ~75s, matching the old 45s scoring ceiling + headroom). If
+  // even that exhausts while scoring is still pending, we render an explicit
+  // "обновить" state (this flag) instead of freezing on an infinite skeleton.
+  const [scoringStuck, setScoringStuck] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     let attempts = 0;
-    const MAX_ATTEMPTS = 15;          // 15 × 2s = 30s budget
+    // Base budget: 15 × 2s = 30s. While the backend reports scoring still
+    // pending we keep polling up to EXTENDED_MAX_ATTEMPTS (≈75s) so a slow
+    // DeepSeek scoring pass still resolves on the page without a manual reload.
+    const MAX_ATTEMPTS = 15;
+    const EXTENDED_MAX_ATTEMPTS = 38; // 38 × 2s ≈ 76s
     const POLL_INTERVAL_MS = 2000;
     let pollTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -128,6 +139,17 @@ export default function ResultsPage() {
       return !judgeRequired || judgePresent;
     };
 
+    // Read the backend's durable "still scoring" flag. Both the REST and WS
+    // terminal paths now commit scoring_details._scoring_pending=true before
+    // returning, and _score_session_background clears it when scores land.
+    const isScoringPending = (data: SessionResultResponse | null): boolean => {
+      const details = data?.session?.scoring_details as
+        | Record<string, unknown>
+        | null
+        | undefined;
+      return Boolean(details?._scoring_pending);
+    };
+
     const fetchOnce = (isFirst: boolean) => {
       api
         .get<SessionResultResponse>(`/training/sessions/${params.id}`)
@@ -135,14 +157,29 @@ export default function ResultsPage() {
           if (cancelled) return;
           setResult(data);
           if (isFirst) setLoading(false);
-          if (isFullyScored(data) || attempts >= MAX_ATTEMPTS - 1) {
+
+          if (isFullyScored(data)) {
             setProcessing(false);
+            setScoringStuck(false);
             // P1 (training-rework): score-based achievement toasts +
             // the "gamification" perfect-score event were removed —
             // дегеймификация. Результат показывается спокойной сводкой,
             // без ачивок/тостов/конфетти.
             return;
           }
+
+          // Budget: keep polling past the base budget ONLY while the backend
+          // says scoring is still pending — otherwise stop at the base budget.
+          const stillPending = isScoringPending(data);
+          const budget = stillPending ? EXTENDED_MAX_ATTEMPTS : MAX_ATTEMPTS;
+          if (attempts >= budget - 1) {
+            setProcessing(false);
+            // If we ran out of budget while scoring is STILL pending, surface an
+            // explicit refreshable state rather than an endless skeleton.
+            setScoringStuck(stillPending);
+            return;
+          }
+
           attempts += 1;
           pollTimer = setTimeout(() => fetchOnce(false), POLL_INTERVAL_MS);
         })
@@ -220,6 +257,27 @@ export default function ResultsPage() {
   const { session, messages } = result;
   const totalScore = session.score_total ?? 0;
   const hasScores = session.score_total !== null;
+
+  // Async-results (2026-06-06): backend now finalizes the session fast
+  // (status=completed, training_completed emitted) and computes the score
+  // (calculate_scores + enrichment + recommendations) in the BACKGROUND.
+  // Until that background job lands, `score_total` is null and the page
+  // must show a calm editorial placeholder where the score visualization
+  // (pentagram / score-layers / judge verdict / recommendations) will
+  // appear — NOT a half-rendered shell with empty score widgets.
+  //
+  // Two signals say "scoring still running":
+  //   (a) the explicit backend flag `scoring_details._scoring_pending`
+  //       (set true the moment the session is finalized, cleared when the
+  //       background job writes the score), and
+  //   (b) our own `processing` poll-state (still polling, no scores yet).
+  // Either one means: render the "Разбор готовится…" placeholder.
+  const scoringPendingFlag = Boolean(
+    (session.scoring_details as Record<string, unknown> | null)?._scoring_pending,
+  );
+  // Show the placeholder only when there are genuinely no scores yet.
+  // Once `hasScores` flips true the real widgets take over immediately.
+  const scoringPending = !hasScores && (processing || scoringPendingFlag);
 
   // Phase C (2026-05-08): branch on terminal_outcome. Sessions that
   // ended due to system error / timeout / operator abort get the
@@ -394,7 +452,13 @@ export default function ResultsPage() {
             }}
           >
             <Loader2 size={16} className="animate-spin" />
-            Подсчёт результатов... Обычно занимает 5–15 секунд.
+            <span>
+              <span className="font-mono text-[11px] uppercase tracking-[0.16em]" style={{ color: "var(--text-secondary)" }}>
+                Разбор готовится
+              </span>
+              {"  "}
+              Сессия завершена — считаем оценку по навыкам. Диалог и слабые места ниже уже доступны, оценка появится автоматически.
+            </span>
           </div>
         )}
 
@@ -471,6 +535,81 @@ export default function ResultsPage() {
             base/score/streak/achievements breakdown) удалён —
             дегеймификация по решению заказчика. XP больше не
             начисляется/показывается; таблицы xp_* остаются спящими. */}
+
+        {/* Async-results (2026-06-06): when the score hasn't been computed
+            yet (background job still running) render ONE calm editorial
+            placeholder where the pentagram / score-layers / judge verdict /
+            recommendations will appear — instead of leaving those slots
+            empty (they're all gated on `hasScores`) and showing a torn
+            half-page. The transcript / weak-legal / client sections below
+            stay visible the whole time; this block is replaced in-place by
+            the real score widgets as soon as polling sees `score_total`. */}
+        {scoringPending && !scoringStuck && (
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="glass-panel mb-8 rounded-2xl p-6 md:p-8"
+            style={{ borderColor: "var(--border-color)" }}
+          >
+            <div className="flex items-center gap-2 border-b pb-3" style={{ borderColor: "var(--border-color)" }}>
+              <Loader2 size={16} className="animate-spin" style={{ color: "var(--primary)" }} />
+              <span className="font-mono text-[11px] uppercase tracking-[0.16em]" style={{ color: "var(--text-secondary)" }}>
+                Разбор готовится
+              </span>
+            </div>
+            <p className="mt-4 text-sm leading-relaxed" style={{ color: "var(--text-secondary)" }}>
+              Оценка по навыкам, пентаграмма, разбор ошибок и рекомендации считаются
+              в фоне и появятся здесь автоматически — обновлять страницу не нужно.
+            </p>
+            {/* Skeleton stand-ins for the two main score columns
+                (pentagram + emotion/verdict). Match the real layout so the
+                swap-in is visually smooth, no layout jump. */}
+            <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-12">
+              <div className="lg:col-span-5">
+                <Skeleton height={280} width="100%" rounded="16px" />
+              </div>
+              <div className="flex flex-col gap-4 lg:col-span-7">
+                <Skeleton height={132} width="100%" rounded="16px" />
+                <Skeleton height={124} width="100%" rounded="16px" />
+              </div>
+            </div>
+          </motion.div>
+        )}
+
+        {/* Async-results (2026-06-06): the poll budget (~76s while
+            _scoring_pending) is exhausted but the backend still reports scoring
+            in progress (unusually slow DeepSeek pass). Instead of freezing on an
+            infinite skeleton, surface an explicit, recoverable state with a
+            manual refresh — the background scorer is still guaranteed to finish
+            (it owns its own DB session and is detached from the client). */}
+        {scoringStuck && !hasScores && (
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="glass-panel mb-8 rounded-2xl p-6 md:p-8"
+            style={{ borderColor: "var(--border-color)" }}
+          >
+            <div className="flex items-center gap-2 border-b pb-3" style={{ borderColor: "var(--border-color)" }}>
+              <span className="font-mono text-[11px] uppercase tracking-[0.16em]" style={{ color: "var(--text-secondary)" }}>
+                Оценка ещё считается
+              </span>
+            </div>
+            <p className="mt-4 text-sm leading-relaxed" style={{ color: "var(--text-secondary)" }}>
+              Разбор занимает дольше обычного — подсчёт продолжается на сервере и
+              не прервётся. Обновите страницу через несколько секунд, чтобы увидеть
+              результат.
+            </p>
+            <button
+              type="button"
+              onClick={() => window.location.reload()}
+              className="mt-5 inline-flex items-center gap-2 rounded-xl border px-4 py-2 font-mono text-[12px] uppercase tracking-[0.14em] transition-colors"
+              style={{ borderColor: "var(--border-color)", color: "var(--text-primary)" }}
+            >
+              <Loader2 size={14} />
+              Обновить
+            </button>
+          </motion.div>
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 flex-1">
           {/* LEFT: Pentagram */}

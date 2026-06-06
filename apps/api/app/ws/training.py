@@ -428,6 +428,57 @@ def _persona_name_from_params(custom_params: dict | None) -> str:
 
 _WS_OUTGOING_MAX = 100  # Safety net: max queued messages per connection
 
+# ── Async-results (2026-06-06) — detached background-scoring task registry ──
+# Scoring (calculate_scores + enrichment + generate_recommendations, ~16s) is
+# moved off the session-end critical path so the "Тренировка завершена" modal
+# stops blocking the user for ~20s. The scoring coroutine is launched via
+# asyncio.create_task and is NOT awaited by the WS handler — the WS connection
+# closes right after the session.ended emit. asyncio holds only a weak
+# reference to a bare task, so without a strong reference the GC can cancel it
+# mid-flight. We keep that strong reference in this module-level set and drop it
+# in a done-callback once the task finishes. /results polls until score_total
+# is populated, so the user always sees the final scores even though they left
+# the modal immediately.
+_BG_SCORING_TASKS: set[asyncio.Task] = set()
+
+
+def _spawn_detached_scoring(session_id: uuid.UUID, state: dict) -> None:
+    """Launch background scoring for ``session_id`` detached from this WS.
+
+    Idempotency (single scoring per session):
+      * ``state["_scoring_pending"]`` guards against this same WS handler
+        scheduling twice (e.g. duplicate session.end frames on one socket).
+      * ``_score_session_background`` itself short-circuits when the session
+        already has ``score_total`` (the cross-path REST/WS guard — scoring
+        runs exactly once even if both transports finalize the same session).
+    Fail-soft: any failure to *schedule* is swallowed; any failure *inside*
+    the task is logged by the helper and never touches session finalization
+    (which already committed before this is called).
+    """
+    if state.get("_scoring_pending"):
+        logger.debug("Scoring already scheduled for session %s — skip", session_id)
+        return
+    state["_scoring_pending"] = True
+    try:
+        from app.api.training import _score_session_background
+        # Pass a shallow copy of the Redis state dict: the WS handler keeps
+        # mutating/clearing ``state`` after this returns (active=False,
+        # session_id=None), and the background task must read the snapshot
+        # captured at end time, not the cleared connection state.
+        state_snapshot = dict(state)
+        task = asyncio.create_task(
+            _score_session_background(session_id, state_snapshot),
+            name=f"bg-scoring:{session_id}",
+        )
+        _BG_SCORING_TASKS.add(task)
+        task.add_done_callback(_BG_SCORING_TASKS.discard)
+        logger.info("Detached background scoring scheduled for session %s", session_id)
+    except Exception:
+        # Scheduling failure must not break the already-finalized session.
+        state["_scoring_pending"] = False
+        logger.exception("Failed to schedule background scoring for session %s", session_id)
+
+
 async def _send(ws: WebSocket, msg_type: str, data: dict) -> None:
     """Helper to send a typed JSON message to the client.
     Includes backpressure safety: drops if outgoing queue exceeds limit.
@@ -6026,29 +6077,48 @@ async def _handle_session_end(
     except Exception:
         logger.debug("Failed to save pre-scoring metadata for %s", session_id)
 
+    # ── Async-results (2026-06-06): scoring is DEFERRED ──────────────────────
+    # calculate_scores (~16s), enrichment, and generate_recommendations used to
+    # run HERE, synchronously, before we emitted session.ended — which is why
+    # the "Тренировка завершена" modal blocked the user for ~20s. Scoring now
+    # runs in a detached background task (see _spawn_detached_scoring below);
+    # /results polls until score_total is populated. ``scores`` stays None on
+    # this path so the finalize/emit code below takes its score-less branches.
     scores = None
-    try:
-        import asyncio as _aio
-        async with async_session() as db:
-            scores = await _aio.wait_for(
-                calculate_scores(session_id, db),
-                timeout=45.0,  # C4 fix: 45s timeout prevents infinite hang
-            )
-    except _aio.TimeoutError:
-        logger.error("Scoring timed out after 45s for session %s", session_id)
-    except Exception:
-        logger.exception("Failed to calculate scores for session %s", session_id)
 
     # ── Save emotion journey snapshot BEFORE cleanup (end_session deletes Redis) ──
+    # The snapshot is captured here while Redis state still exists, then handed
+    # to the background scorer via the state dict so it can be persisted into
+    # scoring_details once scores are computed.
     _emotion_journey: dict = {}
     try:
         _emotion_journey = await save_journey_snapshot(session_id)
+        if _emotion_journey and _emotion_journey.get("timeline"):
+            state["_emotion_journey_snapshot"] = _emotion_journey
     except Exception:
         logger.debug("Failed to save emotion journey snapshot for %s", session_id)
 
     mp_result: dict | None = None
     async with async_session() as db:
         session = await end_session(session_id, db, status=SessionStatus.completed)
+
+        # Async-results (2026-06-06): mark the session "scoring pending" in the
+        # DB scoring_details BEFORE the finalizing commit below, mirroring the
+        # REST path. The /results poller reads this committed backend flag
+        # (scoring_details._scoring_pending) to drive the "Разбор готовится"
+        # placeholder deterministically on BOTH transports — the WS path used
+        # to set it only on the in-memory Redis ``state`` dict, which the FE
+        # never sees. _score_session_background clears it when scoring lands.
+        if session is not None:
+            _pending = dict(session.scoring_details or {})
+            _pending["_scoring_pending"] = True
+            session.scoring_details = _pending
+            try:
+                await db.flush()
+            except Exception:
+                logger.debug(
+                    "Failed to flush _scoring_pending flag (WS) for %s", session_id
+                )
 
         if session and scores:
             session.score_script_adherence = scores.script_adherence
@@ -6238,57 +6308,26 @@ async def _handle_session_end(
                     session_id,
                 )
 
-        # ── TZ-2 Phase 1B: post-finalize enrichment via shared helper ──
-        # Replaces three formerly-inline blocks (RAG feedback capture,
-        # SessionHistory creation, ManagerProgress XP award) with a single
-        # call. Helper is also called from the REST end-handler — both
-        # paths converge on the same logic with SessionHistory.session_id
-        # UNIQUE acting as the idempotency lock so XP is awarded once even
-        # when both paths fire (multi-tab race, REST after WS, etc).
-        #
-        # The AI-coach generation block above (4674-4740) is intentionally
-        # kept inline because it builds richer enriched_details fields
-        # (_cited_moments, _stage_analysis, _historical_patterns) that the
-        # helper does not produce. By the time the helper runs Step 3, it
-        # sees session.feedback_text already populated and short-circuits.
+        # ── TZ-2 Phase 1B: post-finalize enrichment + training_completed ──
+        # (2026-06-06 async-results) Both the SessionHistory/XP enrichment AND
+        # the EVENT_TRAINING_COMPLETED emit are DEFERRED to
+        # _score_session_background (scheduled via _spawn_detached_scoring at the
+        # end of this handler). They used to run here, but only inside the
+        # ``if scores is not None`` branch — and ``scores`` is now always None on
+        # this fast path, so running them here is impossible (no score, no weak
+        # categories). Doing them in the background scorer keeps:
+        #   * CLAUDE.md §3: training_completed/outbox still fires on the WS
+        #     terminal path (the scorer is scheduled unconditionally below and
+        #     is fail-soft), with idempotency_key training_completed:{session_id}
+        #     collapsing REST+WS to one outbox row.
+        #   * SRS seeding: the event payload carries the REAL score + weak ФЗ-127
+        #     categories because it is emitted AFTER scores exist.
+        #   * XP-once: SessionHistory UNIQUE(session_id) still makes XP idempotent
+        #     across transports; the scorer threads ``state`` into the helper so
+        #     SessionHistory analytics (archetype/difficulty/outcome) are intact.
+        # The state snapshot handed to the scorer carries user_id/scenario_id/
+        # archetype_code/base_difficulty/call_outcome/_emotion_journey_snapshot.
         mp_result = None
-        if scores is not None and session is not None:
-            try:
-                from app.services.runtime_finalizer import apply_post_finalize_enrichment
-                _enrich_result = await apply_post_finalize_enrichment(
-                    db, session=session, scores=scores, state=state,
-                )
-                mp_result = _enrich_result.get("mp_result")
-            except Exception as e:
-                logger.warning("apply_post_finalize_enrichment failed: %s", e, exc_info=True)
-
-            # Emit EVENT_TRAINING_COMPLETED here (NOT in the helper) so the
-            # outbox idempotency_key collapses with the parallel REST emit
-            # if both paths fire for the same session. Helper is intentionally
-            # event-bus-agnostic (single responsibility: write SessionHistory
-            # + award XP); event emission is the WS/REST handler's job.
-            _uid = state.get("user_id")
-            if _uid:
-                try:
-                    from app.services.event_bus import event_bus, GameEvent, EVENT_TRAINING_COMPLETED
-                    await event_bus.emit(
-                        GameEvent(
-                            kind=EVENT_TRAINING_COMPLETED,
-                            user_id=_uid,
-                            db=db,
-                            payload={
-                                "session_id": str(session_id),
-                                "score": scores.total,
-                                "scenario_id": str(state.get("scenario_id", "")),
-                                "xp_earned": _enrich_result.get("xp_earned") if mp_result else 0,
-                                "weak_legal_categories": (scores.details or {}).get("legal_accuracy", {}).get("weak_categories", []),
-                            },
-                        ),
-                        aggregate_id=session_id,
-                        idempotency_key=f"training_completed:{session_id}",
-                    )
-                except Exception as emit_exc:
-                    logger.warning("Failed to emit training_completed event: %s", emit_exc)
 
         # 2026-04-21: reconcile CustomCharacter stats for constructor-born
         # sessions before we commit. update_custom_character_stats is a
@@ -6396,7 +6435,24 @@ async def _handle_session_end(
                 "total": scores.total,
             }
     await _send(ws, "session.ended", _early_result)
-    logger.info("Session ended (fast path): %s, score=%s", session_id, scores.total if scores else "N/A")
+    logger.info(
+        "Session ended (fast path, scoring deferred): %s — frontend redirected to "
+        "/results which will poll for score_total",
+        session_id,
+    )
+
+    # ── Async-results (2026-06-06): schedule scoring NOW, detached from WS ────
+    # The session is already finalized (status=completed) and committed, and the
+    # client has been told to navigate to /results. Scoring (calculate_scores +
+    # enrichment + generate_recommendations + SessionHistory/XP +
+    # EVENT_TRAINING_COMPLETED) runs in a background task that owns its OWN DB
+    # session — it must NOT use the WS handler's ``db`` (that context manager has
+    # exited) and must NOT be tied to this WS connection (which closes right
+    # after this handler returns). _spawn_detached_scoring keeps a strong task
+    # reference so the GC cannot cancel it mid-flight, and is idempotent so a
+    # session is scored exactly once even across REST/WS and duplicate frames.
+    if session is not None:
+        _spawn_detached_scoring(session_id, state)
 
     # ═══ BACKGROUND TASKS (fire-and-forget, user already got results) ═══
 
@@ -6447,9 +6503,13 @@ async def _handle_session_end(
     except Exception:
         logger.debug("Auto-complete assignment check failed for session %s", session_id)
 
-    # NOTE: ManagerProgress (SessionHistory + XP + EVENT_TRAINING_COMPLETED
-    # emission) and RAG feedback capture run in the shared
-    # apply_post_finalize_enrichment helper above — same code path REST uses.
+    # NOTE: (2026-06-06 async-results) ManagerProgress (SessionHistory + XP),
+    # EVENT_TRAINING_COMPLETED emission, and RAG feedback capture now run in the
+    # background _score_session_background scorer (scheduled below), NOT here —
+    # scoring is deferred so the user is not blocked for ~16s. The scorer calls
+    # the same apply_post_finalize_enrichment helper REST uses and emits the
+    # event with the real score + weak categories. Score-dependent niceties in
+    # the blocks below (record notifications) simply no-op on the fast path.
 
     # --- S3-01: Update team challenge progress ---
     try:
