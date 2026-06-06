@@ -21,6 +21,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { ArrowRight, BookOpen, Volume2, VolumeX, Loader2 } from "lucide-react";
 import type { QuizMessage } from "@/stores/useKnowledgeStore";
 import { useTTS } from "@/hooks/useTTS";
+import { useAuthStore } from "@/stores/useAuthStore";
 
 interface QuizManyashaProps {
   /** Свежий вердикт или null (студент ещё не ответил / уже перешли дальше). */
@@ -81,16 +82,27 @@ async function fetchDetailedExplanation(args: {
   userAnswer: string;
   correctAnswer: string;
   level: Level;
+  userName: string;
   signal: AbortSignal;
 }): Promise<string | null> {
   const verdictWord =
     args.level === "correct" ? "верный" : args.level === "partial" ? "частично верный" : "неверный";
+  // 2026-06-06 (#3): обращение строго на «ты» по имени пользователя, без 3-го
+  // лица («студент перепутал»). Имя берём из профиля (full_name → первое слово).
+  const who = (args.userName || "").trim().split(/\s+/)[0] || "";
+  const youAnswered = args.userAnswer
+    ? `Твой ответ: «${args.userAnswer}».`
+    : "Ты не дал(а) развёрнутого ответа.";
   const prompt = [
     `Вопрос теста по банкротству физлиц: «${args.question}».`,
-    args.userAnswer ? `Ответ студента: «${args.userAnswer}».` : "Студент не дал развёрнутого ответа.",
+    youAnswered,
     args.correctAnswer ? `Правильный ответ: «${args.correctAnswer}».` : "",
-    `Ответ студента ${verdictWord}.`,
-    "Объясни простым живым языком, как наставница Маняша: почему так, и в чём суть правильного ответа.",
+    `Твой ответ ${verdictWord}.`,
+    `Объясни простым живым языком, как наставница Маняша: почему так и в чём суть правильного ответа.`,
+    who
+      ? `Обращайся ко мне на «ты» по имени — ${who}.`
+      : `Обращайся ко мне на «ты».`,
+    `НИКОГДА не пиши обо мне в третьем лице («студент», «пользователь», «он/она перепутал») — только «ты …».`,
     "2-4 коротких предложения, без приветствий и без списков. Если уместно — сошлись на норму закона.",
   ]
     .filter(Boolean)
@@ -121,6 +133,8 @@ export function QuizManyasha({
   onDismiss,
 }: QuizManyashaProps) {
   const { speak, stop: stopBrowser, enabled, setEnabled } = useTTS();
+  // 2026-06-06 (#3): имя пользователя для обращения Маняши на «ты».
+  const userName = useAuthStore((s) => s.user?.full_name ?? "");
 
   // Серверный нейро-TTS: проигрываем MP3 из /api/tts через собственный
   // <audio>. Браузерный speak() из useTTS — только резерв на случай сбоя сети.
@@ -231,6 +245,7 @@ export function QuizManyasha({
       userAnswer: (userAnswer ?? "").trim(),
       correctAnswer,
       level,
+      userName,
       signal: controller.signal,
     })
       .then((detail) => {
