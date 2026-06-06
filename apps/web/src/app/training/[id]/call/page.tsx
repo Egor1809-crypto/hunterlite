@@ -1090,116 +1090,169 @@ export default function TrainingCallPage() {
   // 2026-06-06 (#2): input-bar mic toggle — MediaRecorder + backend Whisper
   // (the path that works in training mode). Click to start capturing, click
   // again to stop → blob → audio.end. Bypasses the flaky Web Speech API.
-  // 2026-06-06 (#2): "is the user capturing voice right now" for the mic
-  // button + the who-is-speaking pill (MediaRecorder path, not Web Speech).
-  const micRecording = microphoneFallback.recordingState === "recording";
-
   // ─────────────────────────────────────────────────────────────────────
-  // 2026-06-06 (#1): ЖИВОЙ режим звонка (VAD, hands-free).
-  // Тап по кнопке = микрофон включён (зелёный). Дальше как настоящий звонок:
-  // говоришь → пауза ~1.3с → реплика СРАЗУ уходит к ИИ → ИИ отвечает голосом →
-  // снова слушаем тебя. Никаких «нажми ещё раз чтобы отправить». Тап ещё раз —
-  // выключить микрофон. Запись через MediaRecorder + Whisper (надёжно).
+  // 2026-06-06 (#1, архитектура): ЖИВОЙ режим звонка как настоящий звонок.
+  // КЛЮЧЕВОЕ ИСПРАВЛЕНИЕ: микрофон открывается ОДИН раз (getUserMedia) на весь
+  // живой режим и НЕ пересоздаётся между репликами. Раньше каждая реплика рвала
+  // stream + AudioContext (useMicrophone.stopRecording) → новый getUserMedia на
+  // каждый ход = задержка в сотни мс + мерцание индикатора + «mic in use».
+  // Теперь: один stream + один analyser для VAD; реплики режутся РЕСТАРТОМ
+  // MediaRecorder на том же stream (мгновенно). Пока говорит ИИ — не пишем.
   // ─────────────────────────────────────────────────────────────────────
   const [liveMode, setLiveMode] = useState(false);
+  const [liveListening, setLiveListening] = useState(false); // мик слышит юзера сейчас
 
-  // refs — читаются/вызываются внутри VAD-интервала без устаревания замыкания.
-  // КРИТИЧНО: интервал зависит ТОЛЬКО от liveMode. Раньше он зависел от
-  // microphoneFallback (новый объект каждый рендер) + audioLevel-рендеры
-  // ~60/сек пересоздавали интервал, сбрасывая таймер тишины → audio.end не
-  // уходил никогда («микрофон не слышит»). Теперь интервал стабильный.
-  const audioLevelRef = useRef(0);
-  audioLevelRef.current = microphoneFallback.audioLevel;
-  const recStateRef = useRef(microphoneFallback.recordingState);
-  recStateRef.current = microphoneFallback.recordingState;
+  const liveStreamRef = useRef<MediaStream | null>(null);
+  const liveCtxRef = useRef<AudioContext | null>(null);
+  const liveAnalyserRef = useRef<AnalyserNode | null>(null);
+  const liveRecorderRef = useRef<MediaRecorder | null>(null);
+  const liveChunksRef = useRef<Blob[]>([]);
+  const liveVadRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const liveOnRef = useRef(false);
   const ttsSpeakingRef = useRef(tts.speaking);
   ttsSpeakingRef.current = tts.speaking;
-  const liveModeRef = useRef(false);
-  liveModeRef.current = liveMode;
-  const segmentingRef = useRef(false); // защита от двойной отправки
-  const startingRef = useRef(false);   // защита от двойного старта записи
-  // стабильные ссылки на методы (хук возвращает новый объект каждый рендер)
-  const micStartRef = useRef(microphoneFallback.startRecording);
-  micStartRef.current = microphoneFallback.startRecording;
-  const micStopRef = useRef(microphoneFallback.stopRecording);
-  micStopRef.current = microphoneFallback.stopRecording;
-  const micErrorRef = useRef(microphoneFallback.errorReason);
-  micErrorRef.current = microphoneFallback.errorReason;
   const ttsStopRef = useRef(tts.stop);
   ttsStopRef.current = tts.stop;
 
-  const startRecRef = useRef<() => Promise<void>>(async () => {});
-  startRecRef.current = async () => {
-    if (recStateRef.current === "recording" || startingRef.current) return;
-    startingRef.current = true;
-    try { ttsStopRef.current?.(); } catch { /* pause AI so we don't capture it */ }
-    let ok = false;
-    try { ok = await micStartRef.current(); } finally { startingRef.current = false; }
-    if (ok) {
-      logger.log("[CALL] live: recording started");
-    } else {
+  const pickMime = (): string =>
+    typeof MediaRecorder !== "undefined" && MediaRecorder.isTypeSupported("audio/webm;codecs=opus") ? "audio/webm;codecs=opus"
+    : typeof MediaRecorder !== "undefined" && MediaRecorder.isTypeSupported("audio/webm") ? "audio/webm"
+    : typeof MediaRecorder !== "undefined" && MediaRecorder.isTypeSupported("audio/mp4") ? "audio/mp4"
+    : "";
+
+  // Запустить новый сегмент записи на УЖЕ открытом stream (без getUserMedia).
+  const startSegmentRef = useRef<() => void>(() => {});
+  startSegmentRef.current = () => {
+    const stream = liveStreamRef.current;
+    if (!stream || !liveOnRef.current) return;
+    liveChunksRef.current = [];
+    const mime = pickMime();
+    const rec = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream);
+    rec.ondataavailable = (e) => { if (e.data.size > 0) liveChunksRef.current.push(e.data); };
+    try { rec.start(250); } catch { /* already started */ }
+    liveRecorderRef.current = rec;
+  };
+
+  // Финализировать текущий сегмент → (опц.) отправить → сразу начать следующий.
+  const flushSegmentRef = useRef<(send: boolean) => void>(() => {});
+  flushSegmentRef.current = (send: boolean) => {
+    const rec = liveRecorderRef.current;
+    if (!rec || rec.state === "inactive") { if (send && liveOnRef.current) startSegmentRef.current(); return; }
+    rec.addEventListener("stop", () => {
+      const chunks = liveChunksRef.current;
+      liveChunksRef.current = [];
+      if (send && chunks.length) {
+        const blob = new Blob(chunks, { type: chunks[0]?.type || "audio/webm" });
+        if (blob.size > 1500) {            // отсекаем «пшики» < ~1.5КБ
+          logger.log("[CALL] live: sending utterance", blob.size, "bytes");
+          sendAudioBlobRef.current?.(blob); // → backend Whisper → ответ ИИ
+        }
+      }
+      if (liveOnRef.current) startSegmentRef.current();  // СРАЗУ следующий сегмент, тот же stream
+    }, { once: true });
+    try { rec.stop(); } catch { /* */ }
+  };
+
+  const stopLive = useCallback(() => {
+    liveOnRef.current = false;
+    if (liveVadRef.current) { clearInterval(liveVadRef.current); liveVadRef.current = null; }
+    try { liveRecorderRef.current?.stop(); } catch { /* */ }
+    liveRecorderRef.current = null;
+    liveStreamRef.current?.getTracks().forEach((t) => t.stop());
+    liveStreamRef.current = null;
+    liveCtxRef.current?.close().catch(() => {});
+    liveCtxRef.current = null;
+    liveAnalyserRef.current = null;
+    setLiveListening(false);
+  }, []);
+
+  const startLive = useCallback(async () => {
+    try {
+      if (typeof window !== "undefined" && !window.isSecureContext) {
+        throw new DOMException("insecure", "SecurityError");
+      }
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+      });
+      liveStreamRef.current = stream;
+      liveOnRef.current = true;
+      const Ctor: typeof AudioContext =
+        window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      const ctx = new Ctor();
+      if (ctx.state === "suspended") ctx.resume().catch(() => {});
+      liveCtxRef.current = ctx;
+      const src = ctx.createMediaStreamSource(stream);
+      const analyser = ctx.createAnalyser();
+      analyser.fftSize = 512;
+      analyser.smoothingTimeConstant = 0.8;
+      src.connect(analyser);
+      liveAnalyserRef.current = analyser;
+      try { ttsStopRef.current?.(); } catch { /* */ }
+      startSegmentRef.current();
+      logger.log("[CALL] live: mic open (continuous)");
+
+      // VAD-петля по analyser. Один интервал на весь режим (stream не рвётся).
+      const buf = new Uint8Array(analyser.frequencyBinCount);
+      let spoke = false;
+      let lastLoud = Date.now();
+      let prevSpeaking = false;
+      const SILENCE_MS = 700;   // пауза → конец реплики
+      const SPEAK = 14;         // средняя амплитуда (0-255) — порог «говорят»
+      liveVadRef.current = setInterval(() => {
+        if (!liveOnRef.current || !liveAnalyserRef.current) return;
+        if (ttsSpeakingRef.current) {
+          lastLoud = Date.now(); spoke = false; prevSpeaking = true;
+          setLiveListening(false);
+          return;
+        }
+        // ИИ только что договорил → выбрасываем буфер, записанный во время его
+        // речи (эхо/хвост), и начинаем чистый сегмент под ответ пользователя.
+        if (prevSpeaking) {
+          prevSpeaking = false;
+          lastLoud = Date.now();
+          flushSegmentRef.current(false);
+        }
+        liveAnalyserRef.current.getByteFrequencyData(buf);
+        let sum = 0;
+        for (let i = 0; i < buf.length; i++) sum += buf[i];
+        const avg = sum / buf.length;
+        if (avg > SPEAK) { spoke = true; lastLoud = Date.now(); }
+        setLiveListening(spoke);
+        if (spoke && Date.now() - lastLoud > SILENCE_MS) {
+          spoke = false;
+          setLiveListening(false);
+          flushSegmentRef.current(true);   // отправить реплику + сразу новый сегмент
+        }
+      }, 120);
+    } catch (err) {
+      liveOnRef.current = false;
       setLiveMode(false);
-      const reason = micErrorRef.current;
-      logger.warn("[CALL] live: startRecording failed", reason);
+      const name = err instanceof DOMException ? err.name : "";
+      logger.warn("[CALL] live: getUserMedia failed", name);
       toast.error("Микрофон не запустился", {
         description:
-          reason === "in_use" ? "Микрофон занят другим приложением/вкладкой — закройте их (Zoom/Meet/вкладка) и попробуйте снова"
-          : reason === "denied" ? "Доступ к микрофону запрещён — разрешите в адресной строке 🔒"
+          name === "NotReadableError" || name === "TrackStartError"
+            ? "Микрофон занят другим приложением/вкладкой — закройте их (Zoom/Meet/вкладка) и попробуйте снова"
+          : name === "NotAllowedError" || name === "PermissionDeniedError"
+            ? "Доступ к микрофону запрещён — разрешите в адресной строке 🔒"
+          : name === "SecurityError"
+            ? "Запись доступна только на https/localhost"
           : "Проверьте доступ к микрофону или перезагрузите вкладку (Cmd+Shift+R)",
       });
     }
-  };
+  }, []);
 
   const toggleLiveMode = useCallback(() => {
     setLiveMode((v) => {
       const next = !v;
-      if (next) void startRecRef.current();
-      else void micStopRef.current();
+      if (next) void startLive();
+      else stopLive();
       return next;
     });
-  }, []);
+  }, [startLive, stopLive]);
 
-  useEffect(() => {
-    if (!liveMode) return;
-    let spoke = false;
-    let lastLoud = Date.now();
-    const SILENCE_MS = 700;    // 2026-06-06: 1100→700 — реплика уходит быстрее
-                               // (ИИ начинает отвечать раньше; цель ≤3с)
-    const SPEAK_LVL = 6;       // audioLevel 0-100 — порог «говорят»
-    const id = setInterval(() => {
-      if (!liveModeRef.current) return;
-      // Пока говорит ИИ — мик не пишем (нет эха, нет ИИ в записи юзера).
-      if (ttsSpeakingRef.current) {
-        lastLoud = Date.now();
-        spoke = false;
-        if (recStateRef.current === "recording" && !segmentingRef.current && !startingRef.current) {
-          segmentingRef.current = true;
-          void micStopRef.current().finally(() => { segmentingRef.current = false; });
-        }
-        return;
-      }
-      // ИИ молчит, но запись не идёт (после отправки/паузы ИИ) → возобновляем.
-      if (recStateRef.current !== "recording") {
-        if (!segmentingRef.current && !startingRef.current) void startRecRef.current();
-        return;
-      }
-      // Идёт запись пользователя — следим за концом реплики.
-      if (audioLevelRef.current > SPEAK_LVL) { spoke = true; lastLoud = Date.now(); }
-      if (spoke && Date.now() - lastLoud > SILENCE_MS && !segmentingRef.current) {
-        spoke = false;
-        segmentingRef.current = true;
-        void (async () => {
-          const blob = await micStopRef.current();
-          if (blob) {
-            logger.log("[CALL] live: sending utterance", blob.size, "bytes");
-            sendAudioBlobRef.current?.(blob);   // → backend Whisper → ответ ИИ
-          }
-          segmentingRef.current = false;
-        })();
-      }
-    }, 150);
-    return () => clearInterval(id);
-  }, [liveMode]);
+  // Безопасная очистка при размонтировании / завершении звонка.
+  useEffect(() => () => stopLive(), [stopLive]);
 
   // Kick-start the session on WS ready. The chat flow sends
   // session.start with the REST-created session_id; backend resumes
@@ -1640,7 +1693,7 @@ export default function TrainingCallPage() {
         audioLevel={tts.audioLevel}
         elapsed={s.elapsed}
         muted={muted}
-        userSpeaking={micRecording}
+        userSpeaking={liveListening}
         speakerOn={speakerOn}
         sceneId={sceneBg}
         clientCard={s.clientCard}
@@ -1878,7 +1931,7 @@ export default function TrainingCallPage() {
             }}
           >
             {liveMode
-              ? <Mic size={16} strokeWidth={1.8} className={micRecording ? "animate-pulse" : undefined} />
+              ? <Mic size={16} strokeWidth={1.8} className={liveListening ? "animate-pulse" : undefined} />
               : <MicOff size={16} strokeWidth={1.8} />}
           </button>
 
