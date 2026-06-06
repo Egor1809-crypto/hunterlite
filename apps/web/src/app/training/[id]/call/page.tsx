@@ -1127,7 +1127,6 @@ export default function TrainingCallPage() {
   const liveCtxRef = useRef<AudioContext | null>(null);
   const liveAnalyserRef = useRef<AnalyserNode | null>(null);
   const liveRecorderRef = useRef<MediaRecorder | null>(null);
-  const liveChunksRef = useRef<Blob[]>([]);
   const liveVadRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const liveOnRef = useRef(false);
   const ttsSpeakingRef = useRef(tts.speaking);
@@ -1142,38 +1141,47 @@ export default function TrainingCallPage() {
     : "";
 
   // Запустить новый сегмент записи на УЖЕ открытом stream (без getUserMedia).
+  // 2026-06-06 FIX «Invalid audio format»: у КАЖДОГО рекордера свой локальный
+  // массив чанков + own onstop. Раньше был общий liveChunksRef → финальный
+  // чанк старого рекордера попадал в массив нового сегмента, и blob начинался
+  // с середины потока БЕЗ EBML-заголовка (header 43c38100…) → navy Whisper
+  // отвергал каждый второй блоб. Теперь каждый сегмент — самостоятельный webm.
   const startSegmentRef = useRef<() => void>(() => {});
   startSegmentRef.current = () => {
     const stream = liveStreamRef.current;
     if (!stream || !liveOnRef.current) return;
-    liveChunksRef.current = [];
     const mime = pickMime();
     const rec = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream);
-    rec.ondataavailable = (e) => { if (e.data.size > 0) liveChunksRef.current.push(e.data); };
-    try { rec.start(250); } catch { /* already started */ }
-    liveRecorderRef.current = rec;
-  };
-
-  // Финализировать текущий сегмент → (опц.) отправить → сразу начать следующий.
-  const flushSegmentRef = useRef<(send: boolean) => void>(() => {});
-  flushSegmentRef.current = (send: boolean) => {
-    const rec = liveRecorderRef.current;
-    if (!rec || rec.state === "inactive") { if (send && liveOnRef.current) startSegmentRef.current(); return; }
-    rec.addEventListener("stop", () => {
-      const chunks = liveChunksRef.current;
-      liveChunksRef.current = [];
+    const chunks: Blob[] = [];   // локально для ЭТОГО рекордера — без гонки
+    rec.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
+    rec.onstop = () => {
+      const send = (rec as MediaRecorder & { _send?: boolean })._send === true;
       if (send && chunks.length) {
         const blob = new Blob(chunks, { type: chunks[0]?.type || "audio/webm" });
-        if (blob.size > 1500) {            // отсекаем «пшики» < ~1.5КБ
+        if (blob.size > 1500) {           // отсекаем «пшики» < ~1.5КБ
           logger.log("[CALL] live: sending utterance", blob.size, "bytes");
-          turnT0Ref.current = Date.now();  // старт тайминга хода
+          turnT0Ref.current = Date.now(); // старт тайминга хода
           turnGotChunkRef.current = false;
           turnGotAudioRef.current = false;
           sendAudioBlobRef.current?.(blob); // → backend Whisper → ответ ИИ
         }
       }
-      if (liveOnRef.current) startSegmentRef.current();  // СРАЗУ следующий сегмент, тот же stream
-    }, { once: true });
+      if (liveOnRef.current) startSegmentRef.current(); // следующий сегмент, тот же stream
+    };
+    try { rec.start(250); } catch { /* already started */ }
+    liveRecorderRef.current = rec;
+  };
+
+  // Финализировать текущий сегмент: пометить «отправлять/нет» и остановить —
+  // onstop соберёт blob из СВОИХ чанков и запустит следующий сегмент.
+  const flushSegmentRef = useRef<(send: boolean) => void>(() => {});
+  flushSegmentRef.current = (send: boolean) => {
+    const rec = liveRecorderRef.current as (MediaRecorder & { _send?: boolean }) | null;
+    if (!rec || rec.state === "inactive") {
+      if (send && liveOnRef.current) startSegmentRef.current();
+      return;
+    }
+    rec._send = send;
     try { rec.stop(); } catch { /* */ }
   };
 
