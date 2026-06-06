@@ -12,7 +12,7 @@ import {
   Volume2,
   VolumeX,
   Mic,
-  Keyboard,
+  Square,
   Loader2,
   Target,
   Activity,
@@ -1213,6 +1213,13 @@ export default function TrainingSessionPage() {
     }
   };
 
+  // 2026-06-06: «идёт ли запись прямо сейчас» — для Telegram-стиля микрофона
+  // в строке ввода (без переключения текст/голос).
+  const micRecording =
+    s.micActive ||
+    microphone.recordingState === "recording" ||
+    speech.status === "listening";
+
   const handleContinueSession = () => {
     s.setShowSilenceModal(false);
     sendMessage({ type: "silence.continue", data: {} });
@@ -1489,6 +1496,37 @@ export default function TrainingSessionPage() {
           {/* Text input — always visible at bottom */}
           {s.sessionState === "ready" && (
             <div className="shrink-0" style={{ borderTop: "1px solid var(--border-color)", background: "var(--bg-primary)" }}>
+              {/* 2026-06-06: Telegram-style «идёт запись» — строка над вводом,
+                  пока пишется голосовое. Появляется сразу при тапе по 🎤. */}
+              {micRecording && (
+                <motion.div
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="px-4 py-2 flex items-center gap-2"
+                  style={{ borderBottom: "1px solid var(--border-color)", background: "var(--danger-muted)" }}
+                >
+                  <span className="h-2 w-2 rounded-full shrink-0" style={{ background: "var(--danger)", animation: "pulse 1s infinite" }} />
+                  <span className="text-xs font-medium shrink-0" style={{ color: "var(--danger)" }}>Идёт запись…</span>
+                  {/* live waveform-ish from audioLevel */}
+                  <span className="flex items-end gap-0.5 h-3 flex-1 overflow-hidden">
+                    {[0,1,2,3,4,5,6,7].map((i) => (
+                      <span key={i} className="w-0.5 rounded-full" style={{
+                        background: "var(--danger)",
+                        height: `${20 + ((((microphone.audioLevel || speech.audioLevel || 0) + i * 11) % 80))}%`,
+                        opacity: 0.5,
+                      }} />
+                    ))}
+                  </span>
+                  <button
+                    onClick={handleMicToggle}
+                    className="ml-auto text-xs px-2 py-0.5 rounded shrink-0"
+                    style={{ color: "var(--danger)" }}
+                    title="Остановить и распознать"
+                  >
+                    Готово
+                  </button>
+                </motion.div>
+              )}
               {/* Transcription preview bar */}
               {s.transcription.status === "preview" && s.input.trim() && (
                 <motion.div
@@ -1543,91 +1581,75 @@ export default function TrainingSessionPage() {
                 {/* P0 (training-rework): CRM-link chip + attachment removed —
                     training is persona-driven, not CRM-linked. Input row is now
                     just textarea + send/mic. */}
+                {/* 2026-06-06: Telegram-style ввод — БЕЗ переключения текст/голос.
+                    Всегда поле ввода + кнопка отправки, плюс кнопка микрофона:
+                    тап = сразу запись, тап ещё раз = распознавание (строка
+                    «Распознаю…» появляется над вводом). */}
                 <div className="flex items-end gap-2">
-                  {/* 2026-06-06 (#4): text/voice toggle relocated here from
-                      the (removed-on-desktop) center column. Sits at the head
-                      of the input row; switches the whole input between the
-                      textarea and the hold-to-talk mic. */}
                   <motion.button
-                    onClick={() => {
-                      const goingToText = !s.textMode;
-                      s.setTextMode(goingToText);
-                      if (goingToText) setTimeout(() => textareaRef.current?.focus(), 100);
-                    }}
+                    onClick={handleMicToggle}
                     disabled={s.sessionState !== "ready" || (!s.sttAvailable && !speech.isSupported)}
-                    aria-label={s.textMode ? "Переключить на голосовой режим" : "Переключить на текстовый режим"}
-                    title={s.textMode ? "Голосовой режим" : "Текстовый режим"}
+                    aria-label={micRecording ? "Остановить и распознать" : "Записать голосовое сообщение"}
+                    title={micRecording ? "Идёт запись — нажмите, чтобы распознать" : "Голосовое сообщение"}
                     className="flex h-[44px] w-[44px] shrink-0 items-center justify-center rounded-xl transition-colors"
                     style={{
-                      background: s.textMode ? "var(--bg-tertiary)" : "var(--accent-muted)",
-                      color: s.textMode ? "var(--text-secondary)" : "var(--accent)",
-                      border: "1px solid var(--border-color)",
+                      background: micRecording ? "var(--danger-muted)" : "var(--accent-muted)",
+                      color: micRecording ? "var(--danger)" : "var(--accent)",
+                      border: `1px solid ${micRecording ? "var(--danger)" : "var(--border-color)"}`,
                       opacity: s.sessionState !== "ready" || (!s.sttAvailable && !speech.isSupported) ? 0.4 : 1,
                     }}
                     whileTap={{ scale: 0.95 }}
                   >
-                    {s.textMode ? <Mic size={18} /> : <Keyboard size={18} />}
+                    {micRecording
+                      ? <Square size={15} strokeWidth={2} fill="currentColor" />
+                      : <Mic size={18} />}
                   </motion.button>
 
-                  {s.textMode ? (
-                    <>
-                      <textarea
-                        ref={textareaRef}
-                        value={s.input}
-                        onChange={(e) => s.setInput(e.target.value)}
-                        onKeyDown={handleKeyDown}
-                        placeholder={s.transcription.status === "preview" ? "Редактируйте и нажмите Enter..." : "Введите сообщение..."}
-                        disabled={s.sessionState !== "ready"}
-                        rows={1}
-                        aria-label="Введите сообщение"
-                        /* 2026-04-18: max-h bumped 112 → 240 px so long STT/reply quotes fit */
-                        className="vh-input min-h-[44px] flex-1 resize-none text-sm"
-                        style={{
-                          maxHeight: 240,
-                          ...(s.transcription.status === "preview"
-                            ? { borderColor: "var(--accent)" }
-                            : {}),
-                        }}
-                        onInput={(e) => {
-                          const t = e.target as HTMLTextAreaElement;
-                          t.style.height = "auto";
-                          t.style.height = Math.min(t.scrollHeight, 240) + "px";
-                        }}
-                      />
-                      <motion.button
-                        onClick={() => {
-                          // Clear preview state on send
-                          if (s.transcription.status === "preview") {
-                            s.setTranscription({ status: "idle", partial: "", final: "" });
-                          }
-                          handleSend();
-                        }}
-                        disabled={!s.input.trim() || s.sessionState !== "ready" || connectionState !== "connected" || s.isTyping}
-                        aria-label="Отправить"
-                        className="flex h-[44px] w-[44px] shrink-0 items-center justify-center rounded-xl text-white"
-                        style={{ background: "var(--accent)", opacity: !s.input.trim() || s.sessionState !== "ready" || s.isTyping ? 0.4 : 1 }}
-                        whileTap={{ scale: 0.95 }}
-                      >
-                        {s.isTyping ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
-                      </motion.button>
-                    </>
-                  ) : (
-                    /* Voice mode: hold-to-talk mic fills the input row. */
-                    <div className="flex-1 flex items-center justify-center py-1">
-                      <CrystalMic
-                        mode="toggle"
-                        isRecording={microphone.recordingState === "recording" || speech.status === "listening"}
-                        isProcessing={microphone.recordingState === "processing" || s.transcription.status === "transcribing"}
-                        audioLevel={microphone.audioLevel || speech.audioLevel}
-                        onClick={handleMicToggle}
-                        onTextMode={() => {
-                          s.setTextMode(true);
-                          setTimeout(() => textareaRef.current?.focus(), 100);
-                        }}
-                        disabled={s.sessionState !== "ready" || (!s.sttAvailable && !speech.isSupported)}
-                      />
-                    </div>
-                  )}
+                  <textarea
+                    ref={textareaRef}
+                    value={s.input}
+                    onChange={(e) => s.setInput(e.target.value)}
+                    onKeyDown={handleKeyDown}
+                    placeholder={
+                      micRecording
+                        ? "Идёт запись… нажмите ◼ когда закончите"
+                        : s.transcription.status === "preview"
+                          ? "Редактируйте и нажмите Enter..."
+                          : "Введите сообщение..."
+                    }
+                    disabled={s.sessionState !== "ready" || micRecording}
+                    rows={1}
+                    aria-label="Введите сообщение"
+                    /* 2026-04-18: max-h bumped 112 → 240 px so long STT/reply quotes fit */
+                    className="vh-input min-h-[44px] flex-1 resize-none text-sm"
+                    style={{
+                      maxHeight: 240,
+                      ...(s.transcription.status === "preview"
+                        ? { borderColor: "var(--accent)" }
+                        : {}),
+                    }}
+                    onInput={(e) => {
+                      const t = e.target as HTMLTextAreaElement;
+                      t.style.height = "auto";
+                      t.style.height = Math.min(t.scrollHeight, 240) + "px";
+                    }}
+                  />
+                  <motion.button
+                    onClick={() => {
+                      // Clear preview state on send
+                      if (s.transcription.status === "preview") {
+                        s.setTranscription({ status: "idle", partial: "", final: "" });
+                      }
+                      handleSend();
+                    }}
+                    disabled={!s.input.trim() || s.sessionState !== "ready" || connectionState !== "connected" || s.isTyping}
+                    aria-label="Отправить"
+                    className="flex h-[44px] w-[44px] shrink-0 items-center justify-center rounded-xl text-white"
+                    style={{ background: "var(--accent)", opacity: !s.input.trim() || s.sessionState !== "ready" || s.isTyping ? 0.4 : 1 }}
+                    whileTap={{ scale: 0.95 }}
+                  >
+                    {s.isTyping ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
+                  </motion.button>
                 </div>
               </div>
             </div>
