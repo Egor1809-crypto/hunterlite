@@ -1240,6 +1240,25 @@ export default function TrainingCallPage() {
       try { ttsStopRef.current?.(); } catch { /* */ }
       startSegmentRef.current();
       logger.log("[CALL] live: mic open (continuous)");
+      // 2026-06-06 DIAG: avg=0.0 всегда → трек немой. Логируем состояние
+      // трека и контекста, чтобы понять: нет разрешения macOS / suspended /
+      // не тот девайс.
+      {
+        const tracks = stream.getAudioTracks();
+        const tr = tracks[0];
+        const st = tr?.getSettings?.() || {};
+        logger.log(
+          `[CALL] DIAG mic track: count=${tracks.length} label="${tr?.label ?? "?"}" ` +
+          `enabled=${tr?.enabled} muted=${tr?.muted} readyState=${tr?.readyState} ` +
+          `deviceId=${st.deviceId ?? "?"} channels=${st.channelCount ?? "?"} sr=${st.sampleRate ?? "?"}`,
+        );
+        logger.log("[CALL] DIAG audioCtx", { state: ctx.state, sampleRate: ctx.sampleRate });
+        // повторно дожимаем resume на случай suspended после gesture
+        ctx.resume?.().then(
+          () => logger.log("[CALL] DIAG audioCtx after resume", ctx.state),
+          () => {},
+        );
+      }
 
       // ── VAD-петля (адаптивная под шум микрофона) ──────────────────────
       // 2026-06-06 fix: фиксированный порог (14) был НИЖЕ шумового пола
@@ -1256,16 +1275,24 @@ export default function TrainingCallPage() {
       let floor = 40;               // оценка шумового пола (0-255), адаптируется
       let loudStreak = 0;
       let segStart = Date.now();
+      let vadTick = 0;              // 2026-06-06 DIAG: троттлинг диагностики VAD
       const SILENCE_MS = 450;       // 2026-06-06: 650→450 — меньше «мёртвой» паузы до отправки (бюджет ≤3с)
-      const MARGIN = 12;            // насколько громче фона = «говорят»
+      // 2026-06-06: 12→6. У слабых микрофонов (fifine на низком gain) речь даёт
+      // avg всего ~12-14 при фоне ~1 — порог floor+12≈13 еле дотягивал, speech не
+      // ловился. floor+6≈7 уверенно отделяет речь (12-14) от тишины (0-2).
+      const MARGIN = 6;             // насколько громче фона = «говорят»
       const MAX_SEG_MS = 8000;      // потолок реплики без паузы
       const IDLE_RESET_MS = 1200;   // пока речи нет — сбрасываем тишину каждые 1.2с (короткий пре-ролл)
       const resetSeg = () => { spoke = false; loudStreak = 0; floor = 40; segStart = Date.now(); lastLoud = Date.now(); };
 
       liveVadRef.current = setInterval(() => {
         if (!liveOnRef.current || !liveAnalyserRef.current) return;
+        vadTick += 1;
         // Пока говорит ИИ — не слушаем (и не копим сегмент).
         if (ttsSpeakingRef.current) {
+          // 2026-06-06 DIAG: если этот лог сыпется постоянно, пока ты
+          // говоришь — значит tts.speaking завис true и глушит микрофон.
+          if (vadTick % 10 === 0) logger.log("[CALL] VAD: подавлен TTS (ttsSpeaking=true)");
           spoke = false; loudStreak = 0; lastLoud = Date.now(); prevSpeaking = true;
           setLiveListening(false);
           return;
@@ -1290,9 +1317,21 @@ export default function TrainingCallPage() {
         const isLoud = avg > floor + MARGIN;
         if (isLoud) {
           loudStreak += 1;
-          if (loudStreak >= 2) { spoke = true; lastLoud = Date.now(); } // дебаунс шумовых всплесков
+          // 2026-06-06: 2→1. У слабого микрофона речь проседает между тиками,
+          // 2 громких подряд не набиралось → spoke не выставлялся. 1 тика хватает
+          // (порог уже отделяет речь от тишины), а IDLE_RESET выкидывает шум.
+          if (loudStreak >= 1) { spoke = true; lastLoud = Date.now(); }
         } else {
           loudStreak = 0;
+        }
+        // 2026-06-06 DIAG: реальные уровни микрофона раз в ~1с. Если во время
+        // речи avg НЕ превышает порог (floor+MARGIN) — VAD не видит голос и
+        // реплика не отправляется (порог высок из-за autoGain). Сравни avg в
+        // тишине и когда говоришь.
+        if (vadTick % 10 === 0) {
+          logger.log(
+            `[CALL] VAD: avg=${avg.toFixed(1)} floor=${floor.toFixed(1)} порог=${(floor + MARGIN).toFixed(1)} loud=${isLoud} spoke=${spoke}`,
+          );
         }
         setLiveListening(spoke);
 
