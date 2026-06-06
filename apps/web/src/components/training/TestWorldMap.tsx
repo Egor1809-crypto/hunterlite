@@ -38,8 +38,6 @@ interface Island {
   category: string;
   name: string;
   Icon: LucideIcon;
-  color: string;
-  colorRgb: string;
   levels: number[];
   checkpoint: number | null;
   examId: string | null;
@@ -51,8 +49,6 @@ const ISLANDS: Island[] = [
     category: "eligibility",
     name: "Условия подачи",
     Icon: ClipboardCheck,
-    color: "var(--info)",
-    colorRgb: "59,130,246",
     levels: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
     checkpoint: null,
     examId: null,
@@ -62,8 +58,6 @@ const ISLANDS: Island[] = [
     category: "procedure",
     name: "Порядок процедуры",
     Icon: Landmark,
-    color: "#8B5CF6",
-    colorRgb: "139,92,246",
     levels: [11, 12, 13, 14, 15, 16, 17, 18, 19, 20],
     checkpoint: null,
     examId: null,
@@ -73,8 +67,6 @@ const ISLANDS: Island[] = [
     category: "property",
     name: "Имущество должника",
     Icon: Home,
-    color: "var(--warning)",
-    colorRgb: "245,158,11",
     levels: [21, 22, 23, 24, 25, 26, 27, 28, 29, 30],
     checkpoint: 30,
     examId: "exam-1",
@@ -84,8 +76,6 @@ const ISLANDS: Island[] = [
     category: "consequences",
     name: "Последствия",
     Icon: Scale,
-    color: "var(--danger)",
-    colorRgb: "239,68,68",
     levels: [31, 32, 33, 34, 35, 36, 37, 38, 39, 40],
     checkpoint: null,
     examId: null,
@@ -95,8 +85,6 @@ const ISLANDS: Island[] = [
     category: "costs",
     name: "Стоимость процедуры",
     Icon: Coins,
-    color: "#F59E0B",
-    colorRgb: "245,158,11",
     levels: [41, 42, 43, 44, 45, 46, 47, 48, 49, 50],
     checkpoint: null,
     examId: null,
@@ -106,8 +94,6 @@ const ISLANDS: Island[] = [
     category: "creditors",
     name: "Кредиторы",
     Icon: Users,
-    color: "var(--success)",
-    colorRgb: "34,197,94",
     levels: [51, 52, 53, 54, 55, 56, 57, 58, 59, 60],
     checkpoint: 60,
     examId: "exam-2",
@@ -117,8 +103,6 @@ const ISLANDS: Island[] = [
     category: "documents",
     name: "Документы",
     Icon: FileText,
-    color: "#14B8A6",
-    colorRgb: "20,184,166",
     levels: [61, 62, 63, 64, 65, 66, 67, 68, 69, 70],
     checkpoint: null,
     examId: null,
@@ -128,8 +112,6 @@ const ISLANDS: Island[] = [
     category: "timeline",
     name: "Сроки",
     Icon: Clock,
-    color: "#F97316",
-    colorRgb: "249,115,22",
     levels: [71, 72, 73, 74, 75, 76, 77, 78, 79, 80],
     checkpoint: null,
     examId: null,
@@ -139,8 +121,6 @@ const ISLANDS: Island[] = [
     category: "court",
     name: "Судебные процессы",
     Icon: Gavel,
-    color: "#EC4899",
-    colorRgb: "236,72,153",
     levels: [81, 82, 83, 84, 85, 86, 87, 88, 89, 90],
     checkpoint: 90,
     examId: "exam-3",
@@ -150,8 +130,6 @@ const ISLANDS: Island[] = [
     category: "rights",
     name: "Права должника",
     Icon: ShieldCheck,
-    color: "#6366F1",
-    colorRgb: "99,102,241",
     levels: [91, 92, 93, 94, 95, 96, 97, 98, 99, 100],
     checkpoint: 100,
     examId: "exam-4",
@@ -374,10 +352,10 @@ function getLevelDifficulty(level: number): "easy" | "medium" | "hard" | "expert
 
 function getDifficultyConfig(d: ReturnType<typeof getLevelDifficulty>) {
   switch (d) {
-    case "easy":   return { label: "Базовый",      color: "#22C55E", bg: "rgba(34,197,94,0.1)" };
-    case "medium": return { label: "Средний",       color: "#F59E0B", bg: "rgba(245,158,11,0.1)" };
-    case "hard":   return { label: "Продвинутый",   color: "#EF4444", bg: "rgba(239,68,68,0.1)" };
-    case "expert": return { label: "Экспертный",    color: "#A855F7", bg: "rgba(168,85,247,0.1)" };
+    case "easy":   return { label: "Базовый",      color: "var(--success)", bg: "var(--success-muted)" };
+    case "medium": return { label: "Средний",       color: "var(--warning)", bg: "var(--warning-muted)" };
+    case "hard":   return { label: "Продвинутый",   color: "var(--danger)",  bg: "var(--danger-muted)" };
+    case "expert": return { label: "Экспертный",    color: "var(--primary)", bg: "var(--primary-muted)" };
   }
 }
 
@@ -582,9 +560,9 @@ function RegionBlock({
             background:
               status === "locked"
                 ? "transparent"
-                : `linear-gradient(180deg, color-mix(in srgb, rgb(${island.colorRgb}) ${status === "active" ? 9 : 5}%, var(--surface-card)), var(--surface-card))`,
-            border: `1px solid ${status === "locked" ? "var(--border-color)" : `color-mix(in srgb, rgb(${island.colorRgb}) ${status === "active" ? 38 : 20}%, var(--border-color))`}`,
-            boxShadow: status === "active" ? `0 1px 0 color-mix(in srgb, rgb(${island.colorRgb}) 10%, transparent)` : "none",
+                : `linear-gradient(180deg, color-mix(in srgb, var(--primary) ${status === "active" ? 9 : 5}%, var(--surface-card)), var(--surface-card))`,
+            border: `1px solid ${status === "locked" ? "var(--border-color)" : `color-mix(in srgb, var(--primary) ${status === "active" ? 38 : 20}%, var(--border-color))`}`,
+            boxShadow: status === "active" ? `0 1px 0 color-mix(in srgb, var(--primary) 10%, transparent)` : "none",
           }}
         >
           {/* Region identity tile — colour-coded legal domain */}
@@ -593,31 +571,31 @@ function RegionBlock({
             style={{
               width: status === "active" ? 48 : 40,
               height: status === "active" ? 48 : 40,
-              background: status === "locked" ? "var(--bg-secondary)" : `color-mix(in srgb, rgb(${island.colorRgb}) 16%, var(--surface-card))`,
-              border: `1px solid ${status === "locked" ? "var(--border-color)" : `color-mix(in srgb, rgb(${island.colorRgb}) 32%, transparent)`}`,
+              background: status === "locked" ? "var(--bg-secondary)" : `color-mix(in srgb, var(--primary) 16%, var(--surface-card))`,
+              border: `1px solid ${status === "locked" ? "var(--border-color)" : `color-mix(in srgb, var(--primary) 32%, transparent)`}`,
               opacity: status === "locked" ? 0.55 : 1,
             }}
           >
             <island.Icon
               size={status === "active" ? 24 : 20}
               strokeWidth={1.75}
-              color={status === "locked" ? "var(--text-muted)" : `rgb(${island.colorRgb})`}
+              color={status === "locked" ? "var(--text-muted)" : `var(--primary)`}
             />
           </span>
 
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
-              <span className="font-mono text-[10px] uppercase tracking-[0.16em]" style={{ color: status === "locked" ? "var(--text-muted)" : `rgb(${island.colorRgb})`, opacity: status === "locked" ? 0.6 : 1 }}>
+              <span className="font-mono text-[11px] uppercase tracking-[0.16em]" style={{ color: status === "locked" ? "var(--text-muted)" : `var(--primary)`, opacity: status === "locked" ? 0.6 : 1 }}>
                 {code}
               </span>
               {status === "completed" && (
-                <span className="flex items-center gap-1 font-mono text-[9.5px] font-bold uppercase tracking-[0.1em]" style={{ color: "var(--primary)" }}>
-                  <Check size={10} strokeWidth={3} /> пройден
+                <span className="flex items-center gap-1 font-mono text-[11px] font-semibold uppercase tracking-[0.1em]" style={{ color: "var(--primary)" }}>
+                  <Check size={11} strokeWidth={3} /> пройден
                 </span>
               )}
             </div>
             <h3
-              className="mt-0.5 truncate font-bold tracking-tight"
+              className="mt-0.5 truncate font-semibold tracking-tight"
               style={{
                 color: status === "locked" ? "var(--text-muted)" : "var(--text-primary)",
                 fontSize: status === "active" ? 21 : 16,
@@ -637,12 +615,12 @@ function RegionBlock({
                       <span
                         key={k}
                         className="h-[3px] flex-1 rounded-full"
-                        style={{ background: filled ? `rgb(${island.colorRgb})` : "var(--border-color)", opacity: filled ? 1 : 0.7 }}
+                        style={{ background: filled ? `var(--primary)` : "var(--border-color)", opacity: filled ? 1 : 0.7 }}
                       />
                     );
                   })}
                 </div>
-                <span className="shrink-0 font-mono text-[11px] font-semibold tabular-nums" style={{ color: status === "completed" ? "var(--primary)" : `rgb(${island.colorRgb})` }}>
+                <span className="shrink-0 font-mono text-[11px] font-semibold tabular-nums" style={{ color: status === "completed" ? "var(--primary)" : `var(--primary)` }}>
                   {completedCount}/10
                 </span>
               </div>
@@ -767,13 +745,13 @@ function ExamGate({ index, unlocked, levelsLeft }: { index: number; unlocked: bo
       >
         <div className="min-w-0">
           <div
-            className="font-mono text-[10px] font-bold uppercase tracking-[0.16em]"
+            className="font-mono text-[11px] font-semibold uppercase tracking-[0.16em]"
             style={{ color: unlocked ? "var(--primary)" : "var(--text-muted)" }}
           >
-            Врата · Экзамен {index}
+            Контрольный экзамен {index}
           </div>
           <div className="mt-0.5 text-[11.5px]" style={{ color: "var(--text-secondary)" }}>
-            {unlocked ? "Открыто. Порог — 88%." : `Ещё ${levelsLeft} уровней до врат.`}
+            {unlocked ? "Открыт. Порог — 88%." : `Ещё ${levelsLeft} уровней.`}
           </div>
         </div>
         {unlocked && <ArrowRight size={15} style={{ color: "var(--primary)" }} />}
@@ -812,7 +790,7 @@ function CertificateSummit({ completed, total, energy }: { completed: number; to
 
       <div className="min-w-0 flex-1">
         <div className="flex items-baseline gap-2">
-          <span className="text-[15px] font-bold tracking-tight" style={{ color: "var(--text-primary)" }}>
+          <span className="text-[15px] font-semibold tracking-tight" style={{ color: "var(--text-primary)" }}>
             Сертификат
           </span>
           <span className="font-mono text-[11px] tabular-nums" style={{ color: "var(--text-muted)" }}>
@@ -820,7 +798,7 @@ function CertificateSummit({ completed, total, energy }: { completed: number; to
           </span>
         </div>
         <p className="mt-0.5 truncate text-[11.5px]" style={{ color: "var(--text-muted)" }}>
-          {earned ? "Открыт — заберите свой сертификат." : `${completed} из ${total} — сертификат ждёт.`}
+          {earned ? "Открыт — заберите сертификат." : `${completed} из ${total} уровней пройдено.`}
         </p>
         {/* single hairline progress — the only bar on the screen */}
         <div className="mt-2 h-[3px] w-full overflow-hidden rounded-full" style={{ background: "var(--border-color)" }}>
@@ -836,9 +814,9 @@ function CertificateSummit({ completed, total, energy }: { completed: number; to
 
       <div className="hidden shrink-0 text-right sm:block">
         <div className="font-mono text-[12px] font-semibold tabular-nums" style={{ color: energy.remaining > 0 ? "var(--primary)" : "var(--warning)" }}>
-          ⚡ {energy.remaining}/{DAILY_ENERGY}
+          {energy.remaining}/{DAILY_ENERGY}
         </div>
-        <div className="mt-0.5 text-[10px]" style={{ color: "var(--text-muted)" }}>энергия</div>
+        <div className="mt-0.5 font-mono text-[11px] uppercase tracking-[0.14em]" style={{ color: "var(--text-muted)" }}>лимит сегодня</div>
       </div>
     </div>
   );
@@ -932,9 +910,9 @@ function LevelDetailModal({
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
     >
-      <div className="absolute inset-0 bg-[#18131D]/55 backdrop-blur-md" onClick={onClose} />
+      <div className="absolute inset-0 backdrop-blur-md" style={{ background: "var(--overlay-bg)" }} onClick={onClose} />
       <motion.div
-        className="relative w-full max-w-sm overflow-hidden rounded-[28px]"
+        className="relative w-full max-w-sm overflow-hidden rounded-2xl"
         style={{
           background: "var(--surface-card)",
           border: "1px solid var(--border-color)",
@@ -963,15 +941,15 @@ function LevelDetailModal({
           <div className="flex items-start gap-4">
             <div
               className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl"
-              style={{ background: `color-mix(in srgb, rgb(${island.colorRgb}) 16%, var(--surface-card))`, border: `1px solid color-mix(in srgb, rgb(${island.colorRgb}) 32%, transparent)` }}
+              style={{ background: `color-mix(in srgb, var(--primary) 16%, var(--surface-card))`, border: `1px solid color-mix(in srgb, var(--primary) 32%, transparent)` }}
             >
-              <island.Icon size={22} strokeWidth={1.75} color={`rgb(${island.colorRgb})`} />
+              <island.Icon size={22} strokeWidth={1.75} color={`var(--primary)`} />
             </div>
             <div className="min-w-0 pt-0.5">
-              <div className="text-[10.5px] font-semibold uppercase tracking-[0.22em]" style={{ color: `rgb(${island.colorRgb})` }}>
+              <div className="text-[11px] font-semibold uppercase tracking-[0.2em]" style={{ color: `var(--primary)` }}>
                 {island.name}
               </div>
-              <h3 className="mt-1 text-[26px] font-bold leading-none tracking-tight" style={{ color: "var(--text-primary)" }}>
+              <h3 className="mt-1 text-[26px] font-semibold leading-none tracking-tight" style={{ color: "var(--text-primary)" }}>
                 Уровень {state.level}
               </h3>
             </div>
@@ -1048,7 +1026,6 @@ function LevelDetailModal({
                 used={state.attempts}
                 baseMax={MAX_ATTEMPTS}
                 bonus={bonusAttempts}
-                colorRgb={island.colorRgb}
                 onPurchase={() => onPurchase(5)}
                 packSize={5}
               />

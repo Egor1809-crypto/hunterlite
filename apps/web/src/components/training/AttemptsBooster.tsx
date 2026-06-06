@@ -39,8 +39,6 @@ interface AttemptsBoosterProps {
   baseMax: number;
   /** Докупленные сегодня попытки (буст). */
   bonus: number;
-  /** Цвет острова — для акцентов, в формате "r,g,b". */
-  colorRgb: string;
   /** Вызывается при подтверждении докупки. Должен зарезолвиться, когда буст применён. */
   onPurchase: () => Promise<void> | void;
   /** Размер пакета докупки. */
@@ -84,7 +82,6 @@ export function AttemptsBooster({
   used,
   baseMax,
   bonus,
-  colorRgb,
   onPurchase,
   packSize = 5,
 }: AttemptsBoosterProps) {
@@ -159,10 +156,10 @@ export function AttemptsBooster({
               className="h-1.5 flex-1 rounded-full"
               style={{
                 background: filled
-                  ? `rgb(${colorRgb})`
+                  ? `var(--primary)`
                   : C.border,
                 // докупленные пункты слегка выделяем
-                boxShadow: filled && i >= baseMax ? `0 0 8px rgba(${colorRgb},0.6)` : "none",
+                boxShadow: filled && i >= baseMax ? `0 0 8px color-mix(in srgb, var(--primary) 60%, transparent)` : "none",
               }}
             />
           ))}
@@ -212,9 +209,9 @@ export function AttemptsBooster({
             animate={{ opacity: 1, scale: 1 }}
             className="flex items-center justify-center gap-2 rounded-xl px-3 py-3 text-center text-[13px] font-bold"
             style={{
-              background: `rgba(${colorRgb},0.1)`,
-              border: `1px solid rgba(${colorRgb},0.3)`,
-              color: `rgb(${colorRgb})`,
+              background: `color-mix(in srgb, var(--primary) 10%, transparent)`,
+              border: `1px solid color-mix(in srgb, var(--primary) 30%, transparent)`,
+              color: `var(--primary)`,
             }}
           >
             <Send size={15} /> Открыли Telegram — заберите попытки там
@@ -227,16 +224,16 @@ export function AttemptsBooster({
             exit={{ opacity: 0 }}
             className="overflow-hidden rounded-xl"
             style={{
-              background: `linear-gradient(135deg, rgba(${colorRgb},0.10), rgba(${colorRgb},0.03))`,
-              border: `1px solid rgba(${colorRgb},0.25)`,
+              background: `linear-gradient(135deg, color-mix(in srgb, var(--primary) 10%, transparent), color-mix(in srgb, var(--primary) 3%, transparent))`,
+              border: `1px solid color-mix(in srgb, var(--primary) 25%, transparent)`,
             }}
           >
             <div className="flex items-center gap-3 p-3.5">
               <div
                 className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
-                style={{ background: `rgba(${colorRgb},0.14)` }}
+                style={{ background: `color-mix(in srgb, var(--primary) 14%, transparent)` }}
               >
-                <Sparkles size={18} style={{ color: `rgb(${colorRgb})` }} />
+                <Sparkles size={18} style={{ color: `var(--primary)` }} />
               </div>
               <div className="min-w-0 flex-1">
                 <div className="text-sm font-bold" style={{ color: C.textPrimary }}>
@@ -252,7 +249,7 @@ export function AttemptsBooster({
               disabled={buying}
               className="flex w-full items-center justify-center gap-2 py-3 text-sm font-bold transition-all hover:brightness-105 disabled:opacity-60"
               style={{
-                background: `rgb(${colorRgb})`,
+                background: `var(--primary)`,
                 color: "#fff",
               }}
             >
