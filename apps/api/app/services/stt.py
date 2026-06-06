@@ -269,6 +269,28 @@ async def _transcribe_whisper(
 
     text = _postprocess_bfl_terms(text)
 
+    # 2026-06-06: фильтр галлюцинаций Whisper. На тишине/шуме whisper-1 (обучен
+    # на субтитрах) выдаёт мусор-артефакты: «Редактор субтитров …», «Продолжение
+    # следует», «Спасибо за просмотр», «Подписывайтесь», amara.org и т.п. Раньше
+    # это уходило в LLM и ИИ-клиент путался («Какие субтитры?!»). Чистим в пустую
+    # строку. Плюс: если на сверхкоротком аудио (<0.6с) «распозналось» 4+ слова —
+    # это физически невозможно → тоже галлюцинация (но «Да»/«Нет» не трогаем).
+    if text:
+        _low = text.lower()
+        _markers = (
+            "субтитр", "субтитл", "корректор", "редактор субтитров",
+            "продолжение следует", "спасибо за просмотр", "подписыва",
+            "ставьте лайк", "amara.org", "dziękuję", "дякую за перегляд",
+        )
+        _too_dense = audio_duration_sec and audio_duration_sec < 0.6 and len(text.split()) >= 4
+        if any(m in _low for m in _markers) or _too_dense:
+            logger.info(
+                "stt: dropped likely Whisper hallucination: %r (dur=%.2fs)",
+                text[:70], audio_duration_sec,
+            )
+            text = ""
+            confidence = 0.0
+
     return STTResult(
         text=text,
         confidence=round(confidence, 3),

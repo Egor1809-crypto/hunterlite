@@ -3000,8 +3000,14 @@ async def generate_response_stream(
 
     # Build system prompt (same logic as generate_response, including A/B test)
     full_system = system_prompt
-    _lorebook_ab_stream = settings.use_lorebook
-    if not _lorebook_ab_stream and user_id:
+    # 2026-06-06 (latency ≤4с): для LIVE-roleplay (звонок/чат) НЕ гоняем
+    # lorebook-RAG — персона целиком уже в system_prompt от WS-хендлера, а
+    # быстрая persona-модель (gemini) держит большой контекст. Эмбеддинг-поиск
+    # добавлял ~0.5-0.7с к КАЖДОМУ ходу. Точность роли не страдает (досье
+    # клиента и так в промте). Для не-roleplay (judge/coach/etc.) — как было.
+    _skip_lorebook = task_type == "roleplay"
+    _lorebook_ab_stream = settings.use_lorebook and not _skip_lorebook
+    if not _lorebook_ab_stream and user_id and not _skip_lorebook:
         _uid_hash = hash(str(user_id)) % 100
         _lorebook_ab_stream = _uid_hash < 50
     if character_prompt_path and _lorebook_ab_stream:
