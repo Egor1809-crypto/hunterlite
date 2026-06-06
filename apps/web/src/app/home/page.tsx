@@ -3,20 +3,13 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import type { ReactNode } from "react";
 import {
   ArrowRight,
-  Award,
   BadgeCheck,
-  CalendarDays,
-  CheckCircle2,
-  CircleGauge,
   FolderOpen,
   LibraryBig,
   ListChecks,
-  Loader2,
   MessageCircle,
-  Sparkles,
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import AuthLayout from "@/components/layout/AuthLayout";
@@ -200,7 +193,7 @@ export default function HomePage() {
               <p className="mb-4 font-mono text-[11px] font-semibold uppercase tracking-[0.18em]" style={{ color: "var(--text-secondary)" }}>
                 {getTimeGreeting()}
               </p>
-              <h1 className="max-w-3xl font-semibold leading-[0.86] tracking-[-0.07em]" style={{ color: "var(--text-primary)", fontSize: "clamp(3.25rem, 7vw, 6rem)" }}>
+              <h1 className="max-w-3xl font-display font-semibold leading-[0.95] tracking-[-0.045em]" style={{ color: "var(--text-primary)", fontSize: "clamp(3.25rem, 7vw, 5.5rem)" }}>
                 {firstName}
               </h1>
               <p className="mt-5 max-w-xl text-lg leading-snug" style={{ color: "var(--text-secondary)" }}>
@@ -243,7 +236,6 @@ export default function HomePage() {
             />
             <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
               {stages.map((stage, index) => {
-                const Icon = stage.icon;
                 const value = progress[stage.key] ?? 0;
                 const isActive = index === activeStage;
                 const done = value >= 100;
@@ -254,22 +246,15 @@ export default function HomePage() {
                       accentTop={isActive}
                       style={{
                         borderColor: isActive ? "var(--primary)" : "var(--border-color)",
-                        background: isActive ? "var(--primary-muted)" : "var(--surface-card)",
+                        background: "var(--surface-card)",
                         height: "100%",
                       }}
                     >
                       <div className="mb-7 flex items-center justify-between">
-                        <span
-                          className="flex h-10 w-10 items-center justify-center rounded-xl"
-                          style={{
-                            border: `1px solid ${done ? "var(--success)" : "var(--border-color)"}`,
-                            color: done ? "var(--success)" : "var(--primary)",
-                            background: "var(--bg-secondary)",
-                          }}
-                        >
-                          {done ? <CheckCircle2 size={18} strokeWidth={1.75} /> : <Icon size={18} strokeWidth={1.75} />}
+                        <span className="font-mono text-[12px] tabular-nums tracking-[0.2em]" style={{ color: "var(--text-muted)" }}>
+                          {String(index + 1).padStart(2, "0")}
                         </span>
-                        <span className="font-mono text-[12px] font-semibold tabular-nums" style={{ color: "var(--text-muted)" }}>{value}%</span>
+                        <span className="font-mono text-[12px] font-semibold tabular-nums" style={{ color: done ? "var(--primary)" : "var(--text-muted)" }}>{value}%</span>
                       </div>
                       <h3 className="text-lg font-semibold tracking-tight" style={{ color: "var(--text-primary)" }}>{stage.title}</h3>
                       <div className="mt-4 h-1 overflow-hidden rounded-full" style={{ background: "var(--border-color)" }}>
@@ -285,24 +270,24 @@ export default function HomePage() {
           {/* ── Действия ── */}
           <section className="mb-12 grid gap-4 lg:grid-cols-3">
             <ActionCard
+              eyebrow="Практика"
               title={waitingClient ? "Входящий клиент" : "Тренировочный клиент"}
-              text={waitingClient ? `${waitingClient.full_name}, ${waitingClient.city}. Долг ${(waitingClient.total_debt / 1000).toFixed(0)} тыс. ₽` : "Короткая консультация с AI-клиентом."}
-              icon={<MessageCircle size={22} strokeWidth={1.75} />}
+              text={waitingClient ? `${waitingClient.full_name}, ${waitingClient.city}. Долг ${(waitingClient.total_debt / 1000).toFixed(0)} тыс. ₽` : "Короткая консультация: входящий должник."}
               action={starting ? "Запускаем…" : "Начать"}
               onClick={quickStart}
               disabled={starting}
             />
             <ActionCard
+              eyebrow="Тест"
               title="Тест по теме"
-              text="Спокойная проверка знаний — без лишнего визуального шума."
-              icon={<ListChecks size={22} strokeWidth={1.75} />}
+              text="Короткие вопросы по теме. Десять минут — и видно, где провал."
               href="/training"
               action="Открыть тесты"
             />
             <ActionCard
+              eyebrow="Кейс"
               title="Разбор кейса"
               text="Дело с решениями, последствиями и экспертным отчётом."
-              icon={<FolderOpen size={22} strokeWidth={1.75} />}
               href="/cases"
               action="К кейсам"
             />
@@ -311,20 +296,14 @@ export default function HomePage() {
           {/* ── Метрики + Следующий шаг ── */}
           <section className="grid gap-4 lg:grid-cols-[1fr_360px]">
             <div className="grid gap-4 sm:grid-cols-2">
-              <MetricCard label="Сессий" value={stats?.total_sessions ?? 0} loading={loading} icon={<CircleGauge size={18} strokeWidth={1.75} />} />
-              <MetricCard label="Средний балл" value={stats?.average_score ?? 0} suffix="%" loading={loading} icon={<ListChecks size={18} strokeWidth={1.75} />} />
-              <MetricCard label="Лучший результат" value={stats?.best_score ?? 0} suffix="%" loading={loading} icon={<Award size={18} strokeWidth={1.75} />} />
-              <MetricCard label="За неделю" value={stats?.this_week_sessions ?? 0} loading={loading} icon={<CalendarDays size={18} strokeWidth={1.75} />} />
+              <MetricCard label="Сессий" value={stats?.total_sessions ?? 0} loading={loading} />
+              <MetricCard label="Средний балл" value={stats?.average_score ?? 0} suffix="%" loading={loading} />
+              <MetricCard label="Лучший результат" value={stats?.best_score ?? 0} suffix="%" loading={loading} />
+              <MetricCard label="За неделю" value={stats?.this_week_sessions ?? 0} loading={loading} />
             </div>
 
             <Card accentTop className="flex flex-col">
-              <div
-                className="flex h-10 w-10 items-center justify-center rounded-xl text-white"
-                style={{ background: "var(--primary)" }}
-              >
-                {loading ? <Loader2 size={18} className="animate-spin" /> : <Sparkles size={18} />}
-              </div>
-              <p className="mt-7 font-mono text-[11px] font-semibold uppercase tracking-[0.16em]" style={{ color: "var(--text-secondary)" }}>
+              <p className="font-mono text-[11px] font-semibold uppercase tracking-[0.16em]" style={{ color: "var(--text-secondary)" }}>
                 Следующий шаг
               </p>
               <h2 className="mt-3 text-2xl font-semibold tracking-tight" style={{ color: "var(--text-primary)" }}>
@@ -353,7 +332,7 @@ export default function HomePage() {
 function ActionCard({
   title,
   text,
-  icon,
+  eyebrow,
   action,
   href,
   onClick,
@@ -361,7 +340,7 @@ function ActionCard({
 }: {
   title: string;
   text: string;
-  icon: ReactNode;
+  eyebrow: string;
   action: string;
   href?: string;
   onClick?: () => void;
@@ -370,13 +349,10 @@ function ActionCard({
   const inner = (
     <>
       <div className="flex items-start justify-between gap-4">
-        <span
-          className="flex h-12 w-12 items-center justify-center rounded-xl"
-          style={{ border: "1px solid var(--border-color)", background: "var(--bg-secondary)", color: "var(--primary)" }}
-        >
-          {icon}
+        <span className="font-mono text-[11px] uppercase tracking-[0.16em]" style={{ color: "var(--text-muted)" }}>
+          {eyebrow}
         </span>
-        <ArrowRight size={18} style={{ color: "var(--text-muted)" }} />
+        <ArrowRight size={18} className="transition-transform group-hover:translate-x-0.5" style={{ color: "var(--text-muted)" }} />
       </div>
       <h3 className="mt-7 text-2xl font-semibold tracking-tight" style={{ color: "var(--text-primary)" }}>{title}</h3>
       <p className="mt-2 text-[15px] leading-snug" style={{ color: "var(--text-secondary)" }}>{text}</p>
@@ -386,7 +362,7 @@ function ActionCard({
 
   if (href) {
     return (
-      <Link href={href} className="block no-underline">
+      <Link href={href} className="group block no-underline">
         <Card variant="interactive" style={{ height: "100%" }}>{inner}</Card>
       </Link>
     );
@@ -395,6 +371,7 @@ function ActionCard({
   return (
     <Card
       variant="interactive"
+      className="group"
       onClick={onClick}
       role="button"
       tabIndex={disabled ? -1 : 0}
@@ -417,25 +394,15 @@ function MetricCard({
   value,
   suffix,
   loading,
-  icon,
 }: {
   label: string;
   value: number;
   suffix?: string;
   loading?: boolean;
-  icon: ReactNode;
 }) {
   return (
     <Card>
-      <div className="flex items-center justify-between">
-        <span
-          className="flex h-10 w-10 items-center justify-center rounded-xl"
-          style={{ background: "var(--bg-secondary)", color: "var(--primary)" }}
-        >
-          {icon}
-        </span>
-        <span className="font-mono text-[11px] font-semibold uppercase tracking-[0.12em]" style={{ color: "var(--text-muted)" }}>{label}</span>
-      </div>
+      <span className="font-mono text-[11px] font-semibold uppercase tracking-[0.12em]" style={{ color: "var(--text-muted)" }}>{label}</span>
       <div className="mt-7 font-mono text-[44px] font-semibold leading-none tabular-nums" style={{ color: "var(--text-primary)" }}>
         {loading ? <Skeleton width={64} height={40} rounded="8px" /> : <>{value}{suffix ?? ""}</>}
       </div>
