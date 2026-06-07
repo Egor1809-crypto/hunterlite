@@ -39,12 +39,15 @@
   --ocean-muted: rgba(139, 92, 246, 0.09);
 
   /* ── Accent ─────────────────────────────────────────── */
-  --accent: #8B5CF6;
-  --accent-hover: #7C3AED;
-  --accent-muted: rgba(139, 92, 246, 0.10);
-  --accent-glow: rgba(139, 92, 246, 0.18);
-  --magenta: #8B5CF6;
-  --magenta-muted: rgba(139, 92, 246, 0.10);
+  /* 2026-06-06 (Phase 0): сведено к ОДНОМУ пурпуру == --primary (#7C3AED).
+     Раньше --accent (#8B5CF6) и --primary (#7C3AED) были разными оттенками —
+     старт/чат/результаты выглядели как два разных фиолетовых. Теперь один. */
+  --accent: #7C3AED;
+  --accent-hover: #6D28D9;
+  --accent-muted: rgba(124, 58, 237, 0.10);
+  --accent-glow: rgba(124, 58, 237, 0.18);
+  --magenta: #7C3AED;
+  --magenta-muted: rgba(124, 58, 237, 0.10);
 
   /* ── Semantic ───────────────────────────────────────── */
   --success: #16A34A;
@@ -160,10 +163,11 @@
   --ocean-hover: #2563EB;
   --ocean-muted: rgba(59, 130, 246, 0.12);
 
-  --accent: #3B82F6;
-  --accent-hover: #2563EB;
-  --accent-muted: rgba(59, 130, 246, 0.12);
-  --accent-glow: rgba(59, 130, 246, 0.30);
+  /* 2026-06-06 (Phase 0): dark — accent == primary (#2563EB), один оттенок. */
+  --accent: #2563EB;
+  --accent-hover: #1D4ED8;
+  --accent-muted: rgba(37, 99, 235, 0.12);
+  --accent-glow: rgba(37, 99, 235, 0.30);
   --magenta: #A78BFA;
   --magenta-muted: rgba(167, 139, 250, 0.12);
 
@@ -694,8 +698,13 @@ html.light main [role="button"] {
 
   /* ── Panel System ──────────────────────────────────────── */
 
-  /* Primary: clean card with subtle shadow */
-  .glass-panel {
+  /* Primary: clean card with subtle shadow.
+     2026-06-06 (Phase 0): `.cyber-card` раньше НЕ существовал в CSS — карточки
+     ScoreLayersBreakdown/weak-legal/ReplayModal рендерились без фона/границы.
+     Делаем его алиасом канонической карточки (тот же editorial-surface), пока
+     компоненты не переведены на <Card>. */
+  .glass-panel,
+  .cyber-card {
     background: var(--surface-card);
     border: 1px solid var(--border-color);
     border-radius: var(--radius-lg);
