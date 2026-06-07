@@ -7,8 +7,6 @@ import { motion } from "framer-motion";
 import {
   ArrowRight,
   Home,
-  MessageSquare,
-  TrendingUp,
   Loader2,
   AlertCircle,
   AlertTriangle,
@@ -46,6 +44,7 @@ import CallDroppedCard, { type CallDroppedReason } from "@/components/results/Ca
 import { BackButton } from "@/components/ui/BackButton";
 import { Button } from "@/components/ui/Button";
 import { Breadcrumb } from "@/components/ui/Breadcrumb";
+import { SectionHeader } from "@/components/ui/SectionHeader";
 import { EMOTION_MAP, type EmotionState, type ChatMessage, type SessionResultResponse } from "@/types";
 import { logger } from "@/lib/logger";
 
@@ -598,9 +597,9 @@ export default function ResultsPage() {
                 className="glass-panel rounded-2xl p-6 md:p-8 flex-1 flex flex-col relative overflow-hidden"
               >
 
-                <h2 className="font-display text-lg tracking-widest flex items-center gap-2 border-b pb-3 z-10 mb-6" style={{ color: "var(--text-primary)", borderColor: "var(--border-color)" }}>
-                  <TrendingUp size={18} style={{ color: "var(--primary)" }} /> ЭМОЦИИ ПО ВРЕМЕНИ
-                </h2>
+                <div className="border-b pb-4 mb-6 relative z-10" style={{ borderColor: "var(--border-color)" }}>
+                  <SectionHeader code="Динамика" title="Настроение клиента" />
+                </div>
 
                 <div className="flex-1 w-full relative z-10">
                   <EmotionTimeline
@@ -697,11 +696,11 @@ export default function ResultsPage() {
             Юзер видит свой диалог на 2-м экране вместо 20-го. */}
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.45 }} className="glass-panel mt-6 p-6 rounded-2xl">
           <div className="mb-3 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <MessageSquare size={14} style={{ color: "var(--text-muted)" }} />
-              <p className="font-mono text-sm uppercase tracking-widest" style={{ color: "var(--text-muted)" }}>
-                ДИАЛОГ ({messages.length} сообщ.)
-              </p>
+            <div className="min-w-0">
+              <div className="font-mono uppercase" style={{ fontSize: 11, letterSpacing: "0.14em", color: "var(--text-muted)" }}>
+                Стенограмма
+              </div>
+              <h2 className="t-section-title" style={{ marginTop: 6 }}>Диалог · {messages.length} сообщ.</h2>
             </div>
             <div className="flex items-center gap-2">
               <motion.button
@@ -851,10 +850,10 @@ export default function ResultsPage() {
                 <BookOpen size={18} style={{ color: "var(--danger)" }} />
               </div>
               <div className="flex-1">
-                <div className="flex items-center gap-2 mb-1">
-                  <AlertTriangle size={12} style={{ color: "var(--danger)" }} />
-                  <span className="font-mono text-xs uppercase tracking-widest" style={{ color: "var(--danger)" }}>СЛАБЫЕ МЕСТА ПО ФЗ-127</span>
+                <div className="font-mono uppercase mb-1" style={{ fontSize: 11, letterSpacing: "0.14em", color: "var(--text-muted)" }}>
+                  ФЗ-127
                 </div>
+                <div className="t-section-title mb-1" style={{ fontSize: 16 }}>Слабые места</div>
                 <p className="text-sm mb-3" style={{ color: "var(--text-secondary)" }}>
                   Ваша юридическая точность ниже нормы. Подтяните знания в этих категориях:
                 </p>

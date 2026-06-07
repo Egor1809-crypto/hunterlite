@@ -1,7 +1,8 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Check, X, ArrowRight } from "lucide-react";
+import { Check, X } from "lucide-react";
+import { SectionHeader } from "@/components/ui/SectionHeader";
 import { Warning, PhoneDisconnect, Lightbulb } from "@phosphor-icons/react";
 
 /** Этапы юридической консультации по ФЗ-127 (P3 training-rework).
@@ -137,13 +138,9 @@ export default function StageBreakdown({
       animate={{ opacity: 1, y: 0 }}
       className="glass-panel rounded-2xl p-6 md:p-8"
     >
-      <h2
-        className="font-display text-lg tracking-widest flex items-center gap-2 border-b pb-3 mb-6"
-        style={{ color: "var(--text-primary)", borderColor: "var(--border-color)" }}
-      >
-        <ArrowRight size={18} style={{ color: "var(--accent)" }} />
-        ЭТАПЫ КОНСУЛЬТАЦИИ
-      </h2>
+      <div className="border-b pb-4 mb-6" style={{ borderColor: "var(--border-color)" }}>
+        <SectionHeader code="Скрипт" title="Этапы консультации" />
+      </div>
 
       {/* Stage timeline */}
       <div className="space-y-2">

@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Gavel } from "lucide-react";
+import { SectionHeader } from "@/components/ui/SectionHeader";
 import type {
   JudgeFlagItem,
   JudgeStrengthItem,
@@ -96,12 +96,9 @@ export default function JudgeVerdictCard({ judge, onJumpToMessage }: JudgeVerdic
         style={{ background: `linear-gradient(90deg, transparent, ${meta.color}, transparent)` }}
       />
 
-      <h2
-        className="font-display text-lg tracking-widest flex items-center gap-2 border-b pb-3 mb-5"
-        style={{ color: "var(--text-primary)", borderColor: "var(--border-color)" }}
-      >
-        <Gavel size={18} style={{ color: meta.color }} /> ВЕРДИКТ AI-СУДЬИ
-      </h2>
+      <div className="border-b pb-4 mb-5" style={{ borderColor: "var(--border-color)" }}>
+        <SectionHeader code="AI-разбор" title="Вердикт" />
+      </div>
 
       {/* Top row: verdict badge + score adjust */}
       <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
@@ -174,8 +171,8 @@ export default function JudgeVerdictCard({ judge, onJumpToMessage }: JudgeVerdic
               })}
             </div>
           ) : (
-            <span className="text-xs" style={{ color: "var(--text-muted)" }}>
-              —
+            <span className="text-sm" style={{ color: "var(--text-muted)" }}>
+              Судья ничего не выделил.
             </span>
           )}
         </div>
@@ -218,8 +215,8 @@ export default function JudgeVerdictCard({ judge, onJumpToMessage }: JudgeVerdic
               })}
             </div>
           ) : (
-            <span className="text-xs" style={{ color: "var(--text-muted)" }}>
-              —
+            <span className="text-sm" style={{ color: "var(--text-muted)" }}>
+              Судья ничего не выделил.
             </span>
           )}
         </div>
