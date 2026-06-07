@@ -5,8 +5,9 @@ import { useRouter } from "next/navigation";
 import { logger } from "@/lib/logger";
 
 import { useNotificationStore } from "@/stores/useNotificationStore";
-import { Loader2, Lock, MessageCircle, Phone, ChevronLeft, ArrowRight } from "lucide-react";
+import { Loader2, Lock, MessageCircle, Phone, ChevronLeft, ArrowRight, Users, SearchX, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/Button";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { OnboardingHint } from "@/components/ui/OnboardingHint";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/Select";
 import { api, ApiError } from "@/lib/api";
@@ -243,20 +244,13 @@ export default function CharacterBuilder({ onGoToTests }: CharacterBuilderProps)
   // ─── Render: locked ───
   if (!unlocked) {
     return (
-      <div className="mx-auto max-w-md text-center py-16 px-4">
-        <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-2xl" style={{ background: "var(--primary-muted)", border: "1px solid var(--border-color)" }}>
-          <Lock size={26} style={{ color: "var(--brand-logo-hunter)" }} />
-        </div>
-        <h2 className="font-display text-xl font-bold" style={{ color: "var(--text-primary)" }}>Практика пока закрыта</h2>
-        <p className="mt-3 text-sm leading-relaxed" style={{ color: "var(--text-muted)" }}>
-          {unlockHint || "Пройдите регион «Условия подачи» (10 уровней теста), чтобы открыть практику с клиентом."}
-        </p>
-        <div className="mt-6">
-          <Button variant="primary" size="sm" onClick={() => { if (onGoToTests) onGoToTests(); else router.push("/training?tab=tests"); }}>
-            Перейти к тестам
-          </Button>
-        </div>
-      </div>
+      <EmptyState
+        icon={Lock}
+        title="Практика пока закрыта"
+        description={unlockHint || "Пройдите регион «Условия подачи» (10 уровней теста), чтобы открыть практику с клиентом."}
+        actionLabel="Перейти к тестам"
+        onAction={() => { if (onGoToTests) onGoToTests(); else router.push("/training?tab=tests"); }}
+      />
     );
   }
 
@@ -339,26 +333,32 @@ export default function CharacterBuilder({ onGoToTests }: CharacterBuilderProps)
             </div>
           )}
 
-          {/* Действия */}
-          <div className="mt-9 flex flex-wrap items-center gap-3">
-            <Button
-              variant="primary"
-              onClick={() => handleStart("chat")}
-              disabled={startingMode !== null}
-              loading={startingMode === "chat"}
-              icon={<MessageCircle size={16} />}
-            >
-              Чат
-            </Button>
-            <Button
-              onClick={() => handleStart("call")}
-              disabled={startingMode !== null}
-              loading={startingMode === "call"}
-              icon={<Phone size={16} />}
-              style={{ borderColor: "var(--accent)", color: "var(--accent)", background: "var(--accent-muted)" }}
-            >
-              Звонок
-            </Button>
+          {/* Действия — единая иерархия: чат основной (filled), звонок
+              второстепенный (outlined). Подпись поясняет разницу режимов. */}
+          <div className="mt-9">
+            <div className="flex flex-wrap items-center gap-3">
+              <Button
+                variant="primary"
+                onClick={() => handleStart("chat")}
+                disabled={startingMode !== null}
+                loading={startingMode === "chat"}
+                icon={<MessageCircle size={16} />}
+              >
+                Начать чат
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={() => handleStart("call")}
+                disabled={startingMode !== null}
+                loading={startingMode === "call"}
+                icon={<Phone size={16} />}
+              >
+                Позвонить
+              </Button>
+            </div>
+            <p className="mt-3 text-xs leading-relaxed" style={{ color: "var(--text-muted)" }}>
+              Чат — текстовая консультация в своём темпе. Звонок — голосовой разговор в реальном времени.
+            </p>
           </div>
         </div>
       </div>
@@ -403,7 +403,7 @@ export default function CharacterBuilder({ onGoToTests }: CharacterBuilderProps)
           },
           {
             title: "Завершите и посмотрите разбор",
-            body: "После «Завершить разговор» откроется оценка: правовая точность по ФЗ-127, полнота выяснения обстоятельств, корректность рекомендаций и работа с сомнениями клиента.",
+            body: "Когда закончите приём, откроется разбор: правовая точность по ФЗ-127, полнота выяснения обстоятельств, корректность рекомендаций и работа с сомнениями клиента.",
           },
         ]}
       >
@@ -464,15 +464,31 @@ export default function CharacterBuilder({ onGoToTests }: CharacterBuilderProps)
       )}
 
       {loadError && (
-        <div className="rounded-xl p-4 text-sm" style={{ background: "var(--danger-muted)", color: "var(--danger)" }}>
-          {loadError}
-        </div>
+        <EmptyState
+          icon={AlertTriangle}
+          title="Не удалось загрузить клиентов"
+          description={loadError}
+          actionLabel="Обновить"
+          onAction={() => window.location.reload()}
+        />
       )}
 
       {!loadError && filtered.length === 0 && (
-        <div className="py-16 text-center text-sm" style={{ color: "var(--text-muted)" }}>
-          {personas.length === 0 ? "Клиенты пока не добавлены." : "Нет клиентов под выбранные фильтры."}
-        </div>
+        personas.length === 0 ? (
+          <EmptyState
+            icon={Users}
+            title="Клиенты пока не добавлены"
+            description="Список появится, как только в системе будут готовые клиенты для практики."
+          />
+        ) : (
+          <EmptyState
+            icon={SearchX}
+            title="Нет клиентов под фильтры"
+            description="Под выбранные сложность и характер никто не подошёл. Попробуйте сбросить фильтры."
+            actionLabel="Сбросить фильтры"
+            onAction={() => { setDifficultyFilter(null); setArchetypeFilter(null); }}
+          />
+        )
       )}
 
       {/* Editorial-грид карточек: индекс, точка-сложность, hover-стрелка, hairline + lift. */}
