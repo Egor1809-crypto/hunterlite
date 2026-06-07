@@ -1388,7 +1388,7 @@ export default function TrainingSessionPage() {
             disabled={s.sessionState !== "ready"}
             className="rounded-xl px-4 py-2 text-sm font-semibold transition-all"
             style={{ background: "var(--danger-muted)", color: "var(--danger)", border: "1px solid var(--danger-muted)" }}
-            aria-label="Прервать тренировку"
+            aria-label="Завершить консультацию"
           >
             Завершить
           </button>
@@ -1619,7 +1619,7 @@ export default function TrainingSessionPage() {
               {s.transcription.status === "transcribing" && (
                 <div className="px-4 py-2 flex items-center gap-2">
                   <Loader2 size={14} className="animate-spin shrink-0" style={{ color: "var(--accent)" }} />
-                  <span className="text-xs shrink-0" style={{ color: "var(--text-muted)" }}>Распознаю:</span>
+                  <span className="text-xs shrink-0" style={{ color: "var(--text-muted)" }}>Распознаю</span>
                   {s.transcription.partial ? (
                     <span
                       className="text-xs truncate flex-1 italic"
@@ -1628,7 +1628,7 @@ export default function TrainingSessionPage() {
                       {s.transcription.partial}
                     </span>
                   ) : (
-                    <span className="text-xs flex-1" style={{ color: "var(--text-muted)" }}>речь...</span>
+                    <span className="text-xs flex-1" style={{ color: "var(--text-muted)" }}>речь…</span>
                   )}
                 </div>
               )}
@@ -1673,7 +1673,7 @@ export default function TrainingSessionPage() {
                     onKeyDown={handleKeyDown}
                     placeholder={
                       micRecording
-                        ? "Идёт запись… нажмите ◼ когда закончите"
+                        ? "Идёт запись… нажмите, чтобы распознать"
                         : s.transcription.status === "preview"
                           ? "Редактируйте и нажмите Enter..."
                           : "Введите сообщение..."
@@ -1884,7 +1884,7 @@ export default function TrainingSessionPage() {
           {/* Pill switcher */}
           <div className="flex gap-1 rounded-xl p-1" style={{ background: "var(--bg-tertiary)" }}>
             {([
-              { key: "score", label: "Балл", Icon: Target },
+              { key: "score", label: "Оценка", Icon: Target },
               { key: "reactions", label: "Реакции", Icon: Activity },
             ] as const).map(({ key, label, Icon }) => {
               const active = sidebarTab === key;
@@ -2100,10 +2100,10 @@ export default function TrainingSessionPage() {
                 <XCircle size={26} style={{ color: "var(--danger)" }} />
               </div>
               <h2 className="mt-4 font-display text-xl font-bold" style={{ color: "var(--text-primary)" }}>
-                Прервать тренировку?
+                Завершить консультацию?
               </h2>
               <p className="mt-2 text-sm leading-relaxed" style={{ color: "var(--text-secondary)" }}>
-                Прогресс будет сохранён, но сессия завершится досрочно.
+                Прогресс сохранится, разбор откроется сразу после.
               </p>
               <div className="mt-6 grid grid-cols-2 gap-3">
                 <motion.button
@@ -2136,10 +2136,10 @@ export default function TrainingSessionPage() {
                 <AlertTriangle size={26} style={{ color: "var(--warning)" }} />
               </div>
               <h2 className="mt-4 font-display text-xl font-bold" style={{ color: "var(--warning)" }}>
-                Потеря сигнала
+                Вы давно молчите
               </h2>
               <p className="mt-2 text-sm leading-relaxed" style={{ color: "var(--text-secondary)" }}>
-                Вы давно молчите. Продолжить тренировку?
+                Клиент ждёт ответа. Продолжить консультацию?
               </p>
               <div className="mt-6 grid grid-cols-2 gap-3">
                 <motion.button
