@@ -10,7 +10,6 @@ import {
   AlertTriangle,
   Send,
   Volume2,
-  VolumeX,
   Mic,
   Square,
   Loader2,
@@ -52,7 +51,6 @@ import TalkListenRatio from "@/components/training/TalkListenRatio";
 import LiveEmotionTimeline from "@/components/training/LiveEmotionTimeline";
 import { useSessionStore } from "@/stores/useSessionStore";
 import { TrainingErrorBoundary } from "@/components/training/TrainingErrorBoundary";
-import { TTSUnlockOverlay } from "@/components/training/TTSUnlockOverlay";
 import { toast } from "sonner";
 import { TrainingToasts } from "@/components/training/TrainingToasts";
 import { useHotkeys } from "@/hooks/useHotkeys";
@@ -275,7 +273,10 @@ export default function TrainingSessionPage() {
   }, [s.checkpointsHit]);
 
   // TTS — ElevenLabs (primary) + browser speechSynthesis (fallback)
-  const tts = useTTS({ lang: "ru-RU", rate: 0.95, pitch: 1.0 });
+  // 2026-06-07: чат — текстовый формат. mute:true глушит ВСЁ воспроизведение
+  // ответов клиента в этой сессии (мешало пользователю), не трогая глобальный
+  // префренс голоса (в /call озвучка работает как прежде).
+  const tts = useTTS({ lang: "ru-RU", rate: 0.95, pitch: 1.0, mute: true });
 
   // Surface terminal TTS errors / fallback transitions as toasts. Mirror
   // of /call page handler — chat path used the same useTTS pipeline but
@@ -1372,17 +1373,9 @@ export default function TrainingSessionPage() {
               теперь строго через CRM-карточку /clients/[id]. Это убирает
               путаницу "зачем живой звонок внутри чата" — выбор chat vs
               voice происходит ДО старта сессии. */}
-          <motion.button
-            onClick={() => tts.setEnabled(!tts.enabled)}
-            className="flex items-center justify-center rounded-xl p-2"
-            style={{ background: "var(--bg-secondary)", border: "1px solid var(--border-color)" }}
-            whileTap={{ scale: 0.95 }}
-            aria-label={tts.enabled ? "Выключить голос AI" : "Включить голос AI"}
-            title={`Голос AI: ${tts.mode === "elevenlabs" ? "ElevenLabs" : "Браузер"}`}
-          >
-            {tts.enabled ? <Volume2 size={18} style={{ color: "var(--accent)" }} /> : <VolumeX size={18} style={{ color: "var(--text-muted)" }} />}
-          </motion.button>
-
+          {/* 2026-06-07: чат — текстовый формат, ответы клиента НЕ озвучиваются
+              (useTTS(mute:true)). Поэтому кнопка-тумблер «голос AI» и оверлей
+              разблокировки звука здесь убраны — озвучка живёт только в /call. */}
           <button
             onClick={() => s.setShowAbortModal(true)}
             disabled={s.sessionState !== "ready"}
@@ -2164,15 +2157,9 @@ export default function TrainingSessionPage() {
         )}
       </AnimatePresence>
 
-      {/*
-        Autoplay-unlock overlay for chat mode. Browsers block
-        HTMLAudioElement.play() outside a user gesture, and useTTS
-        sets `needsAudioUnlock` whenever play() rejects. Without this
-        overlay, chat-mode users heard nothing and reported "ошибка
-        ТТС" — there was no surface to unlock the audio context.
-        Same component used in /call/page.tsx for parity.
-      */}
-      <TTSUnlockOverlay visible={tts.needsAudioUnlock} onUnlock={tts.unlock} />
+      {/* 2026-06-07: TTSUnlockOverlay убран из чата — чат текстовый
+          (useTTS mute:true), звук клиента не воспроизводится, поэтому
+          разблокировка autoplay не нужна. Оверлей остаётся в /call. */}
 
       <HangupModal
         open={s.showHangupModal}

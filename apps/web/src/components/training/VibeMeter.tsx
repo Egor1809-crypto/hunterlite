@@ -15,16 +15,10 @@ const ARCHETYPE_HINTS: Record<string, string> = {
   indecisive: "Нерешительный: помогите с выбором",
 };
 
-/** The 5 gradient stops for the horizontal bar, left to right. */
-const BAR_STOPS = [
-  { key: "hostile",     color: EMOTION_MAP.hostile.color },
-  { key: "guarded",     color: EMOTION_MAP.guarded.color },
-  { key: "curious",     color: EMOTION_MAP.curious.color },
-  { key: "negotiating", color: EMOTION_MAP.negotiating.color },
-  { key: "deal",        color: EMOTION_MAP.deal.color },
-] as const;
-
-const BAR_LABELS = ["Враж", "Настор", "Любоп", "Торг", "Готов"] as const;
+/** The 5 warmth zones, left (hostile) → right (deal). Monochrome ticks;
+ *  the active zone is highlighted. Single-word labels so they never read
+ *  as truncated stubs. */
+const ZONE_LABELS = ["Враждебен", "Насторожен", "Любопытен", "Торг", "Сделка"] as const;
 
 interface VibeMeterProps {
   emotion: EmotionState;
@@ -34,78 +28,80 @@ interface VibeMeterProps {
 
 export default function VibeMeter({ emotion, archetype, trigger }: VibeMeterProps) {
   const config = EMOTION_MAP[emotion] || EMOTION_MAP.cold;
-
-  const gradientStr = BAR_STOPS.map((s) => s.color).join(", ");
+  const value = Math.max(0, Math.min(100, config.value));
+  // Which of the 5 zones the value falls into (for highlighting the tick).
+  const activeZone = Math.min(ZONE_LABELS.length - 1, Math.round((value / 100) * (ZONE_LABELS.length - 1)));
 
   return (
     <div className="flex flex-col">
       {/* ── Header ── */}
-      <div className="flex items-center justify-between mb-3">
-        <h3
-          className="text-base font-semibold"
-          style={{ color: "var(--text-primary)" }}
-        >
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-base font-semibold" style={{ color: "var(--text-primary)" }}>
           Настроение
         </h3>
-        <Activity size={16} style={{ color: "var(--accent)" }} />
+        <Activity size={16} style={{ color: "var(--text-muted)" }} />
       </div>
 
-      {/* ── Center: dot + emotion label ── */}
-      <div className="flex items-center justify-center gap-2 mb-1">
-        <span
-          className="w-3 h-3 rounded-full shrink-0"
-          style={{ backgroundColor: config.color }}
-        />
-        <AnimatePresence mode="wait">
-          <motion.span
-            key={emotion}
-            className="text-xl font-bold"
-            style={{ color: config.color }}
-            initial={{ opacity: 0, scale: 1.05 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.3 }}
-          >
-            {config.labelRu}
-          </motion.span>
-        </AnimatePresence>
+      {/* ── Readout: state label (left) + warmth % (right) ── */}
+      <div className="flex items-end justify-between gap-3 mb-3">
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ background: "var(--accent)" }} />
+          <AnimatePresence mode="wait">
+            <motion.span
+              key={emotion}
+              className="text-lg font-semibold truncate"
+              style={{ color: "var(--text-primary)" }}
+              initial={{ opacity: 0, y: 4 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -4 }}
+              transition={{ duration: 0.25 }}
+            >
+              {config.labelRu}
+            </motion.span>
+          </AnimatePresence>
+        </div>
+        <div className="flex items-baseline gap-1 shrink-0">
+          <span className="text-2xl font-bold tabular-nums leading-none" style={{ color: "var(--accent)" }}>
+            {value}
+          </span>
+          <span className="text-sm font-medium" style={{ color: "var(--text-muted)" }}>%</span>
+        </div>
       </div>
 
-      {/* ── Percentage ── */}
-      <div
-        className="text-3xl font-bold tabular-nums text-center mb-3"
-        style={{ color: config.color }}
-      >
-        {config.value}%
-      </div>
-
-      {/* ── Horizontal gradient bar with indicator ── */}
-      <div className="relative h-5 flex items-center">
-        {/* Bar track */}
-        <div className="absolute left-0 right-0 h-2 rounded-full"
-          style={{ background: `linear-gradient(to right, ${gradientStr})` }}
-        />
-        {/* Indicator dot */}
+      {/* ── Warmth track: neutral rail + accent fill + thumb ── */}
+      <div className="relative h-2.5 rounded-full" style={{ background: "var(--input-bg)" }}>
         <motion.div
-          className="absolute w-4 h-4 rounded-full border-2 border-white z-10"
+          className="absolute inset-y-0 left-0 rounded-full"
+          style={{ background: "var(--accent)" }}
+          animate={{ width: `${value}%` }}
+          transition={{ duration: 0.7, ease: "easeOut" }}
+        />
+        <motion.div
+          className="absolute top-1/2 h-4 w-4 rounded-full"
           style={{
-            backgroundColor: config.color,
+            background: "var(--accent)",
+            border: "2px solid var(--surface-card)",
+            boxShadow: "var(--shadow-sm)",
+            marginTop: -8,
             marginLeft: -8,
           }}
-          animate={{ left: `${config.value}%` }}
-          transition={{ duration: 0.8, ease: "easeOut" }}
+          animate={{ left: `${value}%` }}
+          transition={{ duration: 0.7, ease: "easeOut" }}
         />
       </div>
 
-      {/* ── 5 tiny labels under the bar ── */}
-      <div className="flex justify-between mt-1.5">
-        {BAR_STOPS.map((stop, i) => (
+      {/* ── Zone ticks — monochrome, active one highlighted ── */}
+      <div className="flex justify-between mt-2.5">
+        {ZONE_LABELS.map((label, i) => (
           <span
-            key={stop.key}
-            className="text-xs"
-            style={{ color: stop.color }}
+            key={label}
+            className="text-[10px] leading-none"
+            style={{
+              color: i === activeZone ? "var(--accent)" : "var(--text-muted)",
+              fontWeight: i === activeZone ? 600 : 400,
+            }}
           >
-            {BAR_LABELS[i]}
+            {label}
           </span>
         ))}
       </div>
@@ -113,9 +109,8 @@ export default function VibeMeter({ emotion, archetype, trigger }: VibeMeterProp
       {/* ── Archetype hint ── */}
       {archetype && (
         <div
-          className="mt-3 text-center text-xs truncate"
-          style={{ color: "var(--text-secondary)" }}
-          title={trigger || ARCHETYPE_HINTS[archetype] || archetype}
+          className="mt-4 pt-3 text-xs leading-relaxed"
+          style={{ color: "var(--text-secondary)", borderTop: "1px solid var(--border-color)" }}
         >
           {trigger || ARCHETYPE_HINTS[archetype] || archetype}
         </div>
