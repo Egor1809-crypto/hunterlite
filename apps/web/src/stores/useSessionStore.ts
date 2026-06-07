@@ -9,6 +9,7 @@ import type {
   CheckpointHint,
   StageUpdate,
   HangupData,
+  ScriptHint,
 } from "@/types";
 import type { CheckpointInfo } from "@/components/training/ScriptAdherence";
 import type { ClientCardData } from "@/components/training/ClientCard";
@@ -124,6 +125,11 @@ interface SessionStore {
   // Script hints (AI-generated reply suggestions)
   scriptHintsEnabled: boolean;
   scriptHintsRefreshKey: number;
+  // 2026-06-07 Phase 2b: the actual fetched suggestions + loading flag.
+  // Populated by the /script-hints fetch effect on /training/[id], keyed
+  // off scriptHintsRefreshKey. Rendered by WhisperPanel (tap-to-insert).
+  scriptHints: ScriptHint[];
+  scriptHintsLoading: boolean;
 
   // 2026-05-03: removed `realtimeScores` slice — the consuming
   // <RealtimeScores> component was deleted in the right-sidebar
@@ -206,6 +212,8 @@ interface SessionStore {
   setWhispersEnabled: (enabled: boolean) => void;
   setScriptHintsEnabled: (enabled: boolean) => void;
   refreshScriptHints: () => void;
+  setScriptHints: (hints: ScriptHint[]) => void;
+  setScriptHintsLoading: (loading: boolean) => void;
   addEmotionToHistory: (state: EmotionState) => void;
   setDifficultyReason: (reason: string | null) => void;
   setTranscription: (t: TranscriptionState) => void;
@@ -265,6 +273,8 @@ const INITIAL_STATE = {
   whispersEnabled: true,
   scriptHintsEnabled: true,
   scriptHintsRefreshKey: 0,
+  scriptHints: [] as ScriptHint[],
+  scriptHintsLoading: false,
   emotionHistory: [] as { state: EmotionState; timestamp: number }[],
   difficultyReason: null as string | null,
   transcription: { status: "idle", partial: "", final: "" } as TranscriptionState,
@@ -433,6 +443,8 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   setWhispersEnabled: (whispersEnabled) => set({ whispersEnabled }),
   setScriptHintsEnabled: (scriptHintsEnabled) => set({ scriptHintsEnabled }),
   refreshScriptHints: () => set((state) => ({ scriptHintsRefreshKey: state.scriptHintsRefreshKey + 1 })),
+  setScriptHints: (scriptHints) => set({ scriptHints }),
+  setScriptHintsLoading: (scriptHintsLoading) => set({ scriptHintsLoading }),
   addEmotionToHistory: (state) =>
     set((s) => ({
       emotionHistory: [...s.emotionHistory.slice(-14), { state, timestamp: Date.now() }],
