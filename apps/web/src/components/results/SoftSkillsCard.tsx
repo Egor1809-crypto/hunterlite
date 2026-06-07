@@ -1,7 +1,8 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Clock, Microphone, UserCheck, Warning, ChatCircle, ChartBar } from "@phosphor-icons/react";
+import { Clock, Microphone, UserCheck, Warning, ChatCircle } from "@phosphor-icons/react";
+import { SectionHeader } from "@/components/ui/SectionHeader";
 import type { SoftSkillsResult } from "@/types";
 
 /** @deprecated Use SoftSkillsResult from @/types instead */
@@ -87,10 +88,9 @@ export default function SoftSkillsCard({ skills }: SoftSkillsCardProps) {
       animate="show"
       className="glass-panel rounded-2xl p-6"
     >
-      <h3 className="font-display text-base tracking-widest flex items-center gap-2 mb-4" style={{ color: "var(--text-primary)" }}>
-        <ChartBar size={16} weight="duotone" style={{ color: "var(--accent)" }} />
-        НАВЫКИ ОБЩЕНИЯ
-      </h3>
+      <div className="mb-5">
+        <SectionHeader code="Метрики" title="Как вы вели диалог" />
+      </div>
 
       <div className="space-y-3">
         {metrics.map((m) => {

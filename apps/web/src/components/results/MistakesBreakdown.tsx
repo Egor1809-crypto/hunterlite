@@ -1,7 +1,8 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { AlertTriangle, CheckCircle } from "lucide-react";
+import { CheckCircle } from "lucide-react";
+import { SectionHeader } from "@/components/ui/SectionHeader";
 import type { DetectedItem } from "@/types";
 
 interface MistakesBreakdownProps {
@@ -72,16 +73,9 @@ export default function MistakesBreakdown({ items }: MistakesBreakdownProps) {
         }}
       />
 
-      <h2
-        className="font-display text-lg tracking-widest flex items-center gap-2 border-b pb-3 mb-5"
-        style={{ color: "var(--text-primary)", borderColor: "var(--border-color)" }}
-      >
-        <AlertTriangle
-          size={18}
-          style={{ color: "var(--text-muted)" }}
-        />{" "}
-        ОШИБКИ И НАРУШЕНИЯ
-      </h2>
+      <div className="border-b pb-4 mb-5" style={{ borderColor: "var(--border-color)" }}>
+        <SectionHeader code="Разбор" title="Что пошло не так" />
+      </div>
 
       {list.length === 0 ? (
         <div

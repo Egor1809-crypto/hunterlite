@@ -2,8 +2,8 @@
 
 import { useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { SectionHeader } from "@/components/ui/SectionHeader";
 import {
-  GraduationCap,
   MessageCircle,
   ChevronDown,
   ChevronUp,
@@ -128,10 +128,7 @@ export default function AICoachSection({ sessionId, coachData, difficulty }: AIC
         className="w-full flex items-center justify-between border-b pb-3 mb-4"
         style={{ borderColor: "var(--border-color)" }}
       >
-        <h2 className="font-display text-lg tracking-widest flex items-center gap-2" style={{ color: "var(--text-primary)" }}>
-          <GraduationCap size={20} style={{ color: "var(--accent)" }} />
-          AI-COACH РАЗБОР
-        </h2>
+        <SectionHeader code="AI-коуч" title="Разбор тренера" />
         {expanded ? <ChevronUp size={18} style={{ color: "var(--text-muted)" }} /> : <ChevronDown size={18} style={{ color: "var(--text-muted)" }} />}
       </button>
 

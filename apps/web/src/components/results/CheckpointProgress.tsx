@@ -2,7 +2,7 @@
 
 import { motion } from "framer-motion";
 import { CheckCircle2, Circle } from "lucide-react";
-import { Flag } from "@phosphor-icons/react";
+import { SectionHeader } from "@/components/ui/SectionHeader";
 
 export interface CheckpointResult {
   name: string;
@@ -25,14 +25,16 @@ export default function CheckpointProgress({ checkpoints }: CheckpointProgressPr
       animate={{ opacity: 1, y: 0 }}
       className="glass-panel rounded-2xl p-6"
     >
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="font-display text-base font-bold tracking-widest flex items-center gap-2" style={{ color: "var(--text-primary)" }}>
-          <Flag weight="duotone" size={18} style={{ color: "var(--accent)" }} />
-          ЧЕКПОИНТЫ СКРИПТА
-        </h3>
-        <span className="font-mono text-xs" style={{ color: "var(--text-muted)" }}>
-          {hitCount}/{checkpoints.length}
-        </span>
+      <div className="mb-4">
+        <SectionHeader
+          code="Скрипт"
+          title="Чекпоинты"
+          right={
+            <span className="font-mono text-xs tabular-nums" style={{ color: "var(--text-muted)" }}>
+              {hitCount}/{checkpoints.length}
+            </span>
+          }
+        />
       </div>
 
       {/* Horizontal timeline */}

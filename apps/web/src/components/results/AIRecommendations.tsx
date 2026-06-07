@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Robot } from "@phosphor-icons/react";
+import { SectionHeader } from "@/components/ui/SectionHeader";
 import Markdown from "react-markdown";
 
 interface AIRecommendationsProps {
@@ -17,16 +17,8 @@ export default function AIRecommendations({ text }: AIRecommendationsProps) {
       animate={{ opacity: 1, y: 0 }}
       className="glass-panel rounded-2xl p-6"
     >
-      <div className="flex items-center gap-2 mb-4">
-        <div
-          className="flex h-6 w-6 items-center justify-center rounded-lg"
-          style={{ background: "var(--accent-muted)" }}
-        >
-          <Robot weight="duotone" size={16} style={{ color: "var(--accent)" }} />
-        </div>
-        <h3 className="font-display text-base font-bold tracking-widest" style={{ color: "var(--text-primary)" }}>
-          AI РЕКОМЕНДАЦИИ
-        </h3>
+      <div className="mb-5">
+        <SectionHeader code="AI" title="Рекомендации" />
       </div>
 
       <div
