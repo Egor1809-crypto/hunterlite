@@ -1728,38 +1728,12 @@ export default function TrainingSessionPage() {
             />
           </div>
 
-          {/* Mic / Text input */}
+          {/* Mic / Text input — this whole <section> is `lg:hidden`, so the
+              input below serves the mobile/tablet view only. (The dead
+              `hidden lg:flex` desktop block that used to live here could
+              never render inside a lg:hidden parent — removed 2026-06-07.) */}
           <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-30 w-full max-w-lg px-4">
-            {/* Desktop: mic when voice mode, small toggle button when text mode */}
-            <div className="hidden lg:flex justify-center">
-              {s.textMode ? (
-                <motion.button
-                  onClick={() => s.setTextMode(false)}
-                  className="flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium transition-colors"
-                  style={{ background: "var(--bg-tertiary)", color: "var(--text-muted)", border: "1px solid var(--border-color)" }}
-                  whileHover={{ background: "var(--surface-card)" }}
-                  whileTap={{ scale: 0.97 }}
-                >
-                  <Mic size={16} />
-                  Голосовой режим
-                </motion.button>
-              ) : (
-                <CrystalMic
-                  mode="toggle"
-                  isRecording={microphone.recordingState === "recording" || speech.status === "listening"}
-                  isProcessing={microphone.recordingState === "processing" || s.transcription.status === "transcribing"}
-                  audioLevel={microphone.audioLevel || speech.audioLevel}
-                  onClick={handleMicToggle}
-                  onTextMode={() => {
-                    s.setTextMode(true);
-                    setTimeout(() => textareaRef.current?.focus(), 100);
-                  }}
-                  disabled={s.sessionState !== "ready" || (!s.sttAvailable && !speech.isSupported)}
-                />
-              )}
-            </div>
-            {/* Mobile: mic or textarea (left panel is hidden) */}
-            <div className="lg:hidden">
+            <div>
               {s.textMode ? (
                 <>
                   {/* P0 (training-rework): CRM-link chip + attachment removed

@@ -3,7 +3,6 @@
 import { motion, AnimatePresence } from "framer-motion";
 import { Activity } from "lucide-react";
 import { type EmotionState, EMOTION_MAP } from "@/types";
-import { useReducedMotion } from "@/hooks/useReducedMotion";
 
 const ARCHETYPE_HINTS: Record<string, string> = {
   skeptic: "Скептик: нужны факты и цифры",
@@ -35,7 +34,6 @@ interface VibeMeterProps {
 
 export default function VibeMeter({ emotion, archetype, trigger }: VibeMeterProps) {
   const config = EMOTION_MAP[emotion] || EMOTION_MAP.cold;
-  const reducedMotion = useReducedMotion();
 
   const gradientStr = BAR_STOPS.map((s) => s.color).join(", ");
 
@@ -56,35 +54,19 @@ export default function VibeMeter({ emotion, archetype, trigger }: VibeMeterProp
       <div className="flex items-center justify-center gap-2 mb-1">
         <span
           className="w-3 h-3 rounded-full shrink-0"
-          style={{ backgroundColor: config.color, boxShadow: `0 0 8px ${config.glow}` }}
+          style={{ backgroundColor: config.color }}
         />
         <AnimatePresence mode="wait">
           <motion.span
             key={emotion}
             className="text-xl font-bold"
-            style={{ color: config.color, textShadow: `0 0 12px ${config.glow}` }}
-            initial={{ opacity: 0, scale: 1.15 }}
+            style={{ color: config.color }}
+            initial={{ opacity: 0, scale: 1.05 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.3 }}
           >
-            <motion.span
-              className="inline-block"
-              animate={
-                reducedMotion
-                  ? {}
-                  : {
-                      textShadow: [
-                        `0 0 10px ${config.glow}`,
-                        `0 0 22px ${config.glow}`,
-                        `0 0 10px ${config.glow}`,
-                      ],
-                    }
-              }
-              transition={reducedMotion ? {} : { duration: 1.5, ease: "easeInOut" }}
-            >
-              {config.labelRu}
-            </motion.span>
+            {config.labelRu}
           </motion.span>
         </AnimatePresence>
       </div>
@@ -108,7 +90,6 @@ export default function VibeMeter({ emotion, archetype, trigger }: VibeMeterProp
           className="absolute w-4 h-4 rounded-full border-2 border-white z-10"
           style={{
             backgroundColor: config.color,
-            boxShadow: `0 0 8px ${config.glow}`,
             marginLeft: -8,
           }}
           animate={{ left: `${config.value}%` }}
