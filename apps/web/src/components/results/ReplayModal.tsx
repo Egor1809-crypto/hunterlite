@@ -142,7 +142,7 @@ export default function ReplayModal({
           role="dialog"
           aria-modal="true"
           aria-label="Replay Mode — Идеальный ответ"
-          className="relative w-full max-w-2xl max-h-[85vh] overflow-y-auto cyber-card"
+          className="relative w-full max-w-2xl max-h-[85vh] overflow-y-auto glass-panel"
           initial={{ scale: 0.9, y: 20 }}
           animate={{ scale: 1, y: 0 }}
           exit={{ scale: 0.9, y: 20 }}

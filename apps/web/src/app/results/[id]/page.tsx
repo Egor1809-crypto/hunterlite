@@ -842,7 +842,7 @@ export default function ResultsPage() {
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.35 }}
-            className="cyber-card mt-6 p-5 relative overflow-hidden"
+            className="glass-panel mt-6 p-5 relative overflow-hidden"
           >
             <div className="absolute top-0 left-0 right-0 h-[2px]" style={{ background: "linear-gradient(90deg, transparent, var(--danger), transparent)" }} />
             <div className="flex items-start gap-3">
