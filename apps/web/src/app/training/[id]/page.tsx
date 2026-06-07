@@ -36,7 +36,6 @@ import VibeMeter from "@/components/training/VibeMeter";
 import { type CheckpointInfo } from "@/components/training/ScriptAdherence";
 import WhisperPanel from "@/components/training/WhisperPanel";
 import { HangupModal } from "@/components/training/HangupModal";
-import SessionEndingOverlay from "@/components/training/SessionEndingOverlay";
 import { telemetry } from "@/lib/telemetry";
 import {
   createHangupCoordinatorState,
@@ -166,10 +165,15 @@ export default function TrainingSessionPage() {
   // (end, results redirect, session_hijacked recovery) hit the right row
   // even if the session was resumed under a different id.
   const currentSessionIdRef = useRef<string>(routeId);
-  // 2026-04-23: full-screen "Завершаем тренировку" overlay shown between
-  // handleEnd() click and router.replace → /results. Prevents the 5-15s
-  // dead-air window while backend is scoring.
-  const [ending, setEnding] = useState(false);
+  // 2026-06-07: the full-screen "Завершаем тренировку" processing overlay
+  // was removed by request — on end we navigate straight to /results, which
+  // shows its own "идёт оценка" loader while the backend scores. Helper for
+  // that immediate redirect (small delay lets the session.end WS frame flush
+  // before the page unmounts / the socket closes).
+  const goToResults = () => {
+    const sid = currentSessionIdRef.current || routeId;
+    setTimeout(() => router.replace(`/results/${sid}`), 120);
+  };
   const [scoreHint, setScoreHint] = useState<{
     script_adherence: number;
     objection_handling: number;
@@ -504,7 +508,6 @@ export default function TrainingSessionPage() {
             // the dead chat. Also ensure overlay state is set in case
             // backend auto-ended via silence/hangup (user didn't click).
             s.setSessionState("completed");
-            setEnding(true);
             // 2026-05-04: success path — cancel the 5s fallback so we
             // don't double-navigate (success replace already lands).
             cancelFallbackImpl(hangupRef.current, {
@@ -1120,11 +1123,11 @@ export default function TrainingSessionPage() {
   // 2026-05-04: dedupe send + arm fallback redirect so the user is never
   // stuck if session.ended is delayed/dropped (5s timeout → /results).
   const handleEnd = () => {
-    setEnding(true);
     if (markEndSent(hangupRef.current)) {
       sendMessage({ type: "session.end", data: {} });
     }
     armHangupFallback();
+    goToResults();
   };
 
   // 2026-05-04 (v2): thin wrapper around the pure coordinator. Owns the
@@ -2038,14 +2041,8 @@ export default function TrainingSessionPage() {
         formatTime={formatTime}
       />
 
-      {/* 2026-04-23: full-screen ending overlay — shown from handleEnd
-          click until router.replace lands on /results. Covers the 5-15s
-          scoring window so the user never sees a frozen chat UI. */}
-      <SessionEndingOverlay
-        visible={ending}
-        title="Завершаем тренировку"
-        subtitle={s.characterName || undefined}
-      />
+      {/* 2026-06-07: SessionEndingOverlay removed by request — on end we go
+          straight to /results (its own loader covers the scoring window). */}
 
       {/* ── Modals ──────────────────────────────────────────── */}
       <AnimatePresence>
@@ -2194,11 +2191,11 @@ export default function TrainingSessionPage() {
           try { tts.stop(); } catch { /* noop */ }
           s.setShowHangupModal(false);
           s.setHangupData(null);
-          setEnding(true);
           if (markEndSent(hangupRef.current)) {
             sendMessage({ type: "session.end", data: {} });
           }
           armHangupFallback();
+          goToResults();
         }}
       />
     </div>
