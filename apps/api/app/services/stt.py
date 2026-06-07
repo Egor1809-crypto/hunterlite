@@ -198,10 +198,16 @@ async def _transcribe_whisper(
     files = {
         "file": (f"audio.{ext}", io.BytesIO(audio_bytes), mime_type),
     }
+    # gpt-4o-transcribe / gpt-4o-mini-transcribe (navy) are ~2x faster than
+    # whisper-1 but DO NOT support response_format="verbose_json" (no segment
+    # timings) — they only return {"text": ...}. Use plain json for them and
+    # keep verbose_json for whisper-1 (which exposes per-segment avg_logprob
+    # for the confidence estimate).
+    _supports_verbose = not mdl.startswith("gpt-4o")
     data = {
         "model": mdl,
         "language": lang,
-        "response_format": "verbose_json",
+        "response_format": "verbose_json" if _supports_verbose else "json",
     }
 
     # IL-3 (2026-05-01) — keyword priming for the bankruptcy domain.
