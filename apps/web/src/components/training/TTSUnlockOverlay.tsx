@@ -28,7 +28,7 @@ export function TTSUnlockOverlay({ visible, onUnlock }: TTSUnlockOverlayProps) {
   return (
     <div
       className="fixed inset-0 z-[9999] flex items-center justify-center backdrop-blur-sm"
-      style={{ background: "var(--overlay-bg, rgba(24,19,29,0.72))" }}
+      style={{ background: "var(--overlay-bg)" }}
       onClick={onUnlock}
       onKeyDown={(e) => {
         if (e.key === "Enter" || e.key === " ") {

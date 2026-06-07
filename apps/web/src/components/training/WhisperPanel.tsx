@@ -1,7 +1,7 @@
 "use client";
 
 import { motion, AnimatePresence } from "framer-motion";
-import { Scale, Heart, ArrowRight, Shield, Zap, Lightbulb, Eye, EyeOff, Target } from "lucide-react";
+import { Scale, Heart, ArrowRight, Shield, Zap, Lightbulb, Eye, EyeOff, Target, CornerDownLeft } from "lucide-react";
 import { useSessionStore } from "@/stores/useSessionStore";
 import { telemetry } from "@/lib/telemetry";
 
@@ -42,12 +42,21 @@ function formatTimeAgo(timestamp: number): string {
 
 interface WhisperPanelProps {
   onToggle?: (enabled: boolean) => void;
+  /** Tap-to-insert a suggested reply into the chat input. */
+  onInsertHint?: (text: string) => void;
 }
 
-export default function WhisperPanel({ onToggle }: WhisperPanelProps) {
+export default function WhisperPanel({ onToggle, onInsertHint }: WhisperPanelProps) {
   const whispers = useSessionStore((s) => s.whispers);
   const enabled = useSessionStore((s) => s.whispersEnabled);
   const hintsEnabled = useSessionStore((s) => s.scriptHintsEnabled);
+  const scriptHints = useSessionStore((s) => s.scriptHints);
+  const scriptHintsLoading = useSessionStore((s) => s.scriptHintsLoading);
+
+  const handleInsert = (text: string) => {
+    telemetry.track("script_hint_tapped", { length: text.length });
+    onInsertHint?.(text);
+  };
 
   const handleToggle = () => {
     const next = !enabled;
@@ -108,6 +117,63 @@ export default function WhisperPanel({ onToggle }: WhisperPanelProps) {
           {hintsEnabled ? "Вкл" : "Выкл"}
         </button>
       </div>
+
+      {/* Reply suggestions (AI «Варианты ответа») — tap to insert */}
+      {hintsEnabled && (
+        <div className="mb-3 pb-3 flex flex-col gap-2" style={{ borderBottom: "1px solid var(--border-color)" }}>
+          {scriptHintsLoading && scriptHints.length === 0 ? (
+            <>
+              {[0, 1, 2].map((i) => (
+                <div
+                  key={i}
+                  className="h-12 rounded-lg animate-pulse"
+                  style={{ background: "var(--bg-secondary)", border: "1px solid var(--border-color)" }}
+                />
+              ))}
+            </>
+          ) : scriptHints.length === 0 ? (
+            <div className="text-xs" style={{ color: "var(--text-muted)", opacity: 0.6 }}>
+              Варианты ответа появятся, когда начнётся диалог.
+            </div>
+          ) : (
+            <AnimatePresence mode="popLayout">
+              {scriptHints.map((hint, i) => (
+                <motion.button
+                  key={`${i}-${hint.text.slice(0, 16)}`}
+                  type="button"
+                  onClick={() => handleInsert(hint.text)}
+                  initial={{ opacity: 0, y: -6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.97 }}
+                  transition={{ duration: 0.2, delay: i * 0.04 }}
+                  className="group w-full text-left rounded-lg px-3 py-2 transition-colors"
+                  style={{ background: "var(--bg-secondary)", border: "1px solid var(--border-color)" }}
+                  title="Вставить в поле ввода"
+                >
+                  <div className="flex items-center justify-between gap-2 mb-1">
+                    {hint.label && (
+                      <span
+                        className="text-[10px] font-mono uppercase tracking-wider"
+                        style={{ color: "var(--accent)" }}
+                      >
+                        {hint.label}
+                      </span>
+                    )}
+                    <CornerDownLeft
+                      size={12}
+                      className="shrink-0 opacity-0 transition-opacity group-hover:opacity-100"
+                      style={{ color: "var(--text-muted)" }}
+                    />
+                  </div>
+                  <div className="text-sm leading-snug" style={{ color: "var(--text-primary)" }}>
+                    {hint.text}
+                  </div>
+                </motion.button>
+              ))}
+            </AnimatePresence>
+          )}
+        </div>
+      )}
 
       {!enabled && (
         <div className="text-xs" style={{ color: "var(--text-muted)", opacity: 0.6 }}>

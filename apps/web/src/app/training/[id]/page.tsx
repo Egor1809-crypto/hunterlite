@@ -64,6 +64,8 @@ import {
   EMOTION_MAP,
 } from "@/types";
 import { logger } from "@/lib/logger";
+import { api } from "@/lib/api";
+import type { ScriptHint } from "@/types";
 
 /** Type-safe accessor for untyped WebSocket message data payloads. */
 function wsPayload<T>(data: Record<string, unknown>): T {
@@ -198,6 +200,65 @@ export default function TrainingSessionPage() {
       return () => clearTimeout(t);
     }
   }, [s.sttAvailable, s.sessionState, sttWarningDismissed]);
+
+  // ── AI reply suggestions («Варианты ответа») ──────────────────────────
+  // 2026-06-07 Phase 2b: fetch ready-to-send manager reply options from
+  // POST /training/sessions/{id}/script-hints whenever the conversation
+  // state advances (refreshScriptHints() bumps scriptHintsRefreshKey on
+  // character.response / stage.update). Gated by the panel toggle and a
+  // ready session. Aborts in-flight requests so rapid turns don't race.
+  const scriptHintsAbortRef = useRef<AbortController | null>(null);
+  useEffect(() => {
+    if (!s.scriptHintsEnabled) return;
+    if (s.sessionState !== "ready") return;
+
+    const controller = new AbortController();
+    scriptHintsAbortRef.current?.abort();
+    scriptHintsAbortRef.current = controller;
+
+    const sid = currentSessionIdRef.current || routeId;
+    useSessionStore.getState().setScriptHintsLoading(true);
+
+    api
+      .post<{ hints: ScriptHint[] }>(
+        `/training/sessions/${sid}/script-hints`,
+        {},
+        { signal: controller.signal },
+      )
+      .then((res) => {
+        if (controller.signal.aborted) return;
+        const hints = Array.isArray(res?.hints) ? res.hints.slice(0, 3) : [];
+        useSessionStore.getState().setScriptHints(hints);
+      })
+      .catch((err) => {
+        if (controller.signal.aborted) return;
+        logger.log("[script-hints] fetch failed", err);
+      })
+      .finally(() => {
+        if (controller.signal.aborted) return;
+        useSessionStore.getState().setScriptHintsLoading(false);
+      });
+
+    return () => controller.abort();
+    // scriptHintsRefreshKey is the trigger; enabled/state gate it.
+  }, [s.scriptHintsRefreshKey, s.scriptHintsEnabled, s.sessionState, routeId]);
+
+  // Insert a suggested reply into the chat input and focus it. The hints
+  // panel lives in the right rail; the textarea is bound to s.input, so
+  // setInput updates it across panels (same target STT uses).
+  const handleInsertHint = (text: string) => {
+    s.setInput(text);
+    s.setTextMode(true);
+    setTimeout(() => {
+      const el = textareaRef.current;
+      if (!el) return;
+      el.focus();
+      el.style.height = "auto";
+      el.style.height = Math.min(el.scrollHeight, 240) + "px";
+      el.setSelectionRange(el.value.length, el.value.length);
+    }, 30);
+    telemetry.track("script_hint_inserted", { length: text.length });
+  };
 
   // ── Micro-animation state — checkpoint hit pulse on the score card ──
   const [checkpointFlash, setCheckpointFlash] = useState(false);
@@ -1327,7 +1388,7 @@ export default function TrainingSessionPage() {
             disabled={s.sessionState !== "ready"}
             className="rounded-xl px-4 py-2 text-sm font-semibold transition-all"
             style={{ background: "var(--danger-muted)", color: "var(--danger)", border: "1px solid var(--danger-muted)" }}
-            aria-label="Прервать тренировку"
+            aria-label="Завершить консультацию"
           >
             Завершить
           </button>
@@ -1558,7 +1619,7 @@ export default function TrainingSessionPage() {
               {s.transcription.status === "transcribing" && (
                 <div className="px-4 py-2 flex items-center gap-2">
                   <Loader2 size={14} className="animate-spin shrink-0" style={{ color: "var(--accent)" }} />
-                  <span className="text-xs shrink-0" style={{ color: "var(--text-muted)" }}>Распознаю:</span>
+                  <span className="text-xs shrink-0" style={{ color: "var(--text-muted)" }}>Распознаю</span>
                   {s.transcription.partial ? (
                     <span
                       className="text-xs truncate flex-1 italic"
@@ -1567,7 +1628,7 @@ export default function TrainingSessionPage() {
                       {s.transcription.partial}
                     </span>
                   ) : (
-                    <span className="text-xs flex-1" style={{ color: "var(--text-muted)" }}>речь...</span>
+                    <span className="text-xs flex-1" style={{ color: "var(--text-muted)" }}>речь…</span>
                   )}
                 </div>
               )}
@@ -1612,7 +1673,7 @@ export default function TrainingSessionPage() {
                     onKeyDown={handleKeyDown}
                     placeholder={
                       micRecording
-                        ? "Идёт запись… нажмите ◼ когда закончите"
+                        ? "Идёт запись… нажмите, чтобы распознать"
                         : s.transcription.status === "preview"
                           ? "Редактируйте и нажмите Enter..."
                           : "Введите сообщение..."
@@ -1813,14 +1874,17 @@ export default function TrainingSessionPage() {
             Coaching whisper — lives at the top of the sidebar so coaching
             hints are visible regardless of which tab is active.
           */}
-          <div className="rounded-xl" style={{ background: "var(--bg-tertiary)", border: "1px solid var(--border-color)", padding: "10px 12px" }}>
-            <WhisperPanel onToggle={(enabled) => sendMessage({ type: "whisper.toggle", data: { enabled } })} />
+          <div className="rounded-xl p-4" style={{ background: "var(--bg-tertiary)", border: "1px solid var(--border-color)" }}>
+            <WhisperPanel
+              onToggle={(enabled) => sendMessage({ type: "whisper.toggle", data: { enabled } })}
+              onInsertHint={handleInsertHint}
+            />
           </div>
 
           {/* Pill switcher */}
           <div className="flex gap-1 rounded-xl p-1" style={{ background: "var(--bg-tertiary)" }}>
             {([
-              { key: "score", label: "Балл", Icon: Target },
+              { key: "score", label: "Оценка", Icon: Target },
               { key: "reactions", label: "Реакции", Icon: Activity },
             ] as const).map(({ key, label, Icon }) => {
               const active = sidebarTab === key;
@@ -1857,11 +1921,11 @@ export default function TrainingSessionPage() {
               ───────────────────────────────────────────────────── */}
           {sidebarTab === "score" && (
             <div className="flex flex-col gap-3">
-              <div className="rounded-2xl p-4" style={{ background: "var(--bg-tertiary)" }}>
+              <div className="rounded-xl p-4" style={{ background: "var(--bg-tertiary)" }}>
                 <VibeMeter emotion={s.emotion} />
               </div>
 
-              <div className="rounded-xl p-3" style={{ background: "var(--bg-tertiary)" }}>
+              <div className="rounded-xl p-4" style={{ background: "var(--bg-tertiary)" }}>
                 <TalkListenRatio talkPercent={s.talkTime + s.listenTime > 0 ? Math.round((s.talkTime / (s.talkTime + s.listenTime)) * 100) : 50} />
               </div>
 
@@ -2036,10 +2100,10 @@ export default function TrainingSessionPage() {
                 <XCircle size={26} style={{ color: "var(--danger)" }} />
               </div>
               <h2 className="mt-4 font-display text-xl font-bold" style={{ color: "var(--text-primary)" }}>
-                Прервать тренировку?
+                Завершить консультацию?
               </h2>
               <p className="mt-2 text-sm leading-relaxed" style={{ color: "var(--text-secondary)" }}>
-                Прогресс будет сохранён, но сессия завершится досрочно.
+                Прогресс сохранится, разбор откроется сразу после.
               </p>
               <div className="mt-6 grid grid-cols-2 gap-3">
                 <motion.button
@@ -2072,10 +2136,10 @@ export default function TrainingSessionPage() {
                 <AlertTriangle size={26} style={{ color: "var(--warning)" }} />
               </div>
               <h2 className="mt-4 font-display text-xl font-bold" style={{ color: "var(--warning)" }}>
-                Потеря сигнала
+                Вы давно молчите
               </h2>
               <p className="mt-2 text-sm leading-relaxed" style={{ color: "var(--text-secondary)" }}>
-                Вы давно молчите. Продолжить тренировку?
+                Клиент ждёт ответа. Продолжить консультацию?
               </p>
               <div className="mt-6 grid grid-cols-2 gap-3">
                 <motion.button
