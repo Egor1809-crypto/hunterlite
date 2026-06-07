@@ -1270,21 +1270,30 @@ export default function TrainingCallPage() {
       // отправка ТОЛЬКО если реально была речь.
       const TICK = 100;
       const buf = new Uint8Array(analyser.frequencyBinCount);
-      let spoke = false;            // была ли речь в текущем сегменте
+      let spoke = false;            // была ли РЕАЛЬНАЯ речь (≥ MIN_SPEECH_MS) в сегменте
       let lastLoud = Date.now();
       let prevSpeaking = false;
-      let floor = 40;               // оценка шумового пола (0-255), адаптируется
+      let floor = 12;               // оценка шумового пола (0-255); адаптируется ТОЛЬКО в тишине
       let loudStreak = 0;
+      let speechMs = 0;             // накопленная длительность речи в текущем сегменте
       let segStart = Date.now();
-      let vadTick = 0;              // 2026-06-06 DIAG: троттлинг диагностики VAD
-      const SILENCE_MS = 250;       // 2026-06: 350→250 — раньше отдаём реплику в STT, ближе к «речь→ответ ≤3с» (STT теперь ~1.3с gpt-4o-transcribe)
-      // 2026-06-06: 12→6. У слабых микрофонов (fifine на низком gain) речь даёт
-      // avg всего ~12-14 при фоне ~1 — порог floor+12≈13 еле дотягивал, speech не
-      // ловился. floor+6≈7 уверенно отделяет речь (12-14) от тишины (0-2).
+      let vadTick = 0;
+      // 2026-06-07: фрагментация фразы (по логам: одна реплика → 22КБ + 4КБ + 2КБ
+      // обрывки → STT-мусор «Tuo»/«谢谢»/«mit» → несколько ответов ИИ внахлёст).
+      // Лечим тремя правилами:
+      //  1) floor (шумовой пол) адаптируется ТОЛЬКО в тишине — иначе он полз вверх
+      //     во время речи (floor+=0.3) и догонял голос → ложная «тишина» посреди
+      //     слова → разрез фразы на обрывки.
+      //  2) SILENCE_MS 550 — пауза внутри фразы (вдох, «эээ») не считается концом.
+      //  3) MIN_SPEECH_MS 400 — отрезки короче не отправляются вовсе (это блипы/шум,
+      //     именно они давали односложный STT-мусор и лишние ходы).
+      const SILENCE_MS = 550;       // хвост тишины = конец реплики
       const MARGIN = 6;             // насколько громче фона = «говорят»
-      const MAX_SEG_MS = 8000;      // потолок реплики без паузы
-      const IDLE_RESET_MS = 1200;   // пока речи нет — сбрасываем тишину каждые 1.2с (короткий пре-ролл)
-      const resetSeg = () => { spoke = false; loudStreak = 0; floor = 40; segStart = Date.now(); lastLoud = Date.now(); };
+      const MIN_SPEECH_MS = 400;    // минимум реальной речи, чтобы отправить сегмент
+      const MAX_SEG_MS = 12000;     // потолок реплики без паузы
+      const IDLE_RESET_MS = 1500;   // пока речи нет — сбрасываем накопленную тишину
+      // floor НЕ сбрасываем: шумовой пол живёт между сегментами (учится в тишине).
+      const resetSeg = () => { spoke = false; loudStreak = 0; speechMs = 0; segStart = Date.now(); lastLoud = Date.now(); };
 
       liveVadRef.current = setInterval(() => {
         if (!liveOnRef.current || !liveAnalyserRef.current) return;
@@ -1310,20 +1319,21 @@ export default function TrainingCallPage() {
         for (let i = 0; i < buf.length; i++) sum += buf[i];
         const avg = sum / buf.length;
 
-        // Адаптивный шумовой пол: мгновенно опускается к тишине,
-        // медленно поднимается (≈3/сек), чтобы переоценивать фон.
-        if (avg < floor) floor = avg;
-        else floor += 0.3;
-
         const isLoud = avg > floor + MARGIN;
         if (isLoud) {
           loudStreak += 1;
-          // 2026-06-06: 2→1. У слабого микрофона речь проседает между тиками,
-          // 2 громких подряд не набиралось → spoke не выставлялся. 1 тика хватает
-          // (порог уже отделяет речь от тишины), а IDLE_RESET выкидывает шум.
-          if (loudStreak >= 1) { spoke = true; lastLoud = Date.now(); }
+          speechMs += TICK;                 // копим реальную длительность речи
+          lastLoud = Date.now();
+          // «Реальной» реплику считаем только после MIN_SPEECH_MS подряд —
+          // блипы/щелчки (<400мс) сюда не попадают и не уходят в STT.
+          if (speechMs >= MIN_SPEECH_MS) spoke = true;
         } else {
           loudStreak = 0;
+          // Шумовой пол учим ТОЛЬКО в тишине: мгновенно вниз к фактической
+          // тишине, медленно вверх. Во время речи floor заморожен — иначе он
+          // догонял бы голос и резал фразу на куски.
+          if (avg < floor) floor = avg;
+          else floor += 0.2;
         }
         // 2026-06-06 DIAG: реальные уровни микрофона раз в ~1с. Если во время
         // речи avg НЕ превышает порог (floor+MARGIN) — VAD не видит голос и

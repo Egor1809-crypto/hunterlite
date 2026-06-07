@@ -5107,6 +5107,26 @@ async def _handle_audio_chunk(
         })
         return
 
+    # Junk-transcript guard (2026-06-07): gpt-4o-transcribe / whisper hallucinate
+    # short non-Russian tokens on noise blips ("Tuo", "Yeah", "I", "mit", "谢谢").
+    # gpt-4o-transcribe returns a flat confidence=0.5, so the <0.3 check above
+    # never catches them. A short utterance that is mostly NON-Cyrillic when we
+    # expect Russian is almost certainly junk → drop it WITHOUT generating a
+    # turn. This is what made the AI client reply to garbage and "talk over
+    # itself" (one real reply got chopped into several junk blips).
+    _t = stt_result.text.strip()
+    _letters = [c for c in _t if c.isalpha()]
+    _cyr = sum(1 for c in _letters if ("а" <= c.lower() <= "я") or c.lower() == "ё")
+    if len(_t.split()) <= 2 and _letters and (_cyr / len(_letters)) < 0.5:
+        logger.info("STT junk dropped (short non-RU): %r", _t[:40])
+        await _send(ws, "transcription.result", {
+            "text": _t,
+            "confidence": stt_result.confidence,
+            "is_low_confidence": True,
+            "message": "Не расслышал, повторите.",
+        })
+        return
+
     # Send transcription result
     await _send(ws, "transcription.result", {
         "text": stt_result.text,
