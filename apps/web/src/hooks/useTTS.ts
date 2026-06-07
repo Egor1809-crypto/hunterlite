@@ -153,6 +153,16 @@ interface UseTTSOptions {
    * on the call page; chat / arena should leave it false.
    */
   phoneBandFilter?: boolean;
+  /**
+   * 2026-06-07 — local output mute. When true, ALL playback (playAudio /
+   * playAudioMessage / playCoupleAudio / chunk queue / browser fallback)
+   * is suppressed for THIS instance only, regardless of the global
+   * `vh-tts-enabled` preference — and without mutating/persisting it.
+   * Used by the chat session, which is intentionally text-only: the AI
+   * client's replies must not be spoken there, while the call page (a
+   * separate useTTS instance) keeps voice via the same global pref.
+   */
+  mute?: boolean;
 }
 
 interface UseTTSReturn {
@@ -266,6 +276,7 @@ export function useTTS(options: UseTTSOptions = {}): UseTTSReturn {
     onSpeakerChange,
     onActiveFactorsChange,
     phoneBandFilter = false,
+    mute = false,
   } = options;
 
   // 2026-05-01 — Phone-band realism filter chain.
@@ -342,17 +353,22 @@ export function useTTS(options: UseTTSOptions = {}): UseTTSReturn {
 
   // --- Core state ---
   const [speaking, setSpeaking] = useState(false);
-  const [enabled, setEnabled] = useState(true);
+  // Global user preference (persisted, cross-tab synced).
+  const [enabledPref, setEnabledPref] = useState(true);
+  // Effective enabled used by every playback guard below: the global pref
+  // AND not locally muted. `mute` lets the chat session stay text-only
+  // without touching the shared pref (the call page keeps voice).
+  const enabled = enabledPref && !mute;
 
   // Hydrate from the persisted pref after mount (SSR-safe: server renders the
   // `true` default, client reconciles) and keep every useTTS instance in sync
   // when any of them flips the toggle.
   useEffect(() => {
-    setEnabled(readEnabledPref());
-    const sync = () => setEnabled(readEnabledPref());
+    setEnabledPref(readEnabledPref());
+    const sync = () => setEnabledPref(readEnabledPref());
     const onCustom = (e: Event) => {
       const detail = (e as CustomEvent<boolean>).detail;
-      setEnabled(typeof detail === "boolean" ? detail : readEnabledPref());
+      setEnabledPref(typeof detail === "boolean" ? detail : readEnabledPref());
     };
     window.addEventListener(TTS_ENABLED_EVENT, onCustom);
     window.addEventListener("storage", sync);
@@ -1123,7 +1139,7 @@ export function useTTS(options: UseTTSOptions = {}): UseTTSReturn {
   // ---------------------------------------------------------------------------
   const handleSetEnabled = useCallback(
     (v: boolean) => {
-      setEnabled(v);
+      setEnabledPref(v);
       // Persist + broadcast so the toggle is a single global choice that
       // survives reloads and syncs across every useTTS instance.
       writeEnabledPref(v);
