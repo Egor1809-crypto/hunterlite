@@ -542,7 +542,10 @@ class Settings(BaseSettings):
     # faster-whisper at :8001 (which is DOWN in dev → speech recognition failed).
     # navy verified working. Prod can override via WHISPER_URL/WHISPER_MODEL.
     whisper_url: str = "https://api.navy"
-    whisper_model: str = "whisper-1"
+    # 2026-06: gpt-4o-transcribe (navy) — measured ~1.3s vs ~2.7s for whisper-1
+    # on a 5s RU utterance, equal/better accuracy. Halves the dominant cost in
+    # the live-call turn loop (speech → AI response). Override via WHISPER_MODEL.
+    whisper_model: str = "gpt-4o-transcribe"
     whisper_language: str = "ru"
     whisper_timeout_seconds: int = 30
     whisper_api_key: str = ""  # Bearer token for cloud Whisper proxy (navy.api, OpenAI). Empty = self-hosted.

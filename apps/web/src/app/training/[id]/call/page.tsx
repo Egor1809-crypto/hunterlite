@@ -1277,7 +1277,7 @@ export default function TrainingCallPage() {
       let loudStreak = 0;
       let segStart = Date.now();
       let vadTick = 0;              // 2026-06-06 DIAG: троттлинг диагностики VAD
-      const SILENCE_MS = 350;       // 2026-06-06: 450→350 — короче «мёртвая» пауза после реплики до отправки
+      const SILENCE_MS = 250;       // 2026-06: 350→250 — раньше отдаём реплику в STT, ближе к «речь→ответ ≤3с» (STT теперь ~1.3с gpt-4o-transcribe)
       // 2026-06-06: 12→6. У слабых микрофонов (fifine на низком gain) речь даёт
       // avg всего ~12-14 при фоне ~1 — порог floor+12≈13 еле дотягивал, speech не
       // ловился. floor+6≈7 уверенно отделяет речь (12-14) от тишины (0-2).
