@@ -777,6 +777,13 @@ async def _handle_session_resume(
         # Restore custom_params from session record
         custom_params = session.custom_params or {}
         state["custom_params"] = custom_params
+        # 2026-06-07: canonical session mode for the LLM/TTS routing. The legacy
+        # `custom_params.session_mode` is often empty (mode lives in the canonical
+        # `session.mode` column), which made the call path read "chat" → the fast
+        # call model (haiku) never applied. Store the resolved mode once.
+        state["session_mode"] = (
+            (getattr(session, "mode", None) or custom_params.get("session_mode") or "chat")
+        ).lower()
         custom_archetype = custom_params.get("archetype")
         custom_difficulty = custom_params.get("difficulty")
 
@@ -1862,7 +1869,7 @@ async def _generate_character_reply(
                     # navy TTS в норме ~1-2с, но иногда зависает >12с — раньше это
                     # морозило весь ход и аудио терялось. Теперь fail-fast (5с):
                     # если navy не успел, фронт озвучит текст браузерным голосом.
-                    _sent_budget = 5.0
+                    _sent_budget = 8.0
                     r = await asyncio.wait_for(
                         get_tts_audio_b64(
                             _text, str(session_id),
@@ -1932,7 +1939,7 @@ async def _generate_character_reply(
             # actually applied. Without this the stream path silently reverted
             # to chat register even when user clicked "Звонок".
             _cp_s = state.get("custom_params") or {}
-            _session_mode_s = _cp_s.get("session_mode") or "chat"
+            _session_mode_s = _cp_s.get("session_mode") or state.get("session_mode") or "chat"
             _tone_s = _cp_s.get("tone")  # constructor v2, 2026-04-21
             async for token in generate_response_stream(
                 system_prompt=extra_system,

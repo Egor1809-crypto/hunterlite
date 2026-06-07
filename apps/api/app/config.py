@@ -488,7 +488,10 @@ class Settings(BaseSettings):
     # voice (is_tts_available()=False → backend never sent tts.audio). navy tts-1
     # is verified working (mp3). Prod can override via NAVY_TTS_* env.
     navy_tts_enabled: bool = True
-    navy_tts_model: str = "tts-1"
+    # 2026-06-07: tts-1 measured ~3.7s/sentence on navy → exceeded the 5s
+    # per-sentence budget under load → silent turns. gpt-4o-mini-tts ~3.0s and
+    # leaves headroom (budget also raised to 8s). Override via NAVY_TTS_MODEL.
+    navy_tts_model: str = "gpt-4o-mini-tts"
     # 2026-06-06: женский голос. «alloy» звучал нейтрально-«афроамерикански»
     # (жалоба). «shimmer» — мягкий женский; «nova» — звонкий женский. Меняется
     # через NAVY_TTS_VOICE без правки кода.
