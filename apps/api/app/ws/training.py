@@ -5117,7 +5117,10 @@ async def _handle_audio_chunk(
     _t = stt_result.text.strip()
     _letters = [c for c in _t if c.isalpha()]
     _cyr = sum(1 for c in _letters if ("а" <= c.lower() <= "я") or c.lower() == "ё")
-    if len(_t.split()) <= 2 and _letters and (_cyr / len(_letters)) < 0.5:
+    # Short utterance is junk when it has NO Cyrillic at all (punctuation-only
+    # like "." , a non-RU token like "you"/"Hello", or symbols) OR is mostly
+    # non-Cyrillic. Real short RU answers ("Да", "Алло") keep Cyrillic.
+    if len(_t.split()) <= 2 and (_cyr == 0 or (_letters and (_cyr / len(_letters)) < 0.5)):
         logger.info("STT junk dropped (short non-RU): %r", _t[:40])
         await _send(ws, "transcription.result", {
             "text": _t,

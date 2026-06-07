@@ -319,9 +319,14 @@ export default function TrainingCallPage() {
   // self-disarm even when Brave/mobile Safari refused autoplay — so
   // the recovery toast never appeared and pilot users sat in silence.
   useEffect(() => {
-    if (tts.speaking && !firstTtsAudioReceivedRef.current) {
-      firstTtsAudioReceivedRef.current = true;
-      logger.log("[CALL] B7 watchdog disarmed — tts.speaking=true (audio actually playing)");
+    if (tts.speaking) {
+      // ИИ заговорил → ход завершён, дальше мик глушит сам ttsSpeaking.
+      turnInFlightRef.current = false;
+      if (turnTimeoutRef.current) { clearTimeout(turnTimeoutRef.current); turnTimeoutRef.current = null; }
+      if (!firstTtsAudioReceivedRef.current) {
+        firstTtsAudioReceivedRef.current = true;
+        logger.log("[CALL] B7 watchdog disarmed — tts.speaking=true (audio actually playing)");
+      }
     }
   }, [tts.speaking]);
 
@@ -680,6 +685,16 @@ export default function TrainingCallPage() {
     onMessage: (data: WSMessage) => {
       if (!data.data || typeof data.data !== "object") data.data = {};
       logger.log("[CALL]", data.type, data.data);
+      // «Один ход за раз»: освобождаем мик, если ответа ИИ НЕ будет — мусорный/
+      // пустой транскрипт (бэкенд-гард) или сбой STT. Иначе мик висел бы до
+      // 15с-таймаута. (Успешный ход снимает флаг по tts.speaking / character.response.)
+      if (
+        (data.type === "transcription.result" && (data.data.is_empty || data.data.is_low_confidence)) ||
+        data.type === "stt.unavailable" || data.type === "stt.error" || data.type === "error"
+      ) {
+        turnInFlightRef.current = false;
+        if (turnTimeoutRef.current) { clearTimeout(turnTimeoutRef.current); turnTimeoutRef.current = null; }
+      }
       // navy-аудио пришло для текущего ответа → fallback не нужен.
       if (data.type === "tts.audio" || data.type === "tts.audio_chunk") {
         respHadAudioRef.current = true;
@@ -839,6 +854,10 @@ export default function TrainingCallPage() {
           break;
 
         case "character.response": {
+          // Ход завершён (на случай text-only / выключенного TTS, когда
+          // tts.speaking не сработает) — отпускаем мик.
+          turnInFlightRef.current = false;
+          if (turnTimeoutRef.current) { clearTimeout(turnTimeoutRef.current); turnTimeoutRef.current = null; }
           // 2026-06-06 FIX: payload carries `content`, не `text` — из-за этого
           // браузерный fallback НЕ планировался, и при зависании navy TTS звука
           // не было вовсе. Теперь читаем content → если navy не пришлёт аудио,
@@ -1148,6 +1167,23 @@ export default function TrainingCallPage() {
   const liveRecorderRef = useRef<MediaRecorder | null>(null);
   const liveVadRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const liveOnRef = useRef(false);
+  // 2026-06-07 «один ход за раз»: после отправки реплики мик НЕ шлёт новые
+  // куски, пока ИИ не ответит. Раньше в окне «отправил → ИИ ещё думает»
+  // (5-8с) мик копил уттеррансы в очередь → задержки до 21с и ответы ИИ на
+  // устаревшие реплики (рассинхрон, путал имя). Флаг снимается, когда ИИ
+  // начал говорить / пришёл character.response / по таймауту-предохранителю.
+  const turnInFlightRef = useRef(false);
+  const turnTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const clearTurnInFlight = useCallback(() => {
+    turnInFlightRef.current = false;
+    if (turnTimeoutRef.current) { clearTimeout(turnTimeoutRef.current); turnTimeoutRef.current = null; }
+  }, []);
+  const markTurnInFlight = useCallback(() => {
+    turnInFlightRef.current = true;
+    if (turnTimeoutRef.current) clearTimeout(turnTimeoutRef.current);
+    // предохранитель: если ответ не пришёл за 15с (STT/LLM упал) — отпускаем мик.
+    turnTimeoutRef.current = setTimeout(() => { turnInFlightRef.current = false; }, 15000);
+  }, []);
   const ttsSpeakingRef = useRef(tts.speaking);
   ttsSpeakingRef.current = tts.speaking;
   const ttsStopRef = useRef(tts.stop);
@@ -1182,6 +1218,7 @@ export default function TrainingCallPage() {
           turnT0Ref.current = Date.now(); // старт тайминга хода
           turnGotChunkRef.current = false;
           turnGotAudioRef.current = false;
+          markTurnInFlight();              // «один ход за раз» — мик молчит до ответа ИИ
           sendAudioBlobRef.current?.(blob); // → backend Whisper → ответ ИИ
         }
       }
@@ -1298,12 +1335,12 @@ export default function TrainingCallPage() {
       liveVadRef.current = setInterval(() => {
         if (!liveOnRef.current || !liveAnalyserRef.current) return;
         vadTick += 1;
-        // Пока говорит ИИ — не слушаем (и не копим сегмент).
-        if (ttsSpeakingRef.current) {
-          // 2026-06-06 DIAG: если этот лог сыпется постоянно, пока ты
-          // говоришь — значит tts.speaking завис true и глушит микрофон.
-          if (vadTick % 10 === 0) logger.log("[CALL] VAD: подавлен TTS (ttsSpeaking=true)");
-          spoke = false; loudStreak = 0; lastLoud = Date.now(); prevSpeaking = true;
+        // Пока говорит ИИ ИЛИ пока ИИ обрабатывает прошлую реплику — не слушаем
+        // и НЕ копим сегмент. turnInFlight закрывает дыру «отправил → ИИ думает»,
+        // из-за которой реплики копились в очередь (задержки до 21с, рассинхрон).
+        if (ttsSpeakingRef.current || turnInFlightRef.current) {
+          if (vadTick % 10 === 0) logger.log("[CALL] VAD: подавлен (ИИ говорит/думает)");
+          spoke = false; loudStreak = 0; speechMs = 0; lastLoud = Date.now(); prevSpeaking = true;
           setLiveListening(false);
           return;
         }
