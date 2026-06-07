@@ -58,7 +58,9 @@ type EventName =
   | "whisper_script_clicked"
   | "retrain_widget_shown"
   | "retrain_widget_clicked"
-  | "coaching_mistake";
+  | "coaching_mistake"
+  | "script_hint_tapped"
+  | "script_hint_inserted";
 
 interface QueuedEvent {
   name: EventName;

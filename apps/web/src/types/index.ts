@@ -709,6 +709,17 @@ export interface CoachingWhisper {
   timestamp: number;
 }
 
+// ─── Script Hint (AI reply suggestion, REST) ──────────────────────────────
+// Returned by POST /training/sessions/{id}/script-hints — 2-3 ready-to-send
+// manager reply options, each in a distinct style (empathy / structure /
+// question). Tap-to-insert into the chat input. See WhisperPanel.
+export interface ScriptHint {
+  /** Ready-to-send reply text. */
+  text: string;
+  /** Short style label, e.g. "Эмпатия" / "Структура" / "Вопрос". */
+  label?: string;
+}
+
 // ─── Soft Skills Update (WS) ──────────────────────────────────────────────
 
 export interface SoftSkillsUpdate {

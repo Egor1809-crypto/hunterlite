@@ -64,6 +64,8 @@ import {
   EMOTION_MAP,
 } from "@/types";
 import { logger } from "@/lib/logger";
+import { api } from "@/lib/api";
+import type { ScriptHint } from "@/types";
 
 /** Type-safe accessor for untyped WebSocket message data payloads. */
 function wsPayload<T>(data: Record<string, unknown>): T {
@@ -198,6 +200,65 @@ export default function TrainingSessionPage() {
       return () => clearTimeout(t);
     }
   }, [s.sttAvailable, s.sessionState, sttWarningDismissed]);
+
+  // ── AI reply suggestions («Варианты ответа») ──────────────────────────
+  // 2026-06-07 Phase 2b: fetch ready-to-send manager reply options from
+  // POST /training/sessions/{id}/script-hints whenever the conversation
+  // state advances (refreshScriptHints() bumps scriptHintsRefreshKey on
+  // character.response / stage.update). Gated by the panel toggle and a
+  // ready session. Aborts in-flight requests so rapid turns don't race.
+  const scriptHintsAbortRef = useRef<AbortController | null>(null);
+  useEffect(() => {
+    if (!s.scriptHintsEnabled) return;
+    if (s.sessionState !== "ready") return;
+
+    const controller = new AbortController();
+    scriptHintsAbortRef.current?.abort();
+    scriptHintsAbortRef.current = controller;
+
+    const sid = currentSessionIdRef.current || routeId;
+    useSessionStore.getState().setScriptHintsLoading(true);
+
+    api
+      .post<{ hints: ScriptHint[] }>(
+        `/training/sessions/${sid}/script-hints`,
+        {},
+        { signal: controller.signal },
+      )
+      .then((res) => {
+        if (controller.signal.aborted) return;
+        const hints = Array.isArray(res?.hints) ? res.hints.slice(0, 3) : [];
+        useSessionStore.getState().setScriptHints(hints);
+      })
+      .catch((err) => {
+        if (controller.signal.aborted) return;
+        logger.log("[script-hints] fetch failed", err);
+      })
+      .finally(() => {
+        if (controller.signal.aborted) return;
+        useSessionStore.getState().setScriptHintsLoading(false);
+      });
+
+    return () => controller.abort();
+    // scriptHintsRefreshKey is the trigger; enabled/state gate it.
+  }, [s.scriptHintsRefreshKey, s.scriptHintsEnabled, s.sessionState, routeId]);
+
+  // Insert a suggested reply into the chat input and focus it. The hints
+  // panel lives in the right rail; the textarea is bound to s.input, so
+  // setInput updates it across panels (same target STT uses).
+  const handleInsertHint = (text: string) => {
+    s.setInput(text);
+    s.setTextMode(true);
+    setTimeout(() => {
+      const el = textareaRef.current;
+      if (!el) return;
+      el.focus();
+      el.style.height = "auto";
+      el.style.height = Math.min(el.scrollHeight, 240) + "px";
+      el.setSelectionRange(el.value.length, el.value.length);
+    }, 30);
+    telemetry.track("script_hint_inserted", { length: text.length });
+  };
 
   // ── Micro-animation state — checkpoint hit pulse on the score card ──
   const [checkpointFlash, setCheckpointFlash] = useState(false);
@@ -1814,7 +1875,10 @@ export default function TrainingSessionPage() {
             hints are visible regardless of which tab is active.
           */}
           <div className="rounded-xl" style={{ background: "var(--bg-tertiary)", border: "1px solid var(--border-color)", padding: "10px 12px" }}>
-            <WhisperPanel onToggle={(enabled) => sendMessage({ type: "whisper.toggle", data: { enabled } })} />
+            <WhisperPanel
+              onToggle={(enabled) => sendMessage({ type: "whisper.toggle", data: { enabled } })}
+              onInsertHint={handleInsertHint}
+            />
           </div>
 
           {/* Pill switcher */}
