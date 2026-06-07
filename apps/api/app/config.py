@@ -144,13 +144,19 @@ class Settings(BaseSettings):
     # dialogue. gemini-3.5-flash answers in ~1.5-2s with good Russian. Only
     # task_type=="roleplay" uses this; exam grading / accuracy-critical paths
     # keep deepseek (exam_model). Empty = no override (back to local_llm_model).
-    # 2026-06-07: claude-haiku-4.5 — measured TTFT ~0.9s vs ~1.6s for
-    # gemini-3.5-flash on navy (roleplay prompt), with natural Russian dialog.
-    # This is the live-call persona/character model, so lower TTFT directly
-    # shortens "речь → ответ ИИ". Override via NAVY_LLM_PERSONA_MODEL.
     local_llm_persona_model: str = Field(
-        default="claude-haiku-4.5",
+        default="gemini-3.5-flash",
         validation_alias=AliasChoices("NAVY_LLM_PERSONA_MODEL", "LOCAL_LLM_PERSONA_MODEL"),
+    )
+    # 2026-06-07: model used ONLY for the live CALL roleplay (session_mode=="call").
+    # claude-haiku-4.5 — measured TTFT ~0.9s vs ~1.6s for gemini-3.5-flash on navy,
+    # natural Russian — lowest "речь → ответ ИИ". Deliberately separate from
+    # local_llm_persona_model so haiku does NOT leak into chat roleplay, the
+    # post-session judge/coach, Manyasha (knowledge_ai_model), or exams
+    # (exam_model). Override via CALL_MODEL.
+    call_model: str = Field(
+        default="claude-haiku-4.5",
+        validation_alias=AliasChoices("CALL_MODEL"),
     )
     # 2026-06-04: model-level fallback chain on navy.api. The primary model
     # (``local_llm_model``, deepseek-v4-pro) is a reasoning model that

@@ -2680,7 +2680,11 @@ async def generate_response(
     # они выполняются ПЕРЕД показом /results, пока пользователь ждёт. Дефолтный
     # reasoning-deepseek добавлял ~10-15с; gemini-3.5-flash отвечает за ~2с.
     _persona_model_override: str | None = None
-    if (
+    if session_mode == "call" and task_type == "roleplay" and getattr(settings, "call_model", ""):
+        # Call-ONLY fast model (haiku). Does NOT affect chat roleplay, the
+        # post-session judge/coach, Manyasha or exams.
+        _persona_model_override = settings.call_model
+    elif (
         task_type in ("roleplay", "judge", "coach")
         and getattr(settings, "local_llm_persona_model", "")
     ):
@@ -3221,7 +3225,10 @@ async def generate_response_stream(
                         # task_type=="roleplay" AND local_llm_persona_model
                         # is configured, swap to the faster model.
                         _stream_kwargs = {}
-                        if (
+                        if session_mode == "call" and task_type == "roleplay" and getattr(settings, "call_model", ""):
+                            # Call-ONLY fast model (haiku) — not chat/judge/coach.
+                            _stream_kwargs["model_override"] = settings.call_model
+                        elif (
                             task_type == "roleplay"
                             and getattr(settings, "local_llm_persona_model", "")
                         ):
