@@ -42,8 +42,8 @@ export default function VibeMeter({ emotion, archetype, trigger }: VibeMeterProp
       {/* ── Header ── */}
       <div className="flex items-center justify-between mb-3">
         <h3
-          className="text-sm font-semibold uppercase tracking-widest"
-          style={{ color: "var(--text-secondary)" }}
+          className="text-base font-semibold"
+          style={{ color: "var(--text-primary)" }}
         >
           Настроение
         </h3>

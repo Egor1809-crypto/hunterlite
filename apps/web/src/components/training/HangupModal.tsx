@@ -27,7 +27,7 @@ export function HangupModal({ open, data, onRedial, onResults }: HangupModalProp
           <motion.div
             role="dialog"
             aria-modal="true"
-            aria-label="Клиент повесил трубку"
+            aria-label="Клиент положил трубку"
             initial={{ scale: 0.8, y: 30 }}
             animate={{ scale: 1, y: 0 }}
             exit={{ scale: 0.8, y: 30 }}
@@ -111,7 +111,7 @@ export function HangupModal({ open, data, onRedial, onResults }: HangupModalProp
                     }}
                   >
                     <BarChart3 size={16} />
-                    К результатам
+                    Смотреть разбор
                   </button>
                 </>
               ) : (
@@ -125,7 +125,7 @@ export function HangupModal({ open, data, onRedial, onResults }: HangupModalProp
                   }}
                 >
                   <BarChart3 size={16} />
-                  К результатам
+                  Смотреть разбор
                 </button>
               )}
             </div>
