@@ -97,7 +97,7 @@ export default function ScoreLayersBreakdown({ scoreBreakdown, totalScore, layer
   const totalGrade = getGradeLabel(totalScore);
 
   return (
-    <div className="cyber-card rounded-2xl p-5 md:p-6 space-y-5">
+    <div className="glass-panel rounded-2xl p-5 md:p-6 space-y-5">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>

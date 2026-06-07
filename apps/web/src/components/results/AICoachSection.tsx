@@ -193,27 +193,27 @@ export default function AICoachSection({ sessionId, coachData, difficulty }: AIC
                       animate={{ opacity: 1, x: 0 }}
                       transition={{ delay: i * 0.1 }}
                       className="rounded-xl overflow-hidden"
-                      style={{ border: "1px solid rgba(255,255,255,0.06)" }}
+                      style={{ border: "1px solid var(--border-color)" }}
                     >
                       {/* What manager said */}
                       <div className="px-4 py-2.5" style={{ background: "var(--danger-muted)" }}>
                         <div className="flex items-center justify-between mb-1">
-                          <span className="text-xs font-mono uppercase" style={{ color: "#FF6666" }}>
+                          <span className="text-xs font-mono uppercase" style={{ color: "var(--danger)" }}>
                             Реплика #{cm.message_index} ({STAGE_LABELS[cm.stage] || cm.stage})
                           </span>
-                          <span className="text-xs font-mono px-1.5 rounded" style={{ background: "var(--danger-muted)", color: "#FF6666" }}>
+                          <span className="text-xs font-mono px-1.5 rounded" style={{ background: "var(--danger-muted)", color: "var(--danger)" }}>
                             {(cm.category || "general").replace(/_/g, " ")}
                           </span>
                         </div>
                         <p className="text-xs italic" style={{ color: "var(--text-secondary)" }}>
                           &ldquo;{cm.manager_said}&rdquo;
                         </p>
-                        <p className="text-xs mt-1" style={{ color: "#FF8888" }}>
+                        <p className="text-xs mt-1" style={{ color: "var(--danger)" }}>
                           {cm.problem}
                         </p>
                       </div>
                       {/* Better response */}
-                      <div className="px-4 py-2.5" style={{ background: "rgba(61,220,132,0.04)" }}>
+                      <div className="px-4 py-2.5" style={{ background: "var(--success-muted)" }}>
                         <span className="text-xs font-mono uppercase" style={{ color: "var(--success)" }}>
                           Лучше сказать:
                         </span>
@@ -261,8 +261,8 @@ export default function AICoachSection({ sessionId, coachData, difficulty }: AIC
                         key={i}
                         className={`rounded-lg px-3 py-2 text-xs ${msg.role === "user" ? "ml-8" : "mr-8"}`}
                         style={{
-                          background: msg.role === "user" ? "var(--accent-muted)" : "rgba(255,255,255,0.03)",
-                          border: `1px solid ${msg.role === "user" ? "var(--accent-glow)" : "rgba(255,255,255,0.06)"}`,
+                          background: msg.role === "user" ? "var(--accent-muted)" : "var(--bg-secondary)",
+                          border: `1px solid ${msg.role === "user" ? "var(--accent)" : "var(--border-color)"}`,
                           color: "var(--text-secondary)",
                         }}
                       >
