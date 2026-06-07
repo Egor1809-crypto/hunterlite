@@ -1699,9 +1699,21 @@ async def calculate_scores(
     user_messages = [m.content for m in messages if m.role == MessageRole.user]
     assistant_messages = [m.content for m in messages if m.role == MessageRole.assistant]
 
-    # Guard: empty session (0 user messages) → all zeros, skip all LLM calls
-    if len(user_messages) == 0:
-        logger.warning("Session %s has 0 user messages — returning zero scores", session_id)
+    # Guard: empty OR negligible-content session → all zeros, skip all LLM calls.
+    #
+    # `0 user messages` catches a clean empty chat (chat is text-only). A FAILED
+    # CALL is different: STT on silence/noise leaves 1-2 junk fragments (empty
+    # strings, single chars, or a Whisper hallucination), which used to dodge the
+    # `== 0` guard and collect ~38/100 of baseline credit (the "пустой звонок
+    # даёт баллы" bug). Make the guard content-based so call↔chat behave the same:
+    # a session with no real spoken turn scores 0, not a baseline.
+    _meaningful_chars = sum(len((m or "").strip()) for m in user_messages)
+    _has_real_turn = any(len((m or "").split()) >= 2 for m in user_messages)
+    if len(user_messages) == 0 or _meaningful_chars < 15 or not _has_real_turn:
+        logger.warning(
+            "Session %s has no real user turn (msgs=%d, chars=%d, real_turn=%s) — zero scores",
+            session_id, len(user_messages), _meaningful_chars, _has_real_turn,
+        )
         return ScoreBreakdown(
             script_adherence=0,
             objection_handling=0,
