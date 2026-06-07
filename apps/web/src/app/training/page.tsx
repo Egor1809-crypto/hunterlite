@@ -153,7 +153,7 @@ function TrainingPageContent() {
           {/* Header — единый редакторский паттерн (как /cases), без иконки-плашки */}
           <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
             <EditorialHeader
-              eyebrowLeft="Практикум · обучение"
+              eyebrowLeft="Практикум"
               eyebrowRight="ФЗ-127"
               title="Обучение"
               subtitle="Тесты, AI-клиенты и практические сценарии в одной программе."
