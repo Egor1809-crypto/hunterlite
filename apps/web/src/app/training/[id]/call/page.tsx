@@ -24,7 +24,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { Mic, MicOff, Send, PhoneOff } from "lucide-react";
+import { Mic, MicOff, Send, PhoneOff, Loader2 } from "lucide-react";
 import { useSessionStore } from "@/stores/useSessionStore";
 import { PhoneCallMode } from "@/components/training/phone/PhoneCallMode";
 import { usePolicyStore } from "@/stores/usePolicyStore";
@@ -33,7 +33,6 @@ import IncomingCallScreen from "@/components/training/phone/IncomingCallScreen";
 import CallDialingOverlay from "@/components/training/phone/CallDialingOverlay";
 // Phase E (2026-05-08): unified loader — same component as the chat
 // route, mode='call' adds phone-themed icon + 300Hz click + reason/stats.
-import SessionEndingOverlay from "@/components/training/SessionEndingOverlay";
 import ScriptDrawer from "@/components/training/ScriptDrawer";
 import { telemetry } from "@/lib/telemetry";
 import { useWebSocket } from "@/hooks/useWebSocket";
@@ -177,7 +176,9 @@ export default function TrainingCallPage() {
   // hangupInProgress which renders a full-screen "call ending" overlay
   // that covers all intermediate states until the redirect lands.
   const [hangupInProgress, setHangupInProgress] = useState(false);
-  const [hangupReason, setHangupReason] = useState<string>("");
+  // 2026-06-07: the ending overlay (which read this) was removed; keep the
+  // setter (3 call sites) but drop the now-unused read binding.
+  const [, setHangupReason] = useState<string>("");
   // Значение режима больше не читается (3-кнопочный исход убран в P1), но сеттер
   // ещё используется при инициализации сессии — оставляем только его.
   const [, setSessionMode] = useState<"chat" | "call" | "center">("call");
@@ -1771,30 +1772,19 @@ export default function TrainingCallPage() {
   // loading spinner on /results) is invisible to the user. The farewell
   // TTS still plays because it was queued before this render.
   if (hangupInProgress) {
-    // Phase E (2026-05-08): unified loader. Was a separate
-    // CallEndingTransition (2.2s phone-themed anim) — now uses the
-    // same SessionEndingOverlay as the chat route with mode='call'.
-    // mode='call' brings back the phone-flavor (PhoneOff icon flash,
-    // 300Hz hangup click on mount, reason + stats display) on top of
-    // the unified 4-phase backend timeline. The redirect timing is
-    // still governed by goToResults(2200|3500) at each hangup call
-    // site — the overlay paints continuously until the route changes.
-    const callStats: Array<{ label: string; value: string }> = [];
-    if (s.elapsed && s.elapsed > 0) {
-      const m = Math.floor(s.elapsed / 60);
-      const sec = s.elapsed % 60;
-      callStats.push({ label: "Длительность", value: `${m}:${sec.toString().padStart(2, "0")}` });
-    }
-    if (s.stagesCompleted && s.stagesCompleted.length > 0) {
-      callStats.push({ label: "Этапов пройдено", value: String(s.stagesCompleted.length) });
-    }
+    // 2026-06-07: the "Звонок завершён / Считаем баллы…" processing overlay
+    // was removed by request. This early-return still fires during the
+    // hangup→/results transition (farewell TTS finishing, redirect armed via
+    // goToResults) and must cover the viewport so the user doesn't see a
+    // flash of the empty call / chat / results spinner. Replaced the steps
+    // screen with a minimal neutral cover — no text, no stages, no timeline.
     return (
-      <SessionEndingOverlay
-        visible
-        mode="call"
-        reason={hangupReason}
-        stats={callStats}
-      />
+      <div
+        className="fixed inset-0 z-[100] flex items-center justify-center"
+        style={{ background: "var(--bg-primary)" }}
+      >
+        <Loader2 size={28} className="animate-spin" style={{ color: "var(--text-muted)" }} />
+      </div>
     );
   }
 
