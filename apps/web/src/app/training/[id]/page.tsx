@@ -1874,7 +1874,7 @@ export default function TrainingSessionPage() {
             Coaching whisper — lives at the top of the sidebar so coaching
             hints are visible regardless of which tab is active.
           */}
-          <div className="rounded-xl" style={{ background: "var(--bg-tertiary)", border: "1px solid var(--border-color)", padding: "10px 12px" }}>
+          <div className="rounded-xl p-4" style={{ background: "var(--bg-tertiary)", border: "1px solid var(--border-color)" }}>
             <WhisperPanel
               onToggle={(enabled) => sendMessage({ type: "whisper.toggle", data: { enabled } })}
               onInsertHint={handleInsertHint}
@@ -1921,11 +1921,11 @@ export default function TrainingSessionPage() {
               ───────────────────────────────────────────────────── */}
           {sidebarTab === "score" && (
             <div className="flex flex-col gap-3">
-              <div className="rounded-2xl p-4" style={{ background: "var(--bg-tertiary)" }}>
+              <div className="rounded-xl p-4" style={{ background: "var(--bg-tertiary)" }}>
                 <VibeMeter emotion={s.emotion} />
               </div>
 
-              <div className="rounded-xl p-3" style={{ background: "var(--bg-tertiary)" }}>
+              <div className="rounded-xl p-4" style={{ background: "var(--bg-tertiary)" }}>
                 <TalkListenRatio talkPercent={s.talkTime + s.listenTime > 0 ? Math.round((s.talkTime / (s.talkTime + s.listenTime)) * 100) : 50} />
               </div>
 
