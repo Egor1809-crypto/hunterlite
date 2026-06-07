@@ -32,45 +32,33 @@ export function HangupModal({ open, data, onRedial, onResults }: HangupModalProp
             animate={{ scale: 1, y: 0 }}
             exit={{ scale: 0.8, y: 30 }}
             transition={{ type: "spring", damping: 25, stiffness: 300 }}
-            className="relative w-full max-w-md rounded-2xl p-6 overflow-hidden"
+            className="relative w-full max-w-md p-6 overflow-hidden"
             style={{
-              background: "var(--glass-bg)",
-              border: "1px solid rgba(229,72,77,0.3)",
-              boxShadow: "0 0 40px var(--danger-muted), 0 25px 50px rgba(0,0,0,0.4)",
-              backdropFilter: "blur(24px)",
+              background: "var(--surface-card)",
+              border: "1px solid var(--border-color)",
+              borderRadius: "var(--radius-2xl)",
+              boxShadow: "var(--shadow-lg)",
             }}
           >
-            {/* Red glow background effect */}
-            <div
-              className="absolute inset-0 pointer-events-none"
-              style={{
-                background: "radial-gradient(circle at 50% 0%, var(--danger-muted) 0%, transparent 60%)",
-              }}
-            />
-
             {/* Icon */}
             <div className="relative flex justify-center mb-4">
-              <motion.div
-                animate={{
-                  rotate: [0, -10, 10, -10, 0],
-                }}
-                transition={{ duration: 0.6, delay: 0.3 }}
+              <div
                 className="flex items-center justify-center w-16 h-16 rounded-full"
                 style={{
                   background: "var(--danger-muted)",
-                  border: "2px solid rgba(229,72,77,0.4)",
+                  border: "1px solid var(--border-color)",
                 }}
               >
                 <PhoneOff size={28} style={{ color: "var(--danger)" }} />
-              </motion.div>
+              </div>
             </div>
 
             {/* Title */}
             <h2
-              className="relative text-center text-lg font-bold mb-3"
-              style={{ color: "var(--danger)" }}
+              className="relative text-center text-lg font-semibold mb-3"
+              style={{ color: "var(--text-primary)" }}
             >
-              КЛИЕНТ ПОВЕСИЛ ТРУБКУ
+              Клиент положил трубку
             </h2>
 
             {/* Hangup phrase */}
@@ -78,7 +66,7 @@ export function HangupModal({ open, data, onRedial, onResults }: HangupModalProp
               className="relative rounded-xl p-4 mb-4"
               style={{
                 background: "var(--danger-muted)",
-                border: "1px solid rgba(229,72,77,0.15)",
+                border: "1px solid var(--border-color)",
               }}
             >
               <p
@@ -106,7 +94,7 @@ export function HangupModal({ open, data, onRedial, onResults }: HangupModalProp
                     className="flex-1 flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-medium transition-all hover:scale-[1.02] active:scale-[0.98]"
                     style={{
                       background: "var(--accent-muted)",
-                      border: "1px solid rgba(107,77,199,0.4)",
+                      border: "1px solid var(--border-color)",
                       color: "var(--accent)",
                     }}
                   >
@@ -117,8 +105,8 @@ export function HangupModal({ open, data, onRedial, onResults }: HangupModalProp
                     onClick={onResults}
                     className="flex-1 flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-medium transition-all hover:scale-[1.02] active:scale-[0.98]"
                     style={{
-                      background: "rgba(255,255,255,0.05)",
-                      border: "1px solid var(--glass-border)",
+                      background: "var(--bg-secondary)",
+                      border: "1px solid var(--border-color)",
                       color: "var(--text-secondary)",
                     }}
                   >
@@ -131,8 +119,8 @@ export function HangupModal({ open, data, onRedial, onResults }: HangupModalProp
                   onClick={onResults}
                   className="w-full flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-medium transition-all hover:scale-[1.02] active:scale-[0.98]"
                   style={{
-                    background: "rgba(255,255,255,0.05)",
-                    border: "1px solid var(--glass-border)",
+                    background: "var(--bg-secondary)",
+                    border: "1px solid var(--border-color)",
                     color: "var(--text-secondary)",
                   }}
                 >

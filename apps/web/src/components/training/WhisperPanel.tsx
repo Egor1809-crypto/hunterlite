@@ -2,7 +2,6 @@
 
 import { motion, AnimatePresence } from "framer-motion";
 import { Scale, Heart, ArrowRight, Shield, Zap, Lightbulb, Eye, EyeOff, Target } from "lucide-react";
-import type { CoachingWhisper } from "@/types";
 import { useSessionStore } from "@/stores/useSessionStore";
 import { telemetry } from "@/lib/telemetry";
 
@@ -17,34 +16,20 @@ const ICON_MAP: Record<string, typeof Scale> = {
   target: Target,
 };
 
+// 2026-06-07 (редизайн malvah): монохром + ОДИН акцент. Цветовая
+// «радуга» по типам подсказки убрана — все карточки на нейтральной
+// accent-подложке, акцентная иконка. Семантику несёт иконка и текст
+// «Этап N», а не цвет. Исключение — emotion: сдержанный danger,
+// потому что это сигнал тревоги клиента (точечный семантический цвет).
 const TYPE_COLORS: Record<string, string> = {
-  legal: "rgba(234, 179, 8, 0.15)",
   emotion: "var(--danger-muted)",
-  stage: "rgba(34, 197, 94, 0.12)",
-  objection: "rgba(139, 92, 246, 0.12)",
-  transition: "rgba(59, 130, 246, 0.12)",
-  // 2026-04-23 Sprint 3: script-specific hints — brand purple, same
-  // palette as ScriptPanel so user immediately recognises the source.
-  script: "rgba(120, 92, 220, 0.14)",
 };
-
-const TYPE_BORDER_COLORS: Record<string, string> = {
-  legal: "rgba(234, 179, 8, 0.3)",
-  emotion: "var(--danger-muted)",
-  stage: "rgba(34, 197, 94, 0.25)",
-  objection: "rgba(139, 92, 246, 0.25)",
-  transition: "rgba(59, 130, 246, 0.25)",
-  script: "rgba(120, 92, 220, 0.35)",
-};
+const DEFAULT_BG = "var(--accent-muted)";
 
 const TYPE_ICON_COLORS: Record<string, string> = {
-  legal: "#EAB308",
   emotion: "var(--danger)",
-  stage: "var(--success)",
-  objection: "var(--accent)",
-  transition: "var(--info)",
-  script: "var(--accent)",
 };
+const DEFAULT_ICON = "var(--accent)";
 
 function formatTimeAgo(timestamp: number): string {
   const diff = Math.floor((Date.now() - timestamp) / 1000);
@@ -78,24 +63,30 @@ export default function WhisperPanel({ onToggle }: WhisperPanelProps) {
     <div
       className="flex flex-col"
     >
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-2">
-          <Lightbulb size={15} style={{ color: "var(--accent)" }} />
-          <span className="text-sm font-semibold uppercase tracking-wide" style={{ color: "var(--text-secondary)" }}>
-            Коучинг
-          </span>
+      <div className="flex items-start justify-between gap-3 mb-3">
+        <div className="min-w-0">
+          <div
+            className="font-mono uppercase"
+            style={{ fontSize: 11, letterSpacing: "0.14em", color: "var(--text-secondary)" }}
+          >
+            AI-коуч
+          </div>
+          <div className="text-base font-semibold mt-1" style={{ color: "var(--text-primary)" }}>
+            Подсказки
+          </div>
         </div>
         <button
           onClick={handleToggle}
-          className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg transition-colors"
+          className="flex shrink-0 items-center gap-1.5 px-2.5 py-1 rounded-lg transition-colors"
           style={{
-            background: enabled ? "rgba(34, 197, 94, 0.12)" : "rgba(255, 255, 255, 0.05)",
-            color: enabled ? "var(--success)" : "var(--text-muted)",
+            background: enabled ? "var(--accent-muted)" : "var(--bg-secondary)",
+            border: "1px solid var(--border-color)",
+            color: enabled ? "var(--accent)" : "var(--text-muted)",
           }}
           title={enabled ? "Отключить подсказки" : "Включить подсказки"}
         >
           {enabled ? <Eye size={13} /> : <EyeOff size={13} />}
-          <span className="text-xs font-medium uppercase">{enabled ? "ВКЛ" : "ВЫКЛ"}</span>
+          <span className="text-xs font-medium uppercase">{enabled ? "Вкл" : "Выкл"}</span>
         </button>
       </div>
 
@@ -108,12 +99,13 @@ export default function WhisperPanel({ onToggle }: WhisperPanelProps) {
           onClick={handleToggleHints}
           className="flex items-center gap-1.5 px-2 py-0.5 rounded-lg transition-colors text-[10px] font-medium uppercase"
           style={{
-            background: hintsEnabled ? "rgba(107, 77, 199, 0.15)" : "rgba(255, 255, 255, 0.04)",
+            background: hintsEnabled ? "var(--accent-muted)" : "var(--bg-secondary)",
+            border: "1px solid var(--border-color)",
             color: hintsEnabled ? "var(--accent)" : "var(--text-muted)",
           }}
           title={hintsEnabled ? "Скрыть варианты реплик" : "Показать варианты реплик"}
         >
-          {hintsEnabled ? "ВКЛ" : "ВЫКЛ"}
+          {hintsEnabled ? "Вкл" : "Выкл"}
         </button>
       </div>
 
@@ -178,8 +170,8 @@ export default function WhisperPanel({ onToggle }: WhisperPanelProps) {
                 isScript ? "cursor-pointer transition-colors hover:brightness-110" : ""
               }`}
               style={{
-                background: TYPE_COLORS[w.type] || "rgba(255,255,255,0.05)",
-                border: `1px solid ${TYPE_BORDER_COLORS[w.type] || "rgba(255,255,255,0.1)"}`,
+                background: TYPE_COLORS[w.type] || DEFAULT_BG,
+                border: "1px solid var(--border-color)",
               }}
               aria-label={
                 isScript
@@ -190,7 +182,7 @@ export default function WhisperPanel({ onToggle }: WhisperPanelProps) {
               <div className="flex items-start gap-2.5">
                 <IconComponent
                   size={16}
-                  style={{ color: TYPE_ICON_COLORS[w.type] || "var(--accent)", marginTop: 2, flexShrink: 0 }}
+                  style={{ color: TYPE_ICON_COLORS[w.type] || DEFAULT_ICON, marginTop: 2, flexShrink: 0 }}
                 />
                 <div className="flex-1 min-w-0">
                   {/* 2026-04-23 gap-fill: «Этап N» mini-header for
@@ -199,7 +191,7 @@ export default function WhisperPanel({ onToggle }: WhisperPanelProps) {
                   {isScript && w.stage && (
                     <div
                       className="text-[10px] font-bold uppercase tracking-wider mb-0.5"
-                      style={{ color: TYPE_ICON_COLORS[w.type] }}
+                      style={{ color: TYPE_ICON_COLORS[w.type] || DEFAULT_ICON }}
                     >
                       Этап {w.stage}
                     </div>
