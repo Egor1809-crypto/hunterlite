@@ -86,7 +86,8 @@ interface SubmitResponse {
 
 // 2026-06-04: single restrained brand accent (was a per-exam rainbow) — matches
 // the exam list. Editorial calm, not a game.
-const ACCENT = "#7C3AED";
+// 2026-06-08: токенизировано — фиолетовый на свету, синий в тёмной теме.
+const ACCENT = "var(--accent)";
 
 const RULE_TYPES = new Set(["mcq", "multi_select", "numeric", "sequencing", "matching"]);
 
