@@ -58,6 +58,12 @@ interface CertificatePreviewProps {
   recipientName?: string;
   issueDate?: string;
   verificationCode?: string;
+  program?: string;
+  format?: string;
+  /** Overrides the body paragraph; defaults to a sentence built from `program`. */
+  programDescription?: string;
+  /** Issuer name under the signature line. Defaults to "LegalHunter". */
+  issuerName?: string;
   score?: string;
   award?: string;
   lockTitle?: string;
@@ -67,9 +73,10 @@ interface CertificatePreviewProps {
   className?: string;
 }
 
-const DEFAULT_CODE = "АУ-2026-0001";
+const DEFAULT_CODE = "LH-BFL-2026-001";
 const DEFAULT_DATE = "29.05.2026";
-const DEFAULT_SCORE = "94 балла";
+const DEFAULT_PROGRAM = "Банкротство физических лиц";
+const DEFAULT_FORMAT = "Онлайн-курс";
 
 /* ── The diploma face (light editorial, landscape) ───────────────────────── */
 
@@ -78,101 +85,235 @@ function CertificateFace({
   recipientName,
   issueDate,
   verificationCode,
-  score,
+  program,
+  format,
+  programDescription,
+  issuerName = "LegalHunter",
 }: {
   p: CertPalette;
   recipientName?: string;
   issueDate: string;
   verificationCode: string;
-  score: string;
+  program: string;
+  format: string;
+  programDescription?: string;
+  issuerName?: string;
 }) {
+  // Shared letter-spaced uppercase voice of the diploma — tiny mono eyebrows.
   const cap = (extra?: React.CSSProperties): React.CSSProperties => ({
     textTransform: "uppercase",
-    letterSpacing: "0.16em",
-    fontSize: 8.5,
+    letterSpacing: "0.22em",
+    fontSize: "clamp(6.5px, 0.95vw, 9px)",
+    fontWeight: 600,
+    lineHeight: 1,
     color: p.textMuted,
     ...extra,
   });
+
+  const meta = [
+    { label: "Программа", value: program },
+    { label: "Формат", value: format },
+    { label: "Дата выдачи", value: issueDate },
+  ];
+
+  const body =
+    programDescription ??
+    `успешно прошёл курс по программе «${program}» и подтвердил освоение ключевых практических аспектов сопровождения процедур банкротства граждан.`;
+
   return (
     <div
-      className="relative flex h-full w-full flex-col"
-      style={{ background: p.surface, padding: "clamp(16px, 4%, 34px)", color: p.textPrimary }}
+      className="relative flex h-full w-full"
+      style={{ background: p.surface, color: p.textPrimary, padding: "clamp(9px, 2.2%, 20px)" }}
     >
-      {/* single hairline frame — restrained, abstract.com */}
-      <div aria-hidden className="pointer-events-none absolute" style={{ inset: 12, border: `1px solid ${p.hairline}` }} />
+      {/* Engraved hairline frame */}
+      <div
+        className="relative flex h-full w-full flex-col"
+        style={{ border: `1px solid ${p.hairline}`, borderRadius: 3, padding: "clamp(16px, 4.4%, 42px)" }}
+      >
+        {/* Corner registration ticks (abstract.com flavour) */}
+        {(["tl", "tr", "bl", "br"] as const).map((c) => {
+          const isTop = c[0] === "t";
+          const isLeft = c[1] === "l";
+          return (
+            <span
+              key={c}
+              aria-hidden
+              className="pointer-events-none absolute"
+              style={{
+                width: 10,
+                height: 10,
+                [isTop ? "top" : "bottom"]: -1,
+                [isLeft ? "left" : "right"]: -1,
+                borderTop: isTop ? `1px solid ${p.accent}` : "none",
+                borderBottom: !isTop ? `1px solid ${p.accent}` : "none",
+                borderLeft: isLeft ? `1px solid ${p.accent}` : "none",
+                borderRight: !isLeft ? `1px solid ${p.accent}` : "none",
+              }}
+            />
+          );
+        })}
 
-      <div className="relative flex h-full flex-col" style={{ padding: "clamp(10px, 3%, 26px)" }}>
-        {/* top row */}
-        <div className="flex items-center justify-between">
-          <span style={cap()}>LegalHunter · ФЗ-127</span>
-          <span className="hidden sm:inline" style={cap()}>Аттестация · 2026</span>
-          <span style={cap({ color: p.accent })}>ТехнологИИ Права</span>
-        </div>
-
-        {/* certificate number */}
-        <div style={{ marginTop: "clamp(14px,4%,30px)", ...cap({ letterSpacing: "0.2em" }) }}>
-          Сертификат № {verificationCode}
-        </div>
-
-        {/* display title — hierarchy by scale, one accent word */}
-        <h3 style={{ marginTop: 8, fontSize: "clamp(26px, 7vw, 56px)", lineHeight: 0.95, fontWeight: 600, letterSpacing: "-0.05em", color: p.textPrimary }}>
-          Сертификат <span style={{ color: p.accent }}>аттестации</span>
-        </h3>
-
-        {/* recipient */}
-        <div style={{ marginTop: "clamp(16px,4%,32px)", fontSize: 12.5, color: p.textSecondary }}>Настоящим удостоверяется, что</div>
+        {/* Very subtle guilloché — concentric engraving behind the title, centred */}
         <div
+          aria-hidden
+          className="pointer-events-none absolute"
           style={{
-            marginTop: 6,
-            alignSelf: "flex-start",
-            fontSize: "clamp(20px,5vw,34px)",
-            fontWeight: 600,
-            letterSpacing: "-0.02em",
-            color: recipientName ? p.textPrimary : p.textMuted,
-            borderBottom: `1px solid ${p.hairline}`,
-            paddingBottom: 4,
+            left: "50%",
+            top: "42%",
+            width: "62%",
+            aspectRatio: "1 / 1",
+            transform: "translate(-50%, -50%)",
+            opacity: 0.5,
+            backgroundImage: `repeating-radial-gradient(circle, transparent 0 7px, ${p.hairline} 7px 7.5px)`,
+            maskImage: "radial-gradient(closest-side, #000 10%, transparent 72%)",
+            WebkitMaskImage: "radial-gradient(closest-side, #000 10%, transparent 72%)",
           }}
-        >
-          {recipientName ?? "Фамилия Имя Отчество"}
+        />
+
+        {/* TOP ROW — wordmark · centred discipline · sub-brand */}
+        <div className="relative flex items-center justify-between gap-3">
+          <span style={{ fontSize: "clamp(11px, 1.6vw, 15px)", fontWeight: 800, letterSpacing: "0.02em", color: p.textPrimary }}>
+            LEGAL<span style={{ color: p.accent }}>HUNTER</span>
+          </span>
+          <span className="hidden items-center gap-2 sm:flex" style={cap()}>
+            <span style={{ width: 16, height: 1, background: p.hairline }} />
+            Свидетельство об аттестации
+            <span style={{ width: 16, height: 1, background: p.hairline }} />
+          </span>
+          <span style={cap({ color: p.accent })}>ТехнологИИ&nbsp;Права</span>
         </div>
 
-        <p style={{ marginTop: "clamp(12px,3%,20px)", maxWidth: 660, fontSize: 12.5, lineHeight: 1.5, color: p.textSecondary }}>
-          успешно прошёл(-ла) аттестацию по программе «Банкротство физических лиц» — 250 вопросов по ФЗ-127
-          и актуальной судебной практике — и подтвердил(-а) квалификацию специалиста по сопровождению процедур банкротства.
+        <span style={{ marginTop: "clamp(8px, 2%, 16px)", display: "block", height: 1, background: p.hairline }} />
+
+        {/* TITLE BLOCK — eyebrow code over a huge display title */}
+        <div className="relative" style={{ marginTop: "clamp(12px, 3.2%, 30px)" }}>
+          <div className="flex items-baseline gap-3">
+            <span style={cap({ color: p.textSecondary, letterSpacing: "0.3em" })}>Сертификат&nbsp;аттестации</span>
+            <span style={cap({ fontVariantNumeric: "tabular-nums", letterSpacing: "0.14em" })}>RU&middot;ATT</span>
+          </div>
+          <h3 style={{ marginTop: "clamp(4px, 1%, 10px)", fontSize: "clamp(34px, 9vw, 76px)", lineHeight: 0.88, fontWeight: 600, letterSpacing: "-0.05em", color: p.textPrimary }}>
+            Сертифи<span style={{ color: p.accent }}>кат</span>
+          </h3>
+        </div>
+
+        {/* RECIPIENT */}
+        <div style={{ marginTop: "clamp(16px, 3.6%, 30px)", ...cap({ color: p.textSecondary, letterSpacing: "0.2em" }) }}>
+          Настоящим подтверждается, что
+        </div>
+        <div className="relative" style={{ alignSelf: "flex-start", maxWidth: "100%" }}>
+          <div
+            style={{
+              marginTop: "clamp(6px, 1.6%, 13px)",
+              fontSize: "clamp(24px, 6vw, 46px)",
+              fontWeight: 600,
+              letterSpacing: "-0.025em",
+              lineHeight: 1.0,
+              color: recipientName ? p.textPrimary : p.textMuted,
+            }}
+          >
+            {recipientName ?? "Имя Фамилия"}
+          </div>
+          <span
+            style={{
+              marginTop: "clamp(6px, 1.4%, 11px)",
+              display: "block",
+              height: 1,
+              background: p.accent,
+            }}
+          />
+        </div>
+
+        {/* BODY */}
+        <p style={{ marginTop: "clamp(11px, 2.8%, 22px)", maxWidth: 580, fontSize: "clamp(10px, 1.5vw, 13px)", lineHeight: 1.6, color: p.textSecondary }}>
+          {body}
         </p>
 
-        {/* three stats — accent numbers */}
-        <div className="flex flex-wrap" style={{ marginTop: "clamp(16px,4%,28px)", gap: "clamp(22px,5%,56px)" }}>
-          {[
-            { v: "250", l: "вопросов · ФЗ-127" },
-            { v: score, l: "итоговый результат" },
-            { v: issueDate, l: "дата выдачи" },
-          ].map((s) => (
-            <div key={s.l}>
-              <div style={{ fontSize: "clamp(18px,4vw,30px)", fontWeight: 600, letterSpacing: "-0.04em", color: p.accent }}>{s.v}</div>
-              <div style={{ marginTop: 3, ...cap({ fontSize: 8 }) }}>{s.l}</div>
+        <div className="flex-1" style={{ minHeight: 10 }} />
+
+        {/* META — three columns divided by air + hairline ticks (no boxes) */}
+        <div
+          className="relative grid grid-cols-3"
+          style={{ marginTop: "clamp(10px, 2.4%, 18px)", borderTop: `1px solid ${p.hairline}` }}
+        >
+          {meta.map(({ label, value }, i) => (
+            <div
+              key={label}
+              style={{
+                position: "relative",
+                padding: "clamp(9px, 1.9%, 15px) clamp(2px, 1.2%, 14px) 0",
+                borderLeft: i === 0 ? "none" : `1px solid ${p.hairline}`,
+              }}
+            >
+              {/* registration tick at top of each column */}
+              <span aria-hidden style={{ position: "absolute", top: -1, left: i === 0 ? 0 : -1, width: 1, height: 6, background: p.accent }} />
+              <div className="flex items-center gap-1.5" style={cap({ fontSize: "clamp(6px, 0.85vw, 7.5px)" })}>
+                <span style={{ fontVariantNumeric: "tabular-nums", color: p.accent }}>{`0${i + 1}`}</span>
+                {label}
+              </div>
+              <div className="truncate" style={{ marginTop: 5, fontSize: "clamp(9px, 1.4vw, 12.5px)", fontWeight: 600, letterSpacing: "-0.01em", color: p.textPrimary }}>
+                {value}
+              </div>
             </div>
           ))}
         </div>
 
-        <div className="flex-1" style={{ minHeight: 12 }} />
+        {/* FOOTER — cert № · signature · engraved seal */}
+        <div className="flex items-end justify-between gap-3" style={{ marginTop: "clamp(12px, 3%, 24px)" }}>
+          <div>
+            <span style={cap({ fontSize: "clamp(6px, 0.85vw, 7px)" })}>Сертификат №</span>
+            <div
+              style={{
+                marginTop: 6,
+                fontSize: "clamp(9px, 1.3vw, 12px)",
+                fontWeight: 600,
+                letterSpacing: "0.08em",
+                fontVariantNumeric: "tabular-nums",
+                color: p.textPrimary,
+              }}
+            >
+              {verificationCode}
+            </div>
+          </div>
 
-        {/* footer */}
-        <div className="flex items-end justify-between gap-3" style={{ borderTop: `1px solid ${p.hairline}`, paddingTop: "clamp(10px,2.5%,16px)" }}>
-          <div className="hidden sm:block">
-            <span style={cap({ fontSize: 7.5 })}>Эмитент · комиссия</span>
-            <div style={{ marginTop: 3, fontSize: 13, fontWeight: 600, color: p.textPrimary }}>LegalHunter</div>
-            <div style={{ fontSize: 8.5, color: p.textMuted }}>Заверено практикующими юристами РФ</div>
-          </div>
           <div className="hidden flex-col items-center sm:flex">
-            <span style={{ width: 120, height: 1, background: p.hairline }} />
-            <span style={{ marginTop: 5, ...cap({ fontSize: 7.5 }) }}>Подпись комиссии</span>
-          </div>
-          <div className="flex flex-col items-center" style={{ gap: 4 }}>
-            <span className="flex items-center justify-center rounded-full" style={{ width: 42, height: 42, border: `1px solid ${p.accent}` }}>
-              <ShieldCheck size={18} strokeWidth={1.5} style={{ color: p.accent }} />
+            <span style={{ marginBottom: 7, fontSize: "clamp(11px, 1.6vw, 15px)", fontWeight: 700, letterSpacing: "-0.01em", color: p.textPrimary, fontStyle: "italic" }}>
+              {issuerName}
             </span>
-            <span style={cap({ fontSize: 6.5 })}>верификация онлайн</span>
+            <span style={{ width: "clamp(110px, 17vw, 168px)", height: 1, background: p.hairline }} />
+            <span style={{ marginTop: 7, ...cap({ fontSize: "clamp(6px, 0.85vw, 7px)" }) }}>Подпись комиссии</span>
+          </div>
+
+          {/* Engraved verification seal — double hairline rings + curved legend */}
+          <div className="flex flex-col items-center" style={{ gap: 6 }}>
+            <span
+              className="relative flex items-center justify-center rounded-full"
+              style={{
+                width: "clamp(46px, 8.4vw, 64px)",
+                height: "clamp(46px, 8.4vw, 64px)",
+                border: `1px solid ${p.accent}`,
+                boxShadow: `inset 0 0 0 3px ${p.surface}, inset 0 0 0 4px ${p.hairline}`,
+              }}
+            >
+              <ShieldCheck size={20} strokeWidth={1.25} style={{ color: p.accent, width: "38%", height: "38%" }} />
+              {/* eight engraving ticks around the ring */}
+              {Array.from({ length: 8 }).map((_, k) => (
+                <span
+                  key={k}
+                  aria-hidden
+                  style={{
+                    position: "absolute",
+                    top: "50%",
+                    left: "50%",
+                    width: 1,
+                    height: 3,
+                    background: p.hairline,
+                    transformOrigin: "center -22px",
+                    transform: `translate(-50%, -50%) rotate(${k * 45}deg)`,
+                  }}
+                />
+              ))}
+            </span>
+            <span style={cap({ fontSize: "clamp(5.5px, 0.8vw, 7px)", color: p.accent, letterSpacing: "0.26em" })}>Проверено</span>
           </div>
         </div>
       </div>
@@ -188,7 +329,10 @@ export function CertificatePreview({
   recipientName,
   issueDate = DEFAULT_DATE,
   verificationCode = DEFAULT_CODE,
-  score = DEFAULT_SCORE,
+  program = DEFAULT_PROGRAM,
+  format = DEFAULT_FORMAT,
+  programDescription,
+  issuerName = "LegalHunter",
   lockTitle = "Пройдите курс — и получите сертификат.",
   lockSubtitle,
   ctaLabel = "Начать обучение",
@@ -226,37 +370,38 @@ export function CertificatePreview({
               : { position: "absolute", inset: 0 }
           }
         >
-          <CertificateFace p={p} recipientName={recipientName} issueDate={issueDate} verificationCode={verificationCode} score={score} />
+          <CertificateFace p={p} recipientName={recipientName} issueDate={issueDate} verificationCode={verificationCode} program={program} format={format} programDescription={programDescription} issuerName={issuerName} />
         </div>
 
         {/* locked overlay */}
         {locked && (
           <>
-            <div aria-hidden className="absolute inset-0" style={{ background: p.surface, opacity: 0.7 }} />
+            <div aria-hidden className="absolute inset-0" style={{ background: p.surface, opacity: 0.78 }} />
             <motion.div
               className="absolute inset-0 flex flex-col items-center justify-center text-center"
-              style={{ padding: "clamp(20px,7%,40px)" }}
+              style={{ padding: "clamp(20px,7%,44px)" }}
               initial={reduce ? false : { opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, ease: "easeOut", delay: 0.12 }}
             >
               <span
-                className="flex items-center justify-center rounded-full"
-                style={{ width: 60, height: 60, border: `1px solid ${p.hairline}`, background: p.surface }}
+                className="inline-flex items-center gap-2"
+                style={{ textTransform: "uppercase", letterSpacing: "0.26em", fontSize: "clamp(7px,1vw,9px)", fontWeight: 600, color: p.textMuted }}
               >
-                <Lock size={26} strokeWidth={1.5} style={{ color: p.accent }} />
+                <Lock size={11} strokeWidth={2} style={{ color: p.accent }} />
+                Ещё не выдан
               </span>
-              <h4 style={{ marginTop: 18, maxWidth: 340, fontSize: "clamp(18px,4vw,24px)", lineHeight: 1.25, fontWeight: 600, letterSpacing: "-0.02em", color: p.textPrimary }}>
+              <h4 style={{ marginTop: 16, maxWidth: 360, fontSize: "clamp(20px,4.4vw,30px)", lineHeight: 1.12, fontWeight: 600, letterSpacing: "-0.035em", color: p.textPrimary }}>
                 {lockTitle}
               </h4>
               {lockSubtitle && (
-                <p style={{ marginTop: 10, maxWidth: 340, fontSize: 13, lineHeight: 1.45, color: p.textSecondary }}>{lockSubtitle}</p>
+                <p style={{ marginTop: 12, maxWidth: 340, fontSize: 13, lineHeight: 1.5, color: p.textSecondary }}>{lockSubtitle}</p>
               )}
               {onCta && (
                 <motion.button
                   onClick={onCta}
-                  className="mt-6 inline-flex items-center gap-2"
-                  style={{ background: p.textPrimary, color: p.surface, fontSize: 15, fontWeight: 600, padding: "12px 26px", borderRadius: 999 }}
+                  className="mt-7 inline-flex items-center gap-2"
+                  style={{ background: p.textPrimary, color: p.surface, fontSize: 14, fontWeight: 600, letterSpacing: "-0.01em", padding: "13px 28px", borderRadius: 999 }}
                   whileHover={reduce ? undefined : { scale: 1.02 }}
                   whileTap={reduce ? undefined : { scale: 0.98 }}
                 >

@@ -1,11 +1,14 @@
 "use client";
 
-import Link from "next/link";
+import { useState, useEffect } from "react";
 import Image from "next/image";
-import { ArrowRight, Check, GraduationCap, ShieldCheck, Send } from "lucide-react";
+import { useTheme } from "next-themes";
+import { motion, AnimatePresence } from "framer-motion";
+import { ArrowRight, Check, Send, Sun, Moon, Infinity as InfinityIcon } from "lucide-react";
 import { useLandingAuth } from "@/components/landing/LandingAuthContext";
-import { BrandLogo } from "@/components/ui/BrandLogo";
-import { CertificatePreview } from "@/components/certificate/CertificatePreview";
+import { CertificatePreview, CERT_TOKEN_PALETTE } from "@/components/certificate/CertificatePreview";
+import { Card } from "@/components/ui/Card";
+import { Button } from "@/components/ui/Button";
 
 const stats = [
   { value: "18 000+", label: "квалифицированных юристов вышли из наших программ" },
@@ -17,32 +20,17 @@ const stats = [
 ];
 
 const experts = [
-  {
-    name: "Василий Артин",
-    role: "Эксперт по банкротству физических лиц",
-    image: "/landing/experts/expert-2.jpeg",
-  },
-  {
-    name: "Андрей Абукаев",
-    role: "Практик переговоров и сопровождения процедур",
-    image: "/landing/experts/expert-1.jpeg",
-  },
-  {
-    name: "Елена Лященко",
-    role: "Методолог программ повышения квалификации",
-    image: "/landing/experts/expert-3.png",
-  },
-  {
-    name: "Александр Герасимов",
-    role: "Юрист по судебной практике и кейсам",
-    image: "/landing/experts/expert-4.jpeg",
-  },
+  { name: "Василий Артин", role: "Генеральный директор", image: "/landing/experts/expert-2.jpeg" },
+  { name: "Андрей Абукаев", role: "Арбитражный управляющий", image: "/landing/experts/photo-a.webp" },
+  { name: "Елена Лященко", role: "Арбитражный управляющий", image: "/landing/experts/photo-c.webp" },
+  { name: "Александр Герасимов", role: "Арбитражный управляющий", image: "/landing/experts/photo-b.webp" },
+  { name: "Дмитрий Сизов", role: "Арбитражный управляющий", image: "" },
 ];
 
 const products = [
   {
     title: "AI-тренировки",
-    text: "Диалоги и звонки с AI-клиентами, которые ведут себя как реальные должники: спорят, сомневаются, давят и проверяют на прочность. Ошибиться можно здесь — не с живым человеком.",
+    text: "Диалоги с AI-клиентами, которые ведут себя как реальные должники: спорят, сомневаются, давят и проверяют на прочность. Ошибиться можно здесь — не с живым человеком.",
   },
   {
     title: "Кейсы и практика",
@@ -54,7 +42,6 @@ const products = [
   },
 ];
 
-// Лента продуктов экосистемы (AI + право) — бегущая строка в стиле биржевого тикера.
 const ecosystem = [
   "AI-ассистент юриста",
   "Анализ судебной практики",
@@ -65,301 +52,542 @@ const ecosystem = [
   "Радар изменений в праве",
   "База знаний по банкротству",
   "AI-разбор кейсов",
-  "Голосовые тренировки звонков",
+  "Симуляция переговоров с должником",
   "Автоматизация документооборота",
   "Калькулятор процедур банкротства",
 ];
 
-const freeTierFeatures = [
-  "Тесты: 1500 вопросов по ФЗ-127 («острова»)",
-  "Интерактивные кейсы БФЛ (реальная практика)",
-  "AI-тренировки: чат и звонок с клиентом-должником",
-  "База знаний (RAG) + Радар изменений",
-  "Маняша — AI-помощник по базе знаний",
-  "Конструктор клиента (после 1-го региона тестов)",
-  "Экзамены и сертификат аттестации",
+// Тарифы — ДВА плана. Содержимое правьте здесь.
+const plans = [
+  {
+    name: "Старт",
+    plan: "scout",
+    tagline: "Старт в профессии",
+    code: "PL—01",
+    price: "0",
+    period: "₽ / мес",
+    cta: "Начать бесплатно",
+    highlight: false,
+    features: [
+      { text: "Тесты по банкротству физлиц", strong: false },
+      { text: "База знаний", strong: false },
+      { text: "Маняша — AI-помощник", strong: false },
+      { text: "Интерактивные кейсы", strong: false },
+      { text: "25 энергии в день", strong: false },
+      { text: "Первые 3 дня — безлимитная энергия", strong: true },
+    ],
+  },
+  {
+    name: "Эксперт",
+    plan: "hunter",
+    tagline: "Полный профессиональный доступ",
+    code: "PL—02",
+    price: "6 900",
+    period: "₽ / мес",
+    cta: "Выбрать тариф",
+    highlight: true,
+    features: [
+      { text: "Всё из тарифа «Старт»", strong: false },
+      { text: "Безлимитная энергия", strong: true },
+      { text: "AI-тренировки: чат с клиентом без лимита", strong: true },
+      { text: "Доступ к курсам", strong: false },
+      { text: "AI-помощник в базе знаний", strong: false },
+    ],
+  },
 ];
 
-export default function LandingPage() {
-  const { openRegister } = useLandingAuth();
+const SECTIONS = [
+  { id: "about", label: "О нас" },
+  { id: "experts", label: "Эксперты" },
+  { id: "products", label: "Продукты" },
+  { id: "certificate", label: "Сертификат" },
+  { id: "tariffs", label: "Тарифы" },
+] as const;
+
+type SectionId = (typeof SECTIONS)[number]["id"];
+
+function Eyebrow({ children }: { children: React.ReactNode }) {
+  return (
+    <p className="font-mono uppercase tabular-nums" style={{ fontSize: 12, letterSpacing: "0.2em", color: "var(--text-secondary)" }}>
+      {children}
+    </p>
+  );
+}
+
+/* Shared stagger reveal for section children */
+const reveal = (delay: number) => ({
+  initial: { opacity: 0, y: 16 },
+  animate: { opacity: 1, y: 0 },
+  transition: { duration: 0.5, ease: [0.22, 1, 0.36, 1] as const, delay },
+});
+
+/* ── Theme picker panel (сегментированный «выбор темы») ───────────────────── */
+function ThemePanel() {
+  const { resolvedTheme, setTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
+  const isDark = mounted && resolvedTheme === "dark";
+  const opts = [
+    { key: "light", label: "Светлая", Icon: Sun, active: mounted && !isDark },
+    { key: "dark", label: "Тёмная", Icon: Moon, active: isDark },
+  ] as const;
 
   return (
-    <main className="relative min-h-screen overflow-hidden bg-[#F7F1E8] text-[#18131D]">
-      {/* Decorative backdrop — soft brand glows + faint grid, in the landing palette
-          (echoes the subtle backdrop on the exam screen). Static, behind content. */}
-      <div aria-hidden className="pointer-events-none absolute inset-0 z-0 overflow-hidden">
-        <div
-          className="absolute -left-[12%] -top-[8%] h-[46rem] w-[46rem] rounded-full opacity-[0.5] blur-[120px]"
-          style={{ background: "radial-gradient(circle, rgba(124,58,237,0.16), transparent 70%)" }}
-        />
-        <div
-          className="absolute right-[-10%] top-[28%] h-[40rem] w-[40rem] rounded-full opacity-[0.45] blur-[120px]"
-          style={{ background: "radial-gradient(circle, rgba(34,211,238,0.12), transparent 70%)" }}
-        />
-        <div
-          className="absolute bottom-[-6%] left-[35%] h-[38rem] w-[38rem] rounded-full opacity-[0.4] blur-[130px]"
-          style={{ background: "radial-gradient(circle, rgba(236,72,153,0.10), transparent 70%)" }}
-        />
-        <div
-          className="absolute inset-0 opacity-[0.5]"
+    <div
+      className="grid grid-cols-2 gap-1 rounded-2xl p-1"
+      style={{ border: "1px solid var(--border-color)", background: "var(--surface-card)" }}
+      role="group"
+      aria-label="Выбор темы"
+    >
+      {opts.map(({ key, label, Icon, active }) => (
+        <button
+          key={key}
+          onClick={() => setTheme(key)}
+          className="flex items-center justify-center gap-1.5 rounded-xl py-2 text-[12px] font-semibold transition-colors"
           style={{
-            backgroundImage:
-              "linear-gradient(#D9C9E8 1px, transparent 1px), linear-gradient(90deg, #D9C9E8 1px, transparent 1px)",
-            backgroundSize: "64px 64px",
-            maskImage: "radial-gradient(ellipse 80% 60% at 50% 0%, #000 30%, transparent 75%)",
-            WebkitMaskImage: "radial-gradient(ellipse 80% 60% at 50% 0%, #000 30%, transparent 75%)",
+            background: active ? "var(--primary)" : "transparent",
+            color: active ? "var(--primary-contrast, #fff)" : "var(--text-secondary)",
           }}
-        />
-      </div>
-      <div className="relative z-10 mx-auto grid min-h-screen w-full max-w-[1680px] grid-cols-1 lg:grid-cols-[300px_minmax(0,1fr)]">
-        <aside className="sticky top-0 z-20 flex h-auto flex-col border-b border-[#D9C9E8] bg-[#F7F1E8]/95 px-5 py-5 backdrop-blur lg:h-screen lg:border-b-0 lg:border-r lg:px-7 lg:py-7">
-          <div className="flex items-center justify-between gap-4 lg:block">
-            <Link href="/" className="inline-flex" aria-label="LegalHunter">
-              <BrandLogo size="lg" />
-            </Link>
-          </div>
+          aria-pressed={active}
+        >
+          <Icon size={14} />
+          {label}
+        </button>
+      ))}
+    </div>
+  );
+}
 
-          <nav className="mt-8 hidden space-y-2 text-[15px] font-medium text-[#7B7084] lg:block" aria-label="Разделы лендинга">
-            <a className="block rounded-full px-4 py-2 transition hover:bg-white hover:text-[#7C3AED]" href="#about">
-              О нас
-            </a>
-            <a className="block rounded-full px-4 py-2 transition hover:bg-white hover:text-[#7C3AED]" href="#experts">
-              Эксперты
-            </a>
-            <a className="block rounded-full px-4 py-2 transition hover:bg-white hover:text-[#7C3AED]" href="#products">
-              Наши продукты
-            </a>
-          </nav>
+/* ── Sections ─────────────────────────────────────────────────────────────── */
 
-          <div className="mt-auto hidden space-y-3 pt-8 lg:block">
-            <a
-              href="#tariffs"
-              className="flex items-center justify-between rounded-2xl border border-[#D9C9E8] bg-white/55 px-4 py-4 text-sm font-semibold text-[#18131D] transition hover:border-[#B98CDA]"
+function AboutSection({ openRegister }: { openRegister: () => void }) {
+  return (
+    <div className="py-2">
+      <motion.div {...reveal(0)}>
+        <Eyebrow>
+          <span style={{ fontWeight: 800, color: "var(--text-primary)", letterSpacing: "0.04em" }}>
+            Legal<span style={{ color: "var(--brand-logo-hunter)" }}>Hunter</span>
+          </span>
+          {" · Платформа №1 в России"}
+        </Eyebrow>
+      </motion.div>
+
+      <motion.h1
+        {...reveal(0.06)}
+        className="mt-7 font-display font-bold"
+        style={{ color: "var(--text-primary)", fontSize: "clamp(2.6rem, 7vw, 6rem)", lineHeight: 0.96, letterSpacing: "-0.05em" }}
+      >
+        Учим юристов
+        <br />
+        <span style={{ color: "var(--primary)" }}>помогать людям.</span>
+      </motion.h1>
+
+      <motion.p
+        {...reveal(0.12)}
+        className="mt-8 max-w-2xl leading-relaxed"
+        style={{ color: "var(--text-secondary)", fontSize: "clamp(1.05rem, 1.6vw, 1.375rem)" }}
+      >
+        Не курс, а профессиональная среда: практика, эксперты и технологии превращают знание
+        закона в уверенные действия рядом с человеком в долговой яме.
+      </motion.p>
+
+      <motion.div {...reveal(0.18)} className="mt-10 flex flex-wrap items-center gap-3">
+        <Button variant="primary" size="lg" onClick={openRegister} iconRight={<ArrowRight size={18} />}>
+          Начать обучение
+        </Button>
+        <a
+          href="https://t.me/legalhunter"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="group inline-flex items-center gap-2.5 rounded-full px-6 py-3 text-sm font-semibold transition-all hover:-translate-y-0.5"
+          style={{ border: "1px solid var(--border-color)", color: "var(--text-primary)", background: "var(--surface-card)" }}
+        >
+          <Send size={16} style={{ color: "var(--primary)" }} className="transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
+          Задать вопрос в Telegram
+        </a>
+      </motion.div>
+
+      <motion.div
+        {...reveal(0.24)}
+        className="mt-16 grid gap-px overflow-hidden sm:grid-cols-2 xl:grid-cols-3"
+        style={{ background: "var(--border-color)", border: "1px solid var(--border-color)", borderRadius: 20 }}
+      >
+        {stats.map((item) => (
+          <div
+            key={item.value}
+            className="group p-7 transition-colors"
+            style={{ background: "var(--bg-primary)" }}
+          >
+            <div
+              className="font-mono font-semibold leading-none tabular-nums transition-transform group-hover:-translate-y-0.5"
+              style={{ color: "var(--primary)", fontSize: "clamp(2rem, 3.4vw, 3.2rem)", letterSpacing: "-0.03em" }}
             >
-              <span className="flex items-center gap-2">
-                <GraduationCap size={17} />
-                Тарифы
-              </span>
-              <ArrowRight size={16} />
-            </a>
+              {item.value}
+            </div>
+            <p className="mt-3.5 text-[15px] leading-snug" style={{ color: "var(--text-secondary)" }}>{item.label}</p>
           </div>
-        </aside>
+        ))}
+      </motion.div>
+    </div>
+  );
+}
 
-        <section className="min-w-0 px-5 py-10 sm:px-8 lg:px-14 lg:py-12">
-          <section id="about" className="grid min-h-[calc(100vh-6rem)] content-between border-b border-[#D9C9E8] pb-12">
-            <div className="grid gap-8 lg:grid-cols-[1fr_360px]">
-              <div>
-                <p className="mb-8 max-w-[720px] text-[clamp(1.35rem,2.2vw,2.25rem)] leading-[1.12] text-[#7C3AED]">
-                  LegalHunter - платформа номер 1 в России для подготовки юристов в сфере банкротства физических лиц.
-                </p>
-                <h1 className="max-w-[980px] text-[clamp(4.2rem,10vw,11.5rem)] font-semibold leading-[0.82] tracking-[-0.08em] text-[#18131D]">
-                  Учим юристов помогать людям.
-                </h1>
-              </div>
+function ExpertsSection() {
+  return (
+    <div className="py-2">
+      <motion.div {...reveal(0)} className="flex flex-col justify-between gap-6 lg:flex-row lg:items-end">
+        <div>
+          <Eyebrow>02 · Эксперты</Eyebrow>
+          <h2
+            className="mt-4 max-w-4xl font-display font-semibold"
+            style={{ color: "var(--text-primary)", fontSize: "clamp(2.2rem, 5.2vw, 4.5rem)", lineHeight: 0.96, letterSpacing: "-0.045em", hyphens: "none", WebkitHyphens: "none", wordBreak: "normal" }}
+          >
+            Практики, которые учат на реальных процедурах.
+          </h2>
+        </div>
+        <p className="max-w-sm text-[17px] leading-snug" style={{ color: "var(--text-secondary)" }}>
+          Команда объединяет юристов, методологов и специалистов по сопровождению банкротства по всей России.
+        </p>
+      </motion.div>
 
-              <div className="rounded-[28px] border border-[#D9C9E8] bg-[#FFFDF8] p-6">
-                <p className="text-sm uppercase tracking-[0.16em] text-[#9B7DB4]">с 2019 года</p>
-                <p className="mt-6 text-2xl leading-tight text-[#18131D]">
-                  Не курс, а профессиональная среда: практика, эксперты и технологии превращают знание закона в уверенные действия рядом с человеком в долговой яме.
-                </p>
-                <button
-                  onClick={openRegister}
-                  className="mt-8 inline-flex w-full items-center justify-between rounded-full bg-[#18131D] px-5 py-4 text-sm font-semibold text-white transition hover:bg-[#7C3AED]"
-                >
-                  Начать обучение
-                  <ArrowRight size={18} />
-                </button>
-              </div>
-            </div>
-
-            <div className="mt-14 grid border-t border-[#D9C9E8] pt-8 sm:grid-cols-2 xl:grid-cols-3">
-              {stats.map((item) => (
-                <div key={item.value} className="border-b border-[#D9C9E8] py-7 pr-7 sm:border-r xl:border-r">
-                  <div className="text-[clamp(2.4rem,4.2vw,4.8rem)] font-semibold leading-none tracking-[-0.06em] text-[#7C3AED]">
-                    {item.value}
-                  </div>
-                  <p className="mt-3 max-w-[320px] text-base leading-snug text-[#5F5367]">{item.label}</p>
-                </div>
-              ))}
-            </div>
-          </section>
-
-          <section id="experts" className="border-b border-[#D9C9E8] py-14 lg:py-20">
-            <div className="mb-10 flex flex-col justify-between gap-5 lg:flex-row lg:items-end">
-              <div>
-                <p className="text-sm uppercase tracking-[0.16em] text-[#9B7DB4]">Эксперты</p>
-                <h2 className="mt-3 max-w-4xl text-[clamp(3rem,6vw,7rem)] font-semibold leading-[0.9] tracking-[-0.07em] text-[#18131D]">
-                  Практики, которые учат на реальных процедурах.
-                </h2>
-              </div>
-              <p className="max-w-md text-lg leading-snug text-[#7C3AED]">
-                Команда объединяет юристов, методологов и специалистов по сопровождению банкротства по всей России.
-              </p>
-            </div>
-
-            <div className="grid gap-px overflow-hidden rounded-[28px] border border-[#D9C9E8] bg-[#D9C9E8] sm:grid-cols-2 xl:grid-cols-4">
-              {experts.map((expert) => (
-                <article key={expert.name} className="bg-[#FFFDF8]">
-                  <div className="aspect-[4/5] overflow-hidden bg-[#EDE2F4]">
+      <div className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+        {experts.map((expert, i) => {
+          const initials = expert.name.split(" ").map((p) => p[0]).join("").slice(0, 2).toUpperCase();
+          return (
+            <motion.div key={expert.name} {...reveal(0.06 + i * 0.05)} className="h-full">
+              <Card padded={false} className="group flex h-full flex-col overflow-hidden transition-all hover:-translate-y-1">
+                <div className="aspect-[4/5] shrink-0 overflow-hidden" style={{ background: "var(--bg-secondary)" }}>
+                  {expert.image ? (
                     <Image
                       src={expert.image}
                       alt={expert.name}
                       width={520}
                       height={650}
-                      className="h-full w-full object-cover grayscale-[12%]"
+                      className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-[1.06]"
                     />
-                  </div>
-                  <div className="p-5">
-                    <h3 className="text-xl font-semibold tracking-[-0.03em] text-[#18131D]">{expert.name}</h3>
-                    <p className="mt-2 text-sm leading-snug text-[#7C3AED]">{expert.role}</p>
-                  </div>
-                </article>
-              ))}
-            </div>
-          </section>
-
-          <section id="products" className="border-b border-[#D9C9E8] py-20 lg:py-28">
-            <div className="grid gap-12 lg:grid-cols-[0.8fr_1.2fr]">
-              <div>
-                <p className="text-sm uppercase tracking-[0.16em] text-[#9B7DB4]">
-                  Наши продукты{" "}
-                  <span className="text-[#C9B8D8]">&amp;</span>{" "}
-                  <a
-                    href="https://pravotech.pro/"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    title="ТехнологИИ Права — pravotech.pro"
-                    className="relative z-20 inline-block cursor-pointer bg-gradient-to-r from-[#22D3EE] via-[#7C3AED] to-[#EC4899] bg-clip-text font-semibold text-transparent transition-opacity hover:opacity-80"
-                  >
-                    ТехнологИИ Права
-                  </a>
-                </p>
-                <h2 className="mt-3 text-[clamp(3rem,6vw,7rem)] font-semibold leading-[0.9] tracking-[-0.07em] text-[#18131D]">
-                  Обучение, практика, аттестация.
-                </h2>
-              </div>
-              <div className="divide-y divide-[#D9C9E8] border-y border-[#D9C9E8]">
-                {products.map((product, index) => (
-                  <article key={product.title} className="grid gap-6 py-9 sm:grid-cols-[90px_1fr]">
-                    <div className="text-5xl font-semibold tracking-[-0.07em] text-[#B98CDA]">
-                      {String(index + 1).padStart(2, "0")}
+                  ) : (
+                    <div className="flex h-full w-full flex-col items-center justify-center gap-2" style={{ color: "var(--text-muted)" }}>
+                      <span className="font-display text-5xl font-semibold tracking-tight">{initials}</span>
+                      <span className="font-mono text-[10px] uppercase tracking-[0.16em]">Фото скоро</span>
                     </div>
-                    <div>
-                      <h3 className="text-3xl font-semibold tracking-[-0.05em] text-[#18131D]">{product.title}</h3>
-                      <p className="mt-3 max-w-2xl text-lg leading-snug text-[#5F5367]">{product.text}</p>
-                    </div>
-                  </article>
-                ))}
-              </div>
-            </div>
+                  )}
+                </div>
+                <div className="flex-1 p-5">
+                  <h3 className="text-[17px] font-semibold tracking-tight" style={{ color: "var(--text-primary)" }}>{expert.name}</h3>
+                  <p className="mt-1.5 text-sm leading-snug" style={{ color: "var(--text-secondary)" }}>{expert.role}</p>
+                </div>
+              </Card>
+            </motion.div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
-            {/* Экосистема AI + право — бегущая лента в стиле биржевого тикера */}
-            <div className="mt-16 lg:mt-20">
-              <div className="mb-5 flex items-center justify-between">
-                <p className="text-sm uppercase tracking-[0.16em] text-[#9B7DB4]">Экосистема AI &amp; право</p>
-                <span className="hidden text-sm text-[#9B8AA8] sm:block">12 направлений в разработке</span>
-              </div>
+function ProductsSection() {
+  return (
+    <div className="py-2">
+      <motion.div {...reveal(0)}>
+        <Eyebrow>
+          03 · Наши продукты ·{" "}
+          <a
+            href="https://pravotech.pro/"
+            target="_blank"
+            rel="noopener noreferrer"
+            title="ТехнологИИ Права — pravotech.pro"
+            className="underline decoration-2 underline-offset-4 transition-opacity hover:opacity-80"
+            style={{ color: "#22D3EE", textDecorationColor: "#22D3EE", fontWeight: 800 }}
+          >
+            Технолог<span style={{ color: "#EC4899" }}>ИИ</span> Права
+          </a>
+        </Eyebrow>
+        <h2
+          className="mt-4 max-w-3xl font-display font-semibold"
+          style={{ color: "var(--text-primary)", fontSize: "clamp(2.2rem, 5.2vw, 4.5rem)", lineHeight: 0.96, letterSpacing: "-0.045em" }}
+        >
+          Обучение, практика, аттестация.
+        </h2>
+      </motion.div>
+
+      <div className="mt-12 flex flex-col" style={{ borderTop: "1px solid var(--border-color)" }}>
+        {products.map((product, index) => (
+          <motion.article
+            key={product.title}
+            {...reveal(0.06 + index * 0.06)}
+            className="group grid items-start gap-5 py-8 sm:grid-cols-[110px_1fr]"
+            style={{ borderBottom: "1px solid var(--border-color)" }}
+          >
+            <div
+              className="font-mono font-semibold tabular-nums transition-colors"
+              style={{ color: "var(--text-muted)", fontSize: "clamp(2.4rem, 4vw, 3.4rem)", letterSpacing: "-0.04em", lineHeight: 0.9 }}
+            >
+              {String(index + 1).padStart(2, "0")}
+            </div>
+            <div>
+              <h3
+                className="font-semibold tracking-tight transition-transform group-hover:translate-x-1"
+                style={{ color: "var(--text-primary)", fontSize: "clamp(1.4rem, 2.4vw, 2rem)", letterSpacing: "-0.02em" }}
+              >
+                {product.title}
+              </h3>
+              <p className="mt-3 max-w-2xl text-[16px] leading-relaxed" style={{ color: "var(--text-secondary)" }}>{product.text}</p>
+            </div>
+          </motion.article>
+        ))}
+      </div>
+
+      <motion.div {...reveal(0.28)} className="mt-10">
+        <div className="mb-4 flex items-center justify-between">
+          <Eyebrow>Экосистема AI &amp; право</Eyebrow>
+          <span className="hidden font-mono text-[11px] uppercase tracking-[0.16em] sm:block" style={{ color: "var(--text-muted)" }}>12 направлений в разработке</span>
+        </div>
+        <div
+          className="group relative overflow-hidden py-5"
+          style={{
+            border: "1px solid var(--border-color)", borderRadius: 20, background: "var(--surface-card)",
+            maskImage: "linear-gradient(to right, transparent, #000 8%, #000 92%, transparent)",
+            WebkitMaskImage: "linear-gradient(to right, transparent, #000 8%, #000 92%, transparent)",
+          }}
+        >
+          <div className="flex w-max animate-[ticker_42s_linear_infinite] gap-3 group-hover:[animation-play-state:paused]">
+            {[...ecosystem, ...ecosystem].map((item, i) => (
+              <span key={`${item}-${i}`} className="inline-flex shrink-0 items-center gap-2 rounded-full px-5 py-2.5 text-sm font-medium" style={{ border: "1px solid var(--border-color)", background: "var(--bg-primary)", color: "var(--text-secondary)" }}>
+                <span className="h-1.5 w-1.5 rounded-full" style={{ background: "var(--primary)" }} />
+                {item}
+              </span>
+            ))}
+          </div>
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+
+function CertificateSection({ openRegister }: { openRegister: () => void }) {
+  return (
+    <div className="mx-auto max-w-3xl py-2 text-center">
+      <motion.div {...reveal(0)}>
+        <Eyebrow>04 · Сертификат</Eyebrow>
+        <h2
+          className="mx-auto mt-5 font-display font-semibold"
+          style={{ color: "var(--text-primary)", fontSize: "clamp(2.2rem, 5.4vw, 4.6rem)", lineHeight: 0.95, letterSpacing: "-0.045em" }}
+        >
+          Сертификат,
+          <br />
+          которому доверяют.
+        </h2>
+        <p className="mx-auto mt-7 max-w-xl text-[17px] leading-relaxed" style={{ color: "var(--text-secondary)" }}>
+          Документ эксперта по банкротству физических лиц, заверенный практикующими юристами РФ.
+          Его получают только те, кто прошёл курс и сдал экзамен.
+        </p>
+        <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
+          <Button variant="primary" size="lg" onClick={openRegister} iconRight={<ArrowRight size={18} />}>Начать обучение</Button>
+        </div>
+      </motion.div>
+
+      <motion.div {...reveal(0.12)} className="mt-12">
+        <CertificatePreview
+          variant="locked"
+          palette={CERT_TOKEN_PALETTE}
+          lockTitle="Пройдите курс экспертов по банкротству физических лиц — и получите сертификат."
+          ctaLabel="Начать обучение"
+          onCta={openRegister}
+        />
+      </motion.div>
+    </div>
+  );
+}
+
+function TariffsSection({ openRegister }: { openRegister: () => void }) {
+  return (
+    <div className="py-2">
+      {/* ── КАРКАС: верхние слова сохранены ── */}
+      <motion.div {...reveal(0)}>
+        <Eyebrow>05 · Тарифы</Eyebrow>
+        <h2
+          className="mt-4 max-w-3xl font-display font-semibold"
+          style={{ color: "var(--text-primary)", fontSize: "clamp(2.2rem, 5.4vw, 4.6rem)", lineHeight: 0.95, letterSpacing: "-0.045em" }}
+        >
+          Выберите свой тариф.
+        </h2>
+        <p className="mt-5 max-w-xl text-[17px] leading-relaxed" style={{ color: "var(--text-secondary)" }}>
+          Начните бесплатно и переходите на полный доступ, когда будете готовы.
+        </p>
+      </motion.div>
+
+      {/* ── Два больших редакторских плана (malvah × abstract) ── */}
+      <div className="mt-12 grid gap-5 lg:grid-cols-2">
+        {plans.map((plan, i) => {
+          const lead = plan.highlight;
+          return (
+            <motion.div key={plan.name} {...reveal(0.08 + i * 0.08)}>
               <div
-                className="group relative overflow-hidden rounded-[24px] border border-[#D9C9E8] bg-[#FFFDF8] py-5"
+                className="relative flex h-full flex-col overflow-hidden rounded-[24px] p-8 transition-all hover:-translate-y-1 sm:p-10"
                 style={{
-                  maskImage: "linear-gradient(to right, transparent, #000 8%, #000 92%, transparent)",
-                  WebkitMaskImage: "linear-gradient(to right, transparent, #000 8%, #000 92%, transparent)",
+                  background: lead ? "var(--surface-card)" : "var(--bg-primary)",
+                  border: `1px solid ${lead ? "var(--primary)" : "var(--border-color)"}`,
+                  boxShadow: lead ? "var(--shadow-md)" : "none",
                 }}
               >
-                <div className="flex w-max animate-[ticker_42s_linear_infinite] gap-3 group-hover:[animation-play-state:paused]">
-                  {[...ecosystem, ...ecosystem].map((item, i) => (
-                    <span
-                      key={`${item}-${i}`}
-                      className="inline-flex shrink-0 items-center gap-2 rounded-full border border-[#E4D7EF] bg-[#F7F1E8] px-5 py-2.5 text-base font-medium text-[#3C3344]"
-                    >
-                      <span className="h-1.5 w-1.5 rounded-full bg-gradient-to-r from-[#22D3EE] to-[#EC4899]" />
-                      {item}
+                {lead && (
+                  <span aria-hidden style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, background: "var(--primary)" }} />
+                )}
+
+                {/* tagline + code (abstract.com spec-эйбров) */}
+                <div className="flex items-center justify-between gap-3">
+                  <span className="font-mono uppercase" style={{ fontSize: 11, letterSpacing: "0.18em", color: lead ? "var(--primary)" : "var(--text-secondary)" }}>
+                    {plan.tagline}
+                  </span>
+                  <div className="flex items-center gap-2">
+                    {lead && (
+                      <span className="rounded-full px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.14em]" style={{ background: "var(--primary-muted)", color: "var(--primary)" }}>
+                        Рекомендуем
+                      </span>
+                    )}
+                    <span className="font-mono uppercase tabular-nums" style={{ fontSize: 11, letterSpacing: "0.16em", color: "var(--text-muted)" }}>
+                      {plan.code}
                     </span>
-                  ))}
+                  </div>
                 </div>
-              </div>
-            </div>
-          </section>
 
-          {/* 5.1 — the certificate as the destination: a blurred, locked diploma
-                    the visitor is invited to earn. Editorial band, hero object breathes. */}
-          <section id="certificate" className="border-b border-[#D9C9E8] py-20 lg:py-28">
-            <div className="mx-auto max-w-2xl text-center">
-              <ShieldCheck size={30} className="mx-auto text-[#7C3AED]" />
-              <h2 className="mt-6 text-[clamp(2.6rem,5vw,5.8rem)] font-semibold leading-[0.9] tracking-[-0.07em] text-[#18131D]">
-                Сертификат, которому доверяют.
-              </h2>
-              <p className="mx-auto mt-6 max-w-xl text-lg leading-snug text-[#5F5367]">
-                Документ эксперта по банкротству физических лиц, заверенный практикующими юристами РФ.
-                Его получают только те, кто прошёл курс и сдал экзамен.
-              </p>
-              <div className="mt-9 flex flex-wrap items-center justify-center gap-3">
-                <button
-                  onClick={openRegister}
-                  className="inline-flex items-center gap-3 rounded-full bg-[#18131D] px-6 py-4 text-sm font-semibold text-white transition hover:bg-[#7C3AED]"
+                {/* name */}
+                <h3
+                  className="mt-7 font-display font-semibold"
+                  style={{ color: "var(--text-primary)", fontSize: "clamp(2rem, 3.4vw, 3rem)", lineHeight: 0.96, letterSpacing: "-0.04em" }}
                 >
-                  Начать обучение
-                  <ArrowRight size={18} />
-                </button>
-                <a
-                  href="https://t.me/legalhunter"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="group inline-flex items-center gap-2.5 rounded-full border border-[#D9C9E8] bg-white/70 px-6 py-4 text-sm font-semibold text-[#18131D] backdrop-blur transition hover:border-[#22D3EE] hover:bg-white"
-                >
-                  <Send size={17} className="text-[#7C3AED] transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
-                  Задать вопрос в Telegram
-                </a>
-              </div>
-            </div>
+                  {plan.name}
+                </h3>
 
-            <div className="mt-14">
-              <CertificatePreview
-                variant="locked"
-                lockTitle="Пройдите курс экспертов по банкротству физических лиц — и получите сертификат."
-                ctaLabel="Начать обучение"
-                onCta={openRegister}
-              />
-            </div>
-          </section>
-
-          <section id="tariffs" className="border-b border-[#D9C9E8] py-20 lg:py-28">
-            <p className="text-sm uppercase tracking-[0.16em] text-[#9B7DB4]">Тариф</p>
-            <h2 className="mt-3 max-w-3xl text-[clamp(2.4rem,5vw,5rem)] font-semibold leading-[0.92] tracking-[-0.06em] text-[#18131D]">
-              Вся платформа — безоплатно.
-            </h2>
-
-            <div className="mt-12 grid items-start gap-8 rounded-[28px] border border-[#D9C9E8] bg-[#FFFDF8] p-8 lg:grid-cols-[0.9fr_1.1fr] lg:p-12">
-              <div>
-                <p className="text-sm uppercase tracking-[0.16em] text-[#9B7DB4]">Единственный тариф</p>
-                <h3 className="mt-4 text-3xl font-semibold tracking-[-0.04em] text-[#18131D]">Безоплатный</h3>
+                {/* price */}
                 <div className="mt-5 flex items-baseline gap-2">
-                  <span className="text-[clamp(3rem,6vw,5rem)] font-semibold leading-none tracking-[-0.06em] text-[#7C3AED]">0 ₽</span>
-                  <span className="text-[#9B8AA8]">навсегда</span>
+                  <span className="font-mono font-semibold leading-none tabular-nums" style={{ color: "var(--text-primary)", fontSize: "clamp(2.6rem, 5vw, 3.6rem)", letterSpacing: "-0.04em" }}>
+                    {plan.price}
+                  </span>
+                  <span className="text-[15px]" style={{ color: "var(--text-muted)" }}>{plan.period}</span>
                 </div>
-                <p className="mt-5 max-w-sm text-lg leading-snug text-[#5F5367]">
-                  Полный доступ ко всей платформе — обучение, практика и аттестация без оплаты.
-                </p>
-                <button
-                  onClick={openRegister}
-                  className="mt-8 inline-flex items-center gap-3 rounded-full bg-[#18131D] px-7 py-4 text-sm font-semibold text-white transition hover:bg-[#7C3AED]"
-                >
-                  Начать безоплатно
-                  <ArrowRight size={18} />
-                </button>
-              </div>
 
-              <ul className="grid gap-3.5 border-t border-[#D9C9E8] pt-8 sm:grid-cols-2 lg:border-l lg:border-t-0 lg:pl-12 lg:pt-0">
-                {freeTierFeatures.map((f) => (
-                  <li key={f} className="flex gap-2.5">
-                    <Check className="mt-0.5 shrink-0 text-[#7C3AED]" size={18} />
-                    <span className="text-[15px] leading-snug text-[#3C3344]">{f}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </section>
-        </section>
+                <Button
+                  variant={lead ? "primary" : "secondary"}
+                  size="lg"
+                  onClick={openRegister}
+                  iconRight={<ArrowRight size={18} />}
+                  fluid
+                  className="mt-7"
+                >
+                  {plan.cta}
+                </Button>
+
+                {/* features — хайрлайн-список, без коробок */}
+                <ul className="mt-8 flex flex-1 flex-col gap-px pt-1">
+                  {plan.features.map((f) => (
+                    <li
+                      key={f.text}
+                      className="flex items-start gap-3 py-3.5"
+                      style={{ borderTop: "1px solid var(--border-color)" }}
+                    >
+                      <span
+                        className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full"
+                        style={{
+                          background: f.strong ? "var(--primary)" : "var(--primary-muted)",
+                          color: f.strong ? "var(--primary-contrast, #fff)" : "var(--primary)",
+                        }}
+                      >
+                        {f.strong ? <InfinityIcon size={12} /> : <Check size={12} strokeWidth={3} />}
+                      </span>
+                      <span
+                        className="text-[15.5px] leading-snug"
+                        style={{ color: f.strong ? "var(--text-primary)" : "var(--text-secondary)", fontWeight: f.strong ? 600 : 400 }}
+                      >
+                        {f.text}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </motion.div>
+          );
+        })}
+      </div>
+
+      <motion.p {...reveal(0.26)} className="mt-6 font-mono text-[12px]" style={{ color: "var(--text-muted)", letterSpacing: "0.02em" }}>
+        Онлайн-оплата скоро. Пока доступ к платному тарифу открывается после регистрации — свяжитесь с нами в Telegram.
+      </motion.p>
+    </div>
+  );
+}
+
+export default function LandingPage() {
+  const { openRegister, openLogin } = useLandingAuth();
+  const [active, setActive] = useState<SectionId>("about");
+
+  return (
+    <main className="flex h-screen w-full flex-col overflow-hidden lg:flex-row" style={{ background: "var(--bg-primary)", color: "var(--text-primary)" }}>
+      {/* ── Навигация по секциям ── */}
+      <nav
+        className="flex shrink-0 flex-col gap-5 border-b px-5 py-5 lg:h-screen lg:w-[280px] lg:border-b-0 lg:border-r lg:px-7 lg:py-9"
+        style={{ borderColor: "var(--border-color)" }}
+      >
+        <div className="flex items-center justify-between gap-3">
+          <button onClick={() => setActive("about")} className="text-left text-xl font-extrabold tracking-tight" style={{ color: "var(--text-primary)" }}>
+            Legal<span style={{ color: "var(--brand-logo-hunter)" }}>Hunter</span>
+          </button>
+          <button onClick={openLogin} className="text-sm font-medium lg:hidden" style={{ color: "var(--text-secondary)" }}>Войти</button>
+        </div>
+
+        {/* section links — horizontal chips on mobile, vertical list on desktop */}
+        <div className="-mx-1 flex gap-2 overflow-x-auto px-1 lg:mx-0 lg:flex-1 lg:flex-col lg:gap-1.5 lg:overflow-visible lg:px-0">
+          {SECTIONS.map((s, i) => {
+            const isActive = active === s.id;
+            return (
+              <button
+                key={s.id}
+                onClick={() => setActive(s.id)}
+                className="flex shrink-0 items-center gap-3 rounded-full px-4 py-2.5 text-left text-[15px] transition-all lg:rounded-xl"
+                style={{
+                  background: isActive ? "var(--primary-muted)" : "transparent",
+                  color: isActive ? "var(--primary)" : "var(--text-secondary)",
+                  fontWeight: isActive ? 600 : 500,
+                }}
+              >
+                <span className="hidden font-mono text-[11px] tabular-nums opacity-70 lg:inline">{String(i + 1).padStart(2, "0")}</span>
+                {s.label}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* CTA + theme — desktop only at bottom */}
+        <div className="hidden flex-col gap-3 lg:flex">
+          {/* панель выбора темы над «Войти» */}
+          <ThemePanel />
+          <Button variant="secondary" onClick={openLogin} fluid>Войти</Button>
+          <Button variant="primary" onClick={openRegister} fluid iconRight={<ArrowRight size={16} />}>Начать</Button>
+        </div>
+      </nav>
+
+      {/* ── Активная секция — на весь экран, со скроллом внутри при необходимости ── */}
+      <div className="h-full flex-1 overflow-y-auto">
+        <div className="flex min-h-full flex-col justify-center px-6 py-12 sm:px-12 lg:px-20">
+          <div className="mx-auto w-full max-w-[1200px]">
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={active}
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.3, ease: "easeOut" }}
+              >
+                {active === "about" && <AboutSection openRegister={openRegister} />}
+                {active === "experts" && <ExpertsSection />}
+                {active === "products" && <ProductsSection />}
+                {active === "certificate" && <CertificateSection openRegister={openRegister} />}
+                {active === "tariffs" && <TariffsSection openRegister={openRegister} />}
+              </motion.div>
+            </AnimatePresence>
+          </div>
+        </div>
       </div>
     </main>
   );

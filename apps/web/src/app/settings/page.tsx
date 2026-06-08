@@ -419,7 +419,7 @@ export default function SettingsPage() {
 
           {/* ═══ SECTION 1: Игрок ═══ */}
           <SettingsSection
-            accent="#a78bfa"
+            accent="var(--accent)"
             title="Игрок"
             icon={UserIcon}
             description="Личные данные и контактная информация"
@@ -462,7 +462,7 @@ export default function SettingsPage() {
                       active={gender === g.key}
                       label={g.label}
                       onClick={() => { markDirty(); setGender(g.key); }}
-                      accent="#a78bfa"
+                      accent="var(--accent)"
                     />
                   ))}
                 </div>
