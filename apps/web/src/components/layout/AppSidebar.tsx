@@ -15,6 +15,9 @@ import {
   PanelLeft,
   Briefcase,
   GraduationCap,
+  Award,
+  Library,
+  Trophy,
   Zap,
 } from "lucide-react";
 import { useState, useEffect } from "react";
@@ -29,7 +32,7 @@ const SIDEBAR_EXPANDED = 260;
 const SIDEBAR_COLLAPSED = 68;
 const STORAGE_KEY = "lh-sidebar-collapsed";
 const ENERGY_STORAGE_KEY = "hunterlite_daily_energy";
-const DAILY_ENERGY = 20;
+const DAILY_ENERGY = 25;
 
 /* ── Navigation items ─────────────────────────────────────── */
 type NavItem = {
@@ -44,8 +47,11 @@ function buildNavForRole(): NavItem[] {
     { href: "/training", label: "Обучение", icon: Crosshair },
     { href: "/cases", label: "Кейсы", icon: Briefcase },
     { href: "/exam", label: "Экзамен", icon: GraduationCap },
+    { href: "/certificate", label: "Сертификат", icon: Award },
+    { href: "/championship", label: "Чемпионат", icon: Trophy },
     { href: "/history", label: "История", icon: History },
     { href: "/knowledge", label: "База знаний", icon: BookOpen },
+    { href: "/courses", label: "Курсы", icon: Library },
   ];
 }
 
@@ -280,6 +286,36 @@ export default function AppSidebar({ collapsed, onToggle }: AppSidebarProps) {
           })}
         </div>
       </nav>
+
+      {/* ── Championship promo (над выбором темы — зеркалит лендинг) ── */}
+      <div className="px-3 pb-1 pt-2">
+        <Link
+          href="/championship"
+          className={`group flex items-center no-underline transition-transform hover:scale-[1.02] ${collapsed ? "justify-center rounded-xl p-2" : "gap-3 rounded-2xl p-2.5"}`}
+          style={{
+            background: `color-mix(in srgb, var(--primary) 12%, var(--surface-card))`,
+            border: "1px solid color-mix(in srgb, var(--primary) 30%, transparent)",
+          }}
+          title="Чемпионат сезона — розыгрыш призов Apple"
+        >
+          <span
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg"
+            style={{ background: "var(--primary)", color: "var(--primary-contrast, #fff)" }}
+          >
+            <Trophy size={16} />
+          </span>
+          {!collapsed && (
+            <span className="min-w-0">
+              <span className="block text-[13px] font-semibold leading-tight" style={{ color: "var(--text-primary)" }}>
+                Чемпионат
+              </span>
+              <span className="block text-[11px] leading-tight" style={{ color: "var(--text-secondary)" }}>
+                Призы Apple
+              </span>
+            </span>
+          )}
+        </Link>
+      </div>
 
       {/* ── Theme control ─────────────────────────────── */}
       <div

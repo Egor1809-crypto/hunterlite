@@ -162,7 +162,36 @@ class ReminderScheduler:
             except Exception as e:
                 logger.error("Team challenge expiry error: %s", e, exc_info=True)
 
+            # ── Championship: advance season FSM + refresh qualification pool ──
+            try:
+                await asyncio.wait_for(self._check_championship(), timeout=_TASK_TIMEOUT)
+            except asyncio.TimeoutError:
+                logger.error("ReminderScheduler: championship advance timed out")
+            except Exception as e:
+                logger.error("Championship advance error: %s", e, exc_info=True)
+
             await asyncio.sleep(CHECK_INTERVAL_MIN * 60)
+
+    async def _check_championship(self) -> None:
+        """Advance the season FSM by date, then recompute the active season's
+        qualification pool so ``qualified`` status tracks exam/subscription/review
+        changes without per-event hooks."""
+        from app.models.championship import Championship
+        from app.services.championship_season import advance_season_states
+        from app.services.championship_qualification import recompute_championship
+
+        async with async_session() as db:
+            await advance_season_states(db)
+            active = (
+                await db.execute(
+                    select(Championship)
+                    .where(Championship.status.in_(("active", "tallying")))
+                    .order_by(Championship.number.desc())
+                    .limit(1)
+                )
+            ).scalar_one_or_none()
+            if active is not None:
+                await recompute_championship(db, active.id)
 
     async def _check_weekly_reports(self) -> None:
         """Generate weekly reports if it's Monday morning and not yet generated."""
