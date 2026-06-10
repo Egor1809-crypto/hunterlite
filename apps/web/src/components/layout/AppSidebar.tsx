@@ -23,6 +23,7 @@ import {
 import { useState, useEffect } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { UserAvatar } from "@/components/ui/UserAvatar";
+import { TrophyMark } from "@/components/ui/TrophyMark";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { BrandLogo } from "@/components/ui/BrandLogo";
 import { sanitizeText } from "@/lib/sanitize";
@@ -291,25 +292,22 @@ export default function AppSidebar({ collapsed, onToggle }: AppSidebarProps) {
       <div className="px-3 pb-1 pt-2">
         <Link
           href="/championship"
-          className={`group flex items-center no-underline transition-transform hover:scale-[1.02] ${collapsed ? "justify-center rounded-xl p-2" : "gap-3 rounded-2xl p-2.5"}`}
-          style={{
-            background: `color-mix(in srgb, var(--primary) 12%, var(--surface-card))`,
-            border: "1px solid color-mix(in srgb, var(--primary) 30%, transparent)",
-          }}
+          className={`group flex items-center no-underline transition-transform hover:scale-[1.03] ${collapsed ? "justify-center rounded-xl p-2.5" : "gap-3 rounded-2xl p-3.5"}`}
+          style={{ background: "var(--primary)", boxShadow: "var(--shadow-md)" }}
           title="Чемпионат сезона — розыгрыш призов Apple"
         >
           <span
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg"
-            style={{ background: "var(--primary)", color: "var(--primary-contrast, #fff)" }}
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full"
+            style={{ background: "#fff" }}
           >
-            <Trophy size={16} />
+            <TrophyMark size={22} />
           </span>
           {!collapsed && (
             <span className="min-w-0">
-              <span className="block text-[13px] font-semibold leading-tight" style={{ color: "var(--text-primary)" }}>
+              <span className="block text-[14.5px] font-bold leading-tight" style={{ color: "#fff" }}>
                 Чемпионат
               </span>
-              <span className="block text-[11px] leading-tight" style={{ color: "var(--text-secondary)" }}>
+              <span className="block text-[11.5px] leading-tight" style={{ color: "rgba(255,255,255,0.85)" }}>
                 Призы Apple
               </span>
             </span>

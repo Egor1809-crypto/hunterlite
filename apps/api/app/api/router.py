@@ -91,3 +91,6 @@ api_router.include_router(reviews_router, tags=["reviews"])
 
 from app.api.championship import router as championship_router
 api_router.include_router(championship_router, tags=["championship"])
+
+from app.api.courses import router as courses_router
+api_router.include_router(courses_router, tags=["courses"])

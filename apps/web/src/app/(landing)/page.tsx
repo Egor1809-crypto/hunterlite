@@ -10,6 +10,7 @@ import { useLandingAuth } from "@/components/landing/LandingAuthContext";
 import { CertificatePreview, CERT_TOKEN_PALETTE } from "@/components/certificate/CertificatePreview";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
+import { TrophyMark } from "@/components/ui/TrophyMark";
 
 const stats = [
   { value: "18 000+", label: "квалифицированных юристов вышли из наших программ" },
@@ -27,11 +28,11 @@ const stats = [
 type Expert = { name: string; role: string; image: string };
 
 const experts: Expert[] = [
-  { name: "Василий Артин", role: "Генеральный директор", image: "/landing/experts/expert-2.jpeg" },
-  { name: "Андрей Абукаев", role: "Арбитражный управляющий", image: "/landing/experts/photo-a.webp" },
-  { name: "Елена Лященко", role: "Арбитражный управляющий", image: "/landing/experts/photo-c.webp" },
-  { name: "Александр Герасимов", role: "Арбитражный управляющий", image: "/landing/experts/photo-b.webp" },
-  { name: "Дмитрий Сизов", role: "Арбитражный управляющий", image: "/landing/experts/photo-d.webp" },
+  { name: "Василий Артин", role: "Генеральный директор", image: "/landing/experts/expert-01.webp" },
+  { name: "Андрей Абукаев", role: "Арбитражный управляющий", image: "/landing/experts/expert-02.webp" },
+  { name: "Елена Лященко", role: "Арбитражный управляющий", image: "/landing/experts/expert-03.webp" },
+  { name: "Александр Герасимов", role: "Арбитражный управляющий", image: "/landing/experts/expert-04.webp" },
+  { name: "Дмитрий Сизов", role: "Арбитражный управляющий", image: "/landing/experts/expert-05.webp" },
 ];
 
 const products = [
@@ -596,27 +597,24 @@ export default function LandingPage() {
           {/* Промо-панель чемпионата — над выбором темы, ведёт на /championship */}
           <Link
             href="/championship"
-            className="group flex items-center gap-3 rounded-2xl p-3 no-underline transition-transform hover:scale-[1.02]"
-            style={{
-              background: `color-mix(in srgb, var(--primary) 12%, var(--surface-card))`,
-              border: "1px solid color-mix(in srgb, var(--primary) 30%, transparent)",
-            }}
+            className="group flex items-center gap-3.5 rounded-2xl p-4 no-underline transition-transform hover:scale-[1.03]"
+            style={{ background: "var(--primary)", boxShadow: "var(--shadow-md)" }}
           >
             <span
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl"
-              style={{ background: "var(--primary)", color: "var(--primary-contrast, #fff)" }}
+              className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full"
+              style={{ background: "#fff" }}
             >
-              <Trophy size={18} />
+              <TrophyMark size={26} />
             </span>
             <span className="min-w-0">
-              <span className="block text-[13px] font-semibold leading-tight" style={{ color: "var(--text-primary)" }}>
+              <span className="block text-[15px] font-bold leading-tight" style={{ color: "var(--primary-contrast, #fff)" }}>
                 Чемпионат сезона
               </span>
-              <span className="block text-[11px] leading-tight" style={{ color: "var(--text-secondary)" }}>
+              <span className="block text-[12px] leading-tight" style={{ color: "rgba(255,255,255,0.85)" }}>
                 Розыгрыш призов Apple
               </span>
             </span>
-            <ArrowRight size={15} className="ml-auto transition-transform group-hover:translate-x-0.5" style={{ color: "var(--primary)" }} />
+            <ArrowRight size={17} className="ml-auto transition-transform group-hover:translate-x-0.5" style={{ color: "#fff" }} />
           </Link>
 
           {/* панель выбора темы над «Войти» */}

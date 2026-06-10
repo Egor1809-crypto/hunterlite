@@ -30,10 +30,12 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.data.course_quizzes import QUIZZES
 from app.models.championship import ChampionshipEntry
+from app.models.course_progress import CourseLessonProgress
 from app.models.exam import ExamAttempt, ExamCertificate
 from app.models.review import Review
 from app.models.subscription import UserSubscription
@@ -43,6 +45,30 @@ from app.models.user import User
 _FREE_PLAN = "scout"
 # Roles that get product access without a paid subscription row (comped).
 _COMPED_ROLES = ("admin", "rop", "methodologist")
+# Courses a participant must complete 100% (all lessons passed via mini-checks).
+# A course with no lessons yet (empty) is skipped until it has content, then it
+# auto-joins the gate.
+_CHAMPIONSHIP_COURSES = ("yuridicheskie-aspekty", "expertnyi-uroven-bfl")
+
+
+async def _courses_done(db: AsyncSession, user_id: uuid.UUID) -> bool:
+    """True when every required (non-empty) course is 100% completed."""
+    for slug in _CHAMPIONSHIP_COURSES:
+        total = len(QUIZZES.get(slug, {}))
+        if total == 0:
+            continue  # empty course not yet required
+        done = (
+            await db.execute(
+                select(func.count(CourseLessonProgress.id)).where(
+                    CourseLessonProgress.user_id == user_id,
+                    CourseLessonProgress.course_slug == slug,
+                    CourseLessonProgress.completed_at.isnot(None),
+                )
+            )
+        ).scalar() or 0
+        if int(done) < total:
+            return False
+    return True
 
 
 async def _has_certificate(db: AsyncSession, user_id: uuid.UUID) -> bool:
@@ -98,23 +124,25 @@ async def compute_metrics(db: AsyncSession, user: User) -> dict:
     exam_passed = await _has_certificate(db, user.id)
     subscribed = await _has_active_subscription(db, user)
     review_left = await _has_review(db, user.id)
+    courses_done = await _courses_done(db, user.id)
     exam_score = await _best_exam_score(db, user.id)
     return {
         "exam_passed": exam_passed,
         "subscribed": subscribed,
         "review_left": review_left,
-        # Access proxy — course completion is not tracked; paid plan bundles the
-        # courses. Mirrors `subscribed`; not a separate gate (see module docstring).
-        "courses_done": subscribed,
+        # Real signal now (Этап 3): every required course completed 100% via
+        # per-lesson mini-checks. Empty courses are skipped until populated.
+        "courses_done": courses_done,
         "exam_score": exam_score,
     }
 
 
 def qualifies(metrics: dict) -> bool:
-    """Objective gate: certified + paid + reviewed."""
+    """Objective gate: certified + paid subscription + both courses 100% + review."""
     return bool(
         metrics.get("exam_passed")
         and metrics.get("subscribed")
+        and metrics.get("courses_done")
         and metrics.get("review_left")
     )
 
@@ -124,6 +152,8 @@ def compute_score(metrics: dict) -> float:
     fallback). Deterministic: exam score is the spine, conditions add bonuses."""
     score = float(metrics.get("exam_score") or 0)
     if metrics.get("subscribed"):
+        score += 10
+    if metrics.get("courses_done"):
         score += 10
     if metrics.get("review_left"):
         score += 5

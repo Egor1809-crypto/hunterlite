@@ -199,8 +199,8 @@ function PrizeStory({ prize, index }: { prize: PrizeItem; index: number }) {
 
   const reversed = index % 2 === 1;
   return (
-    <div ref={ref} className="relative" style={{ minHeight: "52vh" }}>
-      <div className="sticky top-[14vh] flex min-h-[40vh] items-center">
+    <div ref={ref} className="relative" style={{ minHeight: "38vh" }}>
+      <div className="sticky top-[12vh] flex min-h-[28vh] items-center">
         <motion.div
           style={reduced ? undefined : { scale, opacity }}
           className={`grid w-full items-center gap-10 lg:grid-cols-2 ${reversed ? "lg:[direction:rtl]" : ""}`}
@@ -347,9 +347,22 @@ export default function ChampionshipPage({ surface = "app" }: { surface?: "app" 
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, ease: "easeOut" }}
           className="mt-4 font-semibold"
-          style={{ fontSize: "clamp(48px, 9vw, 124px)", lineHeight: 0.92, letterSpacing: "-0.045em", color: "var(--text-primary)" }}
+          style={{ fontSize: "clamp(38px, 6.4vw, 92px)", lineHeight: 0.94, letterSpacing: "-0.045em", color: "var(--text-primary)", hyphens: "none", WebkitHyphens: "none" }}
         >
-          {champ?.title ?? "Чемпионат сезона"}
+          {(() => {
+            const parts = (champ?.title ?? "Чемпионат сезона").split("·").map((s) => s.trim());
+            // Ровно 2 строки: «Чемпионат сезона» / «Лето–Осень 2026». Обе — nowrap,
+            // чтобы «сезона» не уезжало на отдельную строку, а дата не ломалась дефисом.
+            return parts.length > 1 ? (
+              <>
+                <span style={{ whiteSpace: "nowrap" }}>{parts[0]}</span>
+                <br />
+                <span style={{ whiteSpace: "nowrap" }}>{parts.slice(1).join(" · ")}</span>
+              </>
+            ) : (
+              parts[0]
+            );
+          })()}
         </motion.h1>
         <p className="mt-6 max-w-2xl text-xl leading-snug" style={{ color: "var(--text-secondary)" }}>
           Розыгрыш призов Apple среди аттестованных экспертов. Выполните условия участия до конца сезона —
@@ -412,7 +425,7 @@ export default function ChampionshipPage({ surface = "app" }: { surface?: "app" 
 
       {/* ── PRIZES (sticky storytelling) ── */}
       {prizes.length > 0 && (
-        <section className="mx-auto max-w-[1100px] px-6 py-[6vh] sm:px-10">
+        <section className="mx-auto max-w-[1100px] px-6 py-[4vh] sm:px-10">
           <Reveal>
             <div className="mb-2 font-mono text-[12px] uppercase tracking-[0.2em]" style={{ color: "var(--text-muted)" }}>
               01 · Призовой фонд
@@ -430,7 +443,7 @@ export default function ChampionshipPage({ surface = "app" }: { surface?: "app" 
       )}
 
       {/* ── HOW TO ENTER ── */}
-      <section className="mx-auto max-w-[1100px] px-6 py-[6vh] sm:px-10">
+      <section className="mx-auto max-w-[1100px] px-6 py-[4vh] sm:px-10">
         <Reveal>
           <div className="mb-2 font-mono text-[12px] uppercase tracking-[0.2em]" style={{ color: "var(--text-muted)" }}>
             02 · Как участвовать
@@ -486,7 +499,7 @@ export default function ChampionshipPage({ surface = "app" }: { surface?: "app" 
       </section>
 
       {/* ── QUALIFIED POOL / LEADERBOARD ── */}
-      <section className="mx-auto max-w-[1100px] px-6 py-[6vh] sm:px-10">
+      <section className="mx-auto max-w-[1100px] px-6 py-[4vh] sm:px-10">
         <Reveal>
           <div className="mb-2 font-mono text-[12px] uppercase tracking-[0.2em]" style={{ color: "var(--text-muted)" }}>
             03 · Пул участников
@@ -523,7 +536,7 @@ export default function ChampionshipPage({ surface = "app" }: { surface?: "app" 
       </section>
 
       {/* ── WINNERS HISTORY ── */}
-      <section className="mx-auto max-w-[1100px] px-6 py-[6vh] sm:px-10">
+      <section className="mx-auto max-w-[1100px] px-6 py-[4vh] sm:px-10">
         <Reveal>
           <div className="mb-2 font-mono text-[12px] uppercase tracking-[0.2em]" style={{ color: "var(--text-muted)" }}>
             04 · История победителей
@@ -569,7 +582,7 @@ export default function ChampionshipPage({ surface = "app" }: { surface?: "app" 
       </section>
 
       {/* ── DOCUMENTS / FOOTER ── */}
-      <section id="contest-documents" className="mx-auto max-w-[1100px] px-6 py-[6vh] sm:px-10">
+      <section id="contest-documents" className="mx-auto max-w-[1100px] px-6 py-[4vh] sm:px-10">
         <Reveal>
           <div className="rounded-3xl p-8 sm:p-12" style={{ background: "var(--bg-secondary)", border: "1px solid var(--border-color)" }}>
             <div className="font-mono text-[12px] uppercase tracking-[0.2em]" style={{ color: "var(--text-muted)" }}>

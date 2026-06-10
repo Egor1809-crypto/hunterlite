@@ -149,7 +149,7 @@ export default function CertificatePage() {
                     <CertificatePreview
                       variant="earned"
                       palette={CERT_TOKEN_PALETTE}
-                      recipientName={userName ?? "Фамилия Имя Отчество"}
+                      recipientName={userName ?? undefined}
                     />
                   ) : (
                     <CertificatePreview
@@ -157,7 +157,7 @@ export default function CertificatePage() {
                       revealed
                       showOverlayText={false}
                       palette={CERT_TOKEN_PALETTE}
-                      recipientName={userName ?? "Фамилия Имя Отчество"}
+                      recipientName={userName ?? undefined}
                     />
                   )}
                 </div>

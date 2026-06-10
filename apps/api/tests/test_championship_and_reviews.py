@@ -19,11 +19,16 @@ from app.models.championship import (
     ChampionshipEntry,
     ChampionshipWinner,
 )
+from app.data.course_quizzes import QUIZZES
+from app.models.course_progress import CourseLessonProgress
 from app.models.exam import ExamAttempt, ExamCertificate, ExamDefinition
 from app.models.review import Review
 from app.models.subscription import UserSubscription
 from app.models.user import User
 from app.services.championship_season import advance_season_states
+
+# Courses a champion must complete 100% (mirror of qualification gate).
+_REQUIRED_COURSES = ("yuridicheskie-aspekty", "expertnyi-uroven-bfl")
 
 
 @pytest.fixture(autouse=True)
@@ -130,6 +135,19 @@ async def _make_review(db, user) -> None:
     await db.commit()
 
 
+async def _complete_courses(db, user) -> None:
+    """Mark every lesson of every required (non-empty) course passed — 100%."""
+    for slug in _REQUIRED_COURSES:
+        for idx in QUIZZES.get(slug, {}):
+            db.add(
+                CourseLessonProgress(
+                    id=uuid.uuid4(), user_id=user.id, course_slug=slug, lesson_index=idx,
+                    completed_at=datetime.now(timezone.utc),
+                )
+            )
+    await db.commit()
+
+
 async def _qualify_user(db, champ, name) -> User:
     """A user that satisfies all objective conditions + an enrolled entry, so a
     recompute promotes them to ``qualified`` (the draw pool)."""
@@ -137,6 +155,7 @@ async def _qualify_user(db, champ, name) -> User:
     await _make_certificate(db, user)
     await _make_subscription(db, user)
     await _make_review(db, user)
+    await _complete_courses(db, user)
     db.add(
         ChampionshipEntry(
             id=uuid.uuid4(), championship_id=champ.id, user_id=user.id, status="enrolled",
@@ -223,12 +242,13 @@ async def test_review_moderation_gate_and_duplicate(client, db_session, make_tok
 async def test_enroll_promotes_to_qualified_when_all_conditions_met(
     client, db_session, make_token, mock_redis_pool
 ):
-    """Cert (≥88%) + active paid sub + review → status flips enrolled→qualified."""
+    """Cert (≥88%) + active paid sub + 100% courses + review → enrolled→qualified."""
     user = await _seed_user(db_session)
     champ = await _seed_championship(db_session)
     await _make_certificate(db_session, user)
     await _make_subscription(db_session, user)
     await _make_review(db_session, user)
+    await _complete_courses(db_session, user)
     hdr = _hdr(make_token, user, client)
 
     r = await client.post("/api/championship/enroll", headers=hdr)
@@ -237,6 +257,7 @@ async def test_enroll_promotes_to_qualified_when_all_conditions_met(
     assert body["status"] == "qualified"
     assert body["criteria"]["exam_passed"] is True
     assert body["criteria"]["subscribed"] is True
+    assert body["criteria"]["courses_done"] is True
     assert body["criteria"]["review_left"] is True
 
     cnt = await db_session.execute(
@@ -262,6 +283,30 @@ async def test_enroll_stays_enrolled_when_a_condition_is_missing(
     assert body["status"] == "enrolled"
     assert body["criteria"]["exam_passed"] is False
     assert body["criteria"]["subscribed"] is True
+
+
+async def test_incomplete_courses_block_qualification(
+    client, db_session, make_token, mock_redis_pool
+):
+    """Cert + sub + review but courses NOT 100% → stays enrolled (Этап 3 gate)."""
+    user = await _seed_user(db_session)
+    await _seed_championship(db_session)
+    await _make_certificate(db_session, user)
+    await _make_subscription(db_session, user)
+    await _make_review(db_session, user)
+    # Only one lesson done — far from 100%.
+    db_session.add(
+        CourseLessonProgress(
+            id=uuid.uuid4(), user_id=user.id, course_slug="yuridicheskie-aspekty",
+            lesson_index=0, completed_at=datetime.now(timezone.utc),
+        )
+    )
+    await db_session.commit()
+    hdr = _hdr(make_token, user, client)
+
+    body = (await client.post("/api/championship/enroll", headers=hdr)).json()
+    assert body["status"] == "enrolled"
+    assert body["criteria"]["courses_done"] is False
 
 
 async def test_parallel_enroll_same_user_keeps_one_entry(db_session):

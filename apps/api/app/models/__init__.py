@@ -158,6 +158,7 @@ from app.models.championship import (
     ChampionshipEntry,
     ChampionshipWinner,
 )
+from app.models.course_progress import CourseLessonProgress
 from app.models.outbox import OutboxEvent, OutboxStatus
 from app.models.team_challenge import (
     TeamChallenge,
@@ -374,6 +375,8 @@ __all__ = [
     "Championship",
     "ChampionshipEntry",
     "ChampionshipWinner",
+    # Course progress (дрип-курсы + мини-проверки)
+    "CourseLessonProgress",
     # Season Content & Leagues (diagnostic fix)
     "ContentSeason",
     "SeasonChapter",

@@ -21,6 +21,10 @@ import { useMicrophone } from "@/hooks/useMicrophone";
 import { useWebSocket } from "@/hooks/useWebSocket";
 import { useTTS } from "@/hooks/useTTS";
 import type { WSMessage } from "@/types";
+import ScriptPanel from "@/components/training/ScriptPanel";
+import ScriptDrawer from "@/components/training/ScriptDrawer";
+import { useSessionStore } from "@/stores/useSessionStore";
+import { STAGE_GUIDANCE } from "@/lib/script_guidance";
 
 type Status = "idle" | "recording" | "thinking" | "speaking";
 
@@ -50,6 +54,31 @@ export default function CallPage() {
   const [recording, setRecording] = useState(false);
   const [caption, setCaption] = useState("");
   const [ending, setEnding] = useState(false);
+
+  // ---------------------------------------------------------------------------
+  // Script guide (right-side panel): walk the learner through the 7 stages.
+  // The rebuilt /ws/call backend doesn't emit stage events, so we advance the
+  // guide locally — reset to stage 1 on accept, +1 per sent user turn. The
+  // panel content (task / examples / mistakes) is read from script_guidance.
+  // ---------------------------------------------------------------------------
+  const setStageUpdate = useSessionStore((s) => s.setStageUpdate);
+  const goToStage = useCallback(
+    (n: number) => {
+      const total = STAGE_GUIDANCE.length; // 7
+      const clamped = Math.max(1, Math.min(n, total));
+      const g = STAGE_GUIDANCE[clamped - 1];
+      setStageUpdate({
+        stage_number: clamped,
+        stage_name: g.key,
+        stage_label: g.label_ru,
+        total_stages: total,
+        stages_completed: Array.from({ length: clamped - 1 }, (_, i) => i + 1),
+        stage_scores: {},
+        confidence: 1,
+      });
+    },
+    [setStageUpdate],
+  );
 
   // Single idempotent redirect to results — every terminal path funnels here.
   const redirectedRef = useRef(false);
@@ -122,8 +151,9 @@ export default function CallPage() {
       /* unlock is best-effort */
     }
     setAccepted(true);
+    goToStage(1); // start the script guide at stage 1
     sendMessage({ type: "start", data: { session_id: id } });
-  }, [tts, sendMessage, id]);
+  }, [tts, sendMessage, id, goToStage]);
 
   // ---------------------------------------------------------------------------
   // Push-to-talk toggle: click starts capture, click again sends the turn.
@@ -151,7 +181,9 @@ export default function CallPage() {
     setStatus("thinking");
     const audio_b64 = await blobToBase64(blob);
     sendMessage({ type: "audio", data: { audio_b64, mime: "audio/webm" } });
-  }, [recording, ending, mic, sendMessage]);
+    // Advance the script guide one stage per completed user turn.
+    goToStage(useSessionStore.getState().currentStage + 1);
+  }, [recording, ending, mic, sendMessage, goToStage]);
 
   // ---------------------------------------------------------------------------
   // End the call → wait for score/hangup → redirect (fallback after 25s).
@@ -216,9 +248,34 @@ export default function CallPage() {
   // ---------------------------------------------------------------------------
   return (
     <main
-      className="flex min-h-screen flex-col items-center justify-between px-6 py-12"
+      className="relative flex min-h-screen flex-col items-center justify-between px-6 py-12"
       style={{ background: "var(--surface-base, var(--background))", color: "var(--text-primary)" }}
     >
+      {/* Right-side script guide — leads the learner strictly through the 7
+          stages (task · example phrases · common mistakes). Desktop only;
+          mobile gets the ScriptDrawer bottom-sheet below. */}
+      <aside
+        className="hidden lg:block absolute right-4 top-20 z-30 pointer-events-auto w-[min(440px,34vw)] max-h-[calc(100vh-180px)] overflow-y-auto rounded-2xl p-5"
+        style={{ background: "var(--surface-card)", border: "1px solid var(--border-color)", boxShadow: "var(--shadow-md)" }}
+      >
+        <ScriptPanel compactHeader />
+        <div className="mt-5 pt-4" style={{ borderTop: "1px solid var(--border-color)" }}>
+          <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.16em]" style={{ color: "var(--text-muted)" }}>
+            Как пользоваться
+          </div>
+          <ul className="space-y-1.5 text-xs leading-relaxed" style={{ color: "var(--text-secondary)" }}>
+            <li><span style={{ color: "var(--text-primary)" }}>«Говорить»</span> — скажите реплику текущего этапа, затем «Стоп», чтобы отправить.</li>
+            <li><span style={{ color: "var(--text-primary)" }}>Скрипт</span> — задача, примеры фраз и типичные ошибки этапа. Идите по этапам сверху вниз.</li>
+            <li><span style={{ color: "var(--text-primary)" }}>«Завершить»</span> — закончить звонок и получить разбор.</li>
+          </ul>
+        </div>
+      </aside>
+
+      {/* Mobile: same script as a bottom-sheet (floating chip → sheet). */}
+      <div className="lg:hidden">
+        <ScriptDrawer />
+      </div>
+
       {/* Header: who you're talking to + live status */}
       <div className="flex flex-col items-center gap-2 text-center">
         <h1 className="text-2xl font-semibold">{clientName || "Клиент"}</h1>
