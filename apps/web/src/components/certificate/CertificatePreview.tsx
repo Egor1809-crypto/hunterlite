@@ -71,6 +71,18 @@ interface CertificatePreviewProps {
   ctaLabel?: string;
   onCta?: () => void;
   className?: string;
+  /**
+   * When true, the diploma face renders WITHOUT blur even in variant="locked"
+   * (full clarity). Defaults to false — the historical blurred behaviour.
+   */
+  revealed?: boolean;
+  /**
+   * When false, no lock overlay is drawn at all (no lock icon, no
+   * lockTitle/lockSubtitle, no CTA) — only the clean diploma. Defaults to true.
+   * Combine `revealed showOverlayText={false}` for a clean, fully visible
+   * certificate with no dimming and no text on top.
+   */
+  showOverlayText?: boolean;
 }
 
 const DEFAULT_CODE = "LH-BFL-2026-001";
@@ -338,10 +350,18 @@ export function CertificatePreview({
   ctaLabel = "Начать обучение",
   onCta,
   className,
+  revealed = false,
+  showOverlayText = true,
 }: CertificatePreviewProps) {
   const reduce = useReducedMotion();
   const locked = variant === "locked";
   const p = palette;
+
+  // The face is blurred only when locked AND not explicitly revealed.
+  const blurred = locked && !revealed;
+  // The invitational lock overlay is drawn only when locked AND overlay text
+  // is allowed (clean-reveal callers pass showOverlayText={false}).
+  const showOverlay = locked && showOverlayText;
 
   return (
     <motion.div
@@ -349,8 +369,110 @@ export function CertificatePreview({
       initial={reduce ? false : { opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.6, ease: "easeOut" }}
-      style={{ width: "100%", maxWidth: 760, marginInline: "auto" }}
+      style={{ width: "100%", maxWidth: 920, marginInline: "auto" }}
     >
+      {/* Decorative registration marks around the frame (abstract.com flavour) */}
+      <div className="relative">
+        {/* Outer corner ticks — sit just outside the diploma's rounded frame */}
+        {(["tl", "tr", "bl", "br"] as const).map((c) => {
+          const isTop = c[0] === "t";
+          const isLeft = c[1] === "l";
+          return (
+            <span
+              key={c}
+              aria-hidden
+              className="pointer-events-none absolute hidden sm:block"
+              style={{
+                width: 14,
+                height: 14,
+                [isTop ? "top" : "bottom"]: -8,
+                [isLeft ? "left" : "right"]: -8,
+                borderTop: isTop ? `1px solid ${p.accent}` : "none",
+                borderBottom: !isTop ? `1px solid ${p.accent}` : "none",
+                borderLeft: isLeft ? `1px solid ${p.accent}` : "none",
+                borderRight: !isLeft ? `1px solid ${p.accent}` : "none",
+                opacity: 0.7,
+              }}
+            />
+          );
+        })}
+
+        {/* Top-left mono caption — origin marker */}
+        <span
+          aria-hidden
+          className="pointer-events-none absolute hidden md:block"
+          style={{
+            top: -22,
+            left: 4,
+            textTransform: "uppercase",
+            letterSpacing: "0.3em",
+            fontSize: 8,
+            fontWeight: 600,
+            color: p.textMuted,
+          }}
+        >
+          Оригинал
+        </span>
+
+        {/* Top-right mono code */}
+        <span
+          aria-hidden
+          className="pointer-events-none absolute hidden md:block"
+          style={{
+            top: -22,
+            right: 4,
+            textTransform: "uppercase",
+            letterSpacing: "0.18em",
+            fontSize: 8,
+            fontWeight: 600,
+            fontVariantNumeric: "tabular-nums",
+            color: p.textMuted,
+          }}
+        >
+          SC&mdash;127 &middot; A4
+        </span>
+
+        {/* Tiny stamp circle bottom-left, outside the frame */}
+        <span
+          aria-hidden
+          className="pointer-events-none absolute hidden md:flex items-center justify-center rounded-full"
+          style={{
+            bottom: -14,
+            left: -14,
+            width: 28,
+            height: 28,
+            border: `1px solid ${p.accent}`,
+            background: p.surface,
+            opacity: 0.85,
+          }}
+        >
+          <span
+            style={{
+              width: 9,
+              height: 9,
+              borderRadius: 999,
+              border: `1px solid ${p.hairline}`,
+            }}
+          />
+        </span>
+
+        {/* Bottom-right mono caption */}
+        <span
+          aria-hidden
+          className="pointer-events-none absolute hidden md:block"
+          style={{
+            bottom: -20,
+            right: 4,
+            textTransform: "uppercase",
+            letterSpacing: "0.22em",
+            fontSize: 8,
+            fontWeight: 600,
+            color: p.textMuted,
+          }}
+        >
+          <span style={{ color: p.accent }}>&bull;</span>&nbsp;Серия&nbsp;LH
+        </span>
+
       <div
         className="relative overflow-hidden"
         style={{
@@ -361,11 +483,11 @@ export function CertificatePreview({
           background: p.surface,
         }}
       >
-        {/* face (blurred when locked) */}
+        {/* face (blurred only when locked and not revealed) */}
         <div
-          aria-hidden={locked}
+          aria-hidden={showOverlay}
           style={
-            locked
+            blurred
               ? { position: "absolute", inset: 0, filter: "blur(5px)", opacity: 0.55, transform: "scale(1.02)" }
               : { position: "absolute", inset: 0 }
           }
@@ -374,7 +496,7 @@ export function CertificatePreview({
         </div>
 
         {/* locked overlay */}
-        {locked && (
+        {showOverlay && (
           <>
             <div aria-hidden className="absolute inset-0" style={{ background: p.surface, opacity: 0.78 }} />
             <motion.div
@@ -412,6 +534,7 @@ export function CertificatePreview({
             </motion.div>
           </>
         )}
+      </div>
       </div>
     </motion.div>
   );

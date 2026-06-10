@@ -139,7 +139,7 @@ const ISLANDS: Island[] = [
 const QUESTIONS_PER_LEVEL_MIN = 10;
 const QUESTIONS_PER_LEVEL_MAX = 20;
 const MAX_ATTEMPTS = 5;
-const DAILY_ENERGY = 20;
+const DAILY_ENERGY = 25;
 const PASS_THRESHOLD = 0.88;
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -952,13 +952,13 @@ function LevelDetailModal({
               <div className="text-[11px] font-semibold uppercase tracking-[0.2em]" style={{ color: `var(--primary)` }}>
                 {island.name}
               </div>
-              <h3 className="mt-1 text-[26px] font-semibold leading-none tracking-tight" style={{ color: "var(--text-primary)" }}>
+              <h3 className="mt-1 whitespace-nowrap text-[26px] font-semibold leading-none tracking-tight" style={{ color: "var(--text-primary)" }}>
                 Уровень {state.level}
               </h3>
             </div>
             {isCompleted && (
               <span
-                className="ml-auto mt-1 flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.12em]"
+                className="ml-auto mt-1 flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.12em]"
                 style={{ background: "var(--primary-muted)", color: "var(--primary)" }}
               >
                 <Check size={11} /> Пройден

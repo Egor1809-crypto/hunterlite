@@ -24,6 +24,8 @@ export interface EditorialHeaderProps {
   eyebrowRight?: string;
   title: string;
   subtitle?: string;
+  /** не переносить подзаголовок — держать в одну строку (снимает ограничение maxWidth) */
+  subtitleNoWrap?: boolean;
   /** опциональный слот действия/индикатора справа от заголовка (кнопка и т.п.) */
   right?: ReactNode;
   className?: string;
@@ -34,6 +36,7 @@ export function EditorialHeader({
   eyebrowRight,
   title,
   subtitle,
+  subtitleNoWrap = false,
   right,
   className = "",
 }: EditorialHeaderProps) {
@@ -75,7 +78,7 @@ export function EditorialHeader({
           {subtitle && (
             <p
               className="mt-5"
-              style={{ fontSize: 17, lineHeight: 1.55, color: "var(--text-secondary)", maxWidth: 600 }}
+              style={{ fontSize: 17, lineHeight: 1.55, color: "var(--text-secondary)", maxWidth: subtitleNoWrap ? undefined : 600, whiteSpace: subtitleNoWrap ? "nowrap" : undefined }}
             >
               {subtitle}
             </p>

@@ -84,6 +84,23 @@ interface Props {
   config: ManyashaConfig;
   /** Колбэк озвучки ответа ассистента: (text) => speak(text) из useTTS. */
   onSpeak?: (text: string) => void;
+  /**
+   * Автоматически раскрыть чат при маунте (один раз) — напр. на странице
+   * чемпионата, где Маняша сама объясняет условия участия. По умолчанию
+   * виджет закрыт, поведение на всех остальных страницах не меняется.
+   */
+  autoOpen?: boolean;
+  /**
+   * Seed-сообщение ассистента, которое показывается первым при autoOpen.
+   * Если передано — заменяет пустой greeting и сразу «говорит» с гостем.
+   */
+  autoOpenMessage?: string;
+  /**
+   * Показывать виджет ДАЖЕ если пользователь отключил ассистента в настройках.
+   * Нужно на странице розыгрыша (/certificate/contest), где у Маняши отдельная
+   * роль — помогать с условиями участия, независимо от глобального тумблера.
+   */
+  forceShow?: boolean;
 }
 
 const DEFAULTS: Required<
@@ -315,7 +332,7 @@ function ManyashaAvatar({
   );
 }
 
-export default function ManyashaChat({ config, onSpeak }: Props) {
+export default function ManyashaChat({ config, onSpeak, autoOpen, autoOpenMessage, forceShow }: Props) {
   const cfg = { ...DEFAULTS, ...config };
   const theme = { ...DEFAULT_THEME, ...(config.theme ?? {}) };
 
@@ -336,6 +353,7 @@ export default function ManyashaChat({ config, onSpeak }: Props) {
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const autoOpenDone = useRef(false);
   const dragState = useRef({ startX: 0, startY: 0, baseX: 0, baseY: 0, moved: false });
   const resizeState = useRef({ startX: 0, startY: 0, baseW: 0, baseH: 0 });
 
@@ -402,6 +420,32 @@ export default function ManyashaChat({ config, onSpeak }: Props) {
   useEffect(() => {
     if (chatOpen && inputRef.current) inputRef.current.focus();
   }, [chatOpen]);
+
+  // ── Авто-открытие (один раз) ──
+  // Срабатывает только когда родитель передал autoOpen (напр. на странице
+  // чемпионата). Открывает панель и сеет первое сообщение ассистента с
+  // условиями участия. Guard'ом autoOpenDone гарантируем единичный запуск —
+  // если гость закрыл чат, повторно сам он не откроется.
+  useEffect(() => {
+    if (!autoOpen || autoOpenDone.current) return;
+    autoOpenDone.current = true;
+    setChatOpen(true);
+    if (autoOpenMessage) {
+      setMessages((prev) =>
+        prev.length === 0 ? [{ role: "assistant", content: autoOpenMessage }] : prev,
+      );
+    }
+  }, [autoOpen, autoOpenMessage]);
+
+  // ── Открытие по глобальному событию ──
+  // Любая кнопка на странице может «попросить» Маняшу открыться:
+  //   window.dispatchEvent(new Event("manyasha:open"))
+  // Используется кнопкой «Условия участия» на странице чемпионата.
+  useEffect(() => {
+    const onOpen = () => setChatOpen(true);
+    window.addEventListener("manyasha:open", onOpen);
+    return () => window.removeEventListener("manyasha:open", onOpen);
+  }, []);
 
   const sendChatMessage = useCallback(
     async (text: string, currentMessages: ChatMessage[]) => {
@@ -512,7 +556,8 @@ export default function ManyashaChat({ config, onSpeak }: Props) {
     (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
   };
 
-  if (hideWidget || assistantHidden) return null;
+  // forceShow обходит глобальное отключение ассистента (страница розыгрыша).
+  if (hideWidget || (assistantHidden && !forceShow)) return null;
 
   const rootStyle: CSSProperties = {
     transform: `translate(${pos.x}px, ${pos.y}px)`,
@@ -589,7 +634,10 @@ export default function ManyashaChat({ config, onSpeak }: Props) {
                     <ManyashaAvatar video={cfg.mascotVideo} poster={cfg.mascotPoster} />
                   </div>
                 )}
-                <div className={`mnya-bubble ${msg.role === "user" ? "mnya-bubble-user" : "mnya-bubble-bot"}`}>
+                <div
+                  className={`mnya-bubble ${msg.role === "user" ? "mnya-bubble-user" : "mnya-bubble-bot"}`}
+                  style={{ whiteSpace: "pre-line" }}
+                >
                   {msg.content}
                 </div>
               </div>

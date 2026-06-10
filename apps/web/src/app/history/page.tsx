@@ -32,7 +32,7 @@ import { AbstractBackdrop } from "@/components/ui/AbstractBackdrop";
 import { EditorialHeader } from "@/components/ui/EditorialHeader";
 import { ActivityHeatmap } from "@/components/profile/ActivityHeatmap";
 import { api } from "@/lib/api";
-import { scoreColor } from "@/lib/utils";
+import { scoreColor, stripMarkdown } from "@/lib/utils";
 import AuthLayout from "@/components/layout/AuthLayout";
 import type {
   UnifiedHistoryItem,
@@ -276,14 +276,14 @@ function ManyashaPanel({ state, onRetry }: { state: ExplainState; onRetry: () =>
       </div>
       {report_text && (
         <p className="text-[13px] leading-relaxed" style={{ color: "var(--text-secondary)", whiteSpace: "pre-line" }}>
-          {report_text}
+          {stripMarkdown(report_text)}
         </p>
       )}
       {weak_points.length > 0 && (
         <div className="mt-3 flex flex-wrap gap-1.5">
           {weak_points.map((w, i) => (
             <span key={i} className="rounded-full px-2 py-0.5 font-mono text-[11px]" style={{ background: "var(--warning-muted)", color: "var(--warning)" }}>
-              {w}
+              {stripMarkdown(w)}
             </span>
           ))}
         </div>

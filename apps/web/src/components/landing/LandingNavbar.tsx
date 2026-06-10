@@ -56,7 +56,8 @@ export function LandingNavbar({ onLogin, onRegister }: LandingNavbarProps) {
         <div className="flex items-center justify-end gap-3 w-[180px]">
           <motion.button
             onClick={onRegister}
-            className="hidden sm:flex items-center gap-2 px-6 py-2.5 rounded-lg text-sm font-bold text-white transition-transform bg-[#2563EB] hover:bg-[#1D4ED8]"
+            className="hidden sm:flex items-center gap-2 px-6 py-2.5 rounded-full text-sm font-bold transition-transform"
+            style={{ background: "var(--primary)", color: "var(--primary-contrast, #fff)" }}
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.97 }}
           >
@@ -97,7 +98,8 @@ export function LandingNavbar({ onLogin, onRegister }: LandingNavbarProps) {
               </button>
               <button
                 onClick={() => { setMobileMenuOpen(false); onRegister(); }}
-                className="flex-1 py-3 rounded-lg text-sm font-bold bg-[#2563EB] text-white"
+                className="flex-1 py-3 rounded-full text-sm font-bold"
+                style={{ background: "var(--primary)", color: "var(--primary-contrast, #fff)" }}
               >
                 Начать
               </button>

@@ -590,6 +590,27 @@ def filter_ai_output(text: str) -> tuple[str, list[str]]:
         violations.append("reasoning_leak")
         logger.warning("AI reasoning leak stripped (marker=%r)", _m.group(0)[:30])
 
+    # 2026-06-08: strip hashtags from assistant (Manyasha) answers. The model
+    # habitually tags paragraphs with topical hashtags ("#банкротство",
+    # "#совет"); product wants none of them in any Manyasha surface (knowledge
+    # base, history-разбор, quiz-наставник). All three route through this
+    # function, so one pass here covers every surface.
+    #
+    # A hashtag token = "#" immediately followed by a word char (latin/cyrillic/
+    # digit/underscore). Markdown headers ("## " / "### ") have a SPACE after the
+    # hashes, so requiring a word char keeps them untouched.
+    _HASHTAG_RE = _re_leak.compile(r"#[0-9A-Za-zА-Яа-яЁё_][0-9A-Za-zА-Яа-яЁё_-]*")
+    if _HASHTAG_RE.search(filtered):
+        _stripped = _HASHTAG_RE.sub("", filtered)
+        # Clean up the artefacts the removal leaves behind.
+        _stripped = _re_leak.sub(r"(?m)^[ \t]*[:;\-–—,.][ \t]*", "", _stripped)  # orphan punct at line start (from "#совет:")
+        _stripped = _re_leak.sub(r"[ \t]+([.,:;!?…])", r"\1", _stripped)  # space before punctuation (" .")
+        _stripped = _re_leak.sub(r"[ \t]{2,}", " ", _stripped)   # collapsed double spaces
+        _stripped = _re_leak.sub(r"[ \t]+\n", "\n", _stripped)    # trailing ws per line
+        _stripped = _re_leak.sub(r"\n{3,}", "\n\n", _stripped)    # 3+ blank lines → 2
+        filtered = _stripped.strip()
+        violations.append("hashtags_stripped")
+
     # Length cap
     if len(filtered) > MAX_AI_RESPONSE_LENGTH:
         filtered = filtered[:MAX_AI_RESPONSE_LENGTH]
@@ -627,3 +648,47 @@ def filter_ai_output(text: str) -> tuple[str, list[str]]:
                 violations.append("profanity")
 
     return filtered, violations
+
+
+# Compiled once — markdown markers + standalone hashtags for Manyasha cleanup.
+_MD_HEADING_RE = re.compile(r"(?m)^[ \t]*#{1,6}[ \t]+")
+_MD_BOLD_RE = re.compile(r"\*\*([^*]+)\*\*")
+_MD_BOLD_U_RE = re.compile(r"__([^_]+)__")
+_MD_BULLET_RE = re.compile(r"(?m)^[ \t]*[\*\-+][ \t]+")
+_MD_ITALIC_RE = re.compile(r"\*([^*\n]+)\*")
+_MD_ITALIC_U_RE = re.compile(r"(?<![\w])_([^_\n]+)_(?![\w])")
+_MD_CODE_RE = re.compile(r"`([^`]+)`")
+_MD_HASHTAG_RE = re.compile(r"#[0-9A-Za-zА-Яа-яЁё_][0-9A-Za-zА-Яа-яЁё_-]*")
+
+
+def strip_markdown_formatting(text: str) -> str:
+    """Convert assistant markdown to clean plain text.
+
+    The Manyasha surfaces (история «Разбор», knowledge tab, widget) render the
+    reply as RAW text (`whiteSpace: pre-line`, no markdown parser), so model
+    markdown like `### Заголовок` and `**жирный**` shows as literal `###`/`**`.
+    This flattens headings, bold/italic, inline code and bullets, and removes
+    standalone hashtags.
+
+    DO NOT use this on roleplay client replies — they use `*кладёт трубку*`
+    action-emotes that this would strip. Manyasha surfaces only.
+    """
+    if not text:
+        return text
+    t = text
+    t = _MD_HEADING_RE.sub("", t)            # "### Title" → "Title"
+    t = _MD_BOLD_RE.sub(r"\1", t)            # **x** → x
+    t = _MD_BOLD_U_RE.sub(r"\1", t)          # __x__ → x
+    t = _MD_BULLET_RE.sub("• ", t)           # "* item" / "- item" → "• item" (before italic)
+    t = _MD_ITALIC_RE.sub(r"\1", t)          # *x* → x
+    t = _MD_ITALIC_U_RE.sub(r"\1", t)        # _x_ → x
+    t = _MD_CODE_RE.sub(r"\1", t)            # `x` → x
+    t = _MD_HASHTAG_RE.sub("", t)            # #тег → (removed)
+    t = t.replace("**", "").replace("__", "")  # leftover stray markers
+    # Whitespace tidy-up after removals.
+    t = re.sub(r"(?m)^[ \t]*[:;\-–—,.][ \t]*", "", t)  # orphan punct at line start
+    t = re.sub(r"[ \t]+([.,:;!?…])", r"\1", t)         # space before punctuation
+    t = re.sub(r"[ \t]{2,}", " ", t)
+    t = re.sub(r"[ \t]+\n", "\n", t)
+    t = re.sub(r"\n{3,}", "\n\n", t)
+    return t.strip()

@@ -4,7 +4,8 @@ import { useState, useEffect } from "react";
 import Image from "next/image";
 import { useTheme } from "next-themes";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowRight, Check, Send, Sun, Moon, Infinity as InfinityIcon } from "lucide-react";
+import Link from "next/link";
+import { ArrowRight, Check, Send, Sun, Moon, Trophy, Infinity as InfinityIcon } from "lucide-react";
 import { useLandingAuth } from "@/components/landing/LandingAuthContext";
 import { CertificatePreview, CERT_TOKEN_PALETTE } from "@/components/certificate/CertificatePreview";
 import { Card } from "@/components/ui/Card";
@@ -19,12 +20,18 @@ const stats = [
   { value: "По всей России", label: "работаем удалённо и очно" },
 ];
 
-const experts = [
+// Все фото экспертов предварительно нормализованы (scripts: PIL) к единому
+// холсту 1000×1250 (ровно 4:5 = рамка aspect-[4/5]) с одинаковой шириной лица
+// (~360px) и головой на одной высоте (top ≈ 12%). Поэтому object-cover не
+// кадрирует их, и все лица — одного размера и на одном уровне с равным отступом.
+type Expert = { name: string; role: string; image: string };
+
+const experts: Expert[] = [
   { name: "Василий Артин", role: "Генеральный директор", image: "/landing/experts/expert-2.jpeg" },
   { name: "Андрей Абукаев", role: "Арбитражный управляющий", image: "/landing/experts/photo-a.webp" },
   { name: "Елена Лященко", role: "Арбитражный управляющий", image: "/landing/experts/photo-c.webp" },
   { name: "Александр Герасимов", role: "Арбитражный управляющий", image: "/landing/experts/photo-b.webp" },
-  { name: "Дмитрий Сизов", role: "Арбитражный управляющий", image: "" },
+  { name: "Дмитрий Сизов", role: "Арбитражный управляющий", image: "/landing/experts/photo-d.webp" },
 ];
 
 const products = [
@@ -73,6 +80,7 @@ const plans = [
       { text: "База знаний", strong: false },
       { text: "Маняша — AI-помощник", strong: false },
       { text: "Интерактивные кейсы", strong: false },
+      { text: "Курс «Сопровождение процедуры банкротства» — бесплатно", strong: false },
       { text: "25 энергии в день", strong: false },
       { text: "Первые 3 дня — безлимитная энергия", strong: true },
     ],
@@ -82,15 +90,17 @@ const plans = [
     plan: "hunter",
     tagline: "Полный профессиональный доступ",
     code: "PL—02",
-    price: "6 900",
-    period: "₽ / мес",
+    price: "120 000",
+    period: "₽ · разовый доступ",
     cta: "Выбрать тариф",
     highlight: true,
     features: [
       { text: "Всё из тарифа «Старт»", strong: false },
       { text: "Безлимитная энергия", strong: true },
       { text: "AI-тренировки: чат с клиентом без лимита", strong: true },
-      { text: "Доступ к курсам", strong: false },
+      { text: "Оба полных курса включены в доступ", strong: false },
+      { text: "Курс «Юридические аспекты» — полный курс", strong: false },
+      { text: "Курс «Экспертный уровень БФЛ» — полный курс", strong: false },
       { text: "AI-помощник в базе знаний", strong: false },
     ],
   },
@@ -264,7 +274,8 @@ function ExpertsSection() {
                       alt={expert.name}
                       width={520}
                       height={650}
-                      className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-[1.06]"
+                      style={{ objectFit: "cover", objectPosition: "center top" }}
+                      className="h-full w-full transition-transform duration-700 group-hover:scale-[1.06]"
                     />
                   ) : (
                     <div className="flex h-full w-full flex-col items-center justify-center gap-2" style={{ color: "var(--text-muted)" }}>
@@ -367,12 +378,12 @@ function ProductsSection() {
 
 function CertificateSection({ openRegister }: { openRegister: () => void }) {
   return (
-    <div className="mx-auto max-w-3xl py-2 text-center">
+    <div className="mx-auto max-w-4xl py-2 text-center">
       <motion.div {...reveal(0)}>
         <Eyebrow>04 · Сертификат</Eyebrow>
         <h2
           className="mx-auto mt-5 font-display font-semibold"
-          style={{ color: "var(--text-primary)", fontSize: "clamp(2.2rem, 5.4vw, 4.6rem)", lineHeight: 0.95, letterSpacing: "-0.045em" }}
+          style={{ color: "var(--text-primary)", fontSize: "clamp(2.4rem, 5.8vw, 5rem)", lineHeight: 0.95, letterSpacing: "-0.045em" }}
         >
           Сертификат,
           <br />
@@ -390,12 +401,19 @@ function CertificateSection({ openRegister }: { openRegister: () => void }) {
       <motion.div {...reveal(0.12)} className="mt-12">
         <CertificatePreview
           variant="locked"
+          revealed
+          showOverlayText={false}
           palette={CERT_TOKEN_PALETTE}
-          lockTitle="Пройдите курс экспертов по банкротству физических лиц — и получите сертификат."
-          ctaLabel="Начать обучение"
-          onCta={openRegister}
         />
       </motion.div>
+
+      <motion.p
+        {...reveal(0.18)}
+        className="mx-auto mt-8 max-w-2xl text-[17px] leading-relaxed"
+        style={{ color: "var(--text-secondary)", hyphens: "none", WebkitHyphens: "none" }}
+      >
+        Пройдите курс экспертов по банкротству физических лиц — и получите сертификат.
+      </motion.p>
     </div>
   );
 }
@@ -556,10 +574,51 @@ export default function LandingPage() {
               </button>
             );
           })}
+
+          {/* Отдельный таб чемпионата — навигация на /championship (не in-page скролл) */}
+          <Link
+            href="/championship"
+            className="flex shrink-0 items-center gap-3 rounded-full px-4 py-2.5 text-left text-[15px] no-underline transition-all lg:rounded-xl"
+            style={{
+              background: "var(--primary-muted)",
+              color: "var(--primary)",
+              fontWeight: 600,
+            }}
+          >
+            <Trophy size={15} className="lg:hidden" />
+            <span className="hidden font-mono text-[11px] tabular-nums opacity-70 lg:inline">★</span>
+            Чемпионат
+          </Link>
         </div>
 
         {/* CTA + theme — desktop only at bottom */}
         <div className="hidden flex-col gap-3 lg:flex">
+          {/* Промо-панель чемпионата — над выбором темы, ведёт на /championship */}
+          <Link
+            href="/championship"
+            className="group flex items-center gap-3 rounded-2xl p-3 no-underline transition-transform hover:scale-[1.02]"
+            style={{
+              background: `color-mix(in srgb, var(--primary) 12%, var(--surface-card))`,
+              border: "1px solid color-mix(in srgb, var(--primary) 30%, transparent)",
+            }}
+          >
+            <span
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl"
+              style={{ background: "var(--primary)", color: "var(--primary-contrast, #fff)" }}
+            >
+              <Trophy size={18} />
+            </span>
+            <span className="min-w-0">
+              <span className="block text-[13px] font-semibold leading-tight" style={{ color: "var(--text-primary)" }}>
+                Чемпионат сезона
+              </span>
+              <span className="block text-[11px] leading-tight" style={{ color: "var(--text-secondary)" }}>
+                Розыгрыш призов Apple
+              </span>
+            </span>
+            <ArrowRight size={15} className="ml-auto transition-transform group-hover:translate-x-0.5" style={{ color: "var(--primary)" }} />
+          </Link>
+
           {/* панель выбора темы над «Войти» */}
           <ThemePanel />
           <Button variant="secondary" onClick={openLogin} fluid>Войти</Button>

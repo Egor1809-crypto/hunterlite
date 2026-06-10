@@ -304,9 +304,12 @@ async def get_recommendations(
     for row in failed_exams.all():
         exam_id = row[0]
         if not exams_map.get(exam_id, False):
+            # Humanize raw exam_id ("exam-2" → "Экзамен 2") — the technical id
+            # must not leak into the UI.
+            exam_num = exam_id.split("-")[-1] if isinstance(exam_id, str) else exam_id
             recs.append({
                 "type": "weak_spot",
-                "title": f"Повторите Экзамен: {exam_id}",
+                "title": f"Повторите экзамен {exam_num}",
                 "description": "Вы не сдали этот экзамен. Подготовьтесь лучше!",
                 "action_url": f"/exam",
                 "action_label": "К экзаменам",

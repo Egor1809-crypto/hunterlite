@@ -245,7 +245,6 @@ export default function HomePage() {
                       variant="interactive"
                       accentTop={isActive}
                       style={{
-                        borderColor: isActive ? "var(--primary)" : "var(--border-color)",
                         background: "var(--surface-card)",
                         height: "100%",
                       }}

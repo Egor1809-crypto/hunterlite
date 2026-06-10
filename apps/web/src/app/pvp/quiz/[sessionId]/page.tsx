@@ -43,7 +43,7 @@ const TRAINING_MAP_PASS_SCORE = 88;
 // и дневной запас энергии. Списание происходит здесь — по факту завершения
 // теста, а не на старте сессии (иначе брошенный заход сжигал бы попытку).
 const TRAINING_MAP_MAX_ATTEMPTS = 5;
-const TRAINING_MAP_DAILY_ENERGY = 20;
+const TRAINING_MAP_DAILY_ENERGY = 25;
 
 /** UTC-дата (YYYY-MM-DD) — тот же ключ, что использует TestWorldMap. */
 function trainingDateKey(): string {

@@ -243,6 +243,7 @@ export default function ExamPage() {
               eyebrowRight="5 экзаменов"
               title="Экзамен"
               subtitle="Подтверждение квалификации по ФЗ-127 — 5 экзаменов, 5 механик, ИИ-оценка."
+              subtitleNoWrap
               right={
                 <button
                   id="cert-open-btn"

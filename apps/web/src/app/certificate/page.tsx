@@ -97,7 +97,7 @@ export default function CertificatePage() {
               eyebrowLeft="Аттестация · ФЗ-127"
               eyebrowRight={earned ? "Сертификат получен" : `${doneSteps} / ${totalSteps}`}
               title="Сертификат"
-              subtitle="Именной сертификат об аттестации по банкротству физических лиц. Сдайте четыре модуля и финальный экзамен — каждый на порог 88%."
+              subtitle="Именной сертификат об аттестации по банкротству физических лиц. Сдайте четыре модуля и финальный экзамен — каждый на порог 88%. А всех аттестованных ждёт чемпионат сезона и розыгрыш приза."
             />
           </motion.div>
 
@@ -141,7 +141,9 @@ export default function CertificatePage() {
                   </span>
                 </div>
 
-                {/* The diploma, presented as the centrepiece of the spread */}
+                {/* The diploma — the centrepiece of the spread, fully visible.
+                    For not-yet-earned users we show a clean, un-blurred sample
+                    (revealed + no overlay text); the invitation lives BELOW. */}
                 <div className="mt-10 sm:mt-12">
                   {earned ? (
                     <CertificatePreview
@@ -152,11 +154,10 @@ export default function CertificatePage() {
                   ) : (
                     <CertificatePreview
                       variant="locked"
+                      revealed
+                      showOverlayText={false}
                       palette={CERT_TOKEN_PALETTE}
-                      lockTitle={`Сдайте все экзамены на ≥${PASS_THRESHOLD}% — и сертификат станет именным.`}
-                      lockSubtitle="Эксперт в процедуре банкротства физических лиц."
-                      ctaLabel="К экзаменам"
-                      onCta={() => router.push("/exam")}
+                      recipientName={userName ?? "Фамилия Имя Отчество"}
                     />
                   )}
                 </div>
@@ -180,6 +181,36 @@ export default function CertificatePage() {
                     </button>
                   )}
                 </div>
+
+                {/* Invitation — sits BELOW the diploma (never on top of it).
+                    Shown only while the certificate is not yet earned. */}
+                {!earned && (
+                  <div className="mx-auto mt-9 flex max-w-[760px] flex-col items-start justify-between gap-6 sm:flex-row sm:items-end">
+                    <div className="max-w-md">
+                      <span
+                        className="font-mono uppercase"
+                        style={{ fontSize: 11, letterSpacing: "0.2em", color: "var(--primary)" }}
+                      >
+                        Образец · ещё не выдан
+                      </span>
+                      <p
+                        className="mt-3 text-[15px] leading-relaxed"
+                        style={{ color: "var(--text-secondary)" }}
+                      >
+                        Сдайте все экзамены на ≥{PASS_THRESHOLD}% — и сертификат станет именным.
+                        Эксперт в процедуре банкротства физических лиц.
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => router.push("/exam")}
+                      className="inline-flex shrink-0 items-center gap-2 rounded-full px-7 py-3 text-sm font-bold transition-transform hover:scale-[1.01]"
+                      style={{ background: "var(--primary)", color: "#fff", border: "1px solid var(--primary)" }}
+                    >
+                      К экзаменам
+                      <ArrowRight size={16} />
+                    </button>
+                  </div>
+                )}
               </motion.section>
 
               {/* ════════════════════════════════════════════════
@@ -355,55 +386,109 @@ export default function CertificatePage() {
                   accentTop
                   padded={false}
                   className="group cursor-pointer"
-                  onClick={() => router.push("/certificate/contest")}
+                  onClick={() => router.push("/championship")}
                   role="button"
                   tabIndex={0}
                   onKeyDown={(e) => {
                     if (e.key === "Enter" || e.key === " ") {
                       e.preventDefault();
-                      router.push("/certificate/contest");
+                      router.push("/championship");
                     }
                   }}
                 >
-                  <div className="grid items-stretch gap-0 sm:grid-cols-[1fr_auto]">
-                    <div className="p-7 sm:p-9">
-                      <div className="flex items-center justify-between gap-4">
-                        <span
-                          className="font-mono uppercase"
-                          style={{ fontSize: 11, letterSpacing: "0.18em", color: "var(--primary)" }}
-                        >
-                          02 · Чемпионат сезона
-                        </span>
-                        <span
-                          className="font-mono uppercase tabular-nums"
-                          style={{ fontSize: 11, letterSpacing: "0.16em", color: "var(--text-muted)" }}
-                        >
-                          CUP—S1
-                        </span>
-                      </div>
+                  {/* spec strip — caption line spanning the whole card top */}
+                  <div
+                    className="flex items-center justify-between gap-4 px-7 py-4 sm:px-10"
+                    style={{ borderBottom: "1px solid var(--border-color)" }}
+                  >
+                    <span
+                      className="font-mono uppercase"
+                      style={{ fontSize: 11, letterSpacing: "0.2em", color: "var(--primary)" }}
+                    >
+                      02 · Чемпионат сезона
+                    </span>
+                    <span
+                      className="font-mono uppercase tabular-nums"
+                      style={{ fontSize: 11, letterSpacing: "0.16em", color: "var(--text-muted)" }}
+                    >
+                      CUP—S1 · LIVE
+                    </span>
+                  </div>
+
+                  <div className="grid items-stretch gap-0 lg:grid-cols-[1fr_auto]">
+                    <div className="p-8 sm:p-11">
+                      <span
+                        className="font-mono uppercase"
+                        style={{ fontSize: 11, letterSpacing: "0.22em", color: "var(--text-muted)" }}
+                      >
+                        Розыгрыш приза · Сезон 1
+                      </span>
                       <h3
                         className="font-display"
                         style={{
-                          marginTop: 18,
-                          fontSize: "clamp(24px, 3.6vw, 32px)",
-                          lineHeight: 1.06,
-                          letterSpacing: "-0.03em",
+                          marginTop: 14,
+                          fontSize: "clamp(30px, 5vw, 48px)",
+                          lineHeight: 0.98,
+                          letterSpacing: "-0.04em",
                           fontWeight: 600,
                           color: "var(--text-primary)",
                         }}
                       >
-                        Аттестованных ждёт розыгрыш приза
+                        Аттестованных ждёт
+                        <br />
+                        розыгрыш{" "}
+                        <span style={{ color: "var(--primary)" }}>главного приза</span>
                       </h3>
                       <p
-                        className="mt-3 max-w-md text-[14px] leading-relaxed"
+                        className="mt-5 max-w-md text-[15px] leading-relaxed"
                         style={{ color: "var(--text-secondary)" }}
                       >
                         Сдайте аттестацию до конца сезона — и поборитесь за главный приз. Чем выше балл и
-                        быстрее сдача, тем выше место.
+                        быстрее сдача, тем выше место в таблице чемпионата.
                       </p>
+
+                      {/* season mini-facts — hairline-divided numerals */}
                       <div
-                        className="mt-6 inline-flex items-center gap-1.5 text-sm font-semibold"
-                        style={{ color: "var(--primary)" }}
+                        className="mt-8 grid max-w-md grid-cols-3 pt-7"
+                        style={{ borderTop: "1px solid var(--border-color)" }}
+                      >
+                        {[
+                          { value: "S1", label: "Текущий сезон" },
+                          { value: "88%", label: "Порог входа" },
+                          { value: "TOP—3", label: "Призовые места" },
+                        ].map((fact, i) => (
+                          <div
+                            key={fact.label}
+                            className="relative"
+                            style={{
+                              paddingLeft: i === 0 ? 0 : "clamp(10px, 2vw, 20px)",
+                              borderLeft: i === 0 ? "none" : "1px solid var(--border-color)",
+                            }}
+                          >
+                            <div
+                              className="font-mono leading-none tabular-nums"
+                              style={{
+                                fontSize: "clamp(22px, 3vw, 28px)",
+                                fontWeight: 600,
+                                letterSpacing: "-0.03em",
+                                color: "var(--text-primary)",
+                              }}
+                            >
+                              {fact.value}
+                            </div>
+                            <div
+                              className="mt-2 font-mono uppercase"
+                              style={{ fontSize: 10, letterSpacing: "0.12em", color: "var(--text-muted)" }}
+                            >
+                              {fact.label}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+
+                      <div
+                        className="mt-9 inline-flex items-center gap-2 rounded-full px-6 py-3 text-sm font-bold"
+                        style={{ background: "var(--primary)", color: "#fff", border: "1px solid var(--primary)" }}
                       >
                         Смотреть чемпионат
                         <ArrowUpRight
@@ -413,29 +498,53 @@ export default function CertificatePage() {
                       </div>
                     </div>
 
-                    {/* Right — minimal podium, hairline-divided from copy */}
+                    {/* Right — proper podium preview, hairline-divided from copy */}
                     <div
-                      className="hidden items-end justify-center gap-2 px-10 py-9 sm:flex"
+                      className="hidden flex-col justify-between gap-8 px-12 py-11 lg:flex"
                       style={{ borderLeft: "1px solid var(--border-color)" }}
                     >
-                      {[2, 1, 3].map((place) => {
-                        const h = place === 1 ? 64 : place === 2 ? 46 : 36;
-                        const lead = place === 1;
-                        return (
-                          <div key={place} className="flex flex-col items-center gap-2">
-                            <div
-                              className="w-9 rounded-t-sm"
-                              style={{ height: h, background: lead ? "var(--primary)" : "var(--primary-muted)" }}
-                            />
-                            <span
-                              className="font-mono text-[10px] tabular-nums"
-                              style={{ color: lead ? "var(--primary)" : "var(--text-muted)", letterSpacing: "0.1em" }}
-                            >
-                              {place}
-                            </span>
-                          </div>
-                        );
-                      })}
+                      <span
+                        className="font-mono uppercase"
+                        style={{ fontSize: 10, letterSpacing: "0.22em", color: "var(--text-muted)" }}
+                      >
+                        Подиум сезона
+                      </span>
+                      <div className="flex items-end justify-center gap-3">
+                        {[2, 1, 3].map((place) => {
+                          const h = place === 1 ? 92 : place === 2 ? 64 : 50;
+                          const lead = place === 1;
+                          return (
+                            <div key={place} className="flex flex-col items-center gap-2.5">
+                              <span
+                                className="font-mono text-[10px] uppercase tabular-nums"
+                                style={{ color: lead ? "var(--primary)" : "var(--text-muted)", letterSpacing: "0.16em" }}
+                              >
+                                {place === 1 ? "1st" : place === 2 ? "2nd" : "3rd"}
+                              </span>
+                              <div
+                                className="flex w-12 items-start justify-center rounded-t-sm pt-2"
+                                style={{
+                                  height: h,
+                                  background: lead ? "var(--primary)" : "var(--primary-muted)",
+                                }}
+                              >
+                                <span
+                                  className="font-mono text-[13px] font-bold tabular-nums"
+                                  style={{ color: lead ? "#fff" : "var(--text-secondary)" }}
+                                >
+                                  {place}
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                      <span
+                        className="font-mono uppercase tabular-nums"
+                        style={{ fontSize: 10, letterSpacing: "0.18em", color: "var(--text-muted)", textAlign: "center" }}
+                      >
+                        Балл × Скорость
+                      </span>
                     </div>
                   </div>
                 </Card>

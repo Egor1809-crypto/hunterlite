@@ -10,6 +10,27 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+/**
+ * Strip Markdown formatting markers, leaving plain text.
+ * Used for surfaces that render LLM (Manyasha) feedback as plain text
+ * (e.g. the weak-point pills on /history), where raw `**bold**` / `### headers`
+ * leaked through. Removes emphasis (**, __, *, _), inline code (`),
+ * heading hashes (#), blockquote (>) and list bullets — keeps the words.
+ */
+export function stripMarkdown(input: string | null | undefined): string {
+  if (!input) return "";
+  return input
+    .replace(/\*\*(.+?)\*\*/g, "$1")      // **bold**
+    .replace(/__(.+?)__/g, "$1")          // __bold__
+    .replace(/(^|[^*])\*(?!\s)([^*]+?)\*(?!\*)/g, "$1$2") // *italic*
+    .replace(/`([^`]+?)`/g, "$1")          // `code`
+    .replace(/^\s{0,3}#{1,6}\s+/gm, "")    // ### headings
+    .replace(/^\s{0,3}>\s?/gm, "")          // > blockquote
+    .replace(/^\s*[-*+]\s+/gm, "")          // - bullet list markers
+    .replace(/#/g, "")                       // any leftover stray hashtags
+    .trim();
+}
+
 /** Returns a CSS color string based on score value. Theme-aware via CSS variables. */
 export function scoreColor(score: number | null): string {
   if (score === null || score === undefined) return "var(--text-muted)";
