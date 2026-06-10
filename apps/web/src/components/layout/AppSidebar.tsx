@@ -15,11 +15,15 @@ import {
   PanelLeft,
   Briefcase,
   GraduationCap,
+  Award,
+  Library,
+  Trophy,
   Zap,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { UserAvatar } from "@/components/ui/UserAvatar";
+import { TrophyMark } from "@/components/ui/TrophyMark";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { BrandLogo } from "@/components/ui/BrandLogo";
 import { sanitizeText } from "@/lib/sanitize";
@@ -29,7 +33,7 @@ const SIDEBAR_EXPANDED = 260;
 const SIDEBAR_COLLAPSED = 68;
 const STORAGE_KEY = "lh-sidebar-collapsed";
 const ENERGY_STORAGE_KEY = "hunterlite_daily_energy";
-const DAILY_ENERGY = 20;
+const DAILY_ENERGY = 25;
 
 /* ── Navigation items ─────────────────────────────────────── */
 type NavItem = {
@@ -44,8 +48,11 @@ function buildNavForRole(): NavItem[] {
     { href: "/training", label: "Обучение", icon: Crosshair },
     { href: "/cases", label: "Кейсы", icon: Briefcase },
     { href: "/exam", label: "Экзамен", icon: GraduationCap },
+    { href: "/certificate", label: "Сертификат", icon: Award },
+    { href: "/championship", label: "Чемпионат", icon: Trophy },
     { href: "/history", label: "История", icon: History },
     { href: "/knowledge", label: "База знаний", icon: BookOpen },
+    { href: "/courses", label: "Курсы", icon: Library },
   ];
 }
 
@@ -280,6 +287,33 @@ export default function AppSidebar({ collapsed, onToggle }: AppSidebarProps) {
           })}
         </div>
       </nav>
+
+      {/* ── Championship promo (над выбором темы — зеркалит лендинг) ── */}
+      <div className="px-3 pb-1 pt-2">
+        <Link
+          href="/championship"
+          className={`group flex items-center no-underline transition-transform hover:scale-[1.03] ${collapsed ? "justify-center rounded-xl p-2.5" : "gap-3 rounded-2xl p-3.5"}`}
+          style={{ background: "var(--primary)", boxShadow: "var(--shadow-md)" }}
+          title="Чемпионат сезона — розыгрыш призов Apple"
+        >
+          <span
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full"
+            style={{ background: "#fff" }}
+          >
+            <TrophyMark size={22} />
+          </span>
+          {!collapsed && (
+            <span className="min-w-0">
+              <span className="block text-[14.5px] font-bold leading-tight" style={{ color: "#fff" }}>
+                Чемпионат
+              </span>
+              <span className="block text-[11.5px] leading-tight" style={{ color: "rgba(255,255,255,0.85)" }}>
+                Призы Apple
+              </span>
+            </span>
+          )}
+        </Link>
+      </div>
 
       {/* ── Theme control ─────────────────────────────── */}
       <div

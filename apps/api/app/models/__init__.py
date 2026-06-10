@@ -153,6 +153,12 @@ from app.models.manager_wiki import (
     PatternCategory,
 )
 from app.models.review import Review
+from app.models.championship import (
+    Championship,
+    ChampionshipEntry,
+    ChampionshipWinner,
+)
+from app.models.course_progress import CourseLessonProgress
 from app.models.outbox import OutboxEvent, OutboxStatus
 from app.models.team_challenge import (
     TeamChallenge,
@@ -365,6 +371,12 @@ __all__ = [
     "PatternCategory",
     # Reviews (landing testimonials)
     "Review",
+    # Championship / giveaway (чемпионат-розыгрыш)
+    "Championship",
+    "ChampionshipEntry",
+    "ChampionshipWinner",
+    # Course progress (дрип-курсы + мини-проверки)
+    "CourseLessonProgress",
     # Season Content & Leagues (diagnostic fix)
     "ContentSeason",
     "SeasonChapter",

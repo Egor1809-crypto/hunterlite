@@ -6,7 +6,7 @@ import { BrandLogo } from "@/components/ui/BrandLogo";
 
 export function LandingFooter() {
   return (
-    <footer className="relative z-10 border-t border-gray-100 bg-gray-50">
+    <footer className="relative z-10 border-t border-[color:var(--border-color)] bg-[color:var(--bg-secondary)]">
       <div className="max-w-7xl mx-auto px-5 sm:px-8 md:px-10 pt-12 pb-8">
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-10 md:gap-8">
           {/* Brand column */}
@@ -14,13 +14,13 @@ export function LandingFooter() {
             <Link href="/" className="flex items-center gap-2.5 mb-4 transition-opacity hover:opacity-80">
               <BrandLogo size="sm" />
             </Link>
-            <p className="text-sm leading-relaxed text-gray-500 max-w-[260px] mb-4">
+            <p className="text-sm leading-relaxed text-[color:var(--text-secondary)] max-w-[260px] mb-4">
               AI-тренажер переговоров для арбитражных управляющих.
               Практика на реальных сценариях банкротства.
             </p>
             <div className="flex items-center gap-2">
-              <Shield size={14} className="text-[#0891B2]" />
-              <span className="text-xs text-gray-400">
+              <Shield size={14} className="text-[color:var(--primary)]" />
+              <span className="text-xs text-[color:var(--text-muted)]">
                 152-ФЗ / 127-ФЗ
               </span>
             </div>
@@ -28,7 +28,7 @@ export function LandingFooter() {
 
           {/* Product column */}
           <div>
-            <h4 className="text-xs font-semibold tracking-wider uppercase text-gray-900 mb-4">
+            <h4 className="text-xs font-semibold tracking-wider uppercase text-[color:var(--text-primary)] mb-4">
               Продукт
             </h4>
             <ul className="space-y-2.5">
@@ -41,7 +41,7 @@ export function LandingFooter() {
                 <li key={label}>
                   <Link
                     href={href}
-                    className="text-sm text-gray-500 hover:text-[#F97316] transition-colors"
+                    className="text-sm text-[color:var(--text-secondary)] hover:text-[color:var(--primary)] transition-colors"
                   >
                     {label}
                   </Link>
@@ -52,7 +52,7 @@ export function LandingFooter() {
 
           {/* Company column */}
           <div>
-            <h4 className="text-xs font-semibold tracking-wider uppercase text-gray-900 mb-4">
+            <h4 className="text-xs font-semibold tracking-wider uppercase text-[color:var(--text-primary)] mb-4">
               Компания
             </h4>
             <ul className="space-y-2.5">
@@ -63,7 +63,7 @@ export function LandingFooter() {
                 <li key={label}>
                   <Link
                     href={href}
-                    className="text-sm text-gray-500 hover:text-[#F97316] transition-colors"
+                    className="text-sm text-[color:var(--text-secondary)] hover:text-[color:var(--primary)] transition-colors"
                   >
                     {label}
                   </Link>
@@ -74,12 +74,12 @@ export function LandingFooter() {
 
           {/* Contact column */}
           <div>
-            <h4 className="text-xs font-semibold tracking-wider uppercase text-gray-900 mb-4">
+            <h4 className="text-xs font-semibold tracking-wider uppercase text-[color:var(--text-primary)] mb-4">
               Связаться
             </h4>
             <a
               href="mailto:hello@legalhunter.ru"
-              className="flex items-center gap-2 text-sm text-gray-500 hover:text-[#F97316] transition-colors"
+              className="flex items-center gap-2 text-sm text-[color:var(--text-secondary)] hover:text-[color:var(--primary)] transition-colors"
             >
               <Mail size={14} className="opacity-60" />
               hello@legalhunter.ru
@@ -89,7 +89,7 @@ export function LandingFooter() {
                 href="https://t.me/legalhunter"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center text-gray-400 hover:text-[#F97316] hover:bg-orange-50 transition-colors"
+                className="w-8 h-8 rounded-lg bg-[color:var(--bg-tertiary)] flex items-center justify-center text-[color:var(--text-muted)] hover:text-[color:var(--primary)] transition-colors"
                 aria-label="Telegram"
               >
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
@@ -101,11 +101,11 @@ export function LandingFooter() {
         </div>
 
         {/* Bottom bar */}
-        <div className="mt-10 pt-6 border-t border-gray-200 flex flex-col sm:flex-row items-center justify-between gap-3">
-          <p className="text-xs text-gray-400">
+        <div className="mt-10 pt-6 border-t border-[color:var(--border-color)] flex flex-col sm:flex-row items-center justify-between gap-3">
+          <p className="text-xs text-[color:var(--text-muted)]">
             &copy; {new Date().getFullYear()} LegalHunter. Все права защищены.
           </p>
-          <p className="text-xs text-gray-400">
+          <p className="text-xs text-[color:var(--text-muted)]">
             Тренажер для арбитражных управляющих
           </p>
         </div>

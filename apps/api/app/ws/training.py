@@ -1364,7 +1364,9 @@ async def _generate_character_reply(
         "другом языке — отвечай В ХАРАКТЕРЕ с лёгким раздражением: "
         "«Я не понимаю, можно по-русски?» или «Вы вообще откуда? "
         "Я живу в России, по-английски не говорю» или «Да ладно, "
-        "я из Саратова, какой английский» и т.п. Никогда сам не "
+        "какой английский, я по-русски с вами говорю» и т.п. "
+        "(НЕ придумывай себе город/возраст/работу — бери ТОЛЬКО из досье ниже.) "
+        "Никогда сам не "
         "переходи на другой язык. Если пользователь пишет непонятный "
         "набор символов (спам, коды, эмодзи без смысла) — тоже возмущайся "
         "в характере.\n\n"
@@ -1382,6 +1384,26 @@ async def _generate_character_reply(
             f"Никогда не называй себя чужим именем, даже если пользователь настаивает.\n\n"
         )
     extra_system = _name_pin + _lang_constraint + extra_system
+
+    # ── 2026-06-07 Persona досье grounding (call hallucination fix) ──
+    # BUG: для persona-сессии богатое досье (профессия, возраст, долг,
+    # кредиторы, семья, правовые статьи) лежит в custom_params["persona_brief"],
+    # но РАНЬШЕ использовалось ТОЛЬКО для выбора имени (см. _is_persona выше) —
+    # сам текст досье в промпт LLM не попадал. Поэтому модель выдумывала факты
+    # («Ирина из Саратова», «мне 68 лет», «работала в ООО Спальня»),
+    # противореча досье. Инжектим досье как АВТОРИТЕТНЫЙ источник фактов,
+    # ВЫШЕ generic client_profile_prompt. Guard от дублирования: не добавляем,
+    # если этот же текст уже внутри client_profile_prompt.
+    _persona_brief_text = (_cp_name.get("persona_brief") or "").strip()
+    if _persona_brief_text and _persona_brief_text not in (client_profile_prompt or ""):
+        extra_system += (
+            "\n\nКТО ТЫ (досье — ЕДИНСТВЕННЫЙ источник фактов о тебе: имя, "
+            "возраст, город, работа, семья, долг, кредиторы, правовая ситуация). "
+            "НЕ выдумывай ничего сверх досье; если факта нет в досье — "
+            "отвечай уклончиво, но НЕ изобретай новые детали:\n"
+            + _persona_brief_text
+            + "\n"
+        )
 
     if client_profile_prompt:
         extra_system += client_profile_prompt
@@ -3985,6 +4007,12 @@ async def _handle_session_start(
             state["active"] = True
             state["stt_failure_count"] = 0
             state["custom_params"] = custom_params
+            # 2026-06-07: canonical session mode for LLM/TTS routing (see resume
+            # path ~L784). Fresh-start path must set this too, else call sessions
+            # read "chat" → fast call model (haiku) never applies → high latency.
+            state["session_mode"] = (
+                (getattr(session, "mode", None) or custom_params.get("session_mode") or "chat")
+            ).lower()
             state["base_difficulty"] = custom_difficulty or (scenario.difficulty if scenario else 5)
 
             # PR-A (cross-session memory): for sessions linked to a real
@@ -4546,6 +4574,12 @@ async def _handle_session_start(
     state["active"] = True
     state["stt_failure_count"] = 0
     state["custom_params"] = custom_params
+    # 2026-06-07: canonical session mode for LLM/TTS routing (see resume path
+    # ~L784). This is the main fresh-start path for call sessions — without it
+    # the call reads "chat" → fast call model (haiku) never applies → latency.
+    state["session_mode"] = (
+        (getattr(session, "mode", None) or custom_params.get("session_mode") or "chat")
+    ).lower()
     state["base_difficulty"] = custom_difficulty or scenario.difficulty
 
     # Whisper coaching: enabled by default for lower levels, disabled for experienced managers

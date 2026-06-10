@@ -1,2157 +1,336 @@
 "use client";
 
 /**
- * `/training/[id]/call` — full-screen "live call" view.
+ * `/training/[id]/call` — clean push-to-talk call page (CALL_REBUILD_TZ §8).
  *
- * 2026-04-21 REWRITE: Call page is now architecturally self-sufficient.
- * Previously it was a decorative shell that simulated audioLevel with
- * random noise and relied on the sibling chat page being mounted to
- * actually run WebSocket/TTS/STT. That architecture meant landing on
- * /call directly (e.g. from a scenario card) produced a call UI with
- * no audio, no interaction, and a hangup that routed back to chat.
+ * Stream cascade transport only:
+ *   - capture: useMicrophone (one webm Blob per turn — no VAD)
+ *   - transport: useWebSocket (/ws/call — auth/reconnect/heartbeat handled)
+ *   - playback: useTTS (ordered MP3 queue, phone-band timbre)
  *
- * This implementation:
- *   - Verifies session_mode == "call" on mount; redirects to /training/[id]
- *     chat view if the session is not a call session.
- *   - Owns its own useWebSocket, useTTS, useSpeechRecognition pipeline.
- *   - Handles the call-relevant subset of WS events:
- *       session.started | tts.audio | character.response | session.ended.
- *   - Sends user speech transcripts as message events to the backend.
- *   - Real audioLevel from useTTS (no more fake pulse).
- *   - Hangup posts /training/sessions/{id}/end and navigates directly to
- *     /results/{id} (no intermediate chat-page redirect hop).
+ * Turn-taking is explicit toggle ("Говорить" → "Стоп"). No VAD, no
+ * one-turn-lock, no watchdog, no ringback, no emotion FSM, no coaching UI.
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { Mic, MicOff, Send, PhoneOff, Loader2 } from "lucide-react";
-import { useSessionStore } from "@/stores/useSessionStore";
-import { PhoneCallMode } from "@/components/training/phone/PhoneCallMode";
-import { usePolicyStore } from "@/stores/usePolicyStore";
-import { useShallow } from "zustand/react/shallow";
-import IncomingCallScreen from "@/components/training/phone/IncomingCallScreen";
-import CallDialingOverlay from "@/components/training/phone/CallDialingOverlay";
-// Phase E (2026-05-08): unified loader — same component as the chat
-// route, mode='call' adds phone-themed icon + 300Hz click + reason/stats.
-import ScriptDrawer from "@/components/training/ScriptDrawer";
-import { telemetry } from "@/lib/telemetry";
+import { useParams, useRouter } from "next/navigation";
+import { toast } from "sonner";
+import { Mic, Square, PhoneOff, Loader2 } from "lucide-react";
+
+import { useMicrophone } from "@/hooks/useMicrophone";
 import { useWebSocket } from "@/hooks/useWebSocket";
 import { useTTS } from "@/hooks/useTTS";
-import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
-import { useMicrophone } from "@/hooks/useMicrophone";
-import { MicStatusBanner, pickBannerKind } from "@/components/training/MicStatusBanner";
-import { TTSUnlockOverlay } from "@/components/training/TTSUnlockOverlay";
-import { toast } from "sonner";
-import { api } from "@/lib/api";
-import { logger } from "@/lib/logger";
-import type { EmotionState, WSMessage } from "@/types";
-import type { ClientCardData } from "@/components/training/ClientCard";
+import type { WSMessage } from "@/types";
+import ScriptPanel from "@/components/training/ScriptPanel";
+import ScriptDrawer from "@/components/training/ScriptDrawer";
+import { useSessionStore } from "@/stores/useSessionStore";
+import { STAGE_GUIDANCE } from "@/lib/script_guidance";
 
-interface SessionMetaInner {
-  // TZ-2 §6.2/6.3 canonical runtime fields. The backend stamps these on
-  // every session (api/training.py start path) so the FE no longer has to
-  // peek at custom_params.session_mode to decide between call/chat/center.
-  // The legacy `custom_params.session_mode` stays in the type for fallback
-  // — pilot data created before the canonical fields landed only carries
-  // the legacy shape.
-  mode?: "chat" | "call" | "center" | string | null;
-  runtime_type?: string | null;
-  custom_params?: { bg_noise?: string | null; session_mode?: string } | null;
-  client_story_id?: string | null;
-}
-interface SessionMeta {
-  // Primary shape: wrapped SessionResultResponse
-  session?: SessionMetaInner;
-  client_card?: { name?: string } | null;
-  // Legacy fields that some callers expect at top level — accept either.
-  character_name?: string;
-  scenario_title?: string;
-  custom_bg_noise?: string | null;
-  // TZ-2 §6.2 — accept canonical mode at top level too (some legacy
-  // callers flattened the session record before the wrapper landed).
-  mode?: "chat" | "call" | "center" | string | null;
-  runtime_type?: string | null;
-  custom_params?: { bg_noise?: string | null; session_mode?: string } | null;
+type Status = "idle" | "recording" | "thinking" | "speaking";
+
+const MIN_BLOB_BYTES = 1500;
+const END_CALL_FALLBACK_MS = 25_000;
+
+/** Encode a Blob to bare base64 (no data: prefix). */
+function blobToBase64(blob: Blob): Promise<string> {
+  return new Promise((res) => {
+    const r = new FileReader();
+    r.onloadend = () => res(String(r.result).split(",")[1] || "");
+    r.readAsDataURL(blob);
+  });
 }
 
-// PR-H (B5 defensive): module-level fallback for "this session was
-// already accepted in this tab". sessionStorage normally carries this
-// across remounts, but on Brave/Safari private mode setItem can throw
-// or silently fail (no quota / disabled), and useState reads then
-// return false on the second render → IncomingCallScreen renders again.
-// The Set lives for the page life of the tab; it is the in-memory
-// fallback that survives the brief remount without depending on the
-// browser storage facility being writable.
-const _ACCEPTED_SESSIONS_RUNTIME = new Set<string>();
-
-// 2026-06-06 (#2): the call mic uses MediaRecorder + backend Whisper — the
-// SAME pipeline the training session page uses successfully — instead of the
-// browser Web Speech API. Web Speech depends on Google's cloud and routinely
-// fails on localhost / без интернета / в части сборок Chrome, throwing
-// `not-allowed`/`network`/`service-not-allowed`, which surfaced as a false
-// «Доступ к микрофону запрещён» banner even though getUserMedia works fine
-// (training mode проves it). With this flag the Web Speech auto-start is
-// disabled; the input-bar mic records a blob → `audio.end`.
-const VOICE_USES_WHISPER = true;
-
-export default function TrainingCallPage() {
-  const router = useRouter();
+export default function CallPage() {
   const params = useParams();
-  const searchParams = useSearchParams();
-  const id = (Array.isArray(params?.id) ? params?.id[0] : params?.id) as string;
+  const router = useRouter();
+  const id = Array.isArray(params?.id) ? params.id[0] : (params?.id as string);
 
-  const s = useSessionStore();
+  const mic = useMicrophone({});
+  const tts = useTTS({ phoneBandFilter: true });
 
-  // TZ-4 §13.4.1 — per-session audit state for the badge strip near
-  // the top of the call view. The store is fed by NotificationWS-
-  // Provider; this read subscribes to changes for *this* session id
-  // only. Audit-2026-04-28: project to a flat object via ``useShallow``
-  // so the call page only re-renders when THIS session's counters
-  // actually change. The naive ``state.bySession[id]`` selector
-  // returned the same reference across calls but didn't help when
-  // ``recordPolicyViolation`` rebuilt the bucket via spread —
-  // ``useShallow`` compares by primitive fields instead.
-  const policySession = usePolicyStore(
-    useShallow((st) => {
-      if (!id) return null;
-      const bucket = st.bySession[id];
-      if (!bucket) return null;
-      return {
-        total: bucket.total,
-        bySeverity: bucket.bySeverity,
-        personaConflicts: bucket.personaConflicts,
-        lastPersonaAttemptedField: bucket.lastPersonaAttemptedField,
-        enforceActive: bucket.enforceActive,
-      };
-    }),
-  );
+  const [accepted, setAccepted] = useState(false);
+  const [status, setStatus] = useState<Status>("idle");
+  const [clientName, setClientName] = useState("");
+  const [recording, setRecording] = useState(false);
+  const [caption, setCaption] = useState("");
+  const [ending, setEnding] = useState(false);
 
-  const [sceneBg, setSceneBg] = useState<string | null>(
-    searchParams?.get("bg") || null,
-  );
-  const [muted, setMuted] = useState(false);
-  const [speakerOn, setSpeakerOn] = useState(true);
-  const [modeOk, setModeOk] = useState<boolean | null>(null); // null = checking
-  // 2026-04-22: explicit user-gesture gate before WS connects. Browsers
-  // (especially iOS Safari + strict Chrome) refuse audio playback unless
-  // a user gesture happened on the page. The previous flow was: open URL
-  // → WS auto-connects → TTS arrives → audio.play() rejected silently
-  // → user heard nothing for the first 30-60s until they happened to
-  // click somewhere on the page. Now: a "Принять звонок" gate plays a
-  // silent audio buffer in the click handler, which unlocks both
-  // HTMLAudioElement and AudioContext for the rest of the session.
-  // 2026-04-23 Sprint 5 (Zone 2): callAccepted persisted across refresh
-  // via sessionStorage. Scoped to session id so switching sessions resets.
-  const [callAccepted, setCallAccepted] = useState<boolean>(() => {
-    if (typeof window === "undefined" || !id) return false;
-    // PR-H (B5 defensive): check the module-level runtime Set first —
-    // if Accept was clicked earlier in this tab, the user shouldn't see
-    // IncomingCallScreen again on a remount even when sessionStorage
-    // is disabled (Brave Shields / Safari private). Falls back to the
-    // sessionStorage probe so a real F5 reload still rehydrates from
-    // disk on a normal browser.
-    if (_ACCEPTED_SESSIONS_RUNTIME.has(id)) return true;
-    try {
-      return window.sessionStorage.getItem(`call-accepted-${id}`) === "1";
-    } catch {
-      return false;
-    }
-  });
-  // Transient state flags for the IncomingCallScreen buttons.
-  const [accepting, setAccepting] = useState(false);
-  const [declining, setDeclining] = useState(false);
-  // Phase 1 of call-flow lifecycle redesign (2026-05-01): brief
-  // "Соединение..." overlay between Accept-click and PhoneCallMode taking
-  // over. Sells the "real phone call" feel — without it, click → instant
-  // active call felt AI-y. Cleared after ~1200ms by the Accept handler.
-  const [dialingOverlay, setDialingOverlay] = useState(false);
-  // real_client_id pulled from GET /training/sessions/{id} — used as
-  // redirect target when user clicks Decline (back to the CRM card).
-  const [realClientId, setRealClientId] = useState<string | null>(null);
-  // 2026-04-22: mask routing flash after hangup. When backend sends
-  // client.hangup, several handlers race (explicit client.hangup path,
-  // session.ended on WS close, modeOk re-check on remount). Without a
-  // mask the user briefly saw the call page reset / chat page flash
-  // before landing on /results. Now: any hangup trigger flips
-  // hangupInProgress which renders a full-screen "call ending" overlay
-  // that covers all intermediate states until the redirect lands.
-  const [hangupInProgress, setHangupInProgress] = useState(false);
-  // 2026-06-07: the ending overlay (which read this) was removed; keep the
-  // setter (3 call sites) but drop the now-unused read binding.
-  const [, setHangupReason] = useState<string>("");
-  // Значение режима больше не читается (3-кнопочный исход убран в P1), но сеттер
-  // ещё используется при инициализации сессии — оставляем только его.
-  const [, setSessionMode] = useState<"chat" | "call" | "center">("call");
-  const [showCenterOutcome, setShowCenterOutcome] = useState(false);
-  // 2026-04-22 fallback text input: call mode was voice-only and users
-  // with broken mic / denied permission / unsupported browser had NO
-  // way to send a message. Chat worked because you can type there.
-  // Now call has an always-visible text input as a peer to push-to-talk.
-  const [textInput, setTextInput] = useState("");
-  const elapsedTickerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const endInFlightRef = useRef(false);
-  const currentSessionIdRef = useRef<string>(id);
-
-  // Sprint 0 §7 (Bug A) — first-audio gate.
-  //
-  // Problem: when handleAccept runs, it tells the ringback loop to play
-  // a final ~60ms pickup click via Web Audio (line 314+, scheduled at
-  // ctx.currentTime + 0.02). Right after that, the WS connects, the
-  // backend (with CALL_HUMANIZED_V2 + auto_opener flag) sends the
-  // "Алло?" tts.audio almost immediately, and the HTMLAudioElement
-  // playback starts before the pickup click finishes — user hears them
-  // overlap as "странный звук".
-  //
-  // Fix: hold a wall-clock timestamp that means "first TTS allowed at".
-  // Set it 350ms after the Accept click (covers 20ms schedule + 60ms
-  // click + 250ms ctx-close + 20ms safety margin). Each tts.audio /
-  // tts.audio_chunk handler runs through scheduleAudioPlayback() which
-  // either plays immediately (gate already open) or defers via
-  // setTimeout (one-shot, queue order preserved because all pending
-  // calls share the same target wake-up).
-  //
-  // Default value Date.now() means "open" — a stale-state refresh
-  // (callAccepted=true on mount) bypasses the gate entirely, which is
-  // correct: there is no fresh pickup click on rehydration.
-  const audioGateUntilRef = useRef<number>(Date.now());
-  // Phase D (2026-05-08, Bug 2 fix): track every deferred audio play so
-  // we can cancel them all on hangup. Without this set, a tts.audio_chunk
-  // arriving inside the gate window (now 1500ms post-Accept per Phase A)
-  // would defer via setTimeout — and that setTimeout had no cancel handle.
-  // After the user hangs up and tts.stop() is called, the deferred
-  // queueAudioChunk callback would still fire, repopulate the chunk queue,
-  // and play. The pilot's "voice continues after hangup" complaint traces
-  // to exactly this leak.
-  const pendingAudioTimeoutsRef = useRef<Set<number>>(new Set());
-  const scheduleAudioPlayback = useCallback((play: () => void) => {
-    const now = Date.now();
-    const gate = audioGateUntilRef.current;
-    if (now >= gate) {
-      play();
-      return;
-    }
-    const id = window.setTimeout(() => {
-      pendingAudioTimeoutsRef.current.delete(id);
-      play();
-    }, gate - now);
-    pendingAudioTimeoutsRef.current.add(id);
-  }, []);
-
-  // Phase D (2026-05-08): single redirect helper. Previously THREE
-  // independent code paths (completeHangup, session.ended handler,
-  // client.hangup handler) each scheduled their own router.replace
-  // with their own setTimeout — so a manual hangup followed by a
-  // backend-initiated client.hangup race could fire two redirects,
-  // and a user saw a /results flash + reload. redirectFiredRef makes
-  // this idempotent: only the FIRST caller wins.
-  // (stopAllAudio is defined AFTER tts below since it captures it.)
-  const redirectFiredRef = useRef(false);
-  const goToResults = useCallback((delayMs: number = 0) => {
-    if (redirectFiredRef.current) return;
-    redirectFiredRef.current = true;
-    const sid = currentSessionIdRef.current || id;
-    if (delayMs > 0) {
-      window.setTimeout(() => router.replace(`/results/${sid}`), delayMs);
-    } else {
-      router.replace(`/results/${sid}`);
-    }
-  }, [id, router]);
-
-  // --- TTS (plays backend mp3, exposes real audioLevel) -------------------
-  // 2026-05-01 — phoneBandFilter ON for call page only. Routes every TTS
-  // playback through highpass(300Hz)→lowpass(3400Hz)→compressor (PSTN
-  // narrowband) so the AI client sounds unmistakably "по телефону" instead
-  // of studio-clean. Chat / arena pages don't pass this prop, default false.
-  const tts = useTTS({ lang: "ru-RU", rate: 0.95, pitch: 1.0, phoneBandFilter: true });
-
-  // Phase D (2026-05-08): single-source helper for "stop all audio NOW".
-  // Cancels every pending scheduleAudioPlayback timeout, then asks
-  // useTTS to tear down the active audio element + chunk queue +
-  // pendingPlaybackRef. Use this from EVERY hangup path so the user
-  // never hears audio after the visual call has ended.
-  const stopAllAudio = useCallback(() => {
-    pendingAudioTimeoutsRef.current.forEach((id) => clearTimeout(id));
-    pendingAudioTimeoutsRef.current.clear();
-    try { tts.stop(); } catch { /* noop */ }
-  }, [tts]);
-
-  // Surface terminal TTS playback errors as toasts. Without this, decode
-  // failures, media-element errors, and tts.fallback transitions were
-  // silent and the user just heard nothing / a different voice with no
-  // explanation. Audit Pattern 3 #9 + #15.
-  // PR-H (B7 defensive): track first TTS audio after session.started.
-  // Pilot users report: «у некоторых пользователей не слышать ии клиента».
-  // The 3-vector unlock sequence runs on Accept, but on a subset of
-  // browsers (Brave with autoplay tightened, mobile Safari with strict
-  // gesture coupling, audio device race) the AudioContext stays
-  // suspended and the first tts.audio decode fires into the void —
-  // there's no error, just silence. The recovery flag below flips ON
-  // when the WS receives session.started and OFF the moment any
-  // tts.audio / tts.audio_chunk arrives. A useEffect below watches the
-  // delta and, if no audio after 6 seconds, surfaces a "tap to enable
-  // sound" toast that re-runs tts.unlock(). Without this the user sits
-  // there waiting for a phantom AI that the backend already streamed
-  // but the browser never played.
-  const [sessionStartedAt, setSessionStartedAt] = useState<number | null>(null);
-  const firstTtsAudioReceivedRef = useRef(false);
-  const ttsRecoveryFiredRef = useRef(false);
-
-  const lastTtsErrorMsgRef = useRef<string | null>(null);
-  useEffect(() => {
-    if (!tts.playbackError) {
-      lastTtsErrorMsgRef.current = null;
-      return;
-    }
-    if (tts.playbackError.message === lastTtsErrorMsgRef.current) return;
-    lastTtsErrorMsgRef.current = tts.playbackError.message;
-    if (tts.playbackError.kind === "fallback_active") {
-      toast.info("Резервный голос", { description: tts.playbackError.message });
-    } else {
-      toast.error("Озвучка прервана", { description: tts.playbackError.message });
-    }
-  }, [tts.playbackError]);
-
-  // Phase B (2026-05-08) — authoritative "first audio actually played"
-  // signal. Watches `tts.speaking` and sets the watchdog-disarm flag
-  // ONLY when an Audio element actually started playback (useTTS sets
-  // speaking=true after the .play() promise resolves). Previously the
-  // flag was set on WS message RECEIPT, which made the watchdog
-  // self-disarm even when Brave/mobile Safari refused autoplay — so
-  // the recovery toast never appeared and pilot users sat in silence.
-  useEffect(() => {
-    if (tts.speaking) {
-      // ИИ заговорил → ход завершён, дальше мик глушит сам ttsSpeaking.
-      turnInFlightRef.current = false;
-      if (turnTimeoutRef.current) { clearTimeout(turnTimeoutRef.current); turnTimeoutRef.current = null; }
-      if (!firstTtsAudioReceivedRef.current) {
-        firstTtsAudioReceivedRef.current = true;
-        logger.log("[CALL] B7 watchdog disarmed — tts.speaking=true (audio actually playing)");
-      }
-    }
-  }, [tts.speaking]);
-
-  // PR-H (B7) — no-audio watchdog. If session.started fires but no
-  // tts.audio / tts.audio_chunk arrives in 6 seconds, surface a
-  // recovery toast that re-runs tts.unlock(). The 3-vector unlock on
-  // Accept covers most cases, but on Brave (autoplay tightened),
-  // mobile Safari (strict gesture coupling), or after an audio device
-  // race the AudioContext can stay suspended and decode results land
-  // in the void with no error event. Without this the user just sits
-  // in silence wondering if the AI is even there. Watchdog runs once
-  // per session — ttsRecoveryFiredRef makes sure a flaky network
-  // delaying the first audio doesn't spawn 5 toasts in a row.
-  useEffect(() => {
-    if (!sessionStartedAt) return;
-    const tid = window.setTimeout(() => {
-      if (firstTtsAudioReceivedRef.current) return;
-      if (ttsRecoveryFiredRef.current) return;
-      ttsRecoveryFiredRef.current = true;
-      logger.warn("[CALL] B7 watchdog: no tts.audio in 6s after session.started");
-      // Phase B (2026-05-08): proactively re-run tts.unlock() BEFORE
-      // showing the toast. On Brave / mobile Safari the AudioContext
-      // sometimes goes suspended between Accept-click and the first
-      // tts.audio decode (background tab, audio device race). A
-      // second unlock can recover silently — only show the toast if
-      // it didn't help, judged by another 600ms grace check.
-      try { tts.unlock(); } catch { /* best-effort */ }
-      window.setTimeout(() => {
-        if (firstTtsAudioReceivedRef.current) {
-          logger.log("[CALL] B7 watchdog: silent re-unlock recovered — no toast needed");
-          return;
-        }
-        try {
-          // Toast with a tap-to-fix action. Sonner's `action` renders
-          // a button alongside the message that runs the callback —
-          // gives the user a one-tap recovery instead of hunting for
-          // the speaker icon as the previous copy suggested.
-          toast.warning("Не слышно ИИ-клиента?", {
-            description:
-              "Звук мог быть заблокирован браузером. Нажмите «Включить звук» чтобы восстановить.",
-            duration: 12000,
-            action: {
-              label: "Включить звук",
-              onClick: () => {
-                try { tts.unlock(); } catch { /* */ }
-                logger.log("[CALL] user tapped manual TTS unlock");
-              },
-            },
-          });
-        } catch {
-          /* sonner not available — non-fatal */
-        }
-      }, 600);
-    }, 6000);
-    return () => window.clearTimeout(tid);
-  }, [sessionStartedAt, tts]);
-
-  // --- STT (continuous, forwards recognized text to WS) -------------------
-  const sttSendRef = useRef<((text: string) => void) | null>(null);
-  // PR-C (barge-in feedback): when STT detects the user starting to
-  // speak while TTS is mid-reply, send audio.interrupted to the backend
-  // so it can rewrite history with what the manager actually heard.
-  // ``audioRef.current.currentTime`` × ~14 chars/sec (Russian TTS avg)
-  // gives a rough char count that's good enough for the prompt cue —
-  // the LLM only needs to know "got cut early" vs "got most of it".
-  const interruptSendRef = useRef<((playedChars: number) => void) | null>(null);
-  const stt = useSpeechRecognition({
-    lang: "ru-RU",
-    onResult: (text) => {
-      const trimmed = text.trim();
-      if (!trimmed) return;
-      // Barge-in detection: TTS still speaking when user-speech text arrives.
-      if (tts.speaking) {
-        const ct = tts.audioRef?.current?.currentTime ?? 0;
-        const playedChars = Math.max(0, Math.round(ct * 14));
-        try {
-          interruptSendRef.current?.(playedChars);
-        } catch {
-          /* non-blocking */
-        }
-        try { tts.stop(); } catch { /* noop */ }
-      }
-      sttSendRef.current?.(trimmed);
+  // ---------------------------------------------------------------------------
+  // Script guide (right-side panel): walk the learner through the 7 stages.
+  // The rebuilt /ws/call backend doesn't emit stage events, so we advance the
+  // guide locally — reset to stage 1 on accept, +1 per sent user turn. The
+  // panel content (task / examples / mistakes) is read from script_guidance.
+  // ---------------------------------------------------------------------------
+  const setStageUpdate = useSessionStore((s) => s.setStageUpdate);
+  const goToStage = useCallback(
+    (n: number) => {
+      const total = STAGE_GUIDANCE.length; // 7
+      const clamped = Math.max(1, Math.min(n, total));
+      const g = STAGE_GUIDANCE[clamped - 1];
+      setStageUpdate({
+        stage_number: clamped,
+        stage_name: g.key,
+        stage_label: g.label_ru,
+        total_stages: total,
+        stages_completed: Array.from({ length: clamped - 1 }, (_, i) => i + 1),
+        stage_scores: {},
+        confidence: 1,
+      });
     },
-  });
+    [setStageUpdate],
+  );
 
-  // PR-F (Whisper fallback for call mode): Web Speech API depends on
-  // Google's cloud, which Brave blocks by default and Safari/Firefox
-  // don't expose at all. When that path errors out we still want voice
-  // to work, so we fall back to MediaRecorder + backend Whisper — the
-  // same pipeline chat already uses (audio.end with full processing).
-  //
-  // Trigger conditions: SpeechRecognition reported a network error or
-  // the API isn't supported in the current browser. The fallback is
-  // push-to-talk (hold the button while speaking) — continuous-mode
-  // streaming with VAD belongs to a future PR; push-to-talk is shipped
-  // now because it gets call-mode actually working everywhere TODAY.
-  const sttBlocked =
-    !stt.isSupported ||
-    stt.errorCode === "network" ||
-    stt.errorCode === "service-not-allowed" ||
-    stt.errorCode === "language-not-supported";
-  const microphoneFallback = useMicrophone({});
-  const [pushTalkActive, setPushTalkActive] = useState(false);
-  const sendAudioBlobRef = useRef<((blob: Blob) => void) | null>(null);
+  // Single idempotent redirect to results — every terminal path funnels here.
+  const redirectedRef = useRef(false);
+  const goToResults = useCallback(() => {
+    if (redirectedRef.current) return;
+    redirectedRef.current = true;
+    tts.stop();
+    router.replace(`/results/${id}`);
+  }, [id, router, tts]);
 
-  // 2026-06-06 (≤3с): тайминг одного хода. turnT0 = момент отправки реплики
-  // (после паузы VAD). Меряем STT / первый чанк LLM / первый звук TTS, чтобы
-  // видеть, где именно уходит время и держать «речь → ответ ИИ» ≤ 3с.
-  const turnT0Ref = useRef(0);
-  const turnGotChunkRef = useRef(false);
-  const turnGotAudioRef = useRef(false);
-  // 2026-06-06: пришло ли navy-аудио для ТЕКУЩЕГО ответа. Сбрасывается на старте
-  // ответа (avatar.typing=true), ставится на tts.audio/_chunk. Нужен, чтобы НЕ
-  // планировать браузерный fallback, если navy уже озвучил (иначе короткие
-  // реплики звучали дважды: navy + повтор браузером через 2.5с).
-  const respHadAudioRef = useRef(false);
-
-  // --- Mount guard: verify session_mode, hydrate store --------------------
-  /*
-   * 2026-05-10 FIND-010 fix: устранён eslint-disable.
-   * Раньше effect зависел только от `[id]`, остальные ссылки
-   * (router, store actions, useState setters) попадали под disable
-   * как «stable references».
-   *
-   * Теперь явно destructure'им actions из zustand-store перед
-   * useEffect — они стабильны (zustand actions создаются один раз).
-   * useState-setters стабильны по Reactовому контракту. router и
-   * api-helpers тоже стабильны. Кладём всё в deps честно — линтер
-   * не жалуется, future refactor увидит реальные зависимости.
-   */
-  const setCharacterName = s.setCharacterName;
-  const setScenarioTitle = s.setScenarioTitle;
-  useEffect(() => {
-    if (!id) return;
-    logger.log("[CALL] mount — id=", id);
-    let cancelled = false;
-    (async () => {
-      try {
-        const meta = await api.get<SessionMeta>(`/training/sessions/${id}`);
-        logger.log("[CALL] meta fetched", meta);
-        // TZ-2 §6.2 — read the canonical `mode` field first. The backend
-        // schema (SessionResponse) now exposes it directly; legacy
-        // `custom_params.session_mode` stays as a fallback so any pilot
-        // session created before the canonical column was surfaced still
-        // routes correctly. Accept both top-level (legacy flat shape) and
-        // nested-under-session (canonical SessionResultResponse wrapper).
-        const canonicalMode =
-          meta?.session?.mode || meta?.mode || null;
-        const cp =
-          meta?.session?.custom_params || meta?.custom_params || null;
-        const legacyMode = cp?.session_mode;
-        const resolvedMode = canonicalMode || legacyMode;
-        // Fail-OPEN on missing data (new sessions whose response is in
-        // flight) but FAIL-CLOSED on an explicit "chat" / "center" signal
-        // so the user lands on the right surface. The previous logic only
-        // reacted to "chat"; with the canonical field we can also pivot
-        // to /center when the runtime says so.
-        if (resolvedMode === "chat") {
-          logger.warn(
-            `[call] session ${id} is mode="chat", redirecting to chat view`,
-          );
-          if (!cancelled) router.replace(`/training/${id}`);
-          return;
-        }
-        if (resolvedMode === "center") {
-          setSessionMode("center");
-        } else {
-          setSessionMode("call");
-        }
-        if (cancelled) return;
-        if (meta?.character_name) setCharacterName(meta.character_name);
-        if (meta?.scenario_title) setScenarioTitle(meta.scenario_title);
-        const bg =
-          meta?.custom_bg_noise ||
-          meta?.custom_params?.bg_noise ||
-          meta?.session?.custom_params?.bg_noise ||
-          null;
-        if (bg) setSceneBg(bg);
-        // 2026-04-23 Zone 2: pick up real_client_id so Decline knows where
-        // to redirect (CRM card vs /training). Fields may live at top
-        // level or nested under session — tolerate either shape.
-        const rcid =
-          (meta as unknown as { real_client_id?: string | null })?.real_client_id
-          ?? (meta as unknown as { session?: { real_client_id?: string | null } })?.session?.real_client_id
-          ?? null;
-        if (rcid) setRealClientId(String(rcid));
-        setModeOk(true);
-      } catch (err) {
-        logger.error("[call] failed to verify session mode", err);
-        // Fail-open: render call UI anyway; backend 404/forbidden will close WS.
-        if (!cancelled) setModeOk(true);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [id, router, setCharacterName, setScenarioTitle, setSessionMode, setSceneBg, setRealClientId, setModeOk]);
-
-  // --- Elapsed ticker -----------------------------------------------------
-  useEffect(() => {
-    if (elapsedTickerRef.current) clearInterval(elapsedTickerRef.current);
-    elapsedTickerRef.current = setInterval(() => {
-      useSessionStore.getState().tickElapsed();
-    }, 1000);
-    return () => {
-      if (elapsedTickerRef.current) clearInterval(elapsedTickerRef.current);
-    };
-  }, [id]);
-
-  // --- Speaker/volume wiring ----------------------------------------------
-  // 2026-04-21: Speaker button now opens a volume slider popover (inside
-  // PhoneCallMode). No longer maps speakerOn → presets — user controls
-  // volume precisely via the slider. Initialise to a comfortable default
-  // on first mount so the user hears TTS without pre-interacting.
-  //
-  // 2026-05-10 FIND-010 fix: устранён eslint-disable. tts.setVolume —
-  // useCallback из useTTS, ссылка стабильна, можно положить в deps без
-  // риска повторных запусков на каждом рендере.
-  const ttsSetVolume = tts.setVolume;
-  useEffect(() => {
-    ttsSetVolume(0.85);
-  }, [ttsSetVolume]);
-
-  // 2026-04-23 Sprint 5 (Zone 2): looped ringback. Plays 425Hz RU dial
-  // tone on a 3.5s cycle until user clicks Accept or component unmounts.
-  // Replaces the previous one-shot ring that played exactly once on
-  // mount. Looping sells the «real incoming call» feel — user can walk
-  // over to accept and still hear ringing.
-  //
-  // Audio is unlocked by the user's first Accept/Decline click (both are
-  // gesture handlers). Before that click, AudioContext sits in "suspended"
-  // state in modern Chrome; resume() is called at the top of handleAccept.
-  // On most browsers the ringback won't actually emit sound until unlock,
-  // but that's fine — the visual animation carries the UX.
-  const ringbackStopRef = useRef<(() => void) | null>(null);
-  useEffect(() => {
-    if (modeOk !== true || callAccepted) return;
-    if (typeof window === "undefined") return;
-    const AC = (window.AudioContext ||
-      (window as unknown as { webkitAudioContext?: typeof AudioContext })
-        .webkitAudioContext) as typeof AudioContext | undefined;
-    if (!AC) return;
-    let ctx: AudioContext;
-    try { ctx = new AC(); } catch { return; }
-    let stopped = false;
-    let timerId: ReturnType<typeof setTimeout> | null = null;
-
-    // Phase A (2026-05-08): only schedule audio when the context is
-    // actually running. Scheduling tones into a `suspended` timeline
-    // queues them in real-time-future; when the context unsuspends on
-    // the user's first gesture the queue flushes compressed into a few
-    // ms — that flush manifested as a brief screech/click bundle right
-    // at the Accept-click moment. By gating on `ctx.state === "running"`
-    // we either play immediately (already unlocked) or wait for the
-    // statechange event to fire, after which the queue is in sync with
-    // wall-clock again.
-    const playOneCycle = () => {
-      if (stopped) return;
-      const t0 = ctx.currentTime + 0.02;
-      const ring = ctx.createOscillator();
-      ring.type = "sine";
-      ring.frequency.value = 425;
-      const ringGain = ctx.createGain();
-      ringGain.gain.setValueAtTime(0, t0);
-      ringGain.gain.linearRampToValueAtTime(0.18, t0 + 0.04);  // 40ms fade-in
-      ringGain.gain.setValueAtTime(0.18, t0 + 0.6);
-      ringGain.gain.linearRampToValueAtTime(0, t0 + 0.65);     // 50ms fade-out
-      ring.connect(ringGain).connect(ctx.destination);
-      ring.start(t0);
-      ring.stop(t0 + 0.7);
-      // Schedule next cycle — 3s silence after this cycle's tone.
-      // Phase A (2026-05-08): the 40ms «trying-to-pick-up» random-PCM
-      // burst was removed. It had no DC blocking and no attack envelope
-      // (only release), so the very first sample was a hard step from
-      // 0 to ±0.024 — perceptible as an impulse click at low volumes
-      // and a hiss at higher ones. The 425 Hz pulsed gudok already
-      // conveys "phone ringing" — the noise burst was decorative
-      // overhead that contributed to the pre-pickup screech reports.
-      timerId = setTimeout(playOneCycle, 3500);
-    };
-
-    let stateHandler: (() => void) | null = null;
-    const startPlayback = () => {
-      if (stopped) return;
-      playOneCycle();
-    };
-    if (ctx.state === "running") {
-      startPlayback();
-    } else {
-      // Suspended: wait for unlock instead of scheduling into a frozen
-      // timeline. resume() is best-effort (returns rejected promise on
-      // some browsers without a gesture); the statechange handler is
-      // the authoritative trigger.
-      stateHandler = () => {
-        if (ctx.state === "running") startPlayback();
-      };
-      ctx.addEventListener("statechange", stateHandler);
-      ctx.resume().catch(() => { /* will retry via statechange */ });
-    }
-
-    // Phase A (2026-05-08): the loud pickup-click variant of stop()
-    // was removed. It produced a 60ms random-PCM burst at amplitude
-    // 0.14 with no attack envelope — the impulse at sample 0 was the
-    // single most likely source of the user-reported screech, especially
-    // when stacked with the second AudioContext that the dialing
-    // overlay creates ~50ms later. The dialing overlay's ringback
-    // (1.0s pulsed 425 Hz) is now the sole audio cue for "receiver
-    // picked up", which matches a real-phone soundscape better than
-    // a noise click anyway.
-    const stop = () => {
-      if (stopped) return;
-      stopped = true;
-      if (timerId) {
-        clearTimeout(timerId);
-        timerId = null;
-      }
-      if (stateHandler) {
-        try { ctx.removeEventListener("statechange", stateHandler); } catch { /* */ }
-        stateHandler = null;
-      }
-      setTimeout(() => {
-        try { ctx.close(); } catch { /* ignore */ }
-      }, 50);
-    };
-    ringbackStopRef.current = stop;
-
-    return () => {
-      stop();
-      ringbackStopRef.current = null;
-    };
-  }, [modeOk, callAccepted]);
-
-  // --- WebSocket ----------------------------------------------------------
-  const lastSeqNum = s.messages.length > 0
-    ? s.messages.reduce((max, m) => Math.max(max, m.sequenceNumber ?? 0), 0) || null
-    : null;
-
-  // URL id wins over zustand store. Store can hold a stale id from a
-  // previous chat session — using it would connect WS to a dead session
-  // and silently produce no TTS/STT.
-  const { sendMessage, connectionState } = useWebSocket({
-    sessionId: id || s.sessionId || null,
-    lastSequenceNumber: lastSeqNum,
-    // 2026-04-22: gate WS connect behind explicit user gesture (callAccepted).
-    // The accept button plays a silent audio buffer in its click handler,
-    // which unlocks HTMLAudioElement permanently for the page. Without this
-    // gate, TTS audio arrived before any gesture and was silently dropped.
-    // 2026-04-23 Sprint 5 (Zone 2): WS connects as soon as modeOk, even
-    // before user clicks Accept. The ONLY thing gated on callAccepted is
-    // the session.start message (see sessionStartSentRef effect). This
-    // lets the WebSocket handshake + auth.success complete while user
-    // looks at IncomingCallScreen — so when they Accept, session.started
-    // + client_card arrive in ~400ms instead of 1-2s cold-start.
-    autoConnect: modeOk === true,
-    onMessage: (data: WSMessage) => {
-      if (!data.data || typeof data.data !== "object") data.data = {};
-      logger.log("[CALL]", data.type, data.data);
-      // «Один ход за раз»: освобождаем мик, если ответа ИИ НЕ будет — мусорный/
-      // пустой транскрипт (бэкенд-гард) или сбой STT. Иначе мик висел бы до
-      // 15с-таймаута. (Успешный ход снимает флаг по tts.speaking / character.response.)
-      if (
-        (data.type === "transcription.result" && (data.data.is_empty || data.data.is_low_confidence)) ||
-        data.type === "stt.unavailable" || data.type === "stt.error" || data.type === "error"
-      ) {
-        turnInFlightRef.current = false;
-        if (turnTimeoutRef.current) { clearTimeout(turnTimeoutRef.current); turnTimeoutRef.current = null; }
-      }
-      // navy-аудио пришло для текущего ответа → fallback не нужен.
-      if (data.type === "tts.audio" || data.type === "tts.audio_chunk") {
-        respHadAudioRef.current = true;
-      } else if (data.type === "avatar.typing" && (data.data as { is_typing?: boolean }).is_typing) {
-        respHadAudioRef.current = false; // новый ответ начался — аудио ещё не было
-      }
-      // ── Тайминг хода (цель «речь→ответ ИИ» ≤ 3с) ──
-      if (turnT0Ref.current) {
-        const dt = Date.now() - turnT0Ref.current;
-        if (data.type === "transcription.result") {
-          logger.log(`[CALL] ⏱ STT: ${dt}мс`);
-        } else if (data.type === "character.response_chunk" && !turnGotChunkRef.current) {
-          turnGotChunkRef.current = true;
-          logger.log(`[CALL] ⏱ LLM первый чанк: ${dt}мс`);
-        } else if (data.type === "tts.audio_chunk" && !turnGotAudioRef.current) {
-          turnGotAudioRef.current = true;
-          logger.log(`[CALL] ⏱ ИТОГО речь→звук ИИ: ${dt}мс (+ пауза VAD ~0.45с)`);
-          turnT0Ref.current = 0;
-        }
-      }
-      switch (data.type) {
-        case "auth.success":
-        case "session.ready":
+  // ---------------------------------------------------------------------------
+  // WS message handler — mirrors the server contract (CALL_REBUILD_TZ §4.1).
+  // ---------------------------------------------------------------------------
+  const onMessage = useCallback(
+    (raw: WSMessage) => {
+      const { type, data } = raw as { type: string; data?: Record<string, unknown> };
+      const d = data ?? {};
+      switch (type) {
+        case "ready":
+          setClientName((d.client_name as string) || "Клиент");
+          setStatus("idle");
           break;
-
-        case "session.started": {
-          if (data.data.session_id) {
-            currentSessionIdRef.current = data.data.session_id as string;
-          }
-          // PR-H (B7): start the no-audio watchdog. firstTtsAudioReceived
-          // resets to false on every fresh session.started, so a Story
-          // Mode call #2 still gets its 6-second grace.
-          setSessionStartedAt(Date.now());
-          firstTtsAudioReceivedRef.current = false;
-          ttsRecoveryFiredRef.current = false;
-          if (data.data.character_name)
-            s.setCharacterName(data.data.character_name as string);
-          if (data.data.initial_emotion)
-            s.setEmotion(data.data.initial_emotion as EmotionState);
-          if (data.data.scenario_title)
-            s.setScenarioTitle(data.data.scenario_title as string);
-          if (data.data.client_card) {
-            s.setClientCard(data.data.client_card as ClientCardData);
-            s.setSessionState("briefing");
-          } else {
-            s.setSessionState("ready");
-          }
+        case "filler":
+          if (d.audio_b64) tts.playAudioMessage({ audio: d.audio_b64 as string });
           break;
-        }
-
-        case "tts.audio": {
-          // 2026-04-22 FIELD-NAME FIX: backend sends `audio_b64` but
-          // playAudioMessage expects `audio`. Previously this passed
-          // data.data directly, so msg.audio was undefined → atob('')
-          // → InvalidCharacterError → silent TTS. Chat page had the
-          // correct mapping; call page was missed during refactor.
-          tts.cancelFallback();
-          // Phase B (2026-05-08): the watchdog flag is no longer set
-          // here. Previously `firstTtsAudioReceivedRef.current = true`
-          // fired on RECEIPT of the WS message, before play() actually
-          // succeeded — so if the browser refused autoplay (Brave,
-          // mobile Safari) the watchdog disarmed itself anyway and the
-          // recovery toast never appeared. Now the flag is set by a
-          // useEffect that watches `tts.speaking` (which flips true
-          // only when an Audio element actually started playback —
-          // see useTTS.ts:592, 828, 1073). Recovery toast will fire
-          // when no audio actually plays in 6s.
-          const audioB64 = data.data.audio_b64 as string | undefined;
-          if (audioB64 && typeof audioB64 === "string" && audioB64.length > 0) {
-            // Sprint 0 §7 (Bug A): defer the first audio behind the
-            // pickup-click gate so it does not overlap with the
-            // ringback's farewell tone.
-            const emotion = data.data.emotion as EmotionState | undefined;
-            const voiceParams = data.data.voice_params as
-              | { stability: number; similarity_boost: number; style: number; speed: number }
-              | undefined;
-            const durationMs = data.data.duration_ms as number | undefined;
-            // Phase F (2026-05-08): backend-flagged barge reactions
-            // (emit from _handle_audio_interrupted) bypass both the
-            // audio gate AND the playAudioMessage queue — the
-            // surprise/anger response must land within the perceptual
-            // window of the user's interrupt, not after a queued chunk.
-            const isBargeReaction = Boolean(data.data.interruption_reaction);
-            if (isBargeReaction) {
-              tts.playAudioMessage(
-                {
-                  audio: audioB64,
-                  emotion,
-                  voice_params: voiceParams,
-                  duration_ms: durationMs,
-                },
-                { interrupt: true },
-              );
-            } else {
-              scheduleAudioPlayback(() => {
-                tts.playAudioMessage({
-                  audio: audioB64,
-                  emotion,
-                  voice_params: voiceParams,
-                  duration_ms: durationMs,
-                });
-              });
-            }
-          } else {
-            logger.warn("[CALL] tts.audio received but audio_b64 missing/empty", {
-              has_field: "audio_b64" in (data.data as object),
-              len: typeof audioB64 === "string" ? audioB64.length : null,
-            });
-          }
+        case "transcript":
+          if (d.role === "user") setCaption((d.text as string) || "");
           break;
-        }
-
-        case "tts.audio_chunk": {
-          // Sentence-level TTS streaming. Backend splits multi-sentence
-          // replies ("Алло... Кто это? Откуда у вас мой номер?") into one
-          // chunk per sentence for faster first-audio (~1.5s vs 5-13s).
-          // The chat page at /training/[id] handles this event AND renders
-          // subtitles; the call page only needs audio — PhoneCallMode has
-          // no chat-bubble UI. Queue chunks in sentence order and let
-          // useTTS play them sequentially.
-          //
-          // Before this handler existed the call-mode heard nothing on
-          // any multi-sentence reply — exact symptom of the 2026-04-21
-          // incident: character.response came through, tts.audio never
-          // did, user saw dead silence (journal #22 recurrence).
-          tts.cancelFallback();
-          // Phase B (2026-05-08): same as tts.audio above — the
-          // watchdog flag is no longer set on chunk receipt. The
-          // tts.speaking effect below is the authoritative signal.
-          const chunkAudio = data.data.audio_b64 as string | undefined;
-          if (chunkAudio) {
-            // Sprint 0 §7 (Bug A): same gate. queueAudioChunk only adds
-            // to the internal sentence queue — useTTS plays them in
-            // index order regardless of when they were queued, so the
-            // setTimeout indirection does not reorder anything.
-            const idx = (data.data.sentence_index as number) ?? 0;
-            const last = Boolean(data.data.is_last);
-            scheduleAudioPlayback(() => {
-              tts.queueAudioChunk({
-                audio: chunkAudio,
-                index: idx,
-                isLast: last,
-              });
-            });
-          }
-          break;
-        }
-
-        case "tts.couple_audio":
-          // Sprint 0 §7 (Bug A): also gate the couple-audio path.
-          {
-            const couple = data.data as unknown as Parameters<typeof tts.playCoupleAudio>[0];
-            scheduleAudioPlayback(() => {
-              tts.playCoupleAudio(couple);
-            });
-          }
-          break;
-
-        case "character.response": {
-          // Ход завершён (на случай text-only / выключенного TTS, когда
-          // tts.speaking не сработает) — отпускаем мик.
-          turnInFlightRef.current = false;
-          if (turnTimeoutRef.current) { clearTimeout(turnTimeoutRef.current); turnTimeoutRef.current = null; }
-          // 2026-06-06 FIX: payload carries `content`, не `text` — из-за этого
-          // браузерный fallback НЕ планировался, и при зависании navy TTS звука
-          // не было вовсе. Теперь читаем content → если navy не пришлёт аудио,
-          // через 2.5с реплику озвучит браузерный голос (cancelFallback в
-          // обработчиках tts.audio/_chunk отменяет его, когда navy успел).
-          const text = (data.data.content as string) || (data.data.text as string) || "";
-          // Браузерный fallback планируем ТОЛЬКО если navy-аудио для этого
-          // ответа не пришло — иначе короткая реплика звучала бы дважды.
-          if (text && !respHadAudioRef.current) tts.scheduleFallback(text, 2500);
-          if (data.data.emotion) s.setEmotion(data.data.emotion as EmotionState);
-          break;
-        }
-
-        case "emotion.changed":
-          if (data.data.emotion)
-            s.setEmotion(data.data.emotion as EmotionState);
-          break;
-
-        // Script / coaching / scoring — previously only chat-view handled
-        // these. Call-view was missing this info which is why "скрипт в
-        // звонке" was entirely absent. Mirroring chat handlers (feature
-        // parity) using the same Zustand store, so the UI renders from
-        // the same source of truth.
-        case "stage.update": {
-          const d = data.data as Record<string, unknown>;
-          s.setStageUpdate({
-            stage_number: Number(d.stage_number ?? 1),
-            stage_name: String(d.stage_name ?? ""),
-            stage_label: String(d.stage_label ?? ""),
-            total_stages: Number(d.total_stages ?? 7),
-            stages_completed: (d.stages_completed as number[]) ?? [],
-            stage_scores: (d.stage_scores as Record<string, number>) ?? {},
-            confidence: typeof d.confidence === "number" ? d.confidence : 0,
+        case "sentence":
+          setStatus("speaking");
+          tts.queueAudioChunk({
+            audio: (d.audio_b64 as string) || "",
+            index: Number(d.index ?? 0),
+            isLast: false,
           });
           break;
-        }
-
-        case "stage.skipped": {
-          // 2026-04-23 Sprint 3: skipped stage notification (mirror of
-          // chat handler). ScriptDrawer auto-opens with yellow alert.
-          const sd = data.data as {
-            missed_stage_number?: number;
-            missed_stage_label?: string;
-            current_stage_number?: number;
-            current_stage_label?: string;
-            hint?: string;
-          };
-          if (sd.missed_stage_number && sd.missed_stage_label) {
-            s.setSkippedHint({
-              missedStageNumber: sd.missed_stage_number,
-              missedStageLabel: sd.missed_stage_label,
-              currentStageNumber: sd.current_stage_number ?? s.currentStage,
-              currentStageLabel: sd.current_stage_label ?? s.stageLabel,
-              hint: sd.hint ?? "Вернитесь и закройте этот этап.",
-              setAt: Date.now(),
-            });
-            telemetry.track("stage_skipped", {
-              missed: sd.missed_stage_number,
-              current: sd.current_stage_number ?? s.currentStage,
-            });
-          }
+        case "turn_end":
+          setStatus("idle");
           break;
-        }
-
-        case "whisper.coaching": {
-          const d = data.data as Record<string, unknown>;
-          const msg = String(d.message ?? "");
-          if (msg) {
-            s.addWhisper({
-              type: (d.type as "legal" | "emotion" | "stage" | "objection" | "transition") ?? "stage",
-              message: msg,
-              stage: d.stage ? String(d.stage) : "",
-              priority: (d.priority as "low" | "medium" | "high") ?? "low",
-              icon: d.icon ? String(d.icon) : "zap",
-              timestamp: Date.now(),
-            });
-          }
+        case "client_hangup":
+          goToResults();
           break;
-        }
-
-        // P2 (2026-04-29) — coaching mistake detector toasts.
-        // Backend rule-based detector emits this on every detected mistake
-        // (monologue, no_open_question, early_pricing, repeated_argument,
-        // talk_ratio_high). Routed through addWhisper so the existing
-        // PhoneCallMode coachingHint UI renders it (priority dot + text).
-        case "coaching.mistake": {
-          const d = data.data as Record<string, unknown>;
-          const hint = String(d.hint ?? "");
-          if (!hint) break;
-          const severity = String(d.severity ?? "warn");
-          const priority: "low" | "medium" | "high" =
-            severity === "alert" ? "high" : severity === "info" ? "low" : "medium";
-          const mistakeType = String(d.type ?? "stage");
-          const iconMap: Record<string, string> = {
-            monologue: "mic-off",
-            no_open_question: "help-circle",
-            early_pricing: "alert-triangle",
-            repeated_argument: "rotate-cw",
-            talk_ratio_high: "volume-2",
-            mode_switch_to_on_task: "compass",
-          };
-          s.addWhisper({
-            type: "stage",
-            message: hint,
-            stage: mistakeType,
-            priority,
-            icon: iconMap[mistakeType] ?? "zap",
-            timestamp: Date.now(),
-          });
-          telemetry.track("coaching_mistake", {
-            mistake_type: mistakeType,
-            severity,
-          });
+        case "score":
+          goToResults();
           break;
-        }
-
-        case "score.hint":
-          // 2026-05-03: dropped `s.setRealtimeScores(...)` write —
-          // the <RealtimeScores> consumer was removed in the
-          // sidebar redesign and nothing else reads the slice.
-          // Call mode shows score live via the in-call UI; if a
-          // breakdown panel reappears it should subscribe directly
-          // here.
+        case "error":
+          toast.error((d.message as string) || "Ошибка звонка");
           break;
-
-        case "session.ended":
-          // Phase D (2026-05-08): unified hangup path. stopAllAudio()
-          // clears pending scheduleAudioPlayback timeouts AND tears
-          // down useTTS — guarantees no audio plays after this point,
-          // closing the "voice continues after hangup" leak. goToResults
-          // is idempotent so a concurrent client.hangup that fires the
-          // same path doesn't trigger a second redirect.
-          if (hangupInProgress || endInFlightRef.current) {
-            break;
-          }
-          stopAllAudio();
-          stt.stopListening();
-          endInFlightRef.current = true;
-          setHangupReason("Звонок завершён");
-          setHangupInProgress(true);
-          // Phase 5+6 (2026-05-01): give CallEndingTransition its 2.2s
-          // animated transition before the route swap so the user sees
-          // "Анализирую → Считаю баллы → Готовлю отчёт".
-          goToResults(2200);
-          break;
-
-        case "client.hangup": {
-          const canContinue = Boolean(data.data.call_can_continue);
-          logger.log("[CALL] client.hangup received", {
-            reason: data.data.reason,
-            canContinue,
-          });
-          if (!canContinue) {
-            // Phase D (2026-05-08, Bug 2 fix): respect hangupInProgress.
-            // Without this guard, a manual hangup that already started
-            // the redirect timer would be re-armed by the backend's
-            // client.hangup arriving in parallel — TWO redirects
-            // (page flash) + TWO tts.stop calls (cuts farewell audio
-            // mid-stream).
-            if (hangupInProgress || endInFlightRef.current) {
-              break;
-            }
-            endInFlightRef.current = true;
-            // Phase D (2026-05-08, Bug 2 fix): stopAllAudio runs
-            // IMMEDIATELY now, not deferred 3500ms. The previous design
-            // ("let farewell TTS play") backfired: pilot users perceived
-            // post-hangup audio as a glitch — real phones go silent the
-            // moment they disconnect. The 3500ms delay only governs the
-            // navigation (so the CallEndingTransition gets its full
-            // animated arc); audio is silenced at t=0.
-            stopAllAudio();
-            stt.stopListening();
-            setHangupReason((data.data.reason as string) || "Звонок завершён");
-            setHangupInProgress(true);
-            goToResults(3500);
-          }
-          break;
-        }
-
-        case "error": {
-          const code = (data.data.code as string) || "";
-          // 2026-04-22: session_completed means backend rejected our
-          // message because the session is already ended (auto-end after
-          // farewell, or competing tab ended it). Redirect to results
-          // instead of sitting on a dead call screen indefinitely.
-          if (code === "session_completed") {
-            logger.log("[call] session already completed → /results");
-            endInFlightRef.current = true;
-            // Phase D (2026-05-08): also stop audio on this path; if a
-            // tts chunk is still in the gate window, it would otherwise
-            // play after we land on /results.
-            stopAllAudio();
-            try { stt.stopListening(); } catch { /* */ }
-            goToResults(0);
-            break;
-          }
-          // Hijack/conflict: do NOT auto-redirect to chat. The WS has
-          // reconnect logic, and most hijacks in production are spurious
-          // (React remount, fast-refresh, brief network blip). Kicking the
-          // user to chat on every such event is how call-mode sessions
-          // appeared to "vanish" for users. Log and rely on reconnect; if
-          // it truly stays broken, the server closes the socket and the
-          // user can leave manually via the hangup button.
-          if (code === "session_hijacked" || code === "session_conflict") {
-            logger.warn("[call] session takeover event (non-fatal)", data.data);
-          } else {
-            // Other errors (missing_field, rate_limit, scenario issues):
-            // surface to console for diagnostics. Non-fatal; stay on call.
-            logger.warn("[call] ws error", data.data);
-          }
-          break;
-        }
-
         default:
           break;
       }
     },
+    [tts, goToResults],
+  );
+
+  const { sendMessage } = useWebSocket({
+    path: "/ws/call",
+    sessionId: id,
+    autoConnect: true,
+    onMessage,
   });
 
-  // Wire up STT.onResult → WS sendMessage (text.message is the
-  // canonical type; user.message is unknown to backend).
-  useEffect(() => {
-    sttSendRef.current = (text: string) => {
-      if (!text || connectionState !== "connected") return;
-      sendMessage({ type: "text.message", data: { content: text } });
-    };
-    // PR-C: barge-in feedback channel. The STT handler computes
-    // played_chars from the still-running audio element and pushes the
-    // event through this ref so the backend can rewrite history before
-    // the next text.message arrives. Order matters — interrupt FIRST,
-    // text.message SECOND, so the LLM sees the truncated assistant
-    // turn when generating the response.
-    interruptSendRef.current = (playedChars: number) => {
-      if (connectionState !== "connected") return;
-      sendMessage({ type: "audio.interrupted", data: { played_chars: playedChars } });
-    };
-    // PR-F: Whisper-fallback sender. Reads the recorded blob into base64
-    // and ships it as audio.end (NOT transcribe_only=true — we want the
-    // backend to STT it AND generate the next reply atomically, the
-    // same end-to-end behaviour Web Speech gives us). Defensive about
-    // empty / tiny blobs that mean «mic was held for half a second».
-    sendAudioBlobRef.current = async (blob: Blob) => {
-      if (connectionState !== "connected") return;
-      if (!blob || blob.size < 2_048) return;
-      try {
-        const buf = await blob.arrayBuffer();
-        let binary = "";
-        const bytes = new Uint8Array(buf);
-        const chunkSize = 0x8000; // avoid stack overflow on large blobs
-        for (let i = 0; i < bytes.length; i += chunkSize) {
-          binary += String.fromCharCode(
-            ...bytes.subarray(i, i + chunkSize),
-          );
-        }
-        const audio = btoa(binary);
-        sendMessage({
-          type: "audio.end",
-          data: {
-            audio,
-            mime_type: blob.type || "audio/webm",
-          },
-        });
-      } catch (err) {
-        logger.warn("[call] audio.end serialise failed", err);
-      }
-    };
-  }, [sendMessage, connectionState]);
-
-  // PR-F: push-to-talk handlers. ``onPointerDown`` starts MediaRecorder;
-  // ``onPointerUp``/``onPointerLeave`` stops + fires the audio.end ref.
-  // Holding < 0.4s is treated as a misclick — we just bail without
-  // sending anything (size guard in the ref also catches it server-
-  // side). Pointer events instead of mouse/touch separately so phones
-  // and trackpads behave identically.
-  const pushTalkStart = useCallback(async () => {
-    if (!microphoneFallback.isSupported) return;
-    setPushTalkActive(true);
-    const ok = await microphoneFallback.startRecording();
-    if (!ok) setPushTalkActive(false);
-  }, [microphoneFallback]);
-
-  const pushTalkStop = useCallback(async () => {
-    if (!pushTalkActive) return;
-    setPushTalkActive(false);
-    const blob = await microphoneFallback.stopRecording();
-    if (blob) sendAudioBlobRef.current?.(blob);
-  }, [microphoneFallback, pushTalkActive]);
-
-  // 2026-06-06 (#2): input-bar mic toggle — MediaRecorder + backend Whisper
-  // (the path that works in training mode). Click to start capturing, click
-  // again to stop → blob → audio.end. Bypasses the flaky Web Speech API.
-  // ─────────────────────────────────────────────────────────────────────
-  // 2026-06-06 (#1, архитектура): ЖИВОЙ режим звонка как настоящий звонок.
-  // КЛЮЧЕВОЕ ИСПРАВЛЕНИЕ: микрофон открывается ОДИН раз (getUserMedia) на весь
-  // живой режим и НЕ пересоздаётся между репликами. Раньше каждая реплика рвала
-  // stream + AudioContext (useMicrophone.stopRecording) → новый getUserMedia на
-  // каждый ход = задержка в сотни мс + мерцание индикатора + «mic in use».
-  // Теперь: один stream + один analyser для VAD; реплики режутся РЕСТАРТОМ
-  // MediaRecorder на том же stream (мгновенно). Пока говорит ИИ — не пишем.
-  // ─────────────────────────────────────────────────────────────────────
-  const [liveMode, setLiveMode] = useState(false);
-  const [liveListening, setLiveListening] = useState(false); // мик слышит юзера сейчас
-
-  const liveStreamRef = useRef<MediaStream | null>(null);
-  const liveCtxRef = useRef<AudioContext | null>(null);
-  const liveAnalyserRef = useRef<AnalyserNode | null>(null);
-  const liveRecorderRef = useRef<MediaRecorder | null>(null);
-  const liveVadRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const liveOnRef = useRef(false);
-  // 2026-06-07 «один ход за раз»: после отправки реплики мик НЕ шлёт новые
-  // куски, пока ИИ не ответит. Раньше в окне «отправил → ИИ ещё думает»
-  // (5-8с) мик копил уттеррансы в очередь → задержки до 21с и ответы ИИ на
-  // устаревшие реплики (рассинхрон, путал имя). Флаг снимается, когда ИИ
-  // начал говорить / пришёл character.response / по таймауту-предохранителю.
-  const turnInFlightRef = useRef(false);
-  const turnTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const clearTurnInFlight = useCallback(() => {
-    turnInFlightRef.current = false;
-    if (turnTimeoutRef.current) { clearTimeout(turnTimeoutRef.current); turnTimeoutRef.current = null; }
-  }, []);
-  const markTurnInFlight = useCallback(() => {
-    turnInFlightRef.current = true;
-    if (turnTimeoutRef.current) clearTimeout(turnTimeoutRef.current);
-    // предохранитель: если ответ не пришёл за 15с (STT/LLM упал) — отпускаем мик.
-    turnTimeoutRef.current = setTimeout(() => { turnInFlightRef.current = false; }, 15000);
-  }, []);
-  const ttsSpeakingRef = useRef(tts.speaking);
-  ttsSpeakingRef.current = tts.speaking;
-  const ttsStopRef = useRef(tts.stop);
-  ttsStopRef.current = tts.stop;
-
-  const pickMime = (): string =>
-    typeof MediaRecorder !== "undefined" && MediaRecorder.isTypeSupported("audio/webm;codecs=opus") ? "audio/webm;codecs=opus"
-    : typeof MediaRecorder !== "undefined" && MediaRecorder.isTypeSupported("audio/webm") ? "audio/webm"
-    : typeof MediaRecorder !== "undefined" && MediaRecorder.isTypeSupported("audio/mp4") ? "audio/mp4"
-    : "";
-
-  // Запустить новый сегмент записи на УЖЕ открытом stream (без getUserMedia).
-  // 2026-06-06 FIX «Invalid audio format»: у КАЖДОГО рекордера свой локальный
-  // массив чанков + own onstop. Раньше был общий liveChunksRef → финальный
-  // чанк старого рекордера попадал в массив нового сегмента, и blob начинался
-  // с середины потока БЕЗ EBML-заголовка (header 43c38100…) → navy Whisper
-  // отвергал каждый второй блоб. Теперь каждый сегмент — самостоятельный webm.
-  const startSegmentRef = useRef<() => void>(() => {});
-  startSegmentRef.current = () => {
-    const stream = liveStreamRef.current;
-    if (!stream || !liveOnRef.current) return;
-    const mime = pickMime();
-    const rec = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream);
-    const chunks: Blob[] = [];   // локально для ЭТОГО рекордера — без гонки
-    rec.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
-    rec.onstop = () => {
-      const send = (rec as MediaRecorder & { _send?: boolean })._send === true;
-      if (send && chunks.length) {
-        const blob = new Blob(chunks, { type: chunks[0]?.type || "audio/webm" });
-        if (blob.size > 1500) {           // отсекаем «пшики» < ~1.5КБ
-          logger.log("[CALL] live: sending utterance", blob.size, "bytes");
-          turnT0Ref.current = Date.now(); // старт тайминга хода
-          turnGotChunkRef.current = false;
-          turnGotAudioRef.current = false;
-          markTurnInFlight();              // «один ход за раз» — мик молчит до ответа ИИ
-          sendAudioBlobRef.current?.(blob); // → backend Whisper → ответ ИИ
-        }
-      }
-      if (liveOnRef.current) startSegmentRef.current(); // следующий сегмент, тот же stream
-    };
-    try { rec.start(250); } catch { /* already started */ }
-    liveRecorderRef.current = rec;
-  };
-
-  // Финализировать текущий сегмент: пометить «отправлять/нет» и остановить —
-  // onstop соберёт blob из СВОИХ чанков и запустит следующий сегмент.
-  const flushSegmentRef = useRef<(send: boolean) => void>(() => {});
-  flushSegmentRef.current = (send: boolean) => {
-    const rec = liveRecorderRef.current as (MediaRecorder & { _send?: boolean }) | null;
-    if (!rec || rec.state === "inactive") {
-      if (send && liveOnRef.current) startSegmentRef.current();
-      return;
-    }
-    rec._send = send;
-    try { rec.stop(); } catch { /* */ }
-  };
-
-  const stopLive = useCallback(() => {
-    liveOnRef.current = false;
-    if (liveVadRef.current) { clearInterval(liveVadRef.current); liveVadRef.current = null; }
-    try { liveRecorderRef.current?.stop(); } catch { /* */ }
-    liveRecorderRef.current = null;
-    liveStreamRef.current?.getTracks().forEach((t) => t.stop());
-    liveStreamRef.current = null;
-    liveCtxRef.current?.close().catch(() => {});
-    liveCtxRef.current = null;
-    liveAnalyserRef.current = null;
-    setLiveListening(false);
-  }, []);
-
-  const startLive = useCallback(async () => {
+  // ---------------------------------------------------------------------------
+  // Accept the call: the single autoplay-unlock gesture, then start session.
+  // ---------------------------------------------------------------------------
+  const handleAccept = useCallback(async () => {
     try {
-      if (typeof window !== "undefined" && !window.isSecureContext) {
-        throw new DOMException("insecure", "SecurityError");
-      }
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
-      });
-      liveStreamRef.current = stream;
-      liveOnRef.current = true;
-      const Ctor: typeof AudioContext =
-        window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-      const ctx = new Ctor();
-      if (ctx.state === "suspended") ctx.resume().catch(() => {});
-      liveCtxRef.current = ctx;
-      const src = ctx.createMediaStreamSource(stream);
-      const analyser = ctx.createAnalyser();
-      analyser.fftSize = 512;
-      analyser.smoothingTimeConstant = 0.8;
-      src.connect(analyser);
-      liveAnalyserRef.current = analyser;
-      try { ttsStopRef.current?.(); } catch { /* */ }
-      startSegmentRef.current();
-      logger.log("[CALL] live: mic open (continuous)");
-      // 2026-06-06 DIAG: avg=0.0 всегда → трек немой. Логируем состояние
-      // трека и контекста, чтобы понять: нет разрешения macOS / suspended /
-      // не тот девайс.
-      {
-        const tracks = stream.getAudioTracks();
-        const tr = tracks[0];
-        const st = tr?.getSettings?.() || {};
-        logger.log(
-          `[CALL] DIAG mic track: count=${tracks.length} label="${tr?.label ?? "?"}" ` +
-          `enabled=${tr?.enabled} muted=${tr?.muted} readyState=${tr?.readyState} ` +
-          `deviceId=${st.deviceId ?? "?"} channels=${st.channelCount ?? "?"} sr=${st.sampleRate ?? "?"}`,
-        );
-        logger.log("[CALL] DIAG audioCtx", { state: ctx.state, sampleRate: ctx.sampleRate });
-        // повторно дожимаем resume на случай suspended после gesture
-        ctx.resume?.().then(
-          () => logger.log("[CALL] DIAG audioCtx after resume", ctx.state),
-          () => {},
-        );
-      }
-
-      // ── VAD-петля (адаптивная под шум микрофона) ──────────────────────
-      // 2026-06-06 fix: фиксированный порог (14) был НИЖЕ шумового пола
-      // некоторых микрофонов (fifine + autoGain) → «тишина» не наступала
-      // никогда → сегмент рос до 500КБ и Whisper падал (stt.unavailable).
-      // Теперь порог ОТНОСИТЕЛЬНЫЙ: floor = тихий фон (бежит к минимуму),
-      // речь = avg > floor + MARGIN. Плюс жёсткий потолок длины сегмента и
-      // отправка ТОЛЬКО если реально была речь.
-      const TICK = 100;
-      const buf = new Uint8Array(analyser.frequencyBinCount);
-      let spoke = false;            // была ли РЕАЛЬНАЯ речь (≥ MIN_SPEECH_MS) в сегменте
-      let lastLoud = Date.now();
-      let prevSpeaking = false;
-      let floor = 12;               // оценка шумового пола (0-255); адаптируется ТОЛЬКО в тишине
-      let loudStreak = 0;
-      let speechMs = 0;             // накопленная длительность речи в текущем сегменте
-      let segStart = Date.now();
-      let vadTick = 0;
-      // 2026-06-07: фрагментация фразы (по логам: одна реплика → 22КБ + 4КБ + 2КБ
-      // обрывки → STT-мусор «Tuo»/«谢谢»/«mit» → несколько ответов ИИ внахлёст).
-      // Лечим тремя правилами:
-      //  1) floor (шумовой пол) адаптируется ТОЛЬКО в тишине — иначе он полз вверх
-      //     во время речи (floor+=0.3) и догонял голос → ложная «тишина» посреди
-      //     слова → разрез фразы на обрывки.
-      //  2) SILENCE_MS 550 — пауза внутри фразы (вдох, «эээ») не считается концом.
-      //  3) MIN_SPEECH_MS 400 — отрезки короче не отправляются вовсе (это блипы/шум,
-      //     именно они давали односложный STT-мусор и лишние ходы).
-      const SILENCE_MS = 550;       // хвост тишины = конец реплики
-      const MARGIN = 6;             // насколько громче фона = «говорят»
-      const MIN_SPEECH_MS = 400;    // минимум реальной речи, чтобы отправить сегмент
-      const MAX_SEG_MS = 12000;     // потолок реплики без паузы
-      const IDLE_RESET_MS = 1500;   // пока речи нет — сбрасываем накопленную тишину
-      // floor НЕ сбрасываем: шумовой пол живёт между сегментами (учится в тишине).
-      const resetSeg = () => { spoke = false; loudStreak = 0; speechMs = 0; segStart = Date.now(); lastLoud = Date.now(); };
-
-      liveVadRef.current = setInterval(() => {
-        if (!liveOnRef.current || !liveAnalyserRef.current) return;
-        vadTick += 1;
-        // Пока говорит ИИ ИЛИ пока ИИ обрабатывает прошлую реплику — не слушаем
-        // и НЕ копим сегмент. turnInFlight закрывает дыру «отправил → ИИ думает»,
-        // из-за которой реплики копились в очередь (задержки до 21с, рассинхрон).
-        if (ttsSpeakingRef.current || turnInFlightRef.current) {
-          if (vadTick % 10 === 0) logger.log("[CALL] VAD: подавлен (ИИ говорит/думает)");
-          spoke = false; loudStreak = 0; speechMs = 0; lastLoud = Date.now(); prevSpeaking = true;
-          setLiveListening(false);
-          return;
-        }
-        // ИИ только что договорил → выбросить буфер с эхом, чистый сегмент.
-        if (prevSpeaking) {
-          prevSpeaking = false;
-          flushSegmentRef.current(false);
-          resetSeg();
-        }
-
-        liveAnalyserRef.current.getByteFrequencyData(buf);
-        let sum = 0;
-        for (let i = 0; i < buf.length; i++) sum += buf[i];
-        const avg = sum / buf.length;
-
-        const isLoud = avg > floor + MARGIN;
-        if (isLoud) {
-          loudStreak += 1;
-          speechMs += TICK;                 // копим реальную длительность речи
-          lastLoud = Date.now();
-          // «Реальной» реплику считаем только после MIN_SPEECH_MS подряд —
-          // блипы/щелчки (<400мс) сюда не попадают и не уходят в STT.
-          if (speechMs >= MIN_SPEECH_MS) spoke = true;
-        } else {
-          loudStreak = 0;
-          // Шумовой пол учим ТОЛЬКО в тишине: мгновенно вниз к фактической
-          // тишине, медленно вверх. Во время речи floor заморожен — иначе он
-          // догонял бы голос и резал фразу на куски.
-          if (avg < floor) floor = avg;
-          else floor += 0.2;
-        }
-        // 2026-06-06 DIAG: реальные уровни микрофона раз в ~1с. Если во время
-        // речи avg НЕ превышает порог (floor+MARGIN) — VAD не видит голос и
-        // реплика не отправляется (порог высок из-за autoGain). Сравни avg в
-        // тишине и когда говоришь.
-        if (vadTick % 10 === 0) {
-          logger.log(
-            `[CALL] VAD: avg=${avg.toFixed(1)} floor=${floor.toFixed(1)} порог=${(floor + MARGIN).toFixed(1)} loud=${isLoud} spoke=${spoke}`,
-          );
-        }
-        setLiveListening(spoke);
-
-        const now = Date.now();
-        // Конец реплики: была речь + пауза. Либо жёсткий потолок длины.
-        if (spoke && now - lastLoud > SILENCE_MS) {
-          setLiveListening(false);
-          flushSegmentRef.current(true);   // отправить + сразу новый сегмент
-          resetSeg();
-        } else if (spoke && now - segStart > MAX_SEG_MS) {
-          // длинная реплика без паузы — режем, чтобы blob не распух
-          flushSegmentRef.current(true);
-          resetSeg();
-        } else if (!spoke && now - segStart > IDLE_RESET_MS) {
-          // 2026-06-06 (молчание): пока речи НЕТ — каждые ~1.2с выбрасываем
-          // накопленную тишину и стартуем свежий сегмент. Так блоб реплики =
-          // только речь + короткий пре-ролл, а не 8с тишины перед словами.
-          // Это убирает главный «слой» задержки: Whisper больше не молотит
-          // секунды пустоты (было: 1.2с речи → блоб 83КБ → STT 6.9с).
-          flushSegmentRef.current(false);
-          resetSeg();
-        }
-      }, TICK);
-    } catch (err) {
-      liveOnRef.current = false;
-      setLiveMode(false);
-      const name = err instanceof DOMException ? err.name : "";
-      logger.warn("[CALL] live: getUserMedia failed", name);
-      toast.error("Микрофон не запустился", {
-        description:
-          name === "NotReadableError" || name === "TrackStartError"
-            ? "Микрофон занят другим приложением/вкладкой — закройте их (Zoom/Meet/вкладка) и попробуйте снова"
-          : name === "NotAllowedError" || name === "PermissionDeniedError"
-            ? "Доступ к микрофону запрещён — разрешите в адресной строке 🔒"
-          : name === "SecurityError"
-            ? "Запись доступна только на https/localhost"
-          : "Проверьте доступ к микрофону или перезагрузите вкладку (Cmd+Shift+R)",
-      });
+      await tts.unlock();
+    } catch {
+      /* unlock is best-effort */
     }
-  }, []);
+    setAccepted(true);
+    goToStage(1); // start the script guide at stage 1
+    sendMessage({ type: "start", data: { session_id: id } });
+  }, [tts, sendMessage, id, goToStage]);
 
-  const toggleLiveMode = useCallback(() => {
-    setLiveMode((v) => {
-      const next = !v;
-      if (next) void startLive();
-      else stopLive();
-      return next;
-    });
-  }, [startLive, stopLive]);
-
-  // Безопасная очистка при размонтировании / завершении звонка.
-  useEffect(() => () => stopLive(), [stopLive]);
-
-  // Kick-start the session on WS ready. The chat flow sends
-  // session.start with the REST-created session_id; backend resumes
-  // and emits session.started/character.response/tts.audio. Without
-  // this message the backend just idles after auth.success.
-  const sessionStartSentRef = useRef(false);
-  useEffect(() => {
-    if (connectionState !== "connected") {
-      sessionStartSentRef.current = false;
+  // ---------------------------------------------------------------------------
+  // Push-to-talk toggle: click starts capture, click again sends the turn.
+  // ---------------------------------------------------------------------------
+  const handleTalkToggle = useCallback(async () => {
+    if (ending) return;
+    if (!recording) {
+      const ok = await mic.startRecording();
+      if (!ok) {
+        toast.error("Нет доступа к микрофону");
+        return;
+      }
+      setRecording(true);
+      setStatus("recording");
       return;
     }
-    // 2026-04-23 Zone 2: don't send session.start until user clicks Accept.
-    // Backend only emits TTS audio AFTER session.start, so holding it
-    // until Accept prevents audio from being silently dropped by the
-    // autoplay policy. Auth handshake already completed in parallel, so
-    // as soon as user clicks Accept this effect runs and session.started
-    // lands in ~400ms.
-    if (!callAccepted) return;
-    if (sessionStartSentRef.current) return;
-    if (!id) return;
-    sessionStartSentRef.current = true;
-    logger.log("[CALL] sending session.start");
-    sendMessage({ type: "session.start", data: { session_id: id } });
-  }, [connectionState, id, sendMessage, callAccepted]);
 
-  // --- STT start/stop bound to mute state + mode readiness ---------------
-  // 2026-04-26: removed the `!tts.speaking` gate. Previously, if TTS got
-  // stuck (audio queue jammed, autoplay deferred, late chunk), `tts.speaking`
-  // never went false → STT never started → user thought microphone was
-  // dead even though the device was perfectly working. Web Speech API
-  // ships its own VAD + the audio path uses echoCancellation, so leaving
-  // STT live during TTS playback doesn't actually create a feedback loop
-  // in practice. Mute remains the user's explicit pause.
-  /*
-   * 2026-05-10 FIND-010 fix: stt.startListening / stt.stopListening —
-   * useCallback в useSpeechRecognition (stable refs). Раньше они шли
-   * в effect через `stt`-объект, deps содержали только триггеры
-   * (modeOk/connectionState/muted), а disable перекрывал ESLint.
-   * Теперь явно destructure stable methods + isSupported, deps честные.
-   */
-  const sttStartListening = stt.startListening;
-  const sttStopListening = stt.stopListening;
-  const sttIsSupported = stt.isSupported;
-  useEffect(() => {
-    if (VOICE_USES_WHISPER) return;   // 2026-06-06 (#2): no Web Speech auto-start
-    if (modeOk !== true) return;
-    if (connectionState !== "connected") return;
-    if (muted) {
-      sttStopListening();
+    // Stop and ship the turn.
+    setRecording(false);
+    const blob = await mic.stopRecording();
+    if (!blob || blob.size <= MIN_BLOB_BYTES) {
+      setStatus("idle");
       return;
     }
-    if (!sttIsSupported) return;
-    sttStartListening();
-  }, [modeOk, connectionState, muted, sttStartListening, sttStopListening, sttIsSupported]);
+    setStatus("thinking");
+    const audio_b64 = await blobToBase64(blob);
+    sendMessage({ type: "audio", data: { audio_b64, mime: "audio/webm" } });
+    // Advance the script guide one stage per completed user turn.
+    goToStage(useSessionStore.getState().currentStage + 1);
+  }, [recording, ending, mic, sendMessage, goToStage]);
 
-  // Watchdog: if STT remains idle for ~3s after we asked to listen, retry.
-  // Covers transient SpeechRecognition.start() races (Chrome will sometimes
-  // silently no-op if a previous instance hadn't fully torn down).
-  //
-  // Phase D (2026-05-08): exponential backoff instead of fixed 3000ms. The
-  // previous fixed retry hammered the SpeechRecognition API every 3 seconds
-  // when it was permanently denied (Brave with Shields, denied microphone
-  // permission, language not supported) — the user saw the red mic banner
-  // blink on/off as start→error→idle→start cycled. Backoff caps at 24s and
-  // resets to 3s the moment STT successfully transitions out of idle.
-  /*
-   * 2026-05-10 FIND-010 fix: те же destructured stable methods.
-   * Watchdog effect зависит от sttStatus как триггера, методы из
-   * destructure'а выше — стабильны.
-   */
-  const sttRetryAttemptRef = useRef(0);
-  const sttStatus = stt.status;
+  // ---------------------------------------------------------------------------
+  // End the call → wait for score/hangup → redirect (fallback after 25s).
+  // ---------------------------------------------------------------------------
+  const handleEndCall = useCallback(() => {
+    if (ending) return;
+    setEnding(true);
+    tts.stop();
+    sendMessage({ type: "end_call" });
+    setTimeout(goToResults, END_CALL_FALLBACK_MS);
+  }, [ending, tts, sendMessage, goToResults]);
+
+  // Keep status in sync when TTS finishes a turn while idle.
   useEffect(() => {
-    if (VOICE_USES_WHISPER) return;   // 2026-06-06 (#2): no Web Speech watchdog
-    if (modeOk !== true) return;
-    if (connectionState !== "connected") return;
-    if (muted) return;
-    if (!sttIsSupported) return;
-    if (sttStatus !== "idle") {
-      // Successful start (or any non-idle transition) resets the backoff.
-      sttRetryAttemptRef.current = 0;
-      return;
-    }
-    const attempt = sttRetryAttemptRef.current;
-    // 3s, 6s, 12s, 24s (cap). After 4 attempts on a permanently-denied
-    // browser the cycle settles to one retry every 24s — quiet enough not
-    // to thrash, frequent enough to recover if permission is later granted.
-    const delay = Math.min(3000 * 2 ** attempt, 24000);
-    const t = setTimeout(() => {
-      sttRetryAttemptRef.current = attempt + 1;
-      sttStartListening();
-    }, delay);
-    return () => clearTimeout(t);
-  }, [modeOk, connectionState, muted, sttStatus, sttIsSupported, sttStartListening]);
+    if (!tts.speaking && status === "speaking") setStatus("idle");
+  }, [tts.speaking, status]);
 
-  // --- Speaker toggle — pauses/resumes TTS playback ----------------------
-  useEffect(() => {
-    tts.setEnabled(speakerOn);
-  }, [speakerOn, tts]);
+  const statusLabel = ending
+    ? "Завершаю…"
+    : status === "recording"
+      ? "Говорю…"
+      : status === "thinking"
+        ? "Обрабатываю…"
+        : status === "speaking"
+          ? `Говорит ${clientName || "клиент"}`
+          : "Говорите";
 
-  // --- Hangup: navigate IMMEDIATELY, cleanup in background ---------------
-  // Navigate first so the button always responds even if TTS/STT/backend
-  // throw. Cleanup runs as fire-and-forget — the results page reloads
-  // session state from the server anyway, so late-arriving errors are safe.
-  // P1 (training-rework): the deal-outcome semantics ('agreed' /
-  // 'not_agreed' / 'continue') were removed. A training call now has a
-  // single neutral terminal outcome — 'completed'. The backend end-guard
-  // still expects an outcome in its allowed set, so we always send
-  // 'completed' instead of branching on a sales-style result.
-  const completeHangup = useCallback(() => {
-    if (endInFlightRef.current) return;
-    endInFlightRef.current = true;
-    setShowCenterOutcome(false);
-    const sid = currentSessionIdRef.current || id;
-    // 2026-04-23 UX: show the hangup overlay IMMEDIATELY so the user sees
-    // responsive feedback (red spinner in button + "Завершаем…" label +
-    // full-screen "Сохраняем результаты" overlay). Previously router.push
-    // happened in the same tick — user got an abrupt jump without seeing
-    // the button react. Now the click visibly commits → 2.2s transition.
-    setHangupReason("Звонок завершён");
-    setHangupInProgress(true);
-    // Phase D (2026-05-08): stopAllAudio cancels deferred audio timeouts
-    // BEFORE useTTS.stop runs — so no chunk that's mid-flight in
-    // scheduleAudioPlayback can resurrect playback after the user
-    // clicked the red button.
-    stopAllAudio();
-    try { stt.stopListening(); } catch { /* noop */ }
-    // Fire-and-forget end POST in parallel so backend scoring starts NOW,
-    // not after we land on /results.
-    (async () => {
-      try {
-        await api.post(`/training/sessions/${sid}/end`, { outcome: "completed" });
-      } catch (err) {
-        logger.warn("[call] end POST failed (may already be ended)", err);
-      }
-    })();
-    // Phase 5+6 (2026-05-01): give CallEndingTransition its 2.2s window
-    // (was 250ms — too quick to register as a transition; user perceived
-    // the result page as "appearing instantly"). Replace not push so
-    // back-button doesn't return to a dead call.
-    goToResults(2200);
-  }, [id, stopAllAudio, stt, goToResults]);
-
-  // P1 (training-rework): one calm confirmation step for every hangup.
-  // Previously only "center" sessions opened a (3-button deal-outcome)
-  // modal and a plain call ended immediately. Now any hangup shows a
-  // single quiet "Завершить разговор?" confirm with a "Вернуться к
-  // звонку" escape — no sales outcome to pick.
-  const onHangup = useCallback(() => {
-    setShowCenterOutcome(true);
-  }, []);
-
-  // 2026-04-22 fallback sender: send current textInput as a plain text.message
-  // with correct `content` key (same shape as chat page). Clears the box so
-  // Enter-to-send feels responsive.
-  //
-  // 2026-04-22 (hotfix): this useCallback + the three const diagnostics
-  // below were originally placed AFTER the `if (modeOk === null) return …`
-  // early-return below. That violated Rules of Hooks — on the first render
-  // (modeOk === null) the hooks didn't run, on the second render they did,
-  // so React counted different hook totals between renders and threw
-  // Minified React error #310 ("Rendered more hooks than during the
-  // previous render"). Moving the hook above the early-return restores
-  // a stable hook order across every render.
-  const sendText = useCallback(() => {
-    const trimmed = textInput.trim();
-    if (!trimmed) return;
-    if (connectionState !== "connected") {
-      // 2026-05-04 (call-mode text fix): user reports "I type, AI doesn't
-      // respond" — root cause was a silent WS-not-connected return that
-      // cleared neither the input nor surfaced any feedback. Now we show
-      // a toast so the user knows WHY the message didn't go through.
-      logger.warn("[call] cannot send text — WS not connected", { connectionState });
-      try {
-        const { toast } = require("sonner") as { toast: { error: (msg: string, opts?: unknown) => void } };
-        toast.error("Звонок не подключён", {
-          description: "Проверьте интернет и нажмите «Принять» снова.",
-        });
-      } catch {
-        // If toast lib unavailable, the warn() above is the only signal.
-      }
-      return;
-    }
-    sendMessage({ type: "text.message", data: { content: trimmed } });
-    setTextInput("");
-  }, [textInput, connectionState, sendMessage]);
-
-  // Still loading mode guard
-  if (modeOk === null) {
+  // ---------------------------------------------------------------------------
+  // Splash: "Звонок клиенту… [Ответить]" until accepted.
+  // ---------------------------------------------------------------------------
+  if (!accepted) {
     return (
-      <div
-        className="flex min-h-screen items-center justify-center text-sm"
-        style={{ background: "var(--bg-primary)", color: "var(--text-muted)" }}
+      <main
+        className="flex min-h-screen flex-col items-center justify-center gap-8 px-6"
+        style={{ background: "var(--surface-base, var(--background))", color: "var(--text-primary)" }}
       >
-        Подключаемся к звонку…
-      </div>
-    );
-  }
-
-  // 2026-04-23 Sprint 5 (Zone 2): the old inline JSX accept-gate is
-  // replaced by the full IncomingCallScreen component with avatar, age,
-  // city, profession, lead-source badge, debt chip and a pair of
-  // Accept+Decline buttons. Accept runs the 3-vector audio unlock,
-  // Decline posts to /training/sessions/{id}/decline and redirects to
-  // the CRM card (or /training if no real_client).
-  if (!callAccepted) {
-    return (
-      <IncomingCallScreen
-        characterName={s.characterName || "Клиент"}
-        emotion={s.emotion as EmotionState | undefined}
-        sceneId={sceneBg}
-        clientCard={s.clientCard}
-        accepting={accepting}
-        declining={declining}
-        onAccept={async () => {
-          if (accepting || declining) return;
-          setAccepting(true);
-          logger.log("[CALL] accept-click: running unlock sequence");
-          // Stop looping ringback + play one final pickup click.
-          try { ringbackStopRef.current?.(); } catch { /* */ }
-          // Re-run the 3-vector unlock — proven gesture-handler sequence.
-          try {
-            // Vector 1: Web Audio API unlock.
-            const AC = (window.AudioContext ||
-              (window as unknown as {
-                webkitAudioContext?: typeof AudioContext;
-              }).webkitAudioContext) as typeof AudioContext | undefined;
-            if (AC) {
-              const ctx = new AC();
-              if (ctx.state === "suspended") {
-                await ctx.resume().catch(() => {});
-              }
-              const buf = ctx.createBuffer(1, 1, 22050);
-              const src = ctx.createBufferSource();
-              src.buffer = buf;
-              src.connect(ctx.destination);
-              src.start(0);
-              logger.log("[CALL] unlock: AudioContext state =", ctx.state);
-              setTimeout(() => { try { ctx.close(); } catch { /* */ } }, 500);
-            }
-            // Vector 2: HTMLAudioElement via blob URL (CSP-safe).
-            // Phase B (2026-05-08): RIFF size byte fixed 0x25 → 0x25 wait
-            // — file is 45 bytes total, minus 8 (RIFF + size fields) = 37
-            // payload bytes, so 0x25 IS correct for the RIFF size field
-            // (size of everything after the 8-byte RIFF header). The
-            // previous bytes ARE valid; the empirical Safari/iOS
-            // rejection observed in pilots was likely the data-chunk
-            // size mismatch — `data` chunk declares 0x01 bytes but
-            // browsers expect even alignment for 8-bit PCM. Pad to 2
-            // bytes (still inaudible) by extending data to 0x02 bytes.
-            // Net effect: file size 46, RIFF size 0x26, data size 0x02.
-            const silentWav = new Uint8Array([
-              0x52, 0x49, 0x46, 0x46, 0x26, 0, 0, 0, 0x57, 0x41, 0x56, 0x45,
-              0x66, 0x6d, 0x74, 0x20, 0x10, 0, 0, 0, 1, 0, 1, 0,
-              0x40, 0x1f, 0, 0, 0x40, 0x1f, 0, 0, 1, 0, 8, 0,
-              0x64, 0x61, 0x74, 0x61, 0x02, 0, 0, 0, 0x80, 0x80,
-            ]);
-            const blob = new Blob([silentWav], { type: "audio/wav" });
-            const url = URL.createObjectURL(blob);
-            const a = new Audio(url);
-            a.volume = 0.001;
-            try {
-              await a.play();
-              logger.log("[CALL] unlock: HTMLAudio play() succeeded");
-            } catch (e) {
-              logger.warn("[CALL] unlock: HTMLAudio play() failed:", e);
-            }
-            URL.revokeObjectURL(url);
-            // Vector 3: also poke tts.unlock() if pending.
-            try { tts.unlock(); } catch { /* */ }
-          } catch (e) {
-            logger.warn("[CALL] unlock sequence error:", e);
-          }
-          // Persist across refresh so F5 doesn't bounce back to incoming.
-          // PR-H (B5 defensive): also write to the module-level Set so
-          // a remount survives even when sessionStorage is disabled.
-          if (id) _ACCEPTED_SESSIONS_RUNTIME.add(id);
-          try {
-            window.sessionStorage.setItem(`call-accepted-${id}`, "1");
-          } catch {
-            /* storage quota / private mode — non-fatal, runtime Set covers it */
-          }
-          // Phase A (2026-05-08): audio gate raised from 350ms to 1500ms.
-          // The previous 350ms only covered the pickup-click bundle but
-          // let the AI's "Алло?" land WHILE the dialing overlay (1200ms)
-          // was still showing — user heard speech under "Соединение..."
-          // text. 1500ms holds TTS until the dialing overlay has fully
-          // unmounted (220ms fade-out delay below + 1200ms overlay
-          // = 1420ms; +80ms safety margin = 1500ms).
-          audioGateUntilRef.current = Date.now() + 1500;
-          // Phase 1 (2026-05-01): show "Соединение..." dialing overlay
-          // for 1200ms over the active call so the transition feels like
-          // a real phone connecting, not a teleport into an active call.
-          //
-          // Phase A (2026-05-08): defer setCallAccepted by 220ms so the
-          // IncomingCallScreen has time to fade out (animate via the
-          // `accepting` prop) instead of jump-cutting. The dialing
-          // overlay's dismiss timer is started AFTER callAccepted flips,
-          // so the overlay shows for the full 1200ms from when it
-          // actually paints.
-          //
-          // Phase B (2026-05-08, Bug 1 fix): setDialingOverlay(true) is
-          // also DEFERRED into the 220ms timeout. Previously it fired
-          // synchronously on click, which painted the dialing overlay's
-          // emerald Phone-icon circle UNDER the still-fading
-          // IncomingCallScreen Accept button (both at z-50). When the
-          // Accept screen faded out, the dialing circle was exposed
-          // exactly where the user just clicked — and the pilot read
-          // it as "another green Accept button appeared". By deferring
-          // both setters into the same timeout, the overlay only
-          // mounts AFTER the IncomingCallScreen has unmounted, so the
-          // user sees a clean transition instead of a button-shaped
-          // crossfade.
-          setTimeout(() => {
-            setDialingOverlay(true);
-            setCallAccepted(true);
-            setTimeout(() => setDialingOverlay(false), 1200);
-          }, 220);
-        }}
-        onDecline={async () => {
-          if (accepting || declining) return;
-          setDeclining(true);
-          try { ringbackStopRef.current?.(); } catch { /* */ }
-          // Persist decline so refresh doesn't re-show incoming screen.
-          try {
-            window.sessionStorage.setItem(`call-declined-${id}`, "1");
-          } catch {
-            /* */
-          }
-          // Fire-and-forget POST /decline. We redirect regardless of the
-          // response — backend idempotency handles double-clicks and 429
-          // rate limits shouldn't block the UX.
-          (async () => {
-            try {
-              await api.post(`/training/sessions/${id}/decline`, {});
-            } catch (err) {
-              logger.warn("[call] decline POST failed (non-fatal)", err);
-            }
-          })();
-          // Route to CRM card if we know the real client, else back to
-          // /training catalog. router.replace prevents the user from
-          // back-button'ing into the same incoming screen.
-          const target = realClientId ? `/clients/${realClientId}` : "/training";
-          router.replace(target);
-        }}
-      />
-    );
-  }
-
-  // 2026-04-22 diagnostics banner: show on-screen warnings so user sees
-  // the state of critical call-mode dependencies without opening DevTools.
-  // Plain derived values (not hooks) — safe after the early-return.
-  const sttSupported = stt.isSupported;
-  const wsDead = connectionState === "disconnected" || connectionState === "error";
-  const rawBannerKind = pickBannerKind({
-    wsDead,
-    sttSupported,
-    // 2026-06-06 (#2): surface the REAL MediaRecorder error (denied / in_use /
-    // not_found …). Web Speech is disabled (VOICE_USES_WHISPER), so sttErrorCode
-    // is irrelevant; the mic now runs through MediaRecorder. Previously this was
-    // hard-coded null → mic failures were invisible (click, nothing happens).
-    sttErrorCode: null,
-    micErrorReason: microphoneFallback.errorReason,
-  });
-  // 2026-05-07 (B6): when STT is blocked/unsupported but the Whisper
-  // push-to-talk fallback is ready, suppress the loud orange "Голосовое
-  // распознавание заблокировано" banner — the Whisper PTT pill below
-  // the call view IS the auto-fallback. The banner used to scare users
-  // (especially on Brave) into thinking voice was broken when in fact
-  // it was already working through the server-side Whisper pipeline.
-  // ws_dead always wins — the user must know connectivity is gone.
-  const whisperReady = sttBlocked && microphoneFallback.isSupported;
-  const bannerKind =
-    rawBannerKind === "ws_dead"
-      ? rawBannerKind
-      : whisperReady &&
-          (rawBannerKind === "stt_network" ||
-            rawBannerKind === "stt_unsupported")
-        ? null
-        : rawBannerKind;
-
-  // 2026-04-22: hang-up transition overlay. Shown for the 3.5s between
-  // client.hangup/session.ended and the redirect to /results. Covers the
-  // entire viewport at z-[100] so any UI flash (chat page, empty call,
-  // loading spinner on /results) is invisible to the user. The farewell
-  // TTS still plays because it was queued before this render.
-  if (hangupInProgress) {
-    // 2026-06-07: the "Звонок завершён / Считаем баллы…" processing overlay
-    // was removed by request. This early-return still fires during the
-    // hangup→/results transition (farewell TTS finishing, redirect armed via
-    // goToResults) and must cover the viewport so the user doesn't see a
-    // flash of the empty call / chat / results spinner. Replaced the steps
-    // screen with a minimal neutral cover — no text, no stages, no timeline.
-    return (
-      <div
-        className="fixed inset-0 z-[100] flex items-center justify-center"
-        style={{ background: "var(--bg-primary)" }}
-      >
-        <Loader2 size={28} className="animate-spin" style={{ color: "var(--text-muted)" }} />
-      </div>
-    );
-  }
-
-  return (
-    <>
-      {/* Phase 1 of call-flow lifecycle redesign (2026-05-01): "Соединение..."
-          overlay covers PhoneCallMode for ~1200ms after Accept-click so the
-          transition feels like a real phone connecting. Auto-dismisses via
-          setTimeout in the Accept handler. */}
-      <CallDialingOverlay visible={dialingOverlay} calleeName={s.characterName} />
-      {/* 2026-04-23 Sprint 3: ScriptDrawer floats over PhoneCallMode on
-          mobile + narrow windows (it's lg:hidden by default). On desktop
-          the plan's merge into PhoneCallMode teleprompter happens
-          in-component; here we just guarantee the mobile drawer exists. */}
-      <ScriptDrawer
-        onCopyExample={(text) => {
-          // On call page the main input is the voice mic, but we do
-          // have a fallback text field — pre-fill it with the example.
-          // B6 (2026-05-03): APPEND to existing text instead of REPLACE.
-          setTextInput((cur) => (cur.trim() ? cur + (cur.endsWith(" ") ? "" : " ") + text : text));
-        }}
-      />
-      <PhoneCallMode
-        characterName={s.characterName || "Клиент"}
-        emotion={s.emotion as EmotionState}
-        sessionState={s.sessionState}
-        audioLevel={tts.audioLevel}
-        elapsed={s.elapsed}
-        muted={muted}
-        userSpeaking={liveListening}
-        speakerOn={speakerOn}
-        sceneId={sceneBg}
-        clientCard={s.clientCard}
-        onToggleMute={() => setMuted((m) => !m)}
-        onToggleSpeaker={() => setSpeakerOn((v) => !v)}
-        onHangup={onHangup}
-        endInFlight={hangupInProgress}
-        volume={tts.volume}
-        onVolumeChange={tts.setVolume}
-        stage={{
-          current: s.currentStage || 1,
-          label: s.stageLabel || undefined,
-          completed: s.stagesCompleted || [],
-          total: s.totalStages || 7,
-        }}
-        coachingHint={
-          s.whispers && s.whispers.length > 0
-            ? {
-                message: s.whispers[0].message,
-                priority: s.whispers[0].priority,
-                icon: s.whispers[0].icon,
-                type: s.whispers[0].type,
-              }
-            : null
-        }
-        onCopyExample={(text) => {
-          // User-first §A.2 (2026-04-29): "тап = вставить" on the desktop
-          // ScriptPanel example phrases. Pre-A.2 this prop wasn't passed
-          // so handleCopy fell through to navigator.clipboard (silent).
-          // Now a tap pre-fills the fallback text input — same UX as the
-          // mobile ScriptDrawer that already had this wiring.
-          // B6 (2026-05-03): APPEND to existing text instead of REPLACE.
-          setTextInput((cur) => (cur.trim() ? cur + (cur.endsWith(" ") ? "" : " ") + text : text));
-        }}
-      />
-
-      {/*
-        P1 (training-rework): спокойное подтверждение завершения. Раньше
-        здесь был «Исход звонка» с тремя продажными кнопками (договор
-        согласован / не согласован / продолжить) — это убрано по решению
-        заказчика. Теперь одна нейтральная кнопка «Завершить разговор»
-        (терминальный исход 'completed') + escape «Вернуться к звонку».
-        Тон редакторский: токены var(--*), один акцент, без капса/неона.
-      */}
-      {showCenterOutcome && !hangupInProgress && (
-        <div
-          className="fixed inset-0 z-[160] flex items-end justify-center p-4 sm:items-center"
-          style={{
-            // 2026-06-06 (editorial): scrim в токен --bg-secondary вместо
-            // rgba(0,0,0,..); карточка модалки — surface-card + hairline.
-            background: "var(--bg-secondary)",
-          }}
-        >
-          <div
-            className="w-full max-w-md rounded-2xl p-5"
-            style={{
-              background: "var(--surface-card)",
-              border: "1px solid var(--border-color)",
-              boxShadow: "var(--shadow-sm)",
-            }}
-          >
-            <div className="mb-4">
-              <div
-                className="text-lg font-semibold"
-                style={{ color: "var(--text-primary)" }}
-              >
-                Завершить разговор?
-              </div>
-              <div
-                className="mt-1 text-sm"
-                style={{ color: "var(--text-muted)" }}
-              >
-                Разговор закончится, и откроется разбор сессии.
-              </div>
-            </div>
-            <div className="grid gap-2">
-              <button
-                type="button"
-                className="rounded-xl px-4 py-3 text-sm font-medium transition-colors"
-                style={{
-                  background: "var(--accent-muted)",
-                  border: "1px solid var(--accent)",
-                  color: "var(--accent)",
-                }}
-                onClick={() => completeHangup()}
-              >
-                Завершить разговор
-              </button>
-              <button
-                type="button"
-                className="rounded-xl px-4 py-3 text-sm font-medium transition-colors"
-                style={{
-                  background: "transparent",
-                  border: "1px solid var(--border-color)",
-                  color: "var(--text-muted)",
-                }}
-                onClick={() => setShowCenterOutcome(false)}
-              >
-                Вернуться к звонку
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/*
-        Diagnostics banner (2026-04-22). Shows on-screen why the call
-        might feel silent without user having to open DevTools:
-          - WS down: "Нет связи с сервером…"
-          - STT unsupported/error: "Микрофон недоступен, пишите текстом"
-          - tts still speaking: "Клиент говорит…" (info)
-        Positioned below the teleprompter so it doesn't fight the avatar.
-      */}
-      {/* PolicyViolationCounter + PersonaConflictBadge removed */}
-
-      {bannerKind && (
-        <MicStatusBanner
-          kind={bannerKind}
-          onRetry={() => stt.startListening()}
-        />
-      )}
-
-      {/* PR-F (Whisper fallback for call): when Web Speech API is
-          blocked by the browser (Brave Shields) or unsupported (Safari
-          old / Firefox), expose a push-to-talk button that records a
-          blob and POSTs it to the backend Whisper pipeline. The button
-          sits above the text input so the user can choose: voice (PTT)
-          or keyboard. The pre-existing text input below still works
-          regardless. */}
-      {sttBlocked && microphoneFallback.isSupported && callAccepted && (
-        <div
-          className="fixed bottom-[88px] left-1/2 z-30 -translate-x-1/2 flex flex-col items-center gap-2"
-          aria-live="polite"
-        >
-          <button
-            type="button"
-            onPointerDown={pushTalkStart}
-            onPointerUp={pushTalkStop}
-            onPointerLeave={() => { if (pushTalkActive) pushTalkStop(); }}
-            onPointerCancel={pushTalkStop}
-            disabled={connectionState !== "connected"}
-            className="flex items-center gap-2 rounded-full px-5 py-3 text-sm font-medium transition-all"
-            style={{
-              // 2026-06-06 (editorial restyle): неон-градиент + glow убраны,
-              // цвета строго в токены. Активное состояние — danger-muted/danger
-              // (идёт запись), покой — accent-muted/accent. Без hex.
-              background: pushTalkActive ? "var(--danger-muted)" : "var(--accent-muted)",
-              border: pushTalkActive
-                ? "1px solid var(--danger)"
-                : "1px solid var(--accent)",
-              color: pushTalkActive ? "var(--danger)" : "var(--accent)",
-              transition: "background 0.15s, color 0.15s, opacity 0.15s",
-              opacity: connectionState === "connected" ? 1 : 0.5,
-              touchAction: "none",
-            }}
-            title="Удерживайте для записи. Whisper-fallback активен."
-          >
-            {pushTalkActive ? <MicOff size={18} /> : <Mic size={18} />}
-            <span>{pushTalkActive ? "Говорите…" : "Удерживайте чтобы говорить"}</span>
-          </button>
-          <div
-            className="rounded-full px-2.5 py-0.5 text-[11px] font-medium tracking-wide"
-            style={{
-              background: "var(--accent-muted)",
-              color: "var(--accent)",
-              border: "1px solid var(--border-color)",
-            }}
-            title="Голос работает через сервер (Whisper). В Brave/Safari/Firefox это рабочий вариант — настраивать ничего не нужно."
-          >
-            Голос работает через Whisper
-          </div>
-        </div>
-      )}
-
-      {/*
-        Text-input fallback (2026-04-22). Always visible at the bottom of
-        the call view. Works exactly like chat: type, Enter / кнопка ▶ —
-        sends `text.message` WS event with `content` key (same contract
-        as chat page). User gets a reliable way to talk even when
-        microphone is broken / denied / browser doesn't support STT.
-        Push-to-talk mic remains in the control row for voice users.
-      */}
-      <div
-        className="fixed bottom-0 left-0 right-0 z-20 flex flex-col items-center px-4 pb-3 pt-10"
-        style={{
-          background: "linear-gradient(to top, var(--bg-primary), transparent)",
-        }}
-      >
-        {/* P0 (training-rework): CRM-link chip + attachment removed — only the
-            WS-status dot remains in this secondary bar above the input. */}
-        <div className="mb-1.5 flex w-full max-w-lg items-center gap-2 px-2">
+        <div className="flex flex-col items-center gap-3 text-center">
           <span
-            className="flex h-2 w-2 shrink-0 rounded-full"
-            style={{
-              // 2026-06-06 (editorial): hex + неон-glow убраны — токены
-              // success/danger без свечения; разрыв связи мягко пульсирует.
-              background: connectionState === "connected" ? "var(--success)" : "var(--danger)",
-              animation: connectionState === "connected" ? undefined : "pulse 1s infinite",
-            }}
-            title={
-              connectionState === "connected"
-                ? "Звонок подключён"
-                : `WS: ${connectionState} — нажмите «Принять» снова если не восстановится`
-            }
-            aria-label={`WS status: ${connectionState}`}
-          />
+            className="flex h-20 w-20 items-center justify-center rounded-full"
+            style={{ background: "var(--surface-card)", border: "1px solid var(--border-color)" }}
+          >
+            <Mic className="h-8 w-8" style={{ color: "var(--primary)" }} />
+          </span>
+          <p className="text-lg" style={{ color: "var(--text-secondary)" }}>
+            Звонок клиенту…
+          </p>
         </div>
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            sendText();
-          }}
-          className="flex w-full max-w-lg items-center gap-2 rounded-full px-3 py-2"
+        <button
+          type="button"
+          onClick={handleAccept}
+          className="rounded-full px-10 py-3 text-base font-medium transition-opacity hover:opacity-90"
+          style={{ background: "var(--primary)", color: "var(--primary-foreground, #fff)" }}
+        >
+          Ответить
+        </button>
+      </main>
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Active call screen.
+  // ---------------------------------------------------------------------------
+  return (
+    <main
+      className="relative flex min-h-screen flex-col items-center justify-between px-6 py-12"
+      style={{ background: "var(--surface-base, var(--background))", color: "var(--text-primary)" }}
+    >
+      {/* Right-side script guide — leads the learner strictly through the 7
+          stages (task · example phrases · common mistakes). Desktop only;
+          mobile gets the ScriptDrawer bottom-sheet below. */}
+      <aside
+        className="hidden lg:block absolute right-4 top-20 z-30 pointer-events-auto w-[min(440px,34vw)] max-h-[calc(100vh-180px)] overflow-y-auto rounded-2xl p-5"
+        style={{ background: "var(--surface-card)", border: "1px solid var(--border-color)", boxShadow: "var(--shadow-md)" }}
+      >
+        <ScriptPanel compactHeader />
+        <div className="mt-5 pt-4" style={{ borderTop: "1px solid var(--border-color)" }}>
+          <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.16em]" style={{ color: "var(--text-muted)" }}>
+            Как пользоваться
+          </div>
+          <ul className="space-y-1.5 text-xs leading-relaxed" style={{ color: "var(--text-secondary)" }}>
+            <li><span style={{ color: "var(--text-primary)" }}>«Говорить»</span> — скажите реплику текущего этапа, затем «Стоп», чтобы отправить.</li>
+            <li><span style={{ color: "var(--text-primary)" }}>Скрипт</span> — задача, примеры фраз и типичные ошибки этапа. Идите по этапам сверху вниз.</li>
+            <li><span style={{ color: "var(--text-primary)" }}>«Завершить»</span> — закончить звонок и получить разбор.</li>
+          </ul>
+        </div>
+      </aside>
+
+      {/* Mobile: same script as a bottom-sheet (floating chip → sheet). */}
+      <div className="lg:hidden">
+        <ScriptDrawer />
+      </div>
+
+      {/* Header: who you're talking to + live status */}
+      <div className="flex flex-col items-center gap-2 text-center">
+        <h1 className="text-2xl font-semibold">{clientName || "Клиент"}</h1>
+        <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
+          {statusLabel}
+        </p>
+      </div>
+
+      {/* Big circular push-to-talk button */}
+      <div className="flex flex-col items-center gap-6">
+        <button
+          type="button"
+          onClick={handleTalkToggle}
+          disabled={ending || status === "thinking" || status === "speaking"}
+          aria-pressed={recording}
+          className="flex h-44 w-44 flex-col items-center justify-center gap-2 rounded-full transition-transform active:scale-95 disabled:opacity-40"
           style={{
-            // 2026-06-06 (editorial): глассморфизм bg-black/50 ring-white/10
-            // backdrop-blur заменён на чистую карточку с hairline-границей.
-            background: "var(--bg-secondary)",
+            background: recording ? "var(--primary)" : "var(--surface-card)",
+            color: recording ? "var(--primary-foreground, #fff)" : "var(--text-primary)",
             border: "1px solid var(--border-color)",
           }}
         >
-          {/* 2026-06-06 (#1): ЖИВОЙ режим. Зелёная = микрофон включён, идёт
-              живой диалог 1-на-1 (говоришь → пауза → реплика сразу уходит ИИ →
-              ИИ отвечает голосом → снова слушаем). Тап ещё раз — выключить. */}
-          <button
-            type="button"
-            onClick={toggleLiveMode}
-            disabled={connectionState !== "connected" || !microphoneFallback.isSupported}
-            aria-label={liveMode ? "Выключить микрофон" : "Включить живой разговор"}
-            title={liveMode ? "Микрофон включён — говорите, реплика уйдёт сама. Нажмите, чтобы выключить" : "Включить живой разговор (hands-free)"}
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-colors disabled:opacity-40"
-            style={{
-              background: liveMode ? "var(--success-muted)" : "var(--accent-muted)",
-              color: liveMode ? "var(--success)" : "var(--accent)",
-              border: `1px solid ${liveMode ? "var(--success)" : "var(--accent)"}`,
-            }}
-          >
-            {liveMode
-              ? <Mic size={16} strokeWidth={1.8} className={liveListening ? "animate-pulse" : undefined} />
-              : <MicOff size={16} strokeWidth={1.8} />}
-          </button>
+          {status === "thinking" ? (
+            <Loader2 className="h-10 w-10 animate-spin" />
+          ) : recording ? (
+            <Square className="h-10 w-10" />
+          ) : (
+            <Mic className="h-10 w-10" style={{ color: "var(--primary)" }} />
+          )}
+          <span className="text-sm font-medium">
+            {recording ? "Стоп" : status === "thinking" ? "Обрабатываю…" : "Говорить"}
+          </span>
+        </button>
 
-          <input
-            type="text"
-            value={textInput}
-            onChange={(e) => setTextInput(e.target.value)}
-            placeholder={
-              connectionState === "connected"
-                ? (liveMode ? "Живой разговор включён — просто говорите…" : "Введите сообщение клиенту…")
-                : "Подключаемся… (или нажмите «Принять» заново)"
-            }
-            aria-label="Сообщение клиенту текстом"
-            className="flex-1 bg-transparent px-2 text-base outline-none"
-            style={{ color: "var(--text-primary)" }}
-            disabled={connectionState !== "connected"}
-          />
-          <button
-            type="submit"
-            disabled={!textInput.trim() || connectionState !== "connected"}
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-opacity disabled:cursor-not-allowed disabled:opacity-30"
-            style={{
-              background: "var(--accent-muted)",
-              color: "var(--accent)",
-              border: "1px solid var(--accent)",
-            }}
-            aria-label="Отправить сообщение"
+        {caption ? (
+          <p
+            className="max-w-md text-center text-sm"
+            style={{ color: "var(--text-tertiary, var(--text-secondary))" }}
           >
-            <Send size={16} strokeWidth={1.8} />
-          </button>
-
-          {/* 2026-06-06 (#2): end-call moved into the input bar — the only
-              call-control button left, clearly red. */}
-          <button
-            type="button"
-            onClick={onHangup}
-            disabled={hangupInProgress}
-            aria-label="Завершить звонок"
-            title="Завершить звонок"
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-colors disabled:opacity-50"
-            style={{
-              background: "var(--danger-muted)",
-              color: "var(--danger)",
-              border: "1px solid var(--danger)",
-            }}
-          >
-            <PhoneOff size={16} strokeWidth={1.8} />
-          </button>
-        </form>
+            «{caption}»
+          </p>
+        ) : null}
       </div>
 
-      <TTSUnlockOverlay visible={tts.needsAudioUnlock} onUnlock={tts.unlock} />
-    </>
+      {/* End call */}
+      <button
+        type="button"
+        onClick={handleEndCall}
+        disabled={ending}
+        className="flex items-center gap-2 rounded-full px-6 py-3 text-sm font-medium transition-opacity hover:opacity-90 disabled:opacity-50"
+        style={{ background: "var(--surface-card)", color: "var(--text-primary)", border: "1px solid var(--border-color)" }}
+      >
+        {ending ? <Loader2 className="h-4 w-4 animate-spin" /> : <PhoneOff className="h-4 w-4" />}
+        {ending ? "Завершаю…" : "Завершить"}
+      </button>
+    </main>
   );
 }

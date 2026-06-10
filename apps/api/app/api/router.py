@@ -85,3 +85,12 @@ api_router.include_router(learning_path_router, tags=["learning-path"])
 
 from app.api.history import router as history_router
 api_router.include_router(history_router, tags=["history"])
+
+from app.api.reviews import router as reviews_router
+api_router.include_router(reviews_router, tags=["reviews"])
+
+from app.api.championship import router as championship_router
+api_router.include_router(championship_router, tags=["championship"])
+
+from app.api.courses import router as courses_router
+api_router.include_router(courses_router, tags=["courses"])

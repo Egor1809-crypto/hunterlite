@@ -128,6 +128,18 @@ export default function AuthLayout({
   // hosts the in-tab Manyasha chat (ТЗ-3 DECISION-A) — one mascot per page.
   const hideAssistant =
     (pathname?.startsWith("/cases") || pathname?.startsWith("/knowledge")) ?? false;
+  // На странице чемпионата Маняша сама раскрывается и сразу объясняет
+  // условия участия в розыгрыше. На всех остальных маршрутах пропсы не
+  // передаются → виджет ведёт себя как раньше (закрыт по умолчанию).
+  const isContest = pathname === "/certificate/contest" || pathname === "/championship";
+  const CONTEST_INTRO =
+    "Привет! Это страница розыгрыша «Чемпионат сезона». Чтобы участвовать, нужно:\n\n" +
+    "1. Получить именной сертификат — сдать аттестацию (все экзамены на ≥ 88%).\n" +
+    "2. Иметь активную платную подписку — она открывает доступ к курсам.\n" +
+    "3. Пройти курсы «Юридические аспекты» и «Экспертный уровень БФЛ» на 100% — после каждого урока есть мини-проверка.\n" +
+    "4. Оставить отзыв о платформе.\n" +
+    "5. Подать заявку на участие до конца сезона.\n\n" +
+    "Спросите меня о любом из пунктов — подскажу, с чего начать.";
   const [state, setState] = useState<"loading" | "ready" | "redirecting" | "consent" | "error">("loading");
   const [errorMessage, setErrorMessage] = useState("");
   const retryCount = useRef(0);
@@ -311,7 +323,12 @@ export default function AuthLayout({
         {children}
         <KeyboardShortcutsOverlay />
         <CommandPalette />
-        {!hideAssistant && <ManyashaChat config={{ apiEndpoint: "/api/chat" }} />}
+        {!hideAssistant && (
+          <ManyashaChat
+            config={{ apiEndpoint: "/api/chat" }}
+            {...(isContest ? { autoOpen: true, autoOpenMessage: CONTEST_INTRO, forceShow: true } : {})}
+          />
+        )}
       </AppShell>
     </AuthErrorBoundary>
   );

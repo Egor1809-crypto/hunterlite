@@ -36,7 +36,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.legal_update import LegalUpdate
 from app.models.rag import LegalKnowledgeChunk
 from app.models.knowledge_status import STATUSES_VISIBLE_IN_RAG
-from app.services.content_filter import _sanitize_rag_field, filter_ai_output
+from app.services.content_filter import _sanitize_rag_field, filter_ai_output, strip_markdown_formatting
 from app.services.rag_legal import retrieve_legal_context
 
 logger = logging.getLogger(__name__)
@@ -59,6 +59,7 @@ SYSTEM_PROMPT = """
 6. Если данных от пользователя мало — задай 1–3 коротких уточняющих вопроса.
 7. Не давай гарантий результата и не выдавай ответ за индивидуальное юридическое заключение; при высоком риске рекомендуй проверить позицию с юристом по документам и сверить актуальную редакцию нормы.
 8. Если у найденного фрагмента есть поле `scope_note` — обязательно следуй ему: помечай юрлица/КДЛ-контекст и переноси на физлицо только применимую часть, явно оговаривая различие.
+9. ФОРМАТ: обычный текст без markdown — НЕ используй заголовки решёткой (#, ##, ###), НЕ выделяй жирным/курсивом звёздочками (**, *), НЕ используй хэштеги (#тег). Разделы нумеруй цифрой, списки — тире или обычными строками.
 """.strip()
 
 # 2026-06-04: Маняша — латентно-чувствительный чат с агентным циклом (RAG-поиск
@@ -561,6 +562,9 @@ async def run_agent_turn(
     # llm._filter_output (the agent path calls _call_navy directly and bypassed
     # it). Strips role-break / reasoning-leak / PII (ultracode finding).
     final_content, _out_violations = filter_ai_output(final_content)
+    # The knowledge-tab UI renders raw text (no markdown parser), so flatten
+    # markdown (### / **bold**) to clean plain text — same as история «Разбор».
+    final_content = strip_markdown_formatting(final_content)
 
     if not final_content.strip():
         return AgentResult(

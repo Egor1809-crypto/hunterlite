@@ -98,6 +98,9 @@ const PUBLIC_ROUTES = [
   "/auth/callback",
   "/change-password",
   "/reset-password",
+  // Championship/giveaway marketing pages — public (reached from the landing).
+  "/championship",
+  "/reviews",
   // S1-03: /test removed from PUBLIC_ROUTES — requires admin role
 ];
 
@@ -113,6 +116,8 @@ function isPublicRoute(pathname: string): boolean {
   return PUBLIC_ROUTES.some((route) => {
     if (route === pathname) return true;
     if (route.endsWith("/") && pathname.startsWith(route)) return true;
+    // Prefix-match sub-routes (e.g. /championship → /championship/rules).
+    if (pathname.startsWith(route + "/")) return true;
     return false;
   });
 }

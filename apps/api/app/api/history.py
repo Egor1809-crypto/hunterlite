@@ -56,18 +56,28 @@ MANYASHA_SYSTEM_PROMPT = (
     "2. Слабые места (что упустил).\n"
     "3. Как правильно (со ссылкой на нормы из контекста).\n"
     "4. 2-3 шага улучшения.\n"
-    "5. Короткий дисклеймер."
+    "5. Короткий дисклеймер.\n\n"
+    "ФОРМАТ: пиши ОБЫЧНЫМ ТЕКСТОМ без markdown-разметки — НЕ используй заголовки "
+    "решёткой (#, ##, ###), НЕ выделяй жирным/курсивом звёздочками (**, *), НЕ "
+    "используй хэштеги (#тег). Разделы нумеруй просто цифрой («1. Короткий вывод»), "
+    "списки — обычными строками или тире."
 )
 
-# 2026-06-04: the history «Разбор от Маняши» must generate fast (≤7s) and
-# reliably. deepseek-v4-pro AND gpt-5.5 are REASONING models — too slow for a
-# 1.4k-token report (>7.5s → timeout → "временно недоступен"). gemini-3.5-flash
-# is non-reasoning (~2s), handles RU well, no tools needed here. Wrapped in a
-# hard 7s timeout below.
+# 2026-06-04: the history «Разбор от Маняши» uses gemini-3.5-flash (non-reasoning,
+# handles RU well, no tools needed).
+# 2026-06-08 FIX: the original 7.5s timeout was a misconfiguration. Measured navy
+# gemini-3.5-flash throughput is ~60-90 tokens/s and VARIABLE: a ~1000-token
+# report takes 10-16s typically (samples: 10.7/11.5/12.4/15.8s), with occasional
+# spikes to 30s+. With a 7.5s cap the разбор ALWAYS timed out → users only ever
+# saw "временно недоступен" even though navy was answering. Aligned the budget to
+# reality: ~1000 tokens (a full 4-5 section разбор — 896 tokens already produced a
+# complete report) and a 22s timeout that covers the typical range and falls back
+# only on a genuine navy spike. (For an instant-feel UX the real fix is streaming
+# the report token-by-token — tracked separately.)
 _MODEL = os.getenv("HISTORY_EXPLAIN_MODEL", "gemini-3.5-flash")
-_MAX_TOKENS = int(os.getenv("HISTORY_EXPLAIN_MAX_TOKENS", "1400"))
+_MAX_TOKENS = int(os.getenv("HISTORY_EXPLAIN_MAX_TOKENS", "1000"))
 _TEMPERATURE = float(os.getenv("KNOWLEDGE_AI_TEMPERATURE", "0.3"))
-_EXPLAIN_TIMEOUT_S = float(os.getenv("HISTORY_EXPLAIN_TIMEOUT_S", "7.5"))
+_EXPLAIN_TIMEOUT_S = float(os.getenv("HISTORY_EXPLAIN_TIMEOUT_S", "22"))
 
 _FALLBACK_REPORT = "Разбор временно недоступен — попробуйте позже."
 
@@ -418,6 +428,12 @@ async def _generate_report(
         report_text = ((getattr(_msg, "content", None) or getattr(_msg, "reasoning_content", None) or "") if _msg else "").strip()
         if not report_text:
             return _FALLBACK_REPORT, _build_sources(rag_ctx)
+        # The FE renders the разбор as raw text (whiteSpace: pre-line, no markdown
+        # parser), so model markdown (### headings, **bold**) would show literally.
+        # Flatten to clean plain text + drop hashtags. Manyasha-only helper — safe
+        # here (this is a coaching report, not a roleplay reply with *emotes*).
+        from app.services.content_filter import strip_markdown_formatting
+        report_text = strip_markdown_formatting(report_text)
         return report_text, _build_sources(rag_ctx)
     except Exception:
         logger.exception("Manyasha explain: LLM call failed")

@@ -498,6 +498,39 @@ class Settings(BaseSettings):
     navy_tts_voice: str = "shimmer"  # alloy, echo, fable, onyx, nova, shimmer
     elevenlabs_proxy: str = ""  # HTTP/SOCKS5 proxy for geo-blocked regions, e.g. socks5://127.0.0.1:1080
 
+    # ─── Voice-call mode (CALL_REBUILD_TZ §1, §4) ─────────────────────────
+    # Streaming cascade STT → streaming-LLM → per-sentence TTS on navy.api.
+    # All three legs go through the navy proxy (base = local_llm_url,
+    # auth = Bearer local_llm_api_key). Override per-leg via the env aliases.
+    # NOTE: the alias `CALL_MODEL` is shared with the legacy `call_model`
+    # field above; both resolve to the same env var so a single CALL_MODEL
+    # override keeps them in sync.
+    call_llm_model: str = Field(
+        default="claude-haiku-4.5",
+        validation_alias=AliasChoices("CALL_LLM_MODEL", "CALL_MODEL"),
+    )
+    call_stt_model: str = Field(
+        default="gpt-4o-transcribe",
+        validation_alias=AliasChoices("CALL_STT_MODEL"),
+    )
+    call_tts_model: str = Field(
+        default="eleven_flash_v2_5",
+        validation_alias=AliasChoices("CALL_TTS_MODEL"),
+    )
+    call_tts_voice_male: str = Field(
+        default="ouyTiWqmHA5WI5bbX7zj",
+        validation_alias=AliasChoices("CALL_TTS_VOICE_MALE"),
+    )
+    call_tts_voice_female: str = Field(
+        default="AB9XsbSA4eLG12t2myjN",
+        validation_alias=AliasChoices("CALL_TTS_VOICE_FEMALE"),
+    )
+    # Per-leg timeouts — navy spikes to 11-139s, so every call is wrapped in
+    # asyncio.wait_for with these bounds and a graceful fallback (§1).
+    call_stt_timeout: float = 8.0
+    call_tts_timeout: float = 8.0
+    call_llm_timeout: float = 20.0
+
     @property
     def elevenlabs_voice_list(self) -> list[str]:
         """Parse comma-separated voice IDs into a list (all voices combined)."""

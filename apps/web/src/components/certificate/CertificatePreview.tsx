@@ -28,29 +28,25 @@ export interface CertPalette {
   shadowMd: string;
 }
 
-/** Fixed light palette for the marketing landing (matches its print-like hex). */
-export const CERT_LIGHT_PALETTE: CertPalette = {
-  bg: "#F7F1E8",
-  surface: "#FFFDF8",
-  textPrimary: "#18131D",
-  textSecondary: "#5F5367",
-  textMuted: "#9B7DB4",
-  hairline: "#D9C9E8",
-  accent: "#7C3AED",
-  shadowMd: "0 30px 70px -34px rgba(24,19,29,0.30)",
+/**
+ * Fully-purple monochrome diploma — one colour family only. Used EVERYWHERE
+ * (landing + platform, light + dark) so the certificate reads as a single fixed
+ * brand asset, not a theme-adaptive card. Both exported names resolve to it so
+ * existing call sites need no change.
+ */
+const CERT_PURPLE_PALETTE: CertPalette = {
+  bg: "#5E4D92",
+  surface: "#6E5AA8",       // milky muted violet diploma face
+  textPrimary: "#FFFFFF",   // bright white
+  textSecondary: "#F0EBFC", // bright light
+  textMuted: "#DCD3F2",     // bright, for the tiny uppercase eyebrows
+  hairline: "rgba(255,255,255,0.32)",
+  accent: "#FFFFFF",        // all marks white — «белые надписи»
+  shadowMd: "0 30px 70px -30px rgba(40,26,80,0.45)",
 };
 
-/** Token palette for in-app usage (resolves correctly in light AND dark). */
-export const CERT_TOKEN_PALETTE: CertPalette = {
-  bg: "var(--bg-secondary)",
-  surface: "var(--surface-card)",
-  textPrimary: "var(--text-primary)",
-  textSecondary: "var(--text-secondary)",
-  textMuted: "var(--text-muted)",
-  hairline: "var(--border-color)",
-  accent: "var(--primary)",
-  shadowMd: "var(--shadow-md)",
-};
+export const CERT_LIGHT_PALETTE: CertPalette = CERT_PURPLE_PALETTE;
+export const CERT_TOKEN_PALETTE: CertPalette = CERT_PURPLE_PALETTE;
 
 interface CertificatePreviewProps {
   variant: "locked" | "earned";
@@ -71,6 +67,18 @@ interface CertificatePreviewProps {
   ctaLabel?: string;
   onCta?: () => void;
   className?: string;
+  /**
+   * When true, the diploma face renders WITHOUT blur even in variant="locked"
+   * (full clarity). Defaults to false — the historical blurred behaviour.
+   */
+  revealed?: boolean;
+  /**
+   * When false, no lock overlay is drawn at all (no lock icon, no
+   * lockTitle/lockSubtitle, no CTA) — only the clean diploma. Defaults to true.
+   * Combine `revealed showOverlayText={false}` for a clean, fully visible
+   * certificate with no dimming and no text on top.
+   */
+  showOverlayText?: boolean;
 }
 
 const DEFAULT_CODE = "LH-BFL-2026-001";
@@ -118,7 +126,9 @@ function CertificateFace({
 
   const body =
     programDescription ??
-    `успешно прошёл курс по программе «${program}» и подтвердил освоение ключевых практических аспектов сопровождения процедур банкротства граждан.`;
+    (recipientName
+      ? `успешно прошёл курс по программе «${program}» и подтвердил освоение ключевых практических аспектов сопровождения процедур банкротства граждан.`
+      : `Документ удостоверяет освоение программы и ключевых практических аспектов сопровождения процедур банкротства граждан.`);
 
   return (
     <div
@@ -130,46 +140,6 @@ function CertificateFace({
         className="relative flex h-full w-full flex-col"
         style={{ border: `1px solid ${p.hairline}`, borderRadius: 3, padding: "clamp(16px, 4.4%, 42px)" }}
       >
-        {/* Corner registration ticks (abstract.com flavour) */}
-        {(["tl", "tr", "bl", "br"] as const).map((c) => {
-          const isTop = c[0] === "t";
-          const isLeft = c[1] === "l";
-          return (
-            <span
-              key={c}
-              aria-hidden
-              className="pointer-events-none absolute"
-              style={{
-                width: 10,
-                height: 10,
-                [isTop ? "top" : "bottom"]: -1,
-                [isLeft ? "left" : "right"]: -1,
-                borderTop: isTop ? `1px solid ${p.accent}` : "none",
-                borderBottom: !isTop ? `1px solid ${p.accent}` : "none",
-                borderLeft: isLeft ? `1px solid ${p.accent}` : "none",
-                borderRight: !isLeft ? `1px solid ${p.accent}` : "none",
-              }}
-            />
-          );
-        })}
-
-        {/* Very subtle guilloché — concentric engraving behind the title, centred */}
-        <div
-          aria-hidden
-          className="pointer-events-none absolute"
-          style={{
-            left: "50%",
-            top: "42%",
-            width: "62%",
-            aspectRatio: "1 / 1",
-            transform: "translate(-50%, -50%)",
-            opacity: 0.5,
-            backgroundImage: `repeating-radial-gradient(circle, transparent 0 7px, ${p.hairline} 7px 7.5px)`,
-            maskImage: "radial-gradient(closest-side, #000 10%, transparent 72%)",
-            WebkitMaskImage: "radial-gradient(closest-side, #000 10%, transparent 72%)",
-          }}
-        />
-
         {/* TOP ROW — wordmark · centred discipline · sub-brand */}
         <div className="relative flex items-center justify-between gap-3">
           <span style={{ fontSize: "clamp(11px, 1.6vw, 15px)", fontWeight: 800, letterSpacing: "0.02em", color: p.textPrimary }}>
@@ -196,9 +166,11 @@ function CertificateFace({
           </h3>
         </div>
 
-        {/* RECIPIENT */}
+        {/* RECIPIENT — name when issued; on the public specimen (no name) the
+            programme becomes the hero so there is no «Имя Фамилия» placeholder
+            and no empty gap. */}
         <div style={{ marginTop: "clamp(16px, 3.6%, 30px)", ...cap({ color: p.textSecondary, letterSpacing: "0.2em" }) }}>
-          Настоящим подтверждается, что
+          {recipientName ? "Настоящим подтверждается, что" : "Настоящим удостоверяется освоение программы"}
         </div>
         <div className="relative" style={{ alignSelf: "flex-start", maxWidth: "100%" }}>
           <div
@@ -208,10 +180,10 @@ function CertificateFace({
               fontWeight: 600,
               letterSpacing: "-0.025em",
               lineHeight: 1.0,
-              color: recipientName ? p.textPrimary : p.textMuted,
+              color: p.textPrimary,
             }}
           >
-            {recipientName ?? "Имя Фамилия"}
+            {recipientName ?? `«${program}»`}
           </div>
           <span
             style={{
@@ -290,28 +262,10 @@ function CertificateFace({
               style={{
                 width: "clamp(46px, 8.4vw, 64px)",
                 height: "clamp(46px, 8.4vw, 64px)",
-                border: `1px solid ${p.accent}`,
-                boxShadow: `inset 0 0 0 3px ${p.surface}, inset 0 0 0 4px ${p.hairline}`,
+                border: `1px solid ${p.hairline}`,
               }}
             >
-              <ShieldCheck size={20} strokeWidth={1.25} style={{ color: p.accent, width: "38%", height: "38%" }} />
-              {/* eight engraving ticks around the ring */}
-              {Array.from({ length: 8 }).map((_, k) => (
-                <span
-                  key={k}
-                  aria-hidden
-                  style={{
-                    position: "absolute",
-                    top: "50%",
-                    left: "50%",
-                    width: 1,
-                    height: 3,
-                    background: p.hairline,
-                    transformOrigin: "center -22px",
-                    transform: `translate(-50%, -50%) rotate(${k * 45}deg)`,
-                  }}
-                />
-              ))}
+              <ShieldCheck size={20} strokeWidth={1.25} style={{ color: p.accent, width: "40%", height: "40%" }} />
             </span>
             <span style={cap({ fontSize: "clamp(5.5px, 0.8vw, 7px)", color: p.accent, letterSpacing: "0.26em" })}>Проверено</span>
           </div>
@@ -338,10 +292,18 @@ export function CertificatePreview({
   ctaLabel = "Начать обучение",
   onCta,
   className,
+  revealed = false,
+  showOverlayText = true,
 }: CertificatePreviewProps) {
   const reduce = useReducedMotion();
   const locked = variant === "locked";
   const p = palette;
+
+  // The face is blurred only when locked AND not explicitly revealed.
+  const blurred = locked && !revealed;
+  // The invitational lock overlay is drawn only when locked AND overlay text
+  // is allowed (clean-reveal callers pass showOverlayText={false}).
+  const showOverlay = locked && showOverlayText;
 
   return (
     <motion.div
@@ -349,8 +311,9 @@ export function CertificatePreview({
       initial={reduce ? false : { opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.6, ease: "easeOut" }}
-      style={{ width: "100%", maxWidth: 760, marginInline: "auto" }}
+      style={{ width: "100%", maxWidth: 920, marginInline: "auto" }}
     >
+      <div className="relative">
       <div
         className="relative overflow-hidden"
         style={{
@@ -361,11 +324,11 @@ export function CertificatePreview({
           background: p.surface,
         }}
       >
-        {/* face (blurred when locked) */}
+        {/* face (blurred only when locked and not revealed) */}
         <div
-          aria-hidden={locked}
+          aria-hidden={showOverlay}
           style={
-            locked
+            blurred
               ? { position: "absolute", inset: 0, filter: "blur(5px)", opacity: 0.55, transform: "scale(1.02)" }
               : { position: "absolute", inset: 0 }
           }
@@ -374,7 +337,7 @@ export function CertificatePreview({
         </div>
 
         {/* locked overlay */}
-        {locked && (
+        {showOverlay && (
           <>
             <div aria-hidden className="absolute inset-0" style={{ background: p.surface, opacity: 0.78 }} />
             <motion.div
@@ -412,6 +375,7 @@ export function CertificatePreview({
             </motion.div>
           </>
         )}
+      </div>
       </div>
     </motion.div>
   );

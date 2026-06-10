@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import type { ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { logger } from "@/lib/logger";
 
@@ -90,6 +91,119 @@ const EMOTION_RU: Record<string, string> = {
 function emotionLabel(code: string | null): string {
   if (!code) return "";
   return EMOTION_RU[code] ?? code;
+}
+
+// ─── Dossier brief renderer ───────────────────────────────────────────────────
+// Превращает «простыню» брифа (нумерованные пункты, CAPS-подзаголовки,
+// «Метка: значение») в читаемый редакторский spec-sheet. Парсер консервативный:
+// всё, что не распознано, рендерится как обычный абзац — текст не теряется.
+
+type BriefBlock =
+  | { kind: "header"; text: string }
+  | { kind: "item"; num: string; text: string }
+  | { kind: "def"; label: string; text: string }
+  | { kind: "para"; text: string };
+
+function parseBriefBlocks(raw: string): BriefBlock[] {
+  const lines = raw.split("\n").map((l) => l.trim()).filter(Boolean);
+  const out: BriefBlock[] = [];
+  for (const line of lines) {
+    const num = line.match(/^(\d+)[.)]\s+([\s\S]+)$/);
+    if (num) {
+      out.push({ kind: "item", num: num[1], text: num[2] });
+      continue;
+    }
+    if (line.endsWith(":")) {
+      const head = line.replace(/\(.*$/, "").replace(/:$/, "").trim();
+      const letters = head.replace(/[^A-Za-zА-Яа-яЁё]/g, "");
+      if (letters.length >= 4 && head === head.toUpperCase()) {
+        out.push({ kind: "header", text: line.replace(/:$/, "") });
+        continue;
+      }
+    }
+    const def = line.match(/^([A-ZА-ЯЁ][^:]{1,32}):\s+([\s\S]+)$/);
+    if (def) {
+      out.push({ kind: "def", label: def[1], text: def[2] });
+      continue;
+    }
+    out.push({ kind: "para", text: line });
+  }
+  return out;
+}
+
+function SectionLabel({ children, accent }: { children: ReactNode; accent?: boolean }) {
+  return (
+    <div
+      className="font-mono text-[11px] font-semibold uppercase tracking-[0.18em]"
+      style={{ color: accent ? "var(--accent)" : "var(--text-muted)" }}
+    >
+      {children}
+    </div>
+  );
+}
+
+function BriefBody({ text }: { text: string }) {
+  const blocks = parseBriefBlocks(text);
+  return (
+    <div className="mt-5 flex flex-col gap-3.5">
+      {blocks.map((b, i) => {
+        if (b.kind === "header") {
+          return (
+            <div
+              key={i}
+              className="mt-3 font-mono text-[11px] font-semibold uppercase tracking-[0.16em]"
+              style={{ color: "var(--accent)" }}
+            >
+              {b.text}
+            </div>
+          );
+        }
+        if (b.kind === "item") {
+          const inline = b.text.match(/^([A-ZА-ЯЁ][A-ZА-ЯЁ0-9 ,«»()\-—.]{1,40}):\s+([\s\S]+)$/);
+          return (
+            <div key={i} className="flex gap-3.5">
+              <span
+                className="mt-px flex h-6 w-6 shrink-0 items-center justify-center rounded-full font-mono text-[11px] font-semibold tabular-nums"
+                style={{ background: "var(--accent-muted)", color: "var(--accent)" }}
+              >
+                {b.num}
+              </span>
+              <p className="text-[14.5px] leading-relaxed" style={{ color: "var(--text-secondary)", textAlign: "justify", hyphens: "none" }}>
+                {inline ? (
+                  <>
+                    <span style={{ color: "var(--text-primary)", fontWeight: 600 }}>{inline[1]}:</span>{" "}
+                    {inline[2]}
+                  </>
+                ) : (
+                  b.text
+                )}
+              </p>
+            </div>
+          );
+        }
+        if (b.kind === "def") {
+          return (
+            <div key={i} className="flex flex-col gap-1 sm:flex-row sm:gap-5">
+              <span
+                className="shrink-0 font-mono text-[11px] uppercase tracking-[0.12em] sm:w-32 sm:pt-1"
+                style={{ color: "var(--text-muted)" }}
+              >
+                {b.label}
+              </span>
+              <p className="flex-1 text-[14.5px] leading-relaxed" style={{ color: "var(--text-secondary)", textAlign: "justify", hyphens: "none" }}>
+                {b.text}
+              </p>
+            </div>
+          );
+        }
+        return (
+          <p key={i} className="text-[14.5px] leading-relaxed" style={{ color: "var(--text-secondary)" }}>
+            {b.text}
+          </p>
+        );
+      })}
+    </div>
+  );
 }
 
 // ─── Component ──────────────────────────────────────────────────────────────
@@ -266,6 +380,8 @@ export default function CharacterBuilder({ onGoToTests }: CharacterBuilderProps)
   // ─── Render: preview (a persona is selected) ───
   if (selected) {
     const dm = difficultyMeta(selected.difficulty);
+    const level = selected.difficulty === "hard" ? 3 : selected.difficulty === "medium" ? 2 : 1;
+    const tags = [selected.archetype_label, selected.profession, emotionLabel(selected.emotion_preset)].filter(Boolean) as string[];
     return (
       <div className="mt-8 mx-auto max-w-3xl">
         <button
@@ -278,87 +394,109 @@ export default function CharacterBuilder({ onGoToTests }: CharacterBuilderProps)
         </button>
 
         <div
-          className="rounded-2xl p-8 sm:p-10"
+          className="overflow-hidden rounded-[24px]"
           style={{
             background: "var(--surface-card)",
             border: "1px solid var(--border-color)",
-            boxShadow: "var(--shadow-sm)",
+            boxShadow: "var(--shadow-md)",
           }}
         >
-          {/* Имя крупно, мета мелко и приглушённо — контраст масштаба. */}
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div className="min-w-0">
-              <p className="font-mono text-[11px] uppercase tracking-[0.18em] mb-3" style={{ color: "var(--text-muted)" }}>
-                Досье клиента
-              </p>
-              <h1 className="font-display text-3xl sm:text-4xl font-bold leading-tight" style={{ color: "var(--text-primary)" }}>
-                {selected.name}
-              </h1>
-              <div className="mt-3 flex flex-wrap items-center gap-2 text-xs" style={{ color: "var(--text-muted)" }}>
-                {selected.archetype_label && <span>{selected.archetype_label}</span>}
-                {selected.profession && <><span aria-hidden>·</span><span>{selected.profession}</span></>}
-                {emotionLabel(selected.emotion_preset) && (
-                  <><span aria-hidden>·</span><span>{emotionLabel(selected.emotion_preset)}</span></>
+          {/* ── Шапка досье: имя крупно, теги-чипы, сложность с уровнем ── */}
+          <div className="relative px-7 pt-9 pb-8 sm:px-10 sm:pt-11">
+            <span aria-hidden className="absolute left-0 right-0 top-0 h-[3px]" style={{ background: "var(--accent)" }} />
+            <div className="flex flex-wrap items-start justify-between gap-5">
+              <div className="min-w-0">
+                <p className="font-mono text-[11px] uppercase tracking-[0.2em]" style={{ color: "var(--text-muted)" }}>
+                  Досье клиента · ФЗ-127
+                </p>
+                <h1
+                  className="mt-3.5 font-display font-bold"
+                  style={{ color: "var(--text-primary)", fontSize: "clamp(2rem, 5vw, 3.25rem)", lineHeight: 0.98, letterSpacing: "-0.035em" }}
+                >
+                  {selected.name}
+                </h1>
+                {tags.length > 0 && (
+                  <div className="mt-5 flex flex-wrap gap-2">
+                    {tags.map((t, i) => (
+                      <span
+                        key={i}
+                        className="rounded-full px-3 py-1 text-[12.5px] font-medium"
+                        style={{ border: "1px solid var(--border-color)", background: "var(--bg-secondary)", color: "var(--text-secondary)" }}
+                      >
+                        {t}
+                      </span>
+                    ))}
+                  </div>
                 )}
               </div>
+
+              {/* Сложность — пилюля с индикатором уровня (1–3) */}
+              <span
+                className="shrink-0 inline-flex items-center gap-2 rounded-full px-3.5 py-2"
+                style={{ background: dm.bg, color: dm.tone }}
+              >
+                <span className="flex items-center gap-1" aria-hidden>
+                  {[1, 2, 3].map((n) => (
+                    <span
+                      key={n}
+                      className="h-1.5 w-1.5 rounded-full"
+                      style={{ background: n <= level ? dm.tone : "color-mix(in srgb, var(--text-muted) 45%, transparent)" }}
+                    />
+                  ))}
+                </span>
+                <span className="font-mono text-[11px] font-semibold uppercase tracking-[0.14em]">{dm.label}</span>
+              </span>
             </div>
-            <span className="shrink-0 inline-flex items-center gap-1.5 font-mono text-[11px] uppercase tracking-[0.14em]" style={{ color: dm.tone }}>
-              <span className="h-1.5 w-1.5 rounded-full" style={{ background: dm.tone }} aria-hidden />
-              {dm.label}
-            </span>
           </div>
 
-          {/* Кто / ситуация */}
-          {selected.client_brief && (
-            <div className="mt-8 pt-8" style={{ borderTop: "1px solid var(--border-color)" }}>
-              <div className="font-mono text-[11px] uppercase tracking-[0.16em] mb-3" style={{ color: "var(--text-muted)" }}>
-                Кто перед вами
+          {/* ── Тело ── */}
+          <div className="px-7 pb-9 sm:px-10 sm:pb-11">
+            {/* Кто перед вами — редакторский spec-sheet */}
+            {selected.client_brief && (
+              <section className="pt-8" style={{ borderTop: "1px solid var(--border-color)" }}>
+                <SectionLabel>Кто перед вами</SectionLabel>
+                <BriefBody text={selected.client_brief} />
+              </section>
+            )}
+
+            {/* На что обратить внимание — акцентная панель-чеклист */}
+            {selected.lawyer_brief && (
+              <section
+                className="relative mt-8 overflow-hidden rounded-2xl px-6 py-7 sm:px-8"
+                style={{ background: "var(--bg-secondary)", border: "1px solid var(--border-color)" }}
+              >
+                <span aria-hidden className="absolute left-0 top-0 h-full w-[3px]" style={{ background: "var(--accent)" }} />
+                <SectionLabel accent>На что обратить внимание</SectionLabel>
+                <BriefBody text={selected.lawyer_brief} />
+              </section>
+            )}
+
+            {/* Действия — чат (текст) и звонок (голос, push-to-talk). */}
+            <div className="mt-9">
+              <div className="flex flex-wrap items-center gap-3">
+                <Button
+                  variant="primary"
+                  onClick={() => handleStart("chat")}
+                  disabled={startingMode !== null}
+                  loading={startingMode === "chat"}
+                  icon={<MessageCircle size={16} />}
+                >
+                  Начать чат
+                </Button>
+                <Button
+                  variant="secondary"
+                  onClick={() => handleStart("call")}
+                  disabled={startingMode !== null}
+                  loading={startingMode === "call"}
+                  icon={<Phone size={16} />}
+                >
+                  Позвонить
+                </Button>
               </div>
-              <p className="text-sm sm:text-[15px] leading-relaxed whitespace-pre-line" style={{ color: "var(--text-secondary)" }}>
-                {selected.client_brief}
+              <p className="mt-3 text-xs leading-relaxed" style={{ color: "var(--text-muted)" }}>
+                Чат — текстовая консультация в своём темпе. Звонок — голосовой разговор (зажмите «Говорить»).
               </p>
             </div>
-          )}
-
-          {/* На что обратить внимание (тренировочная подсказка юристу) */}
-          {selected.lawyer_brief && (
-            <div className="relative mt-6 overflow-hidden rounded-xl p-5 sm:p-6" style={{ background: "var(--bg-secondary)" }}>
-              <span aria-hidden className="absolute left-0 top-0 h-full w-[3px]" style={{ background: "var(--accent)" }} />
-              <div className="font-mono text-[11px] uppercase tracking-[0.16em] mb-3" style={{ color: "var(--accent)" }}>
-                На что обратить внимание
-              </div>
-              <p className="text-sm leading-relaxed whitespace-pre-line" style={{ color: "var(--text-secondary)" }}>
-                {selected.lawyer_brief}
-              </p>
-            </div>
-          )}
-
-          {/* Действия — единая иерархия: чат основной (filled), звонок
-              второстепенный (outlined). Подпись поясняет разницу режимов. */}
-          <div className="mt-9">
-            <div className="flex flex-wrap items-center gap-3">
-              <Button
-                variant="primary"
-                onClick={() => handleStart("chat")}
-                disabled={startingMode !== null}
-                loading={startingMode === "chat"}
-                icon={<MessageCircle size={16} />}
-              >
-                Начать чат
-              </Button>
-              <Button
-                variant="secondary"
-                onClick={() => handleStart("call")}
-                disabled={startingMode !== null}
-                loading={startingMode === "call"}
-                icon={<Phone size={16} />}
-              >
-                Позвонить
-              </Button>
-            </div>
-            <p className="mt-3 text-xs leading-relaxed" style={{ color: "var(--text-muted)" }}>
-              Чат — текстовая консультация в своём темпе. Звонок — голосовой разговор в реальном времени.
-            </p>
           </div>
         </div>
       </div>

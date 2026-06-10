@@ -25,6 +25,7 @@ from app.services.scheduler import reminder_scheduler
 from app.ws.training import training_websocket
 from app.ws.notifications import notification_websocket
 from app.ws.knowledge import knowledge_websocket
+from app.ws.call import call_websocket
 
 logger = logging.getLogger(__name__)
 
@@ -688,5 +689,15 @@ async def ws_knowledge(websocket: WebSocket):
         await websocket.close(code=4003)
         return
     await knowledge_websocket(websocket)
+
+
+@app.websocket("/ws/call")
+async def ws_call(websocket: WebSocket):
+    """WebSocket for the rebuilt voice-call mode (CALL_REBUILD_TZ)."""
+    _attach_ws_request_id(websocket)
+    if not _validate_ws_origin(websocket):
+        await websocket.close(code=4003)
+        return
+    await call_websocket(websocket)
 
 

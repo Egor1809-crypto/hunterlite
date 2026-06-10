@@ -93,7 +93,11 @@ async def warmup_whisper(timeout_seconds: float = 30.0) -> bool:
     data = {
         "model": settings.whisper_model,
         "language": settings.whisper_language,
-        "response_format": "verbose_json",
+        # 2026-06-07: gpt-4o-transcribe* models reject verbose_json (parity
+        # with services/stt.py guard). Use plain json for them.
+        "response_format": (
+            "json" if str(settings.whisper_model).startswith("gpt-4o") else "verbose_json"
+        ),
     }
     headers: dict[str, str] = {}
     # 2026-06-04: fall back to the navy key (default whisper_url is navy.api,
