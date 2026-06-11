@@ -57,18 +57,21 @@ async def setup_webhook(base_url: str) -> None:
             await _bot.set_webhook(webhook_url, drop_pending_updates=True)
         logger.info("Telegram webhook set: %s", webhook_url)
     except Exception as e:
-        # Most common cause: the host cannot reach api.telegram.org (RU
-        # datacenters block it). Log a concise, actionable line instead of a
-        # multi-frame aiohttp traceback on every startup; the bot stays dark
-        # until a reachable TELEGRAM_PROXY is configured.
+        # set_webhook can fail transiently — most often TelegramRetryAfter
+        # (flood control) when multiple gunicorn workers each call set_webhook
+        # on boot. The webhook is still registered by whichever worker won, so
+        # we KEEP _bot/_dp here: every worker needs a live bot session to
+        # process the incoming webhook updates AND reply (sendMessage). A
+        # genuine egress failure (host can't reach api.telegram.org — see the
+        # extra_hosts IP pin / TELEGRAM_PROXY) is logged here too; updates just
+        # won't arrive until egress is fixed.
         logger.warning(
-            "Telegram webhook setup failed (%s: %s). The host likely cannot "
-            "reach api.telegram.org — set TELEGRAM_PROXY to a reachable "
-            "socks5/http proxy. Bot is dark until then.",
+            "Telegram set_webhook failed (%s: %s) — keeping bot session; "
+            "webhook may already be set by a sibling worker. If updates never "
+            "arrive, check egress to api.telegram.org (extra_hosts pin / "
+            "TELEGRAM_PROXY).",
             type(e).__name__, str(e)[:160],
         )
-        _bot = None
-        _dp = None
 
 
 async def shutdown_bot() -> None:

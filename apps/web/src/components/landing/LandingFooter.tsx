@@ -86,7 +86,7 @@ export function LandingFooter() {
             </a>
             <div className="mt-4 flex items-center gap-3">
               <a
-                href="https://t.me/legalhunter"
+                href="https://t.me/BFLHUNTER_bot"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="w-8 h-8 rounded-lg bg-[color:var(--bg-tertiary)] flex items-center justify-center text-[color:var(--text-muted)] hover:text-[color:var(--primary)] transition-colors"
