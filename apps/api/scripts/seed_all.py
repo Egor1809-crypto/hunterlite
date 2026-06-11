@@ -27,9 +27,11 @@ from scripts.seed_legal_updates import seed as seed_radar
 from scripts.seed_levels import seed_levels_and_achievements as seed_levels
 from scripts.seed_reference_persona import seed as seed_reference_persona
 from scripts.seed_demo_progress import seed as seed_demo_progress
+from scripts.seed_test_bank import seed as seed_test_bank
 
 STEPS = [
     ("Knowledge-base chunks (RAG)", seed_chunks),
+    ("Test bank (карта тестов: 63 blocks / 1500 questions)", seed_test_bank),
     ("Cases (БФЛ)", seed_cases),
     ("Exam questions", seed_exams),
     ("Legal radar updates", seed_radar),

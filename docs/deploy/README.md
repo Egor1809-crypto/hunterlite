@@ -39,7 +39,7 @@ lifespan seeds the 375-chunk expanded legal seed **only if the table is empty**.
 The portable content must be seeded explicitly (idempotent):
 
 ```bash
-docker compose ... exec -T api python -m scripts.seed_all          # cases, exam Q, radar, personas, demo progress
+docker compose ... exec -T api python -m scripts.seed_all          # test bank (1500 Q), cases, exam Q, radar, personas, demo progress
 docker compose ... exec -T api python -m scripts.seed_championship # championship #1 + prize_fund (photos)
 # Canonical 624-chunk knowledge base (with embeddings). seed_knowledge_chunks
 # dedups by id only and collides with the lifespan seed's content_hash, so on a
