@@ -22,7 +22,11 @@ import time
 # tables have no cross-FKs — but we keep a stable, readable sequence.
 from scripts.seed_knowledge_chunks import seed as seed_chunks
 from scripts.seed_cases import seed as seed_cases
-from scripts.seed_exam_questions import seed as seed_exams
+# NB: the live exam flow (api/exams.py) reads ExamItem (exam_items), graded by
+# the deepseek pipeline — NOT the legacy ExamQuestion table. seed_exam_questions
+# populates ExamQuestion, which no live code reads (dead), and left exam_items
+# empty → "Для экзамена не настроены задания". Seed the real item bank instead.
+from scripts.seed_exam_content import main as seed_exams
 from scripts.seed_legal_updates import seed as seed_radar
 from scripts.seed_levels import seed_levels_and_achievements as seed_levels
 from scripts.seed_reference_persona import seed as seed_reference_persona
@@ -33,7 +37,7 @@ STEPS = [
     ("Knowledge-base chunks (RAG)", seed_chunks),
     ("Test bank (карта тестов: 63 blocks / 1500 questions)", seed_test_bank),
     ("Cases (БФЛ)", seed_cases),
-    ("Exam questions", seed_exams),
+    ("Exam content (ExamItem bank — the live exam flow)", seed_exams),
     ("Legal radar updates", seed_radar),
     ("Levels & achievements", seed_levels),
     ("Reference persona (конструктор)", seed_reference_persona),
