@@ -43,18 +43,32 @@ async def setup_webhook(base_url: str) -> None:
     # below rejects any request missing it. Without a secret the endpoint is
     # forgeable (account-linking / attempt grants).
     secret = settings.telegram_webhook_secret or None
-    if secret:
-        await _bot.set_webhook(
-            webhook_url, drop_pending_updates=True, secret_token=secret,
-        )
-    else:
+    try:
+        if secret:
+            await _bot.set_webhook(
+                webhook_url, drop_pending_updates=True, secret_token=secret,
+            )
+        else:
+            logger.warning(
+                "Telegram webhook set WITHOUT a signature secret "
+                "(TELEGRAM_WEBHOOK_SECRET unset) — the endpoint is "
+                "unauthenticated. Set TELEGRAM_WEBHOOK_SECRET in production."
+            )
+            await _bot.set_webhook(webhook_url, drop_pending_updates=True)
+        logger.info("Telegram webhook set: %s", webhook_url)
+    except Exception as e:
+        # Most common cause: the host cannot reach api.telegram.org (RU
+        # datacenters block it). Log a concise, actionable line instead of a
+        # multi-frame aiohttp traceback on every startup; the bot stays dark
+        # until a reachable TELEGRAM_PROXY is configured.
         logger.warning(
-            "Telegram webhook set WITHOUT a signature secret "
-            "(TELEGRAM_WEBHOOK_SECRET unset) — the endpoint is unauthenticated. "
-            "Set TELEGRAM_WEBHOOK_SECRET in production."
+            "Telegram webhook setup failed (%s: %s). The host likely cannot "
+            "reach api.telegram.org — set TELEGRAM_PROXY to a reachable "
+            "socks5/http proxy. Bot is dark until then.",
+            type(e).__name__, str(e)[:160],
         )
-        await _bot.set_webhook(webhook_url, drop_pending_updates=True)
-    logger.info("Telegram webhook set: %s", webhook_url)
+        _bot = None
+        _dp = None
 
 
 async def shutdown_bot() -> None:

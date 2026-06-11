@@ -289,6 +289,16 @@ async def fallback_text(message: Message) -> None:
 
 
 def create_bot() -> Bot:
+    # Route the bot's outbound Telegram API traffic through a proxy when set —
+    # required where the host can't reach api.telegram.org directly (RU
+    # datacenters block it). Without it, set_webhook and every sendMessage
+    # time out. http(s):// proxies work via aiohttp natively; socks5:// needs
+    # the aiohttp_socks extra (declared in pyproject).
+    proxy = (settings.telegram_proxy or "").strip()
+    if proxy:
+        from aiogram.client.session.aiohttp import AiohttpSession
+        session = AiohttpSession(proxy=proxy)
+        return Bot(token=settings.telegram_bot_token, session=session)
     return Bot(token=settings.telegram_bot_token)
 
 

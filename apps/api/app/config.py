@@ -575,6 +575,12 @@ class Settings(BaseSettings):
     # the public webhook URL could forge updates (account-linking / attempt
     # grants). Generate with: openssl rand -hex 32.
     telegram_webhook_secret: str = ""
+    # Outbound proxy for the Telegram Bot API session. REQUIRED when the host
+    # cannot reach api.telegram.org directly (e.g. RU datacenters block it):
+    # set_webhook AND every sendMessage go out through this proxy. Empty = no
+    # proxy (direct). Formats: socks5://user:pass@host:port (needs aiohttp_socks)
+    # or http://user:pass@host:port.
+    telegram_proxy: str = ""
 
     # Email / SMTP (for password reset etc.)
     smtp_host: str = ""  # e.g. smtp.gmail.com, smtp.yandex.ru
