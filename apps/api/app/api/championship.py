@@ -355,6 +355,17 @@ async def conduct_draw(
     if not qualified_ids:
         raise HTTPException(status_code=409, detail="Нет квалифицированных участников")
 
+    # Audit #17: a championship declared as a "draw" (winner_mode="draw", as
+    # required for a стимулирующее мероприятие / ст.9 ФЗ-38) must NOT be settled
+    # by auto-ranking — that would silently turn a lottery into a leaderboard
+    # and break the legal basis. Reject the mismatch instead of guessing.
+    if champ.winner_mode == "draw" and payload.auto_rank:
+        raise HTTPException(
+            status_code=422,
+            detail="Чемпионат в режиме розыгрыша (draw) — auto_rank недопустим; "
+                   "передайте результат рандомайзера в winners.",
+        )
+
     # Decide the (rank, user_id) pairs.
     use_ranking = payload.auto_rank or (champ.winner_mode == "ranking" and not payload.winners)
     if use_ranking:

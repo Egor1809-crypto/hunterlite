@@ -2113,7 +2113,13 @@ async def _generate_character_reply(
                 await _flush_ordered_tts_chunks(last_idx=_last_idx)
 
             _stream_latency = int((time.monotonic() - _start_stream) * 1000)
-            if _streamed_text.strip():
+            # Audit #5: a stream made only of stage directions (e.g. "[PAUSE]
+            # *молчит*") is non-whitespace, so `.strip()` is truthy and the
+            # stream was accepted — but `_strip_stage_directions()` later empties
+            # it and the user gets silence with no fallback. Gate on the
+            # POST-strip content so empty-after-strip forces the blocking
+            # fallback below.
+            if _streamed_text.strip() and _strip_stage_directions(_streamed_text).strip():
                 _stream_ok = True
                 # Build LLMResponse-compatible object for rest of pipeline
                 llm_result = LLMResponse(

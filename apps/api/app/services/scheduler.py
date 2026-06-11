@@ -105,18 +105,25 @@ class ReminderScheduler:
                 await asyncio.sleep(CHECK_INTERVAL_MIN * 60)
                 continue
 
-            try:
-                async with async_session() as db:
-                    await asyncio.wait_for(
-                        self.check_stale_clients(db), timeout=_TASK_TIMEOUT
-                    )
-                    await db.commit()
-            except asyncio.CancelledError:
-                break
-            except asyncio.TimeoutError:
-                logger.error("ReminderScheduler: check_stale_clients timed out after %ds", _TASK_TIMEOUT)
-            except Exception as e:
-                logger.error("ReminderScheduler error: %s", e, exc_info=True)
+            # NOTE: the stale-client auto-reminder orchestrator
+            # (check_stale_clients) was dropped in the HunterLite slimming —
+            # only its helper methods (_reminder_exists/_create_reminder/
+            # _notify_rop/_auto_lost) remain. The dangling call raised
+            # AttributeError every cycle. Guard it so the loop runs the live
+            # sub-tasks below cleanly; if the method is restored it re-activates.
+            if hasattr(self, "check_stale_clients"):
+                try:
+                    async with async_session() as db:
+                        await asyncio.wait_for(
+                            self.check_stale_clients(db), timeout=_TASK_TIMEOUT
+                        )
+                        await db.commit()
+                except asyncio.CancelledError:
+                    break
+                except asyncio.TimeoutError:
+                    logger.error("ReminderScheduler: check_stale_clients timed out after %ds", _TASK_TIMEOUT)
+                except Exception as e:
+                    logger.error("ReminderScheduler error: %s", e, exc_info=True)
 
             # Weekly report generation: Monday 09:00
             try:
