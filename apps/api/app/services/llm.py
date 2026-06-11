@@ -2947,18 +2947,31 @@ async def _stream_navy(
     except openai.APIStatusError as e:
         raise LLMError(f"Local LLM stream HTTP {e.status_code}: {str(e)[:200]}")
 
-    try:
-        async for chunk in stream:
-            try:
-                token = chunk.choices[0].delta.content or ""
-            except (IndexError, AttributeError):
-                continue
-            if token:
-                yield token
-    except Exception as e:
-        # Surface as LLMError so the caller can fall back to blocking
-        # path or another provider, instead of the WS handler crashing.
-        raise LLMError(f"Local LLM stream error: {e}")
+    # Audit #6: a per-chunk read timeout. `async for chunk in stream` has no
+    # bound — if navy stalls mid-stream (no token arrives), the WS turn hangs
+    # forever and TTS tasks time out around it. Pull each chunk under a
+    # wait_for so a stall raises LLMError → the caller falls back.
+    _CHUNK_TIMEOUT = 20.0
+    _it = stream.__aiter__()
+    while True:
+        try:
+            chunk = await asyncio.wait_for(_it.__anext__(), timeout=_CHUNK_TIMEOUT)
+        except StopAsyncIteration:
+            break
+        except asyncio.TimeoutError:
+            raise LLMError(
+                f"Local LLM stream stalled (no token in {_CHUNK_TIMEOUT:.0f}s)"
+            )
+        except Exception as e:
+            # Surface as LLMError so the caller can fall back to blocking
+            # path or another provider, instead of the WS handler crashing.
+            raise LLMError(f"Local LLM stream error: {e}")
+        try:
+            token = chunk.choices[0].delta.content or ""
+        except (IndexError, AttributeError):
+            continue
+        if token:
+            yield token
 
 
 async def generate_response_stream(

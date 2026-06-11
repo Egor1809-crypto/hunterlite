@@ -569,6 +569,12 @@ class Settings(BaseSettings):
     telegram_bot_username: str = "BFLHUNTER_bot"
     # Group/channel the bot posts platform notifications to (negative id).
     telegram_notify_chat_id: str = ""
+    # Webhook signature secret (X-Telegram-Bot-Api-Secret-Token). When set, it
+    # is passed to set_webhook and every incoming update MUST carry the matching
+    # header — otherwise the request is rejected. Without it, anyone who learns
+    # the public webhook URL could forge updates (account-linking / attempt
+    # grants). Generate with: openssl rand -hex 32.
+    telegram_webhook_secret: str = ""
 
     # Email / SMTP (for password reset etc.)
     smtp_host: str = ""  # e.g. smtp.gmail.com, smtp.yandex.ru
