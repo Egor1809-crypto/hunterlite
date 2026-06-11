@@ -1,0 +1,153 @@
+# Production deploy for HunterLite → legalhunter.pro
+#
+# IMPORTANT: this server is SHARED. The host nginx owns :80/:443 and fronts
+# several other projects (agentum, aspb, expertum, ...). This stack therefore
+# does NOT run Caddy and does NOT bind 80/443. It publishes web+api on
+# loopback-only ports (127.0.0.1:3300 / 127.0.0.1:8300); the host nginx vhost
+# legalhunter.pro reverse-proxies to them and terminates TLS via certbot.
+#
+# Stack name `legalhunter` keeps containers/volumes namespaced away from the
+# other tenants. postgres + redis are internal (no host port published).
+#
+# Run from this folder:
+#   docker compose -f docker-compose.prod.yml --env-file .env.production up -d --build
+name: legalhunter
+
+services:
+  postgres:
+    # pgvector image — the schema needs `CREATE EXTENSION vector` for the
+    # Vector(768) RAG/embedding columns. Plain postgres:16 has no pgvector.
+    image: pgvector/pgvector:pg16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD required in .env.production}
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    # Password required: the api entrypoint security pre-flight FATALs in
+    # production if REDIS_PASSWORD is empty.
+    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD:?REDIS_PASSWORD required}", "--save", "60", "1", "--appendonly", "no"]
+    volumes:
+      - redis_data:/data
+
+  api:
+    build:
+      context: ../apps/api
+      target: production
+      args:
+        RELEASE_SHA: ${RELEASE_SHA:-unknown}
+        BUILD_TIME: ${BUILD_TIME:-unknown}
+    restart: unless-stopped
+    environment:
+      APP_ENV: production
+      APP_DEBUG: "false"
+      LOG_FORMAT: json
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      DATABASE_URL_SYNC: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      # entrypoint security pre-flight reads POSTGRES_PASSWORD directly.
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET required in .env.production}
+      CSRF_SECRET: ${CSRF_SECRET:?CSRF_SECRET required in .env.production}
+      # Domain / CORS — single-origin behind nginx.
+      FRONTEND_URL: ${PUBLIC_URL}
+      CORS_ORIGINS: ${PUBLIC_URL}
+      # ── Main LLM (navy.api, OpenAI-compatible) — drives training/chat/call/
+      #    Manyasha/exam. This is the field set that actually enables AI; the
+      #    NAVY_API_KEY below only feeds the image-generation MCP tool.
+      NAVY_LLM_ENABLED: "true"
+      NAVY_LLM_URL: ${NAVY_BASE_URL:-https://api.navy/v1}
+      NAVY_LLM_API_KEY: ${NAVY_API_KEY:?NAVY_API_KEY required in .env.production}
+      NAVY_LLM_MODEL: ${NAVY_LLM_MODEL:-deepseek-v4-pro}
+      # STT (training Whisper path) via navy — needs the bearer key.
+      WHISPER_URL: ${WHISPER_URL:-https://api.navy}
+      WHISPER_API_KEY: ${NAVY_API_KEY}
+      # Image-gen MCP tool key (separate navy quota field).
+      NAVY_API_KEY: ${NAVY_API_KEY}
+      NAVY_BASE_URL: ${NAVY_BASE_URL:-https://api.navy/v1}
+      # ── Optional integrations (empty = feature stays dark) ───────────────
+      TELEGRAM_BOT_TOKEN: ""  # bot runs in the dedicated polling service (see `bot`)
+      TELEGRAM_WEBHOOK_SECRET: ${TELEGRAM_WEBHOOK_SECRET:-}
+      TELEGRAM_PROXY: ${TELEGRAM_PROXY:-}
+      TELEGRAM_BOT_USERNAME: ${TELEGRAM_BOT_USERNAME:-BFLHUNTER_bot}
+      TELEGRAM_WEBHOOK_BASE_URL: ${PUBLIC_URL}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      GOOGLE_REDIRECT_URI: ${GOOGLE_REDIRECT_URI:-}
+      YANDEX_CLIENT_ID: ${YANDEX_CLIENT_ID:-}
+      YANDEX_CLIENT_SECRET: ${YANDEX_CLIENT_SECRET:-}
+      YANDEX_REDIRECT_URI: ${YANDEX_REDIRECT_URI:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    extra_hosts:
+      # RU egress: default api.telegram.org IP (149.154.166.110) is blocked;
+      # this Bot-API IP is reachable and serves a valid cert. No proxy needed.
+      - "api.telegram.org:149.154.167.220"
+    ports:
+      - "127.0.0.1:8300:8000"
+
+  web:
+    build:
+      context: ../apps/web
+      target: production
+      args:
+        # NEXT_PUBLIC_* are baked at build time → must be the public domain.
+        NEXT_PUBLIC_API_URL: ${PUBLIC_URL}
+        NEXT_PUBLIC_WS_URL: ${PUBLIC_WS_URL}
+        NEXT_PUBLIC_RELEASE_SHA: ${RELEASE_SHA:-unknown}
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      # Next.js /api/chat and /api/tts proxy the LLM (navy).
+      LLM_API_KEY: ${NAVY_API_KEY}
+      LLM_BASE_URL: ${NAVY_BASE_URL:-https://api.navy/v1}
+      LLM_MODEL: ${WEB_LLM_MODEL:-gpt-4o-mini}
+    depends_on:
+      api:
+        condition: service_started
+    ports:
+      - "127.0.0.1:3300:3000"
+
+  bot:
+    image: legalhunter-api
+    restart: unless-stopped
+    # Telegram bot in long-polling mode. Webhook delivery (Telegram->server) is
+    # blocked from this RU host; polling (server->Telegram via the IP pin) works.
+    # SINGLE instance — concurrent getUpdates is rejected by Telegram.
+    entrypoint: ["python", "-m", "scripts.run_bot_polling"]
+    environment:
+      APP_ENV: production
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET}
+      CSRF_SECRET: ${CSRF_SECRET}
+      FRONTEND_URL: ${PUBLIC_URL}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+      TELEGRAM_BOT_USERNAME: ${TELEGRAM_BOT_USERNAME:-BFLHUNTER_bot}
+    extra_hosts:
+      - "api.telegram.org:149.154.167.220"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
+volumes:
+  pg_data:
+  redis_data:

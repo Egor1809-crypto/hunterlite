@@ -85,3 +85,7 @@ manyasha-main*/
 
 # Agent TZ specs (planning docs, not shipped)
 TZ_AGENT_*.md
+
+# Server-only deploy dir (canonical live copy on the server; reference in docs/deploy/)
+/deployment/
+**/prod.env
