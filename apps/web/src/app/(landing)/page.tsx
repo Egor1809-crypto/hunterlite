@@ -208,7 +208,7 @@ function AboutSection({ openRegister }: { openRegister: () => void }) {
           Начать обучение
         </Button>
         <a
-          href="https://t.me/legalhunter"
+          href="https://t.me/BFLHUNTER_bot"
           target="_blank"
           rel="noopener noreferrer"
           className="group inline-flex items-center gap-2.5 rounded-full px-6 py-3 text-sm font-semibold transition-all hover:-translate-y-0.5"

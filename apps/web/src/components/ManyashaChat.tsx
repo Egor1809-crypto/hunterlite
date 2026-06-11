@@ -112,7 +112,7 @@ const DEFAULTS: Required<
   greetingSubtitle:
     "Объясню процедуру, документы, сроки и последствия простыми словами.",
   quickQuestions: ["Подходит ли мне БФЛ?", "Какие нужны документы?", "Что будет с долгами?"],
-  telegramUrl: "https://t.me/ailegal_academy_bot",
+  telegramUrl: "https://t.me/BFLHUNTER_bot",
   mascotVideo: "/mascot/manyasha-idle-alpha.webm",
   mascotPoster: "/mascot/manyasha-idle-poster.jpg",
   hint: "Нужна помощь?",
