@@ -225,10 +225,9 @@ function PrizeStory({ prize, index }: { prize: PrizeItem; index: number }) {
             ) : null}
             {prize.value && prize.value > 4000 ? (
               <p className="mt-2 text-sm" style={{ color: "var(--text-muted)" }}>
-                С приза уплачивается НДФЛ 35% с суммы свыше 4 000 ₽ — налог декларирует победитель
-                (приз неденежный). Подробнее — в{" "}
+                Налогообложение приза (НДФЛ) —{" "}
                 <a href="/championship/rules" style={{ color: "var(--primary)" }}>
-                  Положении
+                  см. Положение
                 </a>
                 .
               </p>

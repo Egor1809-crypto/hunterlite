@@ -352,7 +352,7 @@ function ProductsSection() {
 
       <motion.div {...reveal(0.28)} className="mt-10">
         <div className="mb-4 flex items-center justify-between">
-          <Eyebrow>Экосистема AI &amp; право</Eyebrow>
+          <Eyebrow>Экосистема AI · право</Eyebrow>
           <span className="hidden font-mono text-[11px] uppercase tracking-[0.16em] sm:block" style={{ color: "var(--text-muted)" }}>12 направлений в разработке</span>
         </div>
         <div
