@@ -21,6 +21,10 @@ export default function RegisterPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [networkError, setNetworkError] = useState(false);
+  // 152-ФЗ: явное, непредзаполненное согласие на обработку ПДн (обязательно);
+  // согласие на рекламную рассылку — отдельное и необязательное.
+  const [consent, setConsent] = useState(false);
+  const [marketing, setMarketing] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -32,6 +36,10 @@ export default function RegisterPage() {
 
     if (!normalizedName) {
       setError("Укажите имя");
+      return;
+    }
+    if (!consent) {
+      setError("Необходимо согласие на обработку персональных данных");
       return;
     }
     if (password !== confirmPassword) {
@@ -203,7 +211,33 @@ export default function RegisterPage() {
             )}
           </div>
 
-          <Button type="submit" variant="primary" fluid loading={loading} disabled={!passwordsMatch} iconRight={<ArrowRight size={16} />}>
+          <label className="flex items-start gap-2.5 cursor-pointer text-xs" style={{ color: "var(--text-secondary)" }}>
+            <input
+              type="checkbox"
+              checked={consent}
+              onChange={(e) => setConsent(e.target.checked)}
+              className="mt-0.5 h-4 w-4 shrink-0 cursor-pointer accent-[color:var(--primary)]"
+            />
+            <span>
+              Я даю{" "}
+              <Link href="/legal/consent" target="_blank" style={{ color: "var(--primary)" }}>согласие на обработку персональных данных</Link>{" "}
+              и принимаю{" "}
+              <Link href="/legal/privacy" target="_blank" style={{ color: "var(--primary)" }}>Политику обработки ПДн</Link>{" "}
+              и{" "}
+              <Link href="/legal/terms" target="_blank" style={{ color: "var(--primary)" }}>Пользовательское соглашение</Link>.
+            </span>
+          </label>
+          <label className="flex items-start gap-2.5 cursor-pointer text-xs" style={{ color: "var(--text-muted)" }}>
+            <input
+              type="checkbox"
+              checked={marketing}
+              onChange={(e) => setMarketing(e.target.checked)}
+              className="mt-0.5 h-4 w-4 shrink-0 cursor-pointer accent-[color:var(--primary)]"
+            />
+            <span>Согласен получать информационные и рекламные сообщения (необязательно).</span>
+          </label>
+
+          <Button type="submit" variant="primary" fluid loading={loading} disabled={!passwordsMatch || !consent} iconRight={<ArrowRight size={16} />}>
             Зарегистрироваться
           </Button>
         </form>

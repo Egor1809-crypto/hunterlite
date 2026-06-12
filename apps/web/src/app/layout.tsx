@@ -3,6 +3,7 @@ import { headers } from "next/headers";
 import { Geist, Geist_Mono } from "next/font/google";
 import { ViewTransitions } from "next-view-transitions";
 import { Providers } from "@/components/providers/Providers";
+import CookieBanner from "@/components/legal/CookieBanner";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -83,6 +84,7 @@ export default async function RootLayout({
         <ViewTransitions>
           <Providers>
             {children}
+            <CookieBanner />
           </Providers>
         </ViewTransitions>
       </body>
