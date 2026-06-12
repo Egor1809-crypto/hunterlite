@@ -183,7 +183,7 @@ function styleSheet(): string {
   color: var(--text-muted); background: transparent; border: 0; border-radius: 8px; cursor: pointer; transition: .15s; flex-shrink: 0; }
 .mnya-close:hover { color: var(--text-primary); background: var(--bg-tertiary); }
 
-.mnya-msgs { flex: 1; overflow-y: auto; padding: 18px; display: flex; flex-direction: column; gap: 12px; min-height: 0; background: var(--bg-primary); }
+.mnya-msgs { flex: 1; overflow-y: auto; padding: 18px; display: flex; flex-direction: column; gap: 12px; min-height: 0; background: var(--surface-card); }
 
 /* ── Greeting — left-aligned editorial, без большого центр-аватара ── */
 .mnya-greet { text-align: left; padding: 4px 2px 2px; }
