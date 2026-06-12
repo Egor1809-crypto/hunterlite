@@ -101,9 +101,26 @@ export function LandingFooter() {
         </div>
 
         {/* Bottom bar */}
-        <div className="mt-10 pt-6 border-t border-[color:var(--border-color)] flex flex-col sm:flex-row items-center justify-between gap-3">
+        <div className="mt-10 pt-6 border-t border-[color:var(--border-color)] flex flex-wrap items-center gap-x-4 gap-y-2 text-xs">
+          {[
+            { href: "/legal/privacy", label: "Политика обработки ПДн" },
+            { href: "/legal/cookies", label: "Cookie" },
+            { href: "/legal/consent", label: "Согласие на ПДн" },
+            { href: "/legal/terms", label: "Пользовательское соглашение" },
+            { href: "/legal/offer", label: "Оферта" },
+          ].map(({ href, label }) => (
+            <Link
+              key={href}
+              href={href}
+              className="text-[color:var(--text-muted)] hover:text-[color:var(--primary)] transition-colors"
+            >
+              {label}
+            </Link>
+          ))}
+        </div>
+        <div className="mt-4 flex flex-col sm:flex-row items-center justify-between gap-3">
           <p className="text-xs text-[color:var(--text-muted)]">
-            &copy; {new Date().getFullYear()} LegalHunter. Все права защищены.
+            &copy; {new Date().getFullYear()} LegalHunter · ООО «АСПБ», ИНН 6452098049. Все права защищены.
           </p>
           <p className="text-xs text-[color:var(--text-muted)]">
             Тренажер для арбитражных управляющих
