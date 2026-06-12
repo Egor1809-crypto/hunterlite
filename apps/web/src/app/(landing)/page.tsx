@@ -303,7 +303,7 @@ function ProductsSection() {
     <div className="py-2">
       <motion.div {...reveal(0)}>
         <Eyebrow>
-          03 · Наши продукты ·{" "}
+          03 · Наши продукты &amp;{" "}
           <a
             href="https://pravotech.pro/"
             target="_blank"
@@ -352,7 +352,7 @@ function ProductsSection() {
 
       <motion.div {...reveal(0.28)} className="mt-10">
         <div className="mb-4 flex items-center justify-between">
-          <Eyebrow>Экосистема AI · право</Eyebrow>
+          <Eyebrow>Экосистема AI &amp; право</Eyebrow>
           <span className="hidden font-mono text-[11px] uppercase tracking-[0.16em] sm:block" style={{ color: "var(--text-muted)" }}>12 направлений в разработке</span>
         </div>
         <div
