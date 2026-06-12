@@ -296,7 +296,7 @@ export default function AppSidebar({ collapsed, onToggle }: AppSidebarProps) {
         <Link
           href="/championship"
           className={`group flex items-center no-underline transition-transform hover:scale-[1.03] ${collapsed ? "justify-center rounded-xl p-2.5" : "gap-3 rounded-2xl p-3.5"}`}
-          style={{ background: "var(--primary)", boxShadow: "var(--shadow-md)" }}
+          style={{ background: "color-mix(in srgb, var(--primary) 16%, transparent)", border: "1px solid color-mix(in srgb, var(--primary) 30%, transparent)" }}
           title="Чемпионат сезона — розыгрыш призов Apple"
         >
           <span
@@ -307,10 +307,10 @@ export default function AppSidebar({ collapsed, onToggle }: AppSidebarProps) {
           </span>
           {!collapsed && (
             <span className="min-w-0">
-              <span className="block text-[14.5px] font-bold leading-tight" style={{ color: "#fff" }}>
+              <span className="block text-[14.5px] font-bold leading-tight" style={{ color: "var(--text-primary)" }}>
                 Чемпионат
               </span>
-              <span className="block text-[11.5px] leading-tight" style={{ color: "rgba(255,255,255,0.85)" }}>
+              <span className="block text-[11.5px] leading-tight" style={{ color: "var(--text-secondary)" }}>
                 Призы Apple
               </span>
             </span>

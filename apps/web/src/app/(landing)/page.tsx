@@ -356,9 +356,10 @@ function ProductsSection() {
           <span className="hidden font-mono text-[11px] uppercase tracking-[0.16em] sm:block" style={{ color: "var(--text-muted)" }}>12 направлений в разработке</span>
         </div>
         <div
-          className="group relative overflow-hidden py-5"
+          className="group relative overflow-hidden py-5 w-screen left-1/2 -translate-x-1/2"
           style={{
-            border: "1px solid var(--border-color)", borderRadius: 20, background: "var(--surface-card)",
+            background: "var(--surface-card)",
+            borderTop: "1px solid var(--border-color)", borderBottom: "1px solid var(--border-color)",
             maskImage: "linear-gradient(to right, transparent, #000 8%, #000 92%, transparent)",
             WebkitMaskImage: "linear-gradient(to right, transparent, #000 8%, #000 92%, transparent)",
           }}
@@ -598,7 +599,7 @@ export default function LandingPage() {
           <Link
             href="/championship"
             className="group flex items-center gap-3.5 rounded-2xl p-4 no-underline transition-transform hover:scale-[1.03]"
-            style={{ background: "var(--primary)", boxShadow: "var(--shadow-md)" }}
+            style={{ background: "color-mix(in srgb, var(--primary) 16%, transparent)", border: "1px solid color-mix(in srgb, var(--primary) 30%, transparent)" }}
           >
             <span
               className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full"
@@ -607,14 +608,14 @@ export default function LandingPage() {
               <TrophyMark size={26} />
             </span>
             <span className="min-w-0">
-              <span className="block text-[15px] font-bold leading-tight" style={{ color: "var(--primary-contrast, #fff)" }}>
+              <span className="block text-[15px] font-bold leading-tight" style={{ color: "var(--text-primary)" }}>
                 Чемпионат сезона
               </span>
-              <span className="block text-[12px] leading-tight" style={{ color: "rgba(255,255,255,0.85)" }}>
+              <span className="block text-[12px] leading-tight" style={{ color: "var(--text-secondary)" }}>
                 Розыгрыш призов Apple
               </span>
             </span>
-            <ArrowRight size={17} className="ml-auto transition-transform group-hover:translate-x-0.5" style={{ color: "#fff" }} />
+            <ArrowRight size={17} className="ml-auto transition-transform group-hover:translate-x-0.5" style={{ color: "var(--primary)" }} />
           </Link>
 
           {/* панель выбора темы над «Войти» */}
