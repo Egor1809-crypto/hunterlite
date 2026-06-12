@@ -235,6 +235,7 @@ export default function AppSidebar({ collapsed, onToggle }: AppSidebarProps) {
           {navItems.map((item) => {
             const Icon = item.icon;
             const active = isActive(item.href);
+            const isChamp = item.href === "/championship";
             return (
               <Link
                 key={item.href}
@@ -243,8 +244,10 @@ export default function AppSidebar({ collapsed, onToggle }: AppSidebarProps) {
                 aria-current={active ? "page" : undefined}
 	                className="group relative flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium transition-colors duration-150 overflow-hidden"
 	                style={{
-	                  color: active ? "var(--primary)" : "var(--text-secondary)",
-	                  background: active
+	                  color: (active || isChamp) ? "var(--primary)" : "var(--text-secondary)",
+	                  background: isChamp
+                      ? "color-mix(in srgb, var(--primary) 15%, transparent)"
+                      : active
                       ? "var(--primary-muted)"
                       : "transparent",
                     border: active ? "1px solid color-mix(in srgb, var(--primary) 18%, var(--border-color))" : "1px solid transparent",
@@ -254,13 +257,13 @@ export default function AppSidebar({ collapsed, onToggle }: AppSidebarProps) {
 	                  justifyContent: "flex-start",
 	                }}
                 onMouseEnter={(e) => {
-                  if (!active) {
+                  if (!active && !isChamp) {
                     e.currentTarget.style.background = "var(--bg-tertiary)";
                     e.currentTarget.style.color = "var(--text-primary)";
                   }
                 }}
                 onMouseLeave={(e) => {
-                  if (!active) {
+                  if (!active && !isChamp) {
                     e.currentTarget.style.background = "transparent";
                     e.currentTarget.style.color = "var(--text-secondary)";
                   }

@@ -197,7 +197,7 @@ function AboutSection({ openRegister }: { openRegister: () => void }) {
       <motion.p
         {...reveal(0.12)}
         className="mt-8 max-w-2xl leading-relaxed"
-        style={{ color: "var(--text-secondary)", fontSize: "clamp(1.05rem, 1.6vw, 1.375rem)" }}
+        style={{ color: "var(--text-muted)", fontSize: "clamp(1.05rem, 1.6vw, 1.375rem)" }}
       >
         Не курс, а профессиональная среда: практика, эксперты и технологии превращают знание
         закона в уверенные действия рядом с человеком в долговой яме.
@@ -232,7 +232,7 @@ function AboutSection({ openRegister }: { openRegister: () => void }) {
           >
             <div
               className="font-mono font-semibold leading-none tabular-nums transition-transform group-hover:-translate-y-0.5"
-              style={{ color: "var(--primary)", fontSize: "clamp(2rem, 3.4vw, 3.2rem)", letterSpacing: "-0.03em" }}
+              style={{ color: "var(--text-muted)", fontSize: "clamp(2rem, 3.4vw, 3.2rem)", letterSpacing: "-0.03em" }}
             >
               {item.value}
             </div>
@@ -581,7 +581,7 @@ export default function LandingPage() {
             href="/championship"
             className="flex shrink-0 items-center gap-3 rounded-full px-4 py-2.5 text-left text-[15px] no-underline transition-all lg:rounded-xl"
             style={{
-              background: "var(--primary-muted)",
+              background: "color-mix(in srgb, var(--primary) 15%, transparent)",
               color: "var(--primary)",
               fontWeight: 600,
             }}
