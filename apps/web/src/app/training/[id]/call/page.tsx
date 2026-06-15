@@ -217,8 +217,12 @@ export default function CallPage() {
   if (!accepted) {
     return (
       <main
-        className="flex min-h-screen flex-col items-center justify-center gap-8 px-6"
-        style={{ background: "var(--surface-base, var(--background))", color: "var(--text-primary)" }}
+        className="flex min-h-dvh flex-col items-center justify-center gap-8 px-6"
+        style={{
+          background: "var(--surface-base, var(--background))",
+          color: "var(--text-primary)",
+          paddingBottom: "max(env(safe-area-inset-bottom), 1.5rem)",
+        }}
       >
         <div className="flex flex-col items-center gap-3 text-center">
           <span
@@ -248,14 +252,19 @@ export default function CallPage() {
   // ---------------------------------------------------------------------------
   return (
     <main
-      className="relative flex min-h-screen flex-col items-center justify-between px-6 py-12"
-      style={{ background: "var(--surface-base, var(--background))", color: "var(--text-primary)" }}
+      className="relative flex min-h-dvh flex-col items-center justify-between px-6 py-12"
+      style={{
+        background: "var(--surface-base, var(--background))",
+        color: "var(--text-primary)",
+        paddingTop: "max(env(safe-area-inset-top), 3rem)",
+        paddingBottom: "max(env(safe-area-inset-bottom), 3rem)",
+      }}
     >
       {/* Right-side script guide — leads the learner strictly through the 7
           stages (task · example phrases · common mistakes). Desktop only;
           mobile gets the ScriptDrawer bottom-sheet below. */}
       <aside
-        className="hidden lg:block absolute right-4 top-20 z-30 pointer-events-auto w-[min(440px,34vw)] max-h-[calc(100vh-180px)] overflow-y-auto rounded-2xl p-5"
+        className="hidden lg:block absolute right-4 top-20 z-30 pointer-events-auto w-[min(440px,34vw)] max-h-[calc(100dvh-180px)] overflow-y-auto rounded-2xl p-5"
         style={{ background: "var(--surface-card)", border: "1px solid var(--border-color)", boxShadow: "var(--shadow-md)" }}
       >
         <ScriptPanel compactHeader />
