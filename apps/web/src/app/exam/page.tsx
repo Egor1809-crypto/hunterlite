@@ -123,7 +123,7 @@ function ExamCard({ exam, onStart }: { exam: ExamItem; onStart: () => void }) {
         </div>
 
         {/* Stats */}
-        <div className="mt-5 grid grid-cols-4 gap-2.5">
+        <div className="mt-5 grid grid-cols-2 gap-2.5 sm:grid-cols-4">
           {[
             { icon: FileText, label: "Заданий", value: String(exam.question_count) },
             { icon: Clock, label: "Минут", value: String(exam.time_limit_minutes) },

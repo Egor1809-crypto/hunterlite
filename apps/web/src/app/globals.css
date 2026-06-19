@@ -895,7 +895,7 @@ html.light main [role="button"] {
 
   .training-session-panel {
     min-height: 0;
-    max-height: calc(100vh - 90px);
+    max-height: calc(100dvh - 90px);
     height: 100%;
     overflow-y: auto;
     overflow-x: hidden;

@@ -937,7 +937,7 @@ function KnowledgeSessionPage() {
         ? results.duration_seconds
         : 0;
     return (
-      <div className="flex min-h-screen flex-col" style={{ backgroundColor: "var(--bg-primary)" }}>
+      <div className="flex min-h-dvh flex-col" style={{ backgroundColor: "var(--bg-primary)" }}>
         <QuizResultsScreen
           mode={store.mode}
           category={store.category}
@@ -970,7 +970,7 @@ function KnowledgeSessionPage() {
   // ─── Chat Interface ────────────────────────────────
   return (
     <div
-      className="flex h-screen flex-col relative"
+      className="flex h-dvh flex-col relative"
       style={{
         backgroundColor: "var(--bg-primary)",
         backgroundImage: `
@@ -1414,10 +1414,11 @@ function KnowledgeSessionPage() {
             className="shrink-0 relative"
             style={{
               borderTop: "2px solid var(--accent)",
-	              backgroundColor: "var(--bg-primary)",
+              backgroundColor: "var(--bg-primary)",
               boxShadow: "0 -2px 0 0 rgba(0,0,0,0.15)",
               zIndex: 10,
               padding: "14px 12px",
+              paddingBottom: "max(env(safe-area-inset-bottom), 14px)",
             }}
           >
             <div className="mx-auto flex max-w-3xl items-end gap-3">

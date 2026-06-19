@@ -15,6 +15,7 @@ import {
   Loader2,
   Target,
   Activity,
+  ChevronUp,
 } from "lucide-react";
 import { useWebSocket } from "@/hooks/useWebSocket";
 import { useAuthBootstrap } from "@/hooks/useAuthBootstrap";
@@ -31,7 +32,6 @@ import { QuoteReplyBadge } from "@/components/training/QuoteReplyBadge";
 // Компонент CallButton.tsx сохранён в /components/training/ на случай
 // возврата к inline-переключению в будущем.
 import { Scale } from "lucide-react";
-import { CrystalMic } from "@/components/training/CrystalMic";
 import VibeMeter from "@/components/training/VibeMeter";
 import { type CheckpointInfo } from "@/components/training/ScriptAdherence";
 import WhisperPanel from "@/components/training/WhisperPanel";
@@ -194,6 +194,33 @@ export default function TrainingSessionPage() {
   // Mirrors the 3-pill switcher used on /pvp ("arena|knowledge|history").
   type SidebarTab = "score" | "reactions";
   const [sidebarTab, setSidebarTab] = useState<SidebarTab>("score");
+
+  // 2026-06-15 (mobile island): on phones the whole screen is the chat and a
+  // translucent "island" floats at the bottom — collapsed it is just the input
+  // bar (persona + mic/text); expanded it becomes the command center (avatar,
+  // score, reactions, coaching). Desktop (lg+) keeps the 3-column layout.
+  const [islandExpanded, setIslandExpanded] = useState(false);
+
+  // Keyboard-aware island: keep the input pinned above the on-screen keyboard.
+  // visualViewport shrinks (and may offset) when the keyboard opens; we lift the
+  // island by that inset so it never hides under the keyboard.
+  const [keyboardInset, setKeyboardInset] = useState(0);
+  useEffect(() => {
+    const vv = typeof window !== "undefined" ? window.visualViewport : null;
+    if (!vv) return;
+    const onChange = () => {
+      const inset = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+      // ignore sub-100px noise (URL bar) — only react to a real keyboard
+      setKeyboardInset(inset > 100 ? inset : 0);
+    };
+    vv.addEventListener("resize", onChange);
+    vv.addEventListener("scroll", onChange);
+    onChange();
+    return () => {
+      vv.removeEventListener("resize", onChange);
+      vv.removeEventListener("scroll", onChange);
+    };
+  }, []);
 
   // Auto-dismiss STT warning after 5 seconds
   useEffect(() => {
@@ -1002,13 +1029,20 @@ export default function TrainingSessionPage() {
     t.style.height = Math.min(t.scrollHeight, 240) + "px";
   }, [s.input]);
   useEffect(() => {
-    // Target the training-chat-scroll container by id (reliable even if refs get stale)
-    const container = typeof document !== "undefined"
-      ? document.getElementById("training-chat-scroll")
-      : null;
+    // 2026-06-15: both the desktop chat aside and the mobile island own a
+    // scroll container (`.js-chat-scroll`). getElementById only hits the first,
+    // and the off-breakpoint one is display:none — so we scroll EVERY visible
+    // container by class. Falls back to the sentinel ref if none mounted yet.
     const doScroll = () => {
-      if (container) {
-        container.scrollTop = container.scrollHeight;
+      const containers =
+        typeof document !== "undefined"
+          ? document.querySelectorAll<HTMLElement>(".js-chat-scroll")
+          : [];
+      if (containers.length > 0) {
+        containers.forEach((c) => {
+          // offsetParent === null ⇒ display:none (off-breakpoint) — skip it.
+          if (c.offsetParent !== null) c.scrollTop = c.scrollHeight;
+        });
       } else {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
       }
@@ -1311,7 +1345,7 @@ export default function TrainingSessionPage() {
     // Minimal loader — calm, no boot animation.
     return (
       <div
-        className="flex min-h-screen items-center justify-center"
+        className="flex min-h-dvh items-center justify-center"
         style={{ background: "var(--bg-primary)" }}
       >
         <div className="flex flex-col items-center gap-3">
@@ -1334,7 +1368,7 @@ export default function TrainingSessionPage() {
   // Wait for auth bootstrap (token refresh via cookie if needed) before rendering
   if (!authReady) {
     return (
-      <div className="flex h-screen items-center justify-center" style={{ background: "var(--bg-primary)" }}>
+      <div className="flex h-dvh items-center justify-center" style={{ background: "var(--bg-primary)" }}>
         <Loader2 size={28} className="animate-spin" style={{ color: "var(--accent)" }} />
       </div>
     );
@@ -1342,7 +1376,7 @@ export default function TrainingSessionPage() {
 
   return (
     <TrainingErrorBoundary sessionId={routeId}>
-    <div className="flex h-screen flex-col overflow-hidden" style={{ background: "var(--bg-primary)" }}>
+    <div className="flex h-dvh flex-col overflow-hidden" style={{ background: "var(--bg-primary)" }}>
 
       {/* 2026-06-06 editorial refine: removed the full-screen .global-mic-glow
           neon overlay. Mic-active feedback now lives on the CrystalMic itself. */}
@@ -1497,7 +1531,7 @@ export default function TrainingSessionPage() {
               inner scrollbar, padding-bottom gives breathing room above input bar */}
           <div
             id="training-chat-scroll"
-            className="flex-1 px-5 py-4 overflow-y-auto space-y-3 flex flex-col min-h-0 relative z-10"
+            className="js-chat-scroll flex-1 px-5 py-4 overflow-y-auto space-y-3 flex flex-col min-h-0 relative z-10"
             style={{ paddingBottom: 24, scrollbarWidth: "thin", scrollbarColor: "var(--border-color) transparent" }}
           >
             {/* 2026-04-18 pinning feature: bar appears when any message is pinned */}
@@ -1714,138 +1748,294 @@ export default function TrainingSessionPage() {
 
         </aside>
 
-        {/* CENTER: Avatar + Mic — 2026-06-06 (#4): hidden on desktop (lg+).
-            The avatar column is gone on desktop; this <section> now serves
-            only the mobile/tablet view (where the left chat aside + right
-            coaching aside are `hidden lg:flex`). Desktop voice input lives
-            in the left chat input row; client identity + who-is-speaking
-            moved to the chat panel header. */}
+        {/* ── MOBILE (< lg): full-screen chat + floating "island" ─────────
+            2026-06-15 redesign. The whole panel is the conversation; a
+            translucent island floats at the bottom. Collapsed it is the input
+            bar with a compact persona chip; expanded (tap the handle) it grows
+            into the command center — avatar, score, reactions, coaching — over
+            a dimmed chat. Desktop (lg+) is untouched: the 3-column layout above
+            and the stats aside below stay `hidden lg:flex`. */}
         <section
-          className="training-session-panel training-session-center rounded-2xl relative flex flex-col items-center justify-center overflow-hidden lg:hidden"
+          className="training-session-panel training-session-center rounded-2xl relative flex flex-col overflow-hidden lg:hidden"
           style={{
-            background: "var(--bg-secondary)",
+            background: "var(--bg-primary)",
             border: "1px solid var(--border-color)",
           }}
         >
-          {/* Client name + emotion — top center */}
-          <div className="absolute top-5 left-0 right-0 flex flex-col items-center gap-1.5 z-30">
-            <div className="text-base font-semibold" style={{ color: "var(--text-primary)" }}>
-              {s.characterName || "Клиент"}
-            </div>
-            <div className="flex items-center gap-2">
-              <div
-                className="w-2 h-2 rounded-full"
-                style={{ background: EMOTION_MAP[s.emotion]?.color || "var(--accent)" }}
+          {/* Full-screen chat scroll. `.js-chat-scroll` so the shared autoscroll
+              effect keeps it pinned to the latest message. Bottom padding clears
+              the collapsed island. */}
+          <div
+            className="js-chat-scroll flex-1 min-h-0 overflow-y-auto px-3 py-4 flex flex-col gap-2.5"
+            style={{ paddingBottom: 148, scrollbarWidth: "thin", scrollbarColor: "var(--border-color) transparent" }}
+          >
+            <PinnedMessagesBar messages={s.messages} onUnpin={(id) => s.togglePinMessage(id)} />
+            {s.messages.map((msg) => (
+              <ChatMessage
+                key={msg.id}
+                message={msg}
+                onTogglePin={() => s.togglePinMessage(msg.id)}
+                onReply={(content) => {
+                  const preview = content.length > 160 ? content.slice(0, 160) + "…" : content;
+                  s.setPendingQuote({ id: msg.id, preview });
+                }}
               />
-              <AnimatePresence mode="wait">
-                <motion.span
-                  key={s.emotion}
-                  className="text-sm font-semibold"
-                  style={{ color: EMOTION_MAP[s.emotion]?.color || "var(--accent)" }}
-                  initial={{ opacity: 0, x: -8 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: 8 }}
-                  transition={{ duration: 0.3 }}
-                >
-                  {EMOTION_MAP[s.emotion]?.labelRu || EMOTION_MAP[s.emotion]?.label || "Неизвестно"}
-                </motion.span>
-              </AnimatePresence>
-            </div>
+            ))}
+            {s.isTyping && (
+              <div className="flex items-center gap-2 py-1.5 text-sm" style={{ color: "var(--text-muted)" }}>
+                <div className="flex gap-0.5">
+                  {[0, 1, 2].map((i) => (
+                    <motion.span key={i} className="h-1.5 w-1.5 rounded-full" style={{ background: "var(--accent)" }} animate={{ y: [0, -4, 0] }} transition={{ duration: 0.5, repeat: Infinity, delay: i * 0.15 }} />
+                  ))}
+                </div>
+                {s.characterName} печатает...
+              </div>
+            )}
           </div>
 
-          {/* STT warning — dismissible */}
+          {/* STT warning — dismissible, floats above the island */}
           <AnimatePresence>
-          {!s.sttAvailable && s.sessionState === "ready" && !sttWarningDismissed && (
-            <motion.div
-              initial={{ opacity: 0, y: -8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              className="absolute top-6 right-6 z-30 flex items-center gap-2 rounded-xl px-3 py-2 text-xs"
-              style={{ background: "var(--warning-muted)", border: "1px solid var(--warning-muted)", color: "var(--warning)" }}
-            >
-              <AlertTriangle size={14} />
-              Голосовой режим недоступен. Используйте текстовый чат.
-              <button onClick={() => setSttWarningDismissed(true)} className="ml-1 hover:opacity-70" aria-label="Закрыть">
-                <XCircle size={14} />
-              </button>
-            </motion.div>
-          )}
+            {!s.sttAvailable && s.sessionState === "ready" && !sttWarningDismissed && (
+              <motion.div
+                initial={{ opacity: 0, y: -8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                className="absolute top-3 left-3 right-3 z-40 flex items-center gap-2 rounded-xl px-3 py-2 text-xs"
+                style={{ background: "var(--warning-muted)", border: "1px solid var(--warning-muted)", color: "var(--warning)" }}
+              >
+                <AlertTriangle size={14} className="shrink-0" />
+                <span className="flex-1">Голосовой режим недоступен. Используйте текст.</span>
+                <button onClick={() => setSttWarningDismissed(true)} className="hover:opacity-70" aria-label="Закрыть">
+                  <XCircle size={14} />
+                </button>
+              </motion.div>
+            )}
           </AnimatePresence>
 
-          {/* Avatar */}
-          <div className="relative w-full max-w-[min(65vh,560px)] aspect-square flex items-center justify-center z-10">
-            {/* 2026-06-06 editorial refine: removed the emotion-colored blur blob
-                behind the avatar (no glow/blob per editorial spec). */}
-            <StylizedAvatar
-              emotion={s.emotion}
-              isSpeaking={tts.speaking || s.micActive}
-              audioLevel={tts.speaking ? tts.audioLevel : microphone.audioLevel || speech.audioLevel}
-              seed={`${s.archetypeCode || routeId || "default"}-${s.characterGender}`}
-              className="absolute inset-0 z-20"
-            />
-          </div>
+          {/* Dim layer behind the expanded island — tap to collapse */}
+          <AnimatePresence>
+            {islandExpanded && (
+              <motion.button
+                key="island-dim"
+                type="button"
+                aria-label="Свернуть панель"
+                onClick={() => setIslandExpanded(false)}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="absolute inset-0 z-30"
+                style={{ background: "var(--overlay-bg, rgba(0,0,0,0.4))", backdropFilter: "blur(2px)" }}
+              />
+            )}
+          </AnimatePresence>
 
-          {/* Mic / Text input — this whole <section> is `lg:hidden`, so the
-              input below serves the mobile/tablet view only. (The dead
-              `hidden lg:flex` desktop block that used to live here could
-              never render inside a lg:hidden parent — removed 2026-06-07.) */}
-          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-30 w-full max-w-lg px-4">
-            <div>
-              {s.textMode ? (
-                <>
-                  {/* P0 (training-rework): CRM-link chip + attachment removed
-                      from the mobile input row too — textarea + mic only. */}
-                  <div className="flex items-end gap-2">
-                    <textarea
-                      value={s.input}
-                      onChange={(e) => s.setInput(e.target.value)}
-                      onKeyDown={handleKeyDown}
-                      placeholder={s.sessionState === "ready" ? "Введите сообщение..." : "Ожидание подключения..."}
-                      disabled={s.sessionState !== "ready"}
-                      rows={1}
-                      aria-label="Введите сообщение"
-                      className="vh-input max-h-32 min-h-[44px] flex-1 resize-none"
-                      onInput={(e) => {
-                        const t = e.target as HTMLTextAreaElement;
-                        t.style.height = "auto";
-                        t.style.height = Math.min(t.scrollHeight, 128) + "px";
-                      }}
+          {/* ── The island ──────────────────────────────────────────── */}
+          <motion.div
+            layout
+            transition={{ type: "spring", stiffness: 380, damping: 34 }}
+            className="absolute inset-x-2 bottom-2 z-40 overflow-hidden rounded-3xl"
+            style={{
+              background: "var(--glass-bg)",
+              border: "1px solid var(--glass-border)",
+              backdropFilter: "blur(22px) saturate(1.5)",
+              WebkitBackdropFilter: "blur(22px) saturate(1.5)",
+              boxShadow: "0 8px 28px rgba(0,0,0,0.18)",
+              transform: `translateY(-${keyboardInset}px)`,
+              paddingBottom: keyboardInset > 0 ? 0 : "env(safe-area-inset-bottom)",
+            }}
+          >
+            {/* Persona / handle row — tap to expand/collapse */}
+            <button
+              type="button"
+              onClick={() => setIslandExpanded((v) => !v)}
+              aria-expanded={islandExpanded}
+              aria-label={islandExpanded ? "Свернуть панель" : "Развернуть панель"}
+              className="flex w-full items-center gap-3 px-3 pt-2.5 pb-1.5 text-left"
+            >
+              {!islandExpanded && (
+                <span
+                  className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold text-white"
+                  style={{ background: EMOTION_MAP[s.emotion]?.color || "var(--accent)" }}
+                >
+                  {(s.characterName || "К").charAt(0).toUpperCase()}
+                  {(tts.speaking || s.micActive) && (
+                    <motion.span
+                      className="absolute inset-0 rounded-full"
+                      style={{ border: "2px solid var(--accent)" }}
+                      animate={{ scale: [1, 1.35], opacity: [0.7, 0] }}
+                      transition={{ duration: 1, repeat: Infinity }}
                     />
-                    <motion.button
-                      onClick={handleSend}
-                      disabled={!s.input.trim() || s.sessionState !== "ready" || connectionState !== "connected"}
-                      aria-label="Отправить сообщение"
-                      className="flex h-[44px] w-[44px] shrink-0 items-center justify-center rounded-xl text-white"
-                      style={{ background: "var(--accent)", opacity: !s.input.trim() || s.sessionState !== "ready" ? 0.4 : 1 }}
-                      whileTap={{ scale: 0.95 }}
-                    >
-                      <Send size={18} />
-                    </motion.button>
-                  </div>
-                </>
-              ) : (
-                <CrystalMic
-                  mode="toggle"
-                  isRecording={microphone.recordingState === "recording" || speech.status === "listening"}
-                  isProcessing={microphone.recordingState === "processing" || s.transcription.status === "transcribing"}
-                  audioLevel={microphone.audioLevel || speech.audioLevel}
-                  onClick={handleMicToggle}
-                  onTextMode={() => s.setTextMode(true)}
-                  disabled={s.sessionState !== "ready" || (!s.sttAvailable && !speech.isSupported)}
-                />
+                  )}
+                </span>
               )}
-            </div>
-          </div>
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-[13px] font-semibold" style={{ color: "var(--text-primary)" }}>
+                  {s.characterName || "Клиент"}
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="h-1.5 w-1.5 rounded-full" style={{ background: EMOTION_MAP[s.emotion]?.color || "var(--accent)" }} />
+                  <span className="truncate text-[11px]" style={{ color: "var(--text-muted)" }}>
+                    {tts.speaking
+                      ? `говорит ${s.characterName?.split(" ")[0] || "клиент"}`
+                      : micRecording
+                        ? "слушаю вас"
+                        : `${EMOTION_MAP[s.emotion]?.labelRu || "нейтрально"} · балл ${s.messages.length === 0 ? "—" : Math.round(s.scriptScore)}`}
+                  </span>
+                </span>
+              </span>
+              <motion.span animate={{ rotate: islandExpanded ? 180 : 0 }} style={{ color: "var(--text-muted)" }}>
+                <ChevronUp size={18} />
+              </motion.span>
+            </button>
 
-          {/* Mobile transcript */}
-          <div className="mt-4 w-full overflow-y-auto px-4 lg:hidden" style={{ maxHeight: "30vh" }}>
-            <div className="space-y-2">
-              {s.messages.map((msg) => (
-                <ChatMessage key={msg.id} message={msg} />
-              ))}
-              <div ref={messagesEndRef} />
-            </div>
-          </div>
+            {/* Expanded: command center */}
+            <AnimatePresence initial={false}>
+              {islandExpanded && (
+                <motion.div
+                  key="island-body"
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: "auto" }}
+                  exit={{ opacity: 0, height: 0 }}
+                  transition={{ duration: 0.24, ease: "easeOut" }}
+                  className="overflow-hidden"
+                >
+                  <div className="max-h-[52dvh] overflow-y-auto px-3 pb-2" style={{ scrollbarWidth: "thin" }}>
+                    {/* Avatar */}
+                    <div className="mx-auto my-1 flex h-32 w-32 items-center justify-center">
+                      <StylizedAvatar
+                        emotion={s.emotion}
+                        isSpeaking={tts.speaking || s.micActive}
+                        audioLevel={tts.speaking ? tts.audioLevel : microphone.audioLevel || speech.audioLevel}
+                        seed={`${s.archetypeCode || routeId || "default"}-${s.characterGender}`}
+                        className="h-full w-full"
+                      />
+                    </div>
+
+                    {/* Coaching whisper */}
+                    <div className="rounded-xl p-3 mb-2.5" style={{ background: "var(--bg-tertiary)", border: "1px solid var(--border-color)" }}>
+                      <WhisperPanel
+                        onToggle={(enabled) => sendMessage({ type: "whisper.toggle", data: { enabled } })}
+                        onInsertHint={handleInsertHint}
+                      />
+                    </div>
+
+                    {/* Pill switcher — same tabs as desktop */}
+                    <div className="flex gap-1 rounded-xl p-1 mb-2.5" style={{ background: "var(--bg-tertiary)" }}>
+                      {([
+                        { key: "score", label: "Оценка", Icon: Target },
+                        { key: "reactions", label: "Реакции", Icon: Activity },
+                      ] as const).map(({ key, label, Icon }) => {
+                        const active = sidebarTab === key;
+                        return (
+                          <button
+                            key={key}
+                            type="button"
+                            onClick={() => setSidebarTab(key)}
+                            className="relative flex-1 flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold transition-colors"
+                            style={{ color: active ? "white" : "var(--text-muted)" }}
+                          >
+                            {active && (
+                              <motion.div layoutId="trainingIslandTab" className="absolute inset-0 rounded-lg" style={{ background: "var(--accent)" }} transition={{ type: "spring", stiffness: 500, damping: 35 }} />
+                            )}
+                            <span className="relative flex items-center gap-1.5"><Icon size={13} />{label}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {sidebarTab === "score" ? (
+                      <div className="flex flex-col gap-2.5">
+                        <div className="flex items-center justify-between rounded-xl p-3" style={{ background: "var(--bg-tertiary)" }}>
+                          <span className="text-sm font-semibold" style={{ color: "var(--text-secondary)" }}>Общий балл</span>
+                          <span className="text-2xl font-bold tabular-nums" style={{ color: "var(--accent)" }}>
+                            {s.messages.length === 0 ? "—" : <>{Math.round(s.scriptScore)}<span className="text-sm font-normal ml-0.5" style={{ color: "var(--text-muted)" }}>/100</span></>}
+                          </span>
+                        </div>
+                        <div className="rounded-xl p-3" style={{ background: "var(--bg-tertiary)" }}>
+                          <VibeMeter emotion={s.emotion} />
+                        </div>
+                        <div className="rounded-xl p-3" style={{ background: "var(--bg-tertiary)" }}>
+                          <TalkListenRatio talkPercent={s.talkTime + s.listenTime > 0 ? Math.round((s.talkTime / (s.talkTime + s.listenTime)) * 100) : 50} />
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col gap-2.5">
+                        {s.emotionHistory.length >= 2 ? (
+                          <div className="rounded-xl p-3" style={{ background: "var(--bg-tertiary)" }}>
+                            <LiveEmotionTimeline />
+                          </div>
+                        ) : (
+                          <div className="rounded-xl p-3 text-xs" style={{ background: "var(--bg-tertiary)", color: "var(--text-muted)" }}>
+                            Карта эмоций появится после нескольких реплик
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* Input row — always visible (collapsed & expanded). Telegram-style:
+                mic toggle + textarea + send, reusing the same handlers as desktop. */}
+            {s.sessionState === "ready" && (
+              <div className="px-3 pt-1.5 pb-3">
+                {(micRecording || s.transcription.status === "transcribing") && (
+                  <div className="mb-1.5 flex items-center gap-2 px-1 text-[11px]" style={{ color: micRecording ? "var(--danger)" : "var(--text-muted)" }}>
+                    <span className="h-1.5 w-1.5 rounded-full" style={{ background: micRecording ? "var(--danger)" : "var(--accent)", animation: "pulse 1s infinite" }} />
+                    {micRecording ? "Идёт запись… нажмите ■, чтобы распознать" : "Распознаю…"}
+                  </div>
+                )}
+                <div className="flex items-end gap-2">
+                  <motion.button
+                    onClick={handleMicToggle}
+                    disabled={s.sessionState !== "ready" || (!s.sttAvailable && !speech.isSupported)}
+                    aria-label={micRecording ? "Остановить и распознать" : "Записать голосовое"}
+                    className="flex h-[44px] w-[44px] shrink-0 items-center justify-center rounded-xl transition-colors"
+                    style={{
+                      background: micRecording ? "var(--danger-muted)" : "var(--accent-muted)",
+                      color: micRecording ? "var(--danger)" : "var(--accent)",
+                      border: `1px solid ${micRecording ? "var(--danger)" : "var(--border-color)"}`,
+                      opacity: s.sessionState !== "ready" || (!s.sttAvailable && !speech.isSupported) ? 0.4 : 1,
+                    }}
+                    whileTap={{ scale: 0.95 }}
+                  >
+                    {micRecording ? <Square size={15} strokeWidth={2} fill="currentColor" /> : <Mic size={18} />}
+                  </motion.button>
+                  <textarea
+                    value={s.input}
+                    onChange={(e) => s.setInput(e.target.value)}
+                    onKeyDown={handleKeyDown}
+                    placeholder={micRecording ? "Идёт запись…" : s.sessionState === "ready" ? "Сообщение…" : "Ожидание подключения…"}
+                    disabled={s.sessionState !== "ready" || micRecording}
+                    rows={1}
+                    aria-label="Введите сообщение"
+                    className="vh-input max-h-32 min-h-[44px] flex-1 resize-none text-sm"
+                    onInput={(e) => {
+                      const t = e.target as HTMLTextAreaElement;
+                      t.style.height = "auto";
+                      t.style.height = Math.min(t.scrollHeight, 128) + "px";
+                    }}
+                  />
+                  <motion.button
+                    onClick={() => {
+                      if (s.transcription.status === "preview") {
+                        s.setTranscription({ status: "idle", partial: "", final: "" });
+                      }
+                      handleSend();
+                    }}
+                    disabled={!s.input.trim() || s.sessionState !== "ready" || connectionState !== "connected" || s.isTyping}
+                    aria-label="Отправить сообщение"
+                    className="flex h-[44px] w-[44px] shrink-0 items-center justify-center rounded-xl text-white"
+                    style={{ background: "var(--accent)", opacity: !s.input.trim() || s.sessionState !== "ready" || s.isTyping ? 0.4 : 1 }}
+                    whileTap={{ scale: 0.95 }}
+                  >
+                    {s.isTyping ? <Loader2 size={16} className="animate-spin" /> : <Send size={18} />}
+                  </motion.button>
+                </div>
+              </div>
+            )}
+          </motion.div>
         </section>
 
         {/*
