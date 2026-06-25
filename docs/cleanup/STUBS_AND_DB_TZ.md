@@ -32,16 +32,21 @@
 | SMTP | реален; без ключей пишет ссылку в лог (`auth.py`) | нужны ключи |
 | `course_schedule.py:19` | `COURSE_DRIP_START = 2026-04-02` — хардкод «Placeholder for the real launch» | обновить дату старта дрипа под реальный запуск сезона |
 
-### A.4 Внутренние/мёртвые заглушки — Tier-1 (удалить сразу, 0 импортеров)
+### A.4 Внутренние/мёртвые заглушки
 
+**Tier-1 (УДАЛЕНО 2026-06-19 — 0 импортеров, no-op стабы):**
 | Файл | Примечание |
 |---|---|
-| `apps/web/src/components/ui/Confetti.tsx` | `return null`, нет импортеров |
-| `apps/web/src/components/training/BootSequence.tsx` | `return null`, нет импортеров |
-| `apps/web/src/components/ui/ScreenShake.tsx` | стаб, не используется |
-| `apps/api/app/services/quiz_v2/answer_keys.py:70` | `NotImplementedError`, 0 вызовов, флаг `quiz_v2_grader_enabled=False` |
-| `apps/api/app/services/quiz_v2/events.py:51` | `NotImplementedError`, 0 вызовов |
-| `apps/api/app/services/lorebook.py:5` | `return ""` на sync-def, `await`-ится → `TypeError` глотается; префикс lorebook молча не применяется. **Починить или удалить** |
+| ~~`apps/web/src/components/ui/Confetti.tsx`~~ | удалён — `return null`, 0 импортеров |
+| ~~`apps/web/src/components/training/BootSequence.tsx`~~ | удалён — `return null`, 0 импортеров |
+| ~~`apps/web/src/components/ui/ScreenShake.tsx`~~ | удалён — no-op хук, 0 импортеров |
+
+**НЕ Tier-1 (проверка 2026-06-19 опровергла «0 вызовов» — НЕ трогать наскоком):**
+| Файл | Почему НЕ безопасно |
+|---|---|
+| `apps/api/app/services/quiz_v2/answer_keys.py` | **импортируется** в `quiz_v2/__init__.py:43` (`question_hash, AnswerKey`) — удаление ломает импорт пакета. `NotImplementedError` только внутри отдельных функций. Решать вместе с `models/quiz_v2.py` + миграцией |
+| `apps/api/app/services/quiz_v2/events.py` | **импортируется** в `quiz_v2/__init__.py:42` (`new_answer_id`) — то же |
+| `apps/api/app/services/lorebook.py` | lazy-импорт из `app.services.llm`; рядом живой lorebook (флаг `use_lorebook=True`, `seed_lorebook`, `models/rag.py`). Shim под отсутствующую upstream-функцию. До починки `await`-на-sync — изучить `llm.py`, применяется ли lorebook другим путём |
 
 > Примечание: задача из памяти «кнопка Позвонить» — **не заглушка**: звонок
 > полностью реализован (`/training/[id]/call/page.tsx`, 336 строк). Стаб-кнопки в
@@ -57,9 +62,9 @@
 head` работает).
 
 ### B.1 Tier-1 — без миграций (удалить файлы dead-code)
-FE: `Confetti.tsx`, `BootSequence.tsx`, `ScreenShake.tsx`.
-BE: `quiz_v2/answer_keys.py` + `events.py` (скелеты `NotImplementedError`),
-починить `lorebook.py`.
+FE: ✅ удалено 2026-06-19 — `Confetti.tsx`, `BootSequence.tsx`, `ScreenShake.tsx`.
+BE: ⚠️ `quiz_v2/answer_keys.py` + `events.py` импортируются `__init__`-ом (см. A.4) — НЕ Tier-1;
+`lorebook.py` тоже требует изучения `llm.py` перед починкой.
 
 ### B.2 Tier-2 — DROP TABLE миграция (СНАЧАЛА `SELECT count(*)` на проде!)
 Мёртвые целиком (0 ссылок в коде + 0 сидов):
