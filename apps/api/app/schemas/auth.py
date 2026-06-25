@@ -99,7 +99,7 @@ class UserResponse(BaseModel):
     avatar_url: str | None = None
     preferences: dict | None = None
     onboarding_completed: bool = False
-    google_id: str | None = None
+    # google_id removed 2026-06-19 (149-ФЗ): Google OAuth no longer supported.
     yandex_id: str | None = None
     team_id: str | None = None
     telegram_linked: bool = False

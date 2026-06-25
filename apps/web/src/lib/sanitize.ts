@@ -121,8 +121,9 @@ export function isSafeInput(input: string): boolean {
  * Whitelist of allowed OAuth redirect domains.
  * Prevents open redirect attacks via compromised API responses.
  */
+// 2026-06-19 (149-ФЗ): accounts.google.com removed — Google OAuth no longer
+// supported. Only Yandex ID (allowed RU provider) remains.
 const ALLOWED_OAUTH_DOMAINS = new Set([
-  "accounts.google.com",
   "oauth.yandex.ru",
   "oauth.yandex.com",
 ]);

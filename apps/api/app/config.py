@@ -616,17 +616,15 @@ class Settings(BaseSettings):
     deepgram_model: str = "nova-2"
     deepgram_language: str = "ru"
 
-    # OAuth (Google)
-    google_client_id: str = ""
-    google_client_secret: str = ""
-    google_redirect_uri: str = ""  # e.g. http://localhost:3000/auth/callback
-
-    # OAuth (Yandex)
+    # OAuth (Yandex) — 2026-06-19 (149-ФЗ): Google OAuth removed. Foreign
+    # identity providers (Google/Apple/etc.) are not permitted under 149-ФЗ.
+    # Only Yandex ID (allowed RU provider) remains, alongside own
+    # email/password + SMS. See docs/auth/AUTH_REBUILD_TZ.md.
     yandex_client_id: str = ""
     yandex_client_secret: str = ""
     yandex_redirect_uri: str = ""  # e.g. http://localhost:3000/auth/callback
 
-    @field_validator("google_redirect_uri", "yandex_redirect_uri")
+    @field_validator("yandex_redirect_uri")
     @classmethod
     def _validate_oauth_redirect_uri(cls, v: str) -> str:
         """
@@ -654,10 +652,6 @@ class Settings(BaseSettings):
                 f"frontend route apps/web/src/app/auth/callback/page.tsx. Got: {v!r}"
             )
         return v
-
-    @property
-    def google_oauth_configured(self) -> bool:
-        return bool(self.google_client_id and self.google_client_secret)
 
     @property
     def yandex_oauth_configured(self) -> bool:

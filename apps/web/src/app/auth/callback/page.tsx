@@ -29,10 +29,11 @@ function OAuthCallbackContent() {
       return;
     }
 
-    // Determine provider from state (format: "google:xxx" or "yandex:xxx")
-    const provider = state?.split(":")[0] || "google";
+    // Determine provider from state (format: "yandex:xxx").
+    // 2026-06-19 (149-ФЗ): Google removed — Yandex ID is the only OAuth provider.
+    const provider = state?.split(":")[0] || "yandex";
 
-    if (provider !== "google" && provider !== "yandex") {
+    if (provider !== "yandex") {
       setStatus("error");
       setErrorMsg("Неизвестный провайдер OAuth");
       return;
