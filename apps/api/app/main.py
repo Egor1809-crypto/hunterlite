@@ -379,7 +379,8 @@ _CSRF_EXEMPT_PREFIXES = (
                                 #   users with lost CSRF cookie can still sign out
     "/api/auth/forgot-password",
     "/api/auth/reset-password",
-    "/api/auth/google",
+    # 2026-06-19 (149-ФЗ): "/api/auth/google" exemption removed with the
+    # Google OAuth handlers. Yandex ID stays (allowed RU provider).
     "/api/auth/yandex",
     "/api/auth/oauth",
     "/api/health",

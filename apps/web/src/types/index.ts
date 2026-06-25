@@ -239,7 +239,7 @@ export interface User {
   avatar_url?: string | null;
   preferences?: Record<string, unknown> | null;
   onboarding_completed?: boolean;
-  google_id?: string | null;
+  // google_id removed 2026-06-19 (149-ФЗ): Google OAuth no longer supported.
   yandex_id?: string | null;
   team?: string;
   telegram_linked?: boolean;

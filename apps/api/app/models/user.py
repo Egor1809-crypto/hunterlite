@@ -42,6 +42,10 @@ class User(Base):
     must_change_password: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
     preferences: Mapped[dict | None] = mapped_column(JSONB, default=dict)
     onboarding_completed: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    # DEPRECATED 2026-06-19 (149-ФЗ): Google OAuth removed. Column retained
+    # (not dropped) to avoid orphaning any existing Google-linked accounts and
+    # to keep the migration history clean — it is no longer written or read by
+    # any code path. Drop via a dedicated, data-checked migration if desired.
     google_id: Mapped[str | None] = mapped_column(String(255), unique=True, nullable=True, index=True)
     yandex_id: Mapped[str | None] = mapped_column(String(255), unique=True, nullable=True, index=True)
     # Telegram account linking (@BFLHUNTER_bot). Stores the numeric TG

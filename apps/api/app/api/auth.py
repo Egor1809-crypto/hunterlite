@@ -654,155 +654,15 @@ class OAuthCallbackRequest(BaseModel):
 
 @router.get("/oauth/status")
 async def oauth_status():
-    """Return which OAuth providers are configured."""
+    """Return which OAuth providers are configured.
+
+    2026-06-19 (149-ФЗ): Google OAuth removed — foreign identity providers are
+    not permitted. Only Yandex ID (allowed RU provider) + own email/password +
+    SMS remain. See docs/auth/AUTH_REBUILD_TZ.md.
+    """
     return {
-        "google": settings.google_oauth_configured,
         "yandex": settings.yandex_oauth_configured,
     }
-
-
-# --- Google OAuth ---
-
-@router.get("/google/login")
-async def google_login():
-    """Generate Google OAuth consent URL."""
-    if not settings.google_oauth_configured:
-        raise HTTPException(status_code=status.HTTP_501_NOT_IMPLEMENTED, detail="Google OAuth не настроен")
-
-    state = _secrets.token_urlsafe(32)
-    state_key = f"google:{state}"
-
-    # Store state in Redis for CSRF validation (5 min TTL)
-    try:
-        r = get_redis()
-        await r.setex(f"oauth_state:{state_key}", 300, "1")
-    except aioredis.RedisError as exc:
-        _logger.error("Redis error storing Google OAuth state: %s", exc)
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=err.SERVICE_TEMPORARILY_UNAVAILABLE)
-
-    redirect_uri = settings.google_redirect_uri or f"{settings.frontend_url}/auth/callback"
-    params = {
-        "client_id": settings.google_client_id,
-        "redirect_uri": redirect_uri,
-        "response_type": "code",
-        "scope": "openid email profile",
-        "state": state_key,
-        "access_type": "offline",
-        "prompt": "consent",
-    }
-    from urllib.parse import urlencode
-    url = "https://accounts.google.com/o/oauth2/v2/auth?" + urlencode(params)
-    return {"url": url, "state": state_key}
-
-
-@router.post("/google/callback", response_model=TokenResponse)
-@limiter.limit("10/minute")
-async def google_callback(request: Request, body: OAuthCallbackRequest, db: AsyncSession = Depends(get_db)):
-    """Exchange Google auth code for tokens, find or create user."""
-    if not settings.google_oauth_configured:
-        raise HTTPException(status_code=status.HTTP_501_NOT_IMPLEMENTED, detail="Google OAuth не настроен")
-
-    # Validate OAuth state to prevent CSRF
-    if not body.state:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=err.MISSING_OAUTH_STATE)
-    try:
-        r = get_redis()
-        stored = await r.get(f"oauth_state:{body.state}")
-        await r.delete(f"oauth_state:{body.state}")
-    except aioredis.RedisError as exc:
-        _logger.error("Redis error validating Google OAuth state: %s", exc)
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=err.SERVICE_TEMPORARILY_UNAVAILABLE)
-    if not stored:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=err.INVALID_OAUTH_STATE)
-
-    redirect_uri = settings.google_redirect_uri or f"{settings.frontend_url}/auth/callback"
-
-    # Exchange code for tokens
-    async with httpx.AsyncClient(timeout=10) as client:
-        token_resp = await client.post(
-            "https://oauth2.googleapis.com/token",
-            data={
-                "code": body.code,
-                "client_id": settings.google_client_id,
-                "client_secret": settings.google_client_secret,
-                "redirect_uri": redirect_uri,
-                "grant_type": "authorization_code",
-            },
-        )
-        if token_resp.status_code != 200:
-            _body_preview = token_resp.text[:500]
-            _logger.warning(
-                "oauth.google.token_exchange_failed status=%s redirect_uri=%s body=%s",
-                token_resp.status_code, redirect_uri, _body_preview,
-            )
-            # Parse Google's structured error body so the UI can show the
-            # real reason (redirect_uri_mismatch / invalid_client / etc.)
-            # instead of a generic message.
-            _provider_error: str | None = None
-            _provider_error_description: str | None = None
-            try:
-                _pj = token_resp.json()
-                _provider_error = _pj.get("error")
-                _provider_error_description = _pj.get("error_description")
-            except Exception:  # noqa: BLE001
-                pass
-            _hint_ru = {
-                "redirect_uri_mismatch": (
-                    f"redirect_uri, отправленный на Google ({redirect_uri!r}), не совпадает "
-                    "ни с одним из Authorized redirect URIs в Google OAuth Client. "
-                    "Добавь именно это значение в Console или обнови GOOGLE_REDIRECT_URI в .env."
-                ),
-                "invalid_client": "GOOGLE_CLIENT_ID или GOOGLE_CLIENT_SECRET не совпадают с Console.",
-                "invalid_grant": "Код авторизации устарел или уже использовался. Попробуй ещё раз.",
-                "unauthorized_client": "OAuth-клиенту запрещён grant_type=authorization_code.",
-            }.get(_provider_error or "", None)
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail={
-                    "code": "oauth_exchange_failed",
-                    "provider": "google",
-                    "provider_status": token_resp.status_code,
-                    "provider_error": _provider_error,
-                    "provider_error_description": _provider_error_description,
-                    "redirect_uri_sent": redirect_uri,
-                    "message": (
-                        _hint_ru
-                        or _provider_error_description
-                        or "Google отклонил запрос. См. provider_error для деталей."
-                    ),
-                },
-            )
-        token_data = token_resp.json()
-
-        # Get user info
-        userinfo_resp = await client.get(
-            "https://www.googleapis.com/oauth2/v2/userinfo",
-            headers={"Authorization": f"Bearer {token_data['access_token']}"},
-        )
-        if userinfo_resp.status_code != 200:
-            _logger.warning(
-                "oauth.google.userinfo_failed status=%s body=%s",
-                userinfo_resp.status_code, userinfo_resp.text[:300],
-            )
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail={
-                    "code": "oauth_userinfo_failed",
-                    "provider": "google",
-                    "provider_status": userinfo_resp.status_code,
-                    "message": "Не удалось получить профиль Google",
-                },
-            )
-        userinfo = userinfo_resp.json()
-
-    google_id = userinfo.get("id")
-    email = userinfo.get("email", "")
-    name = userinfo.get("name", email.split("@")[0])
-
-    if not google_id:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Google не вернул ID пользователя")
-
-    return await _oauth_find_or_create(db, provider="google", provider_id=google_id, email=email, name=name)
 
 
 # --- Yandex OAuth ---
@@ -923,8 +783,11 @@ async def yandex_callback(request: Request, body: OAuthCallbackRequest, db: Asyn
 async def _oauth_find_or_create(
     db: AsyncSession, provider: str, provider_id: str, email: str, name: str,
 ) -> JSONResponse:
-    """Find existing user by OAuth provider ID or email, or create new user."""
-    provider_col = User.google_id if provider == "google" else User.yandex_id
+    """Find existing user by OAuth provider ID or email, or create new user.
+
+    2026-06-19 (149-ФЗ): only Yandex ID remains as an OAuth provider.
+    """
+    provider_col = User.yandex_id
 
     # 1) Try to find by provider ID
     result = await db.execute(select(User).where(provider_col == provider_id))
@@ -976,7 +839,7 @@ async def disconnect_oauth(
     db: AsyncSession = Depends(get_db),
 ):
     """Unlink an OAuth provider from the current account."""
-    if provider not in ("google", "yandex"):
+    if provider not in ("yandex",):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Неизвестный провайдер")
 
     current_value = getattr(user, f"{provider}_id")
