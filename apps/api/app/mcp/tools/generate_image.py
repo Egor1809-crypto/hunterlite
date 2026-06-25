@@ -14,7 +14,8 @@ The tool:
      ``<img src="/uploads/ai/...">``.
 
 Guards:
-  - 60-second handler timeout — image gen is slow.
+  - 150-second handler timeout — image gen is slow (nano-banana-2 measured
+    ~88s on navy.api 2026-06-25; 60s would time out before first byte).
   - Max 10 calls/min per user.
   - 2 MB result cap (we return an internal URL, not the base64 blob, so
     even generous images fit).
@@ -122,7 +123,9 @@ async def _call_navy(prompt: str) -> tuple[bytes, str]:
         "size": "1024x1024",
     }
 
-    async with httpx.AsyncClient(timeout=60.0) as client:
+    # nano-banana-2 measured ~88s on navy.api (2026-06-25). 60s timed out
+    # before the image was ready; 120s leaves headroom for a slow generation.
+    async with httpx.AsyncClient(timeout=120.0) as client:
         r = await client.post(url, json=payload, headers=headers)
     if r.status_code != 200:
         raise RuntimeError(
@@ -192,7 +195,9 @@ def _save_image(data: bytes, mime: str) -> str:
     auth_required=True,
     rate_limit_per_min=10,
     max_result_size_kb=2048,
-    timeout_s=60,
+    # 150s = 120s generation POST + up to 30s URL-download leg. nano-banana-2
+    # measured ~88s on navy; the old 60s ceiling killed the handler mid-gen.
+    timeout_s=150,
     tags=("image", "write"),
 )
 async def generate_image(args: dict, ctx: ToolContext) -> dict:

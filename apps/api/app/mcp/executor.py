@@ -26,6 +26,7 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Any
 
+from app.config import settings
 from app.mcp.guards import (
     GuardViolation,
     check_auth,
@@ -126,16 +127,20 @@ async def dispatch(
     import time
 
     started_at = time.perf_counter()
+    # Global hard ceiling (settings.mcp_tool_timeout_s) bounds every handler,
+    # even one whose own timeout_s is misconfigured high. Effective timeout is
+    # the tighter of the two.
+    effective_timeout = min(tool.timeout_s, settings.mcp_tool_timeout_s)
     try:
         result = await asyncio.wait_for(
             tool.handler(arguments, ctx),
-            timeout=tool.timeout_s,
+            timeout=effective_timeout,
         )
     except asyncio.TimeoutError:
         raise ToolExecutionError(
             call_id=call_id, name=name,
             code="timeout",
-            message=f"tool {name!r} did not complete in {tool.timeout_s}s",
+            message=f"tool {name!r} did not complete in {effective_timeout}s",
             fatal=False,
         )
     except Exception as exc:  # noqa: BLE001 — anything from user handler

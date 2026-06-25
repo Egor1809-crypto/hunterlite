@@ -266,8 +266,15 @@ class Settings(BaseSettings):
     # ``tools=`` arg) and detects ``LLMResponse.tool_calls`` to fire the
     # same hangup branch the ``[END_CALL]`` string marker triggers.
     end_call_tool_enabled: bool = True
-    # Hard ceiling on handler execution, independent of per-tool timeouts.
-    mcp_tool_timeout_s: int = 30
+    # Global hard ceiling on MCP handler execution. The executor runs every
+    # handler under ``asyncio.wait_for(timeout=min(tool.timeout_s, this))`` so
+    # no single tool can exceed it even if its own ``timeout_s`` is higher.
+    # 2026-06-25: was 30 and — critically — never actually read by the
+    # executor (dead config; the docstring claimed a ceiling that did not
+    # exist). Now wired in executor.py. Raised to 180 so it does not clip the
+    # legitimately-slow ``generate_image`` tool (timeout_s=150; nano-banana-2
+    # measured ~88s on navy).
+    mcp_tool_timeout_s: int = 180
     # Navy.api settings for the first real MCP tool (image generation).
     # Token kept separate from other LLM keys because navy.api has its own
     # per-key quotas and we want to rotate them independently.
