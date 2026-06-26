@@ -177,6 +177,17 @@ async def tts_sentence(sentence: str, voice_id: str) -> str | None:
             "voice": voice_id,
             "response_format": "mp3",
         }
+        # ElevenLabs models on navy honor voice_settings — lock high stability +
+        # similarity so consecutive, independently-synthesized fragments (the
+        # filler + each sentence) keep the SAME timbre instead of drifting like a
+        # different speaker. OpenAI/Gemini tts ignore/reject the field, so send
+        # it only for eleven_* models.
+        if settings.call_tts_model.lower().startswith("eleven"):
+            payload["voice_settings"] = {
+                "stability": 0.9,
+                "similarity_boost": 0.9,
+                "style": 0.0,
+            }
         async with httpx.AsyncClient(timeout=settings.call_tts_timeout) as client:
             r = await client.post(
                 f"{_navy_base()}/audio/speech",
@@ -302,10 +313,20 @@ def derive_gender(persona_name: str, persona_brief: str) -> str:
 
 
 def voice_for_gender(gender: str) -> str:
-    """Resolve voice_id from gender (female → female voice, else male)."""
+    """Resolve a STABLE voice_id for the persona's gender.
+
+    Prefers the project's configured ElevenLabs voice pool from env
+    (``ELEVENLABS_VOICE_IDS_MALE`` / ``_FEMALE``) — the curated Russian voices
+    already used by the chat-side TTS — and picks the FIRST one deterministically
+    so the voice is identical for the filler and every sentence of a call (no
+    per-fragment drift, no per-call rotation). Falls back to the dedicated
+    ``CALL_TTS_VOICE_*`` ids only when the env pool is empty.
+    """
     if gender == "female":
-        return settings.call_tts_voice_female
-    return settings.call_tts_voice_male
+        pool = settings.elevenlabs_female_voices
+        return pool[0] if pool else settings.call_tts_voice_female
+    pool = settings.elevenlabs_male_voices
+    return pool[0] if pool else settings.call_tts_voice_male
 
 
 # ─── Persona Agent Playbook system prompt (§6, 9 sections) ─────────────────

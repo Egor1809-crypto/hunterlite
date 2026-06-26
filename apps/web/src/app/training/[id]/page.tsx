@@ -76,12 +76,21 @@ function wsPayload<T>(data: Record<string, unknown>): T {
  * - *Unclosed asterisk actions
  * - (keyword stage directions) in parentheses
  */
-function stripStageDirections(text: string): string {
+// Removes stage directions (*…*, line-leading *…*, parenthetical mood notes)
+// but PRESERVES edge whitespace — safe to apply to a single streaming delta
+// fragment, where a leading/trailing space carries the word boundary between
+// chunks (trimming each delta would glue words: "Да, я васслушаю").
+function stripStageDirectionsInline(text: string): string {
   if (!text) return "";
   return text
     .replace(/\*[^*]+\*/g, '')
     .replace(/(?:^|\n)\*[^*\n]+(?:\n|$)/gm, '')
-    .replace(/\((?:[Гг]олос|[Пп]ауз|[Тт]их|[Кк]рич|[Пп]лач|[Шш][её]пот|[Вв]здох|[Сс]мех|[Вв]схлип|[Зз]лоб|[Рр]аздраж|[Нн]ервн|[Сс]покойн|[Уу]верен|[Рр]ешительн|[Гг]ромк|[Бб]ыстр|[Мм]едленн|[Оо]бижен|[Сс]аркастич|[Хх]олодн|[Рр]езк|[Мм]ягк|[Ии]спуган|[Дд]рожащ|[Вв]ешает|[Сс]брос|[Дд]ушит|[Дд]авит|[Зз]амолкает|[Вв]ыдыхает|[Вв]здыхает|[Мм]олчит|[Бб]росает|[Тт]рубк|[Сс]тучит|[Хх]лопает)[^)]*\)/gi, '')
+    .replace(/\((?:[Гг]олос|[Пп]ауз|[Тт]их|[Кк]рич|[Пп]лач|[Шш][её]пот|[Вв]здох|[Сс]мех|[Вв]схлип|[Зз]лоб|[Рр]аздраж|[Нн]ервн|[Сс]покойн|[Уу]верен|[Рр]ешительн|[Гг]ромк|[Бб]ыстр|[Мм]едленн|[Оо]бижен|[Сс]аркастич|[Хх]олодн|[Рр]езк|[Мм]ягк|[Ии]спуган|[Дд]рожащ|[Вв]ешает|[Сс]брос|[Дд]ушит|[Дд]авит|[Зз]амолкает|[Вв]ыдыхает|[Вв]здыхает|[Мм]олчит|[Бб]росает|[Тт]рубк|[Сс]тучит|[Хх]лопает)[^)]*\)/gi, '');
+}
+
+function stripStageDirections(text: string): string {
+  if (!text) return "";
+  return stripStageDirectionsInline(text)
     .replace(/  +/g, ' ')
     .replace(/\n\s*\n/g, '\n')
     .trim();
@@ -379,11 +388,42 @@ export default function TrainingSessionPage() {
           break;
 
         case "character.response_chunk": {
-          // SYNC: text chunks are intentionally NOT rendered here.
-          // Text is revealed together with audio via `tts.audio_chunk.text`
-          // (or all at once via `character.response` if TTS fails).
-          // This keeps text and voice 1:1 synchronized instead of text
-          // racing ahead of audio by 300-500ms per sentence.
+          // 2026-06 (typing-bug fix): when audio is OFF (chat is text-only —
+          // mute:true above — or the user muted TTS), render the LLM token
+          // stream progressively so the reply types out live. Previously this
+          // was a no-op (text was meant to ride with `tts.audio_chunk.text`),
+          // so in chat the typing dots froze and the whole message dumped at
+          // once when `character.response` finally arrived after the TTS tail.
+          // In voice mode (audio ON) keep the no-op — text stays 1:1 with audio.
+          if (tts.enabled) break;
+          // Strip stage directions live too — character.response finalizes via
+          // stripStageDirections, so without this the bubble would type out
+          // "*вздыхает* …" then snap to clean text. Inline variant keeps the
+          // delta's edge spaces (word boundaries between chunks) intact.
+          const chunkText = stripStageDirectionsInline((data.data?.text as string) || "");
+          const trimmed = chunkText.trim();
+          if (!trimmed) break;  // empty / whitespace / stage-direction-only delta
+          // Delta fragments (backend clears its buffer after each emit) → append.
+          const recent = s.messages.slice(-5);
+          // Skip if a finalized assistant msg already contains this text
+          // (e.g. character.response landed first on a fast turn).
+          const alreadyPresent = recent.some(
+            (m) => m.role === "assistant" && !m.isStreaming && m.content.includes(trimmed),
+          );
+          if (alreadyPresent) break;
+          const streamingInRecent = [...recent].reverse()
+            .find((m) => m.role === "assistant" && m.isStreaming);
+          if (streamingInRecent) {
+            s.appendToLastAssistantMessage(chunkText);
+          } else {
+            s.addMessage({
+              id: s.nextMsgId(),
+              role: "assistant",
+              content: chunkText,
+              timestamp: new Date().toISOString(),
+              isStreaming: true,
+            });
+          }
           break;
         }
 
