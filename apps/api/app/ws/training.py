@@ -1277,6 +1277,18 @@ def _build_call_cognitive_cues(state: dict, session_mode: str) -> dict | None:
     return cues  # may be {} — modifier still produces working-memory line
 
 
+def _is_voice_mode(state: dict) -> bool:
+    """True when the session plays audio (call/center); False for text-only chat.
+
+    Single source of truth for the chat-vs-voice decision so every TTS gate in
+    ``_generate_character_reply`` agrees. ``state['session_mode']`` is the
+    canonical value resolved from ``session.mode`` at WS setup; unset → "chat".
+    Case-insensitive (mirrors the ``.lower()`` mode handling elsewhere) so a
+    stored "Call"/"CENTER" never silently mutes a real voice session.
+    """
+    return (state.get("session_mode") or "chat").lower() in ("call", "center")
+
+
 async def _generate_character_reply(
     ws: WebSocket,
     session_id: uuid.UUID,
@@ -1290,6 +1302,11 @@ async def _generate_character_reply(
     # pauses while the model is generating (slow local LLMs can take 20–40s).
     state["llm_busy"] = True
     await _send(ws, "avatar.typing", {"is_typing": True})
+
+    # 2026-06: chat is text-only (FE hardcodes mute:true). Defined up-front so
+    # every TTS gate below — stream, hangup, post-LLM — can require it without
+    # any code path leaving it undefined. See the typing-bug fix note below.
+    _voice_mode = _is_voice_mode(state)
 
     current_emotion = await get_emotion(session_id)
 
@@ -1824,12 +1841,18 @@ async def _generate_character_reply(
         _streamed_text = ""
         _stream_ok = False
         _stream_tts_used = False  # if True, skip post-LLM sentence TTS block
+        # Gate ALL TTS work to voice modes (call/center). In chat (_voice_mode
+        # False) the FE mutes audio, so synthesizing it only wasted navy calls
+        # AND held the final ``character.response`` behind the per-sentence TTS
+        # tail wait (up to 15s) — the "typing → long pause → message dumps at
+        # once" bug. _voice_mode is computed at the top of this function.
         # Pre-compute TTS eligibility (same checks as post-LLM block)
         # is_tts_available() returns True for either ElevenLabs OR navy TTS;
         # redundant elevenlabs_enabled gate would block navy-only setups.
         _tts_stream_enabled = (
             is_tts_available()
             and state.get("user_prefs", {}).get("tts_enabled", True)
+            and _voice_mode
         )
         try:
             _chunk_buffer = ""
@@ -2582,9 +2605,9 @@ async def _generate_character_reply(
             "is_hangup": True,
         })
 
-        # TTS for the hangup phrase (best-effort)
+        # TTS for the hangup phrase (best-effort) — voice modes only (chat is muted).
         _user_tts_pref = state.get("user_prefs", {}).get("tts_enabled", True)
-        if is_tts_available() and _user_tts_pref:
+        if is_tts_available() and _user_tts_pref and _voice_mode:
             try:
                 _tts_res = await get_tts_audio_b64(
                     hangup_phrase, str(session_id),
@@ -2901,7 +2924,9 @@ async def _generate_character_reply(
     )
     # If streaming TTS already dispatched all sentences during LLM stream,
     # skip the post-LLM sentence pipeline to avoid double-synthesis.
-    if tts_available and tts_enabled and not _stream_tts_used:
+    # Voice modes only — chat is text-only (see _voice_mode above), otherwise
+    # this blocking pipeline would re-introduce the discarded-audio tail wait.
+    if tts_available and tts_enabled and _voice_mode and not _stream_tts_used:
         try:
             # Split into sentences for pipelined TTS
             import re as _re

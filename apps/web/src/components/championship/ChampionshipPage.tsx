@@ -40,6 +40,32 @@ import {
 const BOT_URL = "https://t.me/BFLHUNTER_bot";
 const RANK_LABEL = ["Золото", "Серебро", "Бронза"];
 
+// 2026: вместо «серой» цены под устройством показываем профессиональную
+// мотивирующую подпись — приз как инструмент успеха в продажах БФЛ, а не
+// как ценник. Ключ — тип устройства (та же детекция по имени, что в PrizeMedia).
+const PRIZE_TAGLINES: Record<string, { head: string; sub: string }> = {
+  macbook: {
+    head: "Инструмент тех, кто закрывает больше всех",
+    sub: "Ноутбук чемпиона сезона — для лидера в продажах банкротства.",
+  },
+  iphone: {
+    head: "Клиент звонит — вы уже на связи",
+    sub: "В банкротстве выигрывает тот, кто отвечает первым.",
+  },
+  airpods: {
+    head: "Услышать клиента — половина сделки",
+    sub: "В разговоре о долгах важна каждая деталь.",
+  },
+};
+
+function prizeTagline(name: string): { head: string; sub: string } | null {
+  const n = (name || "").toLowerCase();
+  if (n.includes("macbook")) return PRIZE_TAGLINES.macbook;
+  if (n.includes("iphone")) return PRIZE_TAGLINES.iphone;
+  if (n.includes("airpod")) return PRIZE_TAGLINES.airpods;
+  return null;
+}
+
 // ─────────────────────────── small helpers ───────────────────────────
 
 function useCountdown(targetIso: string | undefined) {
@@ -198,6 +224,7 @@ function PrizeStory({ prize, index }: { prize: PrizeItem; index: number }) {
   const y = useTransform(scrollYProgress, [0, 1], [40, -40]);
 
   const reversed = index % 2 === 1;
+  const tagline = prizeTagline(prize.name);
   return (
     <div ref={ref} className="relative" style={{ minHeight: "38vh" }}>
       <div className="sticky top-[12vh] flex min-h-[28vh] items-center">
@@ -218,7 +245,19 @@ function PrizeStory({ prize, index }: { prize: PrizeItem; index: number }) {
             >
               {prize.name}
             </h3>
-            {prize.value ? (
+            {tagline ? (
+              <>
+                <p
+                  className="mt-5 font-medium"
+                  style={{ fontSize: "clamp(18px, 2vw, 22px)", lineHeight: 1.25, color: "var(--text-primary)" }}
+                >
+                  {tagline.head}
+                </p>
+                <p className="mt-2 text-base" style={{ color: "var(--text-secondary)" }}>
+                  {tagline.sub}
+                </p>
+              </>
+            ) : prize.value ? (
               <p className="mt-5 text-lg" style={{ color: "var(--text-secondary)" }}>
                 Ориентировочная стоимость приза — {fmtMoney(prize.value)}.
               </p>

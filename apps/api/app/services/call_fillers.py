@@ -20,14 +20,35 @@ from app.services.call_pipeline import tts_sentence, voice_for_gender
 logger = logging.getLogger(__name__)
 
 # §5 filler texts per gender.
+# 2026-06 upgrade: the debtor is REACTING to what the manager just said and
+# stalling before the real answer, so these are natural "thinking" fillers
+# (not "я вас слушаю", which would imply the manager hasn't spoken yet). Kept
+# generic so they flow into ANY reply the model then produces, and varied in
+# length (~1.5–4s) so a short one bridges a fast turn while a longer one covers
+# a slow STT+LLM gap. The FE stops the filler the moment the real reply lands.
 _FILLER_TEXTS: dict[str, list[str]] = {
-    "male": ["Так… секунду.", "Хм, ну…", "Подождите-ка."],
-    "female": ["Так… минутку.", "Хм…", "Сейчас-сейчас."],
+    "male": [
+        "Так, секундочку…",
+        "Ммм, ну… дайте сообразить.",
+        "Угу, подождите… я думаю.",
+        "Так-так, секунду… дайте-ка вспомнить.",
+        "Подождите, не торопите… сейчас соображу.",
+    ],
+    "female": [
+        "Так, секундочку…",
+        "Ммм, ну… дайте подумать.",
+        "Угу, подождите… я думаю.",
+        "Так-так, минутку… дайте-ка вспомнить.",
+        "Подождите, не торопите… сейчас соображу.",
+    ],
 }
 
 # In-memory cache: gender → list[base64 mp3]. Populated lazily.
 _FILLER_CACHE: dict[str, list[str]] = {}
 _FILLER_LOCKS: dict[str, asyncio.Lock] = {}
+# Last filler handed out per gender — so we never play the same one twice in a
+# row (cheap "smarter" touch; pure random felt robotic when it repeated).
+_LAST_FILLER: dict[str, str] = {}
 
 
 def _lock_for(gender: str) -> asyncio.Lock:
@@ -80,4 +101,12 @@ def random_filler(gender: str) -> str | None:
     pool = _FILLER_CACHE.get(g) or []
     if not pool:
         return None
-    return random.choice(pool)
+    # Avoid repeating the previous filler back-to-back when we have options.
+    if len(pool) > 1:
+        last = _LAST_FILLER.get(g)
+        candidates = [p for p in pool if p != last] or pool
+    else:
+        candidates = pool
+    pick = random.choice(candidates)
+    _LAST_FILLER[g] = pick
+    return pick
