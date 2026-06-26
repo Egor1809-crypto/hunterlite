@@ -1337,18 +1337,35 @@ async def generate_script_hints(
     if not session:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=err.SESSION_NOT_FOUND)
 
-    # Fetch the last 6 messages for context
-    msg_q = await db.execute(
-        _select(Message)
-        .where(Message.session_id == session_id)
-        .order_by(Message.sequence_number.desc())
-        .limit(6)
-    )
-    recent = list(reversed(msg_q.scalars().all()))
-    history_text = "\n".join(
-        f"{'Менеджер' if m.role == MessageRole.user else 'Клиент'}: {m.content}"
-        for m in recent
-    ) or "(звонок ещё не начался)"
+    # Conversation context. The CHAT path persists Message rows, so we read the
+    # last 6 from the DB. The voice CALL (/ws/call) keeps the transcript only in
+    # memory (no Message rows), so it POSTs its history in the body — when present
+    # we use it. Backward-compatible: chat sends no body → DB path, unchanged.
+    _body: dict = {}
+    try:
+        _body = await request.json()
+    except Exception:
+        _body = {}
+    _body_hist = _body.get("history") if isinstance(_body, dict) else None
+    if isinstance(_body_hist, list) and _body_hist:
+        history_text = "\n".join(
+            f"{'Менеджер' if (m.get('role') == 'user') else 'Клиент'}: "
+            f"{(m.get('content') or m.get('text') or '').strip()}"
+            for m in _body_hist[-6:]
+            if isinstance(m, dict) and (m.get('content') or m.get('text'))
+        ) or "(звонок ещё не начался)"
+    else:
+        msg_q = await db.execute(
+            _select(Message)
+            .where(Message.session_id == session_id)
+            .order_by(Message.sequence_number.desc())
+            .limit(6)
+        )
+        recent = list(reversed(msg_q.scalars().all()))
+        history_text = "\n".join(
+            f"{'Менеджер' if m.role == MessageRole.user else 'Клиент'}: {m.content}"
+            for m in recent
+        ) or "(звонок ещё не начался)"
 
     # Load scenario title for context
     from app.models.scenario import Scenario
