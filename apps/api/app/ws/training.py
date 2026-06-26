@@ -1277,6 +1277,18 @@ def _build_call_cognitive_cues(state: dict, session_mode: str) -> dict | None:
     return cues  # may be {} — modifier still produces working-memory line
 
 
+def _is_voice_mode(state: dict) -> bool:
+    """True when the session plays audio (call/center); False for text-only chat.
+
+    Single source of truth for the chat-vs-voice decision so every TTS gate in
+    ``_generate_character_reply`` agrees. ``state['session_mode']`` is the
+    canonical value resolved from ``session.mode`` at WS setup; unset → "chat".
+    Case-insensitive (mirrors the ``.lower()`` mode handling elsewhere) so a
+    stored "Call"/"CENTER" never silently mutes a real voice session.
+    """
+    return (state.get("session_mode") or "chat").lower() in ("call", "center")
+
+
 async def _generate_character_reply(
     ws: WebSocket,
     session_id: uuid.UUID,
@@ -1294,7 +1306,7 @@ async def _generate_character_reply(
     # 2026-06: chat is text-only (FE hardcodes mute:true). Defined up-front so
     # every TTS gate below — stream, hangup, post-LLM — can require it without
     # any code path leaving it undefined. See the typing-bug fix note below.
-    _voice_mode = (state.get("session_mode") or "chat") in ("call", "center")
+    _voice_mode = _is_voice_mode(state)
 
     current_emotion = await get_emotion(session_id)
 

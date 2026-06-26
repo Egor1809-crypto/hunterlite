@@ -76,12 +76,21 @@ function wsPayload<T>(data: Record<string, unknown>): T {
  * - *Unclosed asterisk actions
  * - (keyword stage directions) in parentheses
  */
-function stripStageDirections(text: string): string {
+// Removes stage directions (*…*, line-leading *…*, parenthetical mood notes)
+// but PRESERVES edge whitespace — safe to apply to a single streaming delta
+// fragment, where a leading/trailing space carries the word boundary between
+// chunks (trimming each delta would glue words: "Да, я васслушаю").
+function stripStageDirectionsInline(text: string): string {
   if (!text) return "";
   return text
     .replace(/\*[^*]+\*/g, '')
     .replace(/(?:^|\n)\*[^*\n]+(?:\n|$)/gm, '')
-    .replace(/\((?:[Гг]олос|[Пп]ауз|[Тт]их|[Кк]рич|[Пп]лач|[Шш][её]пот|[Вв]здох|[Сс]мех|[Вв]схлип|[Зз]лоб|[Рр]аздраж|[Нн]ервн|[Сс]покойн|[Уу]верен|[Рр]ешительн|[Гг]ромк|[Бб]ыстр|[Мм]едленн|[Оо]бижен|[Сс]аркастич|[Хх]олодн|[Рр]езк|[Мм]ягк|[Ии]спуган|[Дд]рожащ|[Вв]ешает|[Сс]брос|[Дд]ушит|[Дд]авит|[Зз]амолкает|[Вв]ыдыхает|[Вв]здыхает|[Мм]олчит|[Бб]росает|[Тт]рубк|[Сс]тучит|[Хх]лопает)[^)]*\)/gi, '')
+    .replace(/\((?:[Гг]олос|[Пп]ауз|[Тт]их|[Кк]рич|[Пп]лач|[Шш][её]пот|[Вв]здох|[Сс]мех|[Вв]схлип|[Зз]лоб|[Рр]аздраж|[Нн]ервн|[Сс]покойн|[Уу]верен|[Рр]ешительн|[Гг]ромк|[Бб]ыстр|[Мм]едленн|[Оо]бижен|[Сс]аркастич|[Хх]олодн|[Рр]езк|[Мм]ягк|[Ии]спуган|[Дд]рожащ|[Вв]ешает|[Сс]брос|[Дд]ушит|[Дд]авит|[Зз]амолкает|[Вв]ыдыхает|[Вв]здыхает|[Мм]олчит|[Бб]росает|[Тт]рубк|[Сс]тучит|[Хх]лопает)[^)]*\)/gi, '');
+}
+
+function stripStageDirections(text: string): string {
+  if (!text) return "";
+  return stripStageDirectionsInline(text)
     .replace(/  +/g, ' ')
     .replace(/\n\s*\n/g, '\n')
     .trim();
@@ -387,11 +396,15 @@ export default function TrainingSessionPage() {
           // once when `character.response` finally arrived after the TTS tail.
           // In voice mode (audio ON) keep the no-op — text stays 1:1 with audio.
           if (tts.enabled) break;
-          const chunkText = (data.data?.text as string) || "";
-          if (!chunkText) break;
+          // Strip stage directions live too — character.response finalizes via
+          // stripStageDirections, so without this the bubble would type out
+          // "*вздыхает* …" then snap to clean text. Inline variant keeps the
+          // delta's edge spaces (word boundaries between chunks) intact.
+          const chunkText = stripStageDirectionsInline((data.data?.text as string) || "");
+          const trimmed = chunkText.trim();
+          if (!trimmed) break;  // empty / whitespace / stage-direction-only delta
           // Delta fragments (backend clears its buffer after each emit) → append.
           const recent = s.messages.slice(-5);
-          const trimmed = chunkText.trim();
           // Skip if a finalized assistant msg already contains this text
           // (e.g. character.response landed first on a fast turn).
           const alreadyPresent = recent.some(
