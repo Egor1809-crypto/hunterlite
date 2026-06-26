@@ -107,14 +107,22 @@ export default function CallPage() {
         case "transcript":
           if (d.role === "user") setCaption((d.text as string) || "");
           break;
-        case "sentence":
+        case "sentence": {
           setStatus("speaking");
+          const sentenceIdx = Number(d.index ?? 0);
+          // Filler→reply coordination: the filler plays via playAudioMessage on
+          // a SEPARATE path from this sentence chunk queue, so a longer filler
+          // would keep sounding UNDER the first reply sentence (two voices at
+          // once). Stop it on the first sentence so the real voice takes over
+          // cleanly. Nothing is queued at index 0 yet, so stop() drops nothing.
+          if (sentenceIdx === 0) tts.stop();
           tts.queueAudioChunk({
             audio: (d.audio_b64 as string) || "",
-            index: Number(d.index ?? 0),
+            index: sentenceIdx,
             isLast: false,
           });
           break;
+        }
         case "turn_end":
           setStatus("idle");
           break;
