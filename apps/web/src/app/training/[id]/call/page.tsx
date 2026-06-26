@@ -25,6 +25,7 @@ import ScriptPanel from "@/components/training/ScriptPanel";
 import ScriptDrawer from "@/components/training/ScriptDrawer";
 import { useSessionStore } from "@/stores/useSessionStore";
 import { STAGE_GUIDANCE } from "@/lib/script_guidance";
+import { api } from "@/lib/api";
 
 type Status = "idle" | "recording" | "thinking" | "speaking";
 
@@ -90,6 +91,42 @@ export default function CallPage() {
   }, [id, router, tts]);
 
   // ---------------------------------------------------------------------------
+  // Smart script hints (like the chat). The call keeps its transcript only in
+  // memory, so we POST it to /script-hints after each turn (backend reads the
+  // body history) and show 3 AI-suggested next lines in the side panel.
+  // ---------------------------------------------------------------------------
+  const scriptHints = useSessionStore((s) => s.scriptHints);
+  const transcriptRef = useRef<{ role: "user" | "assistant"; content: string }[]>([]);
+  const replyBufRef = useRef("");
+  const hintsAbortRef = useRef<AbortController | null>(null);
+  const fetchHints = useCallback(() => {
+    const history = transcriptRef.current.slice(-6);
+    if (!history.length) return;
+    hintsAbortRef.current?.abort();
+    const controller = new AbortController();
+    hintsAbortRef.current = controller;
+    useSessionStore.getState().setScriptHintsLoading(true);
+    api
+      .post<{ hints: { text: string; label?: string }[] }>(
+        `/training/sessions/${id}/script-hints`,
+        { history },
+        { signal: controller.signal },
+      )
+      .then((res) => {
+        if (controller.signal.aborted) return;
+        useSessionStore.getState().setScriptHints(
+          Array.isArray(res?.hints) ? res.hints.slice(0, 3) : [],
+        );
+      })
+      .catch(() => {
+        /* hints are best-effort — never block the call */
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) useSessionStore.getState().setScriptHintsLoading(false);
+      });
+  }, [id]);
+
+  // ---------------------------------------------------------------------------
   // WS message handler — mirrors the server contract (CALL_REBUILD_TZ §4.1).
   // ---------------------------------------------------------------------------
   const onMessage = useCallback(
@@ -102,10 +139,19 @@ export default function CallPage() {
           setStatus("idle");
           break;
         case "filler":
-          if (d.audio_b64) tts.playAudioMessage({ audio: d.audio_b64 as string });
+          // interrupt:true — a new turn's filler REPLACES any stale/queued audio
+          // instead of queuing behind it. Without this, when navy stalls (no real
+          // reply to stop the filler) each turn's filler piled up → the flood of
+          // playAudioMessage calls and overlapping "Подождите" voices.
+          if (d.audio_b64)
+            tts.playAudioMessage({ audio: d.audio_b64 as string }, { interrupt: true });
           break;
         case "transcript":
-          if (d.role === "user") setCaption((d.text as string) || "");
+          if (d.role === "user") {
+            const t = (d.text as string) || "";
+            setCaption(t);
+            if (t.trim()) transcriptRef.current.push({ role: "user", content: t });
+          }
           break;
         case "sentence": {
           setStatus("speaking");
@@ -115,7 +161,14 @@ export default function CallPage() {
           // would keep sounding UNDER the first reply sentence (two voices at
           // once). Stop it on the first sentence so the real voice takes over
           // cleanly. Nothing is queued at index 0 yet, so stop() drops nothing.
-          if (sentenceIdx === 0) tts.stop();
+          if (sentenceIdx === 0) {
+            tts.stop();
+            replyBufRef.current = ""; // new AI reply starts → reset accumulator
+          }
+          {
+            const sText = (d.text as string) || "";
+            if (sText.trim()) replyBufRef.current += (replyBufRef.current ? " " : "") + sText;
+          }
           tts.queueAudioChunk({
             audio: (d.audio_b64 as string) || "",
             index: sentenceIdx,
@@ -123,9 +176,15 @@ export default function CallPage() {
           });
           break;
         }
-        case "turn_end":
+        case "turn_end": {
           setStatus("idle");
+          // Turn complete → record the AI reply and refresh smart hints.
+          const reply = replyBufRef.current.trim();
+          if (reply) transcriptRef.current.push({ role: "assistant", content: reply });
+          replyBufRef.current = "";
+          fetchHints();
           break;
+        }
         case "client_hangup":
           goToResults();
           break;
@@ -139,7 +198,7 @@ export default function CallPage() {
           break;
       }
     },
-    [tts, goToResults],
+    [tts, goToResults, fetchHints],
   );
 
   const { sendMessage } = useWebSocket({
@@ -276,6 +335,33 @@ export default function CallPage() {
         style={{ background: "var(--surface-card)", border: "1px solid var(--border-color)", boxShadow: "var(--shadow-md)" }}
       >
         <ScriptPanel compactHeader />
+        {scriptHints.length > 0 ? (
+          <div className="mt-5 pt-4" style={{ borderTop: "1px solid var(--border-color)" }}>
+            <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.16em]" style={{ color: "var(--primary)" }}>
+              💡 Что сказать дальше
+            </div>
+            <ul className="space-y-2">
+              {scriptHints.map((h, i) => (
+                <li
+                  key={i}
+                  className="rounded-lg p-2.5 text-xs leading-relaxed"
+                  style={{
+                    background: "color-mix(in srgb, var(--primary) 8%, transparent)",
+                    border: "1px solid color-mix(in srgb, var(--primary) 20%, transparent)",
+                    color: "var(--text-primary)",
+                  }}
+                >
+                  {h.label ? (
+                    <span className="mr-1.5 font-semibold" style={{ color: "var(--primary)" }}>
+                      {h.label}:
+                    </span>
+                  ) : null}
+                  {h.text}
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
         <div className="mt-5 pt-4" style={{ borderTop: "1px solid var(--border-color)" }}>
           <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.16em]" style={{ color: "var(--text-muted)" }}>
             Как пользоваться
