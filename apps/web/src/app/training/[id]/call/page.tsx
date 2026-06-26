@@ -100,8 +100,10 @@ export default function CallPage() {
   const replyBufRef = useRef("");
   const hintsAbortRef = useRef<AbortController | null>(null);
   const fetchHints = useCallback(() => {
+    // Always fetch — with an empty history the backend returns OPENING-line
+    // suggestions, so the «💡 Что сказать дальше» block shows from the moment
+    // the call connects (not only after the first turn).
     const history = transcriptRef.current.slice(-6);
-    if (!history.length) return;
     hintsAbortRef.current?.abort();
     const controller = new AbortController();
     hintsAbortRef.current = controller;
@@ -137,6 +139,7 @@ export default function CallPage() {
         case "ready":
           setClientName((d.client_name as string) || "Клиент");
           setStatus("idle");
+          fetchHints(); // show opening-line suggestions immediately on connect
           break;
         case "filler":
           // interrupt:true — a new turn's filler REPLACES any stale/queued audio
