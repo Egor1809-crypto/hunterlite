@@ -379,11 +379,38 @@ export default function TrainingSessionPage() {
           break;
 
         case "character.response_chunk": {
-          // SYNC: text chunks are intentionally NOT rendered here.
-          // Text is revealed together with audio via `tts.audio_chunk.text`
-          // (or all at once via `character.response` if TTS fails).
-          // This keeps text and voice 1:1 synchronized instead of text
-          // racing ahead of audio by 300-500ms per sentence.
+          // 2026-06 (typing-bug fix): when audio is OFF (chat is text-only —
+          // mute:true above — or the user muted TTS), render the LLM token
+          // stream progressively so the reply types out live. Previously this
+          // was a no-op (text was meant to ride with `tts.audio_chunk.text`),
+          // so in chat the typing dots froze and the whole message dumped at
+          // once when `character.response` finally arrived after the TTS tail.
+          // In voice mode (audio ON) keep the no-op — text stays 1:1 with audio.
+          if (tts.enabled) break;
+          const chunkText = (data.data?.text as string) || "";
+          if (!chunkText) break;
+          // Delta fragments (backend clears its buffer after each emit) → append.
+          const recent = s.messages.slice(-5);
+          const trimmed = chunkText.trim();
+          // Skip if a finalized assistant msg already contains this text
+          // (e.g. character.response landed first on a fast turn).
+          const alreadyPresent = recent.some(
+            (m) => m.role === "assistant" && !m.isStreaming && m.content.includes(trimmed),
+          );
+          if (alreadyPresent) break;
+          const streamingInRecent = [...recent].reverse()
+            .find((m) => m.role === "assistant" && m.isStreaming);
+          if (streamingInRecent) {
+            s.appendToLastAssistantMessage(chunkText);
+          } else {
+            s.addMessage({
+              id: s.nextMsgId(),
+              role: "assistant",
+              content: chunkText,
+              timestamp: new Date().toISOString(),
+              isStreaming: true,
+            });
+          }
           break;
         }
 
