@@ -216,6 +216,30 @@ export default function SettingsPage() {
   const [passwordLoading, setPasswordLoading] = useState(false);
   const [passwordOpen, setPasswordOpen] = useState(false);
 
+  // 152-ФЗ (право на удаление): удаление/обезличивание аккаунта.
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState("");
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
+
+  const handleDeleteAccount = async () => {
+    if (deleteConfirm.trim().toUpperCase() !== "УДАЛИТЬ") {
+      setDeleteError('Введите слово «УДАЛИТЬ» для подтверждения');
+      return;
+    }
+    setDeleting(true);
+    setDeleteError("");
+    try {
+      await api.delete("/users/me");
+      // Разлогиниваемся (чистим токены + серверную сессию) и уходим на главную.
+      await useAuthStore.getState().logout();
+      window.location.href = "/";
+    } catch (e: unknown) {
+      setDeleteError(e instanceof Error ? e.message : "Не удалось удалить аккаунт. Попробуйте позже.");
+      setDeleting(false);
+    }
+  };
+
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [fullName, setFullName] = useState<string>("");
@@ -663,6 +687,73 @@ export default function SettingsPage() {
             description="Подключение Telegram-бота"
           >
             <TelegramConnectCard />
+          </SettingsSection>
+
+          {/* ═══ SECTION 5: УДАЛЕНИЕ АККАУНТА (152-ФЗ) ═══ */}
+          <SettingsSection
+            title="Аккаунт"
+            icon={AlertCircle}
+            description="Удаление аккаунта и данных"
+          >
+            <SettingsCard>
+              <button
+                type="button"
+                onClick={() => setDeleteOpen((v) => !v)}
+                className="w-full flex items-center justify-between text-sm font-medium px-4 py-3 rounded-md transition-colors"
+                style={{
+                  background: deleteOpen ? "var(--danger-muted, rgba(239,68,68,0.08))" : "var(--surface-card-hover)",
+                  border: `1px solid ${deleteOpen ? "var(--danger)" : "var(--border-color)"}`,
+                  color: "var(--danger)",
+                }}
+              >
+                <span className="inline-flex items-center gap-2">
+                  <AlertCircle size={14} />
+                  Удалить аккаунт
+                </span>
+                <motion.span animate={{ rotate: deleteOpen ? 180 : 0 }} transition={{ duration: 0.2 }}>
+                  <ChevronDown size={14} />
+                </motion.span>
+              </button>
+
+              {deleteOpen && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: "auto" }}
+                  className="overflow-hidden mt-4 space-y-3"
+                >
+                  <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
+                    Аккаунт и связанные с ним персональные данные будут удалены/обезличены без
+                    возможности восстановления. Для подтверждения введите слово{" "}
+                    <b style={{ color: "var(--text-primary)" }}>УДАЛИТЬ</b>.
+                  </p>
+                  {deleteError && (
+                    <div
+                      className="flex items-center gap-2 rounded-md p-3 text-sm"
+                      style={{ background: "var(--danger-muted, rgba(239,68,68,0.08))", border: "1px solid var(--danger)", color: "var(--danger)" }}
+                    >
+                      <AlertCircle size={14} />
+                      {deleteError}
+                    </div>
+                  )}
+                  <input
+                    type="text"
+                    value={deleteConfirm}
+                    onChange={(e) => setDeleteConfirm(e.target.value)}
+                    placeholder="УДАЛИТЬ"
+                    aria-label="Подтверждение удаления"
+                    className="vh-input w-full"
+                  />
+                  <Button
+                    onClick={handleDeleteAccount}
+                    variant="danger"
+                    loading={deleting}
+                    disabled={deleteConfirm.trim().toUpperCase() !== "УДАЛИТЬ"}
+                  >
+                    Удалить аккаунт навсегда
+                  </Button>
+                </motion.div>
+              )}
+            </SettingsCard>
           </SettingsSection>
 
           {/* Spacer */}
