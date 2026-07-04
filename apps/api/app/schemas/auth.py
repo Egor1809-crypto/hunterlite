@@ -52,6 +52,15 @@ class RegisterRequest(BaseModel):
     email: str = Field(..., pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
     password: str = Field(..., min_length=8, max_length=128)
     full_name: str = Field(..., min_length=1, max_length=200)
+    # 152-ФЗ: явное согласие на обработку ПДн — обязательно; согласие на
+    # рекламную рассылку — отдельное и необязательное. Оба фиксируются в БД
+    # (UserConsent) с IP/версией в момент регистрации (см. api/auth.py register).
+    consent_accepted: bool = Field(
+        default=False, description="Согласие на обработку персональных данных (обязательно)"
+    )
+    marketing_accepted: bool = Field(
+        default=False, description="Согласие на рекламную/информационную рассылку (необязательно)"
+    )
 
     @field_validator("password")
     @classmethod

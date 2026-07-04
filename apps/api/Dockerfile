@@ -55,4 +55,11 @@ ENTRYPOINT ["/docker-entrypoint.sh"]
 ENV WEB_CONCURRENCY=2
 ENV PYTHONPATH=/app
 
-CMD ["gunicorn", "app.main:app", "-k", "uvicorn.workers.UvicornWorker", "--bind", "0.0.0.0:8000", "--timeout", "300", "--graceful-timeout", "30", "--access-logfile", "-"]
+# --forwarded-allow-ips "*": trust X-Forwarded-For/X-Real-IP from the host-nginx
+#   reverse proxy so request.client.host is the REAL user IP (not the nginx
+#   container IP). Required for correct 152-ФЗ consent-IP logging and rate
+#   limiting. Safe here because the API is only reachable via the trusted
+#   host-nginx (127.0.0.1:8300), never directly from the internet. nginx must
+#   send the headers (see docs/deploy nginx vhost: proxy_set_header X-Real-IP /
+#   X-Forwarded-For).
+CMD ["gunicorn", "app.main:app", "-k", "uvicorn.workers.UvicornWorker", "--bind", "0.0.0.0:8000", "--timeout", "300", "--graceful-timeout", "30", "--forwarded-allow-ips", "*", "--access-logfile", "-"]

@@ -58,6 +58,9 @@ export default function RegisterPage() {
         email: normalizedEmail,
         password,
         full_name: normalizedName,
+        // 152-ФЗ: факт согласия фиксируется на сервере (UserConsent + IP/версия).
+        consent_accepted: consent,
+        marketing_accepted: marketing,
       });
       setTokens(data.access_token, data.refresh_token, data.csrf_token);
       resetAuthCircuitBreaker();

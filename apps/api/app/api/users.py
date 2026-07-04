@@ -2,10 +2,13 @@
 
 import glob as globmod
 import io
+import logging
 import os
 import uuid
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+
+_logger = logging.getLogger(__name__)
 
 from app.core.rate_limit import limiter
 from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, File, Query, status
@@ -808,6 +811,47 @@ async def delete_avatar(
     user.avatar_url = None
     db.add(user)
     await db.commit()
+
+
+@router.delete("/me", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_my_account(
+    request: Request,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """152-ФЗ (право на удаление): удалить/обезличить аккаунт текущего пользователя.
+
+    Реализовано как ОБЕЗЛИЧИВАНИЕ, а не жёсткий DELETE: удаление строки users
+    рискует упасть на FK-ограничениях таблиц без ondelete=CASCADE, а обезличивание
+    — допустимая по 152-ФЗ форма прекращения обработки ПДн. Скрабим все прямые
+    идентификаторы, деактивируем аккаунт (get_current_user отклонит is_active=False
+    на следующем запросе). Учебные материалы, привязанные к user_id, остаются
+    обезличенными; строки с ondelete=CASCADE (сессии/сообщения) удаляются на уровне
+    БД при последующей физической зачистке (см. джобу ретеншена — TODO).
+    """
+    import secrets as _secrets
+
+    # Удаляем файлы аватара с диска.
+    for old in globmod.glob(str(UPLOAD_DIR / f"{user.id}.*")):
+        Path(old).unlink(missing_ok=True)
+
+    uid = user.id
+    user.email = f"deleted-{uid}@deleted.local"
+    user.full_name = "Удалённый пользователь"
+    user.hashed_password = hash_password(_secrets.token_urlsafe(32))
+    user.avatar_url = None
+    user.telegram_id = None
+    user.yandex_id = None
+    user.google_id = None
+    user.preferences = {}
+    user.is_active = False
+    db.add(user)
+    await db.commit()
+
+    _logger.info(
+        "users.account_deleted user_id=%s ip=%s",
+        uid, request.client.host if request.client else "unknown",
+    )
 
 
 @router.post("/me/preferences", status_code=status.HTTP_200_OK)

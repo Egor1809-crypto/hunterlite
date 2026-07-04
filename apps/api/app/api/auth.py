@@ -23,8 +23,14 @@ from app.core.security import (
     verify_password,
 )
 from app.database import get_db
-from app.models.user import User
+from app.models.user import User, UserConsent
 from app.models.subscription import UserSubscription, PlanType
+
+# 152-ФЗ: канонический тип/версия обязательного согласия. Должны совпадать с
+# REQUIRED_CONSENTS в app/api/consent.py — иначе enforce (check_consent_accepted)
+# не увидит согласие, записанное при регистрации.
+_PD_CONSENT_TYPE = "personal_data_processing"
+_PD_CONSENT_VERSION = "1.0"
 from fastapi.responses import JSONResponse
 
 from app.schemas.auth import (
@@ -137,6 +143,14 @@ def _clear_auth_cookies(response: JSONResponse) -> JSONResponse:
 async def register(request: Request, body: RegisterRequest, db: AsyncSession = Depends(get_db)):
     from sqlalchemy.exc import IntegrityError
 
+    # 152-ФЗ: обязательное согласие на обработку ПДн проверяется на СЕРВЕРЕ, а не
+    # только чекбоксом на клиенте — иначе факт согласия можно обойти.
+    if not body.consent_accepted:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=err.CONSENT_REQUIRED,
+        )
+
     existing = await db.execute(select(User).where(User.email == body.email))
     if existing.scalar_one_or_none():
         _logger.warning(
@@ -169,6 +183,26 @@ async def register(request: Request, body: RegisterRequest, db: AsyncSession = D
         expires_at=None,  # no expiry for free tier
     )
     db.add(subscription)
+
+    # 152-ФЗ: фиксируем факт согласия в БД (тип, версия, метка времени, IP) в
+    # той же транзакции, что и создание пользователя. Обязательное согласие на
+    # ПДн + отдельная (не обязательная) запись выбора по рекламной рассылке —
+    # хранится всегда (accepted=True/False), чтобы был документированный выбор.
+    consent_ip = request.client.host if request.client else None
+    db.add(UserConsent(
+        user_id=user.id,
+        consent_type=_PD_CONSENT_TYPE,
+        version=_PD_CONSENT_VERSION,
+        accepted=True,
+        ip_address=consent_ip,
+    ))
+    db.add(UserConsent(
+        user_id=user.id,
+        consent_type="marketing",
+        version=_PD_CONSENT_VERSION,
+        accepted=body.marketing_accepted,
+        ip_address=consent_ip,
+    ))
     await db.flush()
     await db.commit()
 
