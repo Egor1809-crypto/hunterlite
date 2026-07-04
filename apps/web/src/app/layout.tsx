@@ -1,6 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { headers } from "next/headers";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist, Geist_Mono, Playfair_Display } from "next/font/google";
 import { ViewTransitions } from "next-view-transitions";
 import { Providers } from "@/components/providers/Providers";
 import CookieBanner from "@/components/legal/CookieBanner";
@@ -16,6 +16,15 @@ const geistMono = Geist_Mono({
   subsets: ["latin", "cyrillic"],
   variable: "--font-geist-mono",
   display: "swap",
+});
+
+// Display-serif для «момента» (футер-кейноут, крупные заголовки-бренд).
+// next/font self-hosts на билде — рантайм-запроса к Google нет.
+const playfair = Playfair_Display({
+  subsets: ["latin", "cyrillic"],
+  variable: "--font-display",
+  display: "swap",
+  weight: ["400", "500", "600"],
 });
 
 export const metadata: Metadata = {
@@ -84,7 +93,7 @@ export default async function RootLayout({
           @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
         `}</style>
       </head>
-      <body className={`${geistSans.variable} ${geistMono.variable} min-h-screen antialiased`}>
+      <body className={`${geistSans.variable} ${geistMono.variable} ${playfair.variable} min-h-screen antialiased`}>
         <ViewTransitions>
           <Providers>
             {children}
