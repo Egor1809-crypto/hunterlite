@@ -198,7 +198,11 @@ export function LandingLayout({ children }: { children: React.ReactNode }) {
 
         {children}
 
-        {!isCustomLanding && <LandingFooter />}
+        {/* Футер показываем ВЕЗДЕ, включая главную «/»: юридические документы
+            (Политика ПДн, Cookie, Согласие, Соглашение, Оферта) и контакты
+            обязаны быть доступны с любой страницы (152-ФЗ / требования РКН).
+            Раньше на «/» он был скрыт вместе с навбаром через isCustomLanding. */}
+        <LandingFooter />
 
         {/* Auth Modal */}
         <AnimatePresence>
