@@ -1,432 +1,208 @@
-# Claude working rules for Hunter888
+# Рабочие правила Claude для HunterLite
 
-Short, enforceable rules. Read before writing code. If you break one, a human
-review may catch it — or it may merge silently and destroy work. These rules
-exist because each one has already cost us real time on this project.
+Короткие обязательные правила. Прочитай перед тем, как писать код. Файл
+**автоматически загружается** в начале каждой сессии против этого репозитория —
+разрешение пользователя не требуется, правила в силе с первого хода.
 
-## How to use this file
+**HunterLite — это отдельный продукт: реальное обучение арбитражных управляющих
+(ФЗ-127) с дипломом/сертификатом.** Он вырос из кода геймифицированного тренажёра
+Hunter888, но это НЕ тот проект. Не путай их. Наследие старшего проекта (устаревшие
+доки, мёртвый код, игровой слой) вычищается — аккуратно, по точным командам владельца.
 
-This document is **automatically loaded** by Claude Code at the start of every
-session opened against this repository (the convention is: a file named
-``CLAUDE.md`` in the repo root). You do not need user permission to apply
-these rules — they are in effect from the first turn.
+### Приоритет инструкций (высший → низший)
 
-### Priority of instructions (highest → lowest)
+1. **Активное сообщение пользователя в текущем ходе** — прямое указание всегда важнее.
+2. **Этот файл (`/CLAUDE.md`)** — durable-правила проекта.
+3. **Системные промпты и дефолты платформы** — только когда (1) и (2) молчат.
 
-1. **Active user message in the current turn** — explicit human direction
-   for the task at hand always wins.
-2. **This file (`/CLAUDE.md`)** — durable project-wide rules. Override the
-   model defaults, override style preferences, override anything not
-   explicitly contradicted by the user in turn (1).
-3. **System prompts and platform defaults** — only when (1) and (2) are
-   silent.
-
-If the user contradicts a rule here, surface the conflict in your turn's
-text (per §6) and ask for one-off confirmation. Do not silently apply a rule
-that the user is actively overriding. Do not silently break a rule because
-"the user didn't restate it" — they don't have to.
-
-### When to re-read this file
-
-Always at session start. Re-read after a long break (>30 min idle) or after
-the user references a section by number ("see §1"). Sections evolve; the
-version in your current context may be stale relative to ``main``.
+Если пользователь противоречит правилу отсюда — обозначь конфликт в тексте хода и
+попроси разовое подтверждение. Не применяй правило молча против воли пользователя и не
+нарушай его молча только потому, что пользователь его не повторил.
 
 ---
 
-## 1. Git discipline (multi-agent safe)
+## 1. Git-дисциплина (многоагентная разработка)
 
-> **Every PR must be rebased on the current `origin/main` tip immediately
-> before `git push`.** Do not skip this even for "tiny fixes".
+> **Каждая ветка перед `git push` должна быть перебазирована на текущий `origin/main`.**
+> Не пропускай даже для «мелких правок».
 
-The project has multiple agents working in parallel (different worktrees).
-Each agent's branch starts from the main tip visible to it at the time.
-By the time that branch is ready to push, `main` has usually moved — other
-agents merged PRs while you were working. If you push without rebasing,
-GitHub compares your HEAD against the **current** `main` and any file that
-changed there but is at its pre-move state on your branch shows up as a
-**deletion in your diff**. Merging that PR deletes other agents' work.
+Над репозиторием параллельно работают несколько агентов (разные worktree). Пока твоя
+ветка готовится, `main` обычно уходит вперёд — другие агенты мёржат PR. Если запушить без
+rebase, GitHub сравнит твой HEAD с **текущим** `main`, и любой файл, изменившийся там, но
+оставшийся у тебя в старом состоянии, покажется **удалением** в твоём диффе. Мёрж такого
+PR стирает чужую работу.
 
-### The rule — every commit cycle
+### Каждый цикл коммита
 
 ```
 git fetch origin main
-git log origin/main..HEAD --oneline
-# ↑ if this shows zero commits, you're already current.
-git rebase origin/main
-# resolve any conflicts, re-run tests
-git diff origin/main..HEAD --stat
-# ↑ STOP if this shows files you never touched. Either:
-#   - you just introduced deletions → abort
-#   - some other agent edited the same file → resolve or ask
+git log origin/main..HEAD --oneline      # если пусто — ты уже актуален
+git rebase origin/main                    # реши конфликты, перегони тесты
+git diff origin/main..HEAD --stat         # СТОП, если тут файлы, которых ты не трогал
 git push -u origin <branch>
 ```
 
-### The red flag
+**Красный флаг:** если `git diff origin/main..HEAD --stat` показывает удаление файла,
+который ты не трогал, — **НЕ ПУШЬ**. Ветка устарела, сначала rebase.
 
-If `git diff origin/main..HEAD --stat` reports a file like
-`apps/web/src/app/admin/client-domain/page.tsx | 942 -----` and you never
-touched that file, **DO NOT PUSH**. Your branch is stale. Rebase first.
-The number in the deletions column is roughly how much of the team's work
-your PR is about to erase.
+### Правила веток
 
-### Scale of risk — real example (session 2026-04-24)
+- Ветки правок: `claude/<короткий-слаг>`. Работай в отдельном `git worktree` от
+  **`origin/main`** (не от локального `main` — он часто отстаёт).
+- **Никогда не пушь в `main` напрямую.** Только через PR (`gh pr create` + `gh pr merge`).
+- На этой машине GitHub-доступ = владелец (`Egor1809-crypto`), мёрж в `main` разрешён.
+- Стадируй по путям (`git add <path>`), не `git add -A` — параллельный агент может
+  подмешать чужое. Коммить атомарно, пушь рано, чтобы защитить работу.
 
-Agent A worked on audit fixes. Base was the main tip when agent A started.
-Agent B (in parallel) landed 8 PRs totalling ~4700 lines of new code
-(admin panel, Phase 0 hotfixes, Completion Policy, PersonaSnapshot,
-WS Outbox, hardening). Agent A tried to push a branch with 6 files of
-legit fixes — diff against current main showed **+780 / −4706**. Without
-a pre-push check, merging that PR would have deleted all 8 of agent B's
-merged PRs. The check caught it; rebase fixed it in one command.
+Коммиты подписывай:
+```
+Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>
+```
 
-### Branch naming
+### CI-гейт (`.github/workflows/ci.yml`)
 
-- Feature/fix branches: `claude/<short-slug>` (e.g. `claude/auth-refresh-race`).
-- Never push to `main` or `develop` directly. Always through a PR.
-- After merge, the branch is garbage — do not reuse it for a new feature.
-
-### Audit recent PRs in your zone before opening a new feature PR
-
-Before pushing a new feature PR, **audit the last ~5 merged PRs that
-touch the same files or surface as your work**. Use
-`git log --oneline -20` + `git show <sha> --stat` to spot:
-
-- new infrastructure you can reuse (e.g. an existing helper / worker
-  / regex set) instead of duplicating it,
-- new invariants other agents introduced (e.g. a column you mustn't
-  bypass, a markers contract in prompts) so you don't accidentally
-  break them,
-- pattern templates (existing AST guards, allow-list shapes) you can
-  copy verbatim to keep the codebase coherent.
-
-This habit caught two bugs in this project already (PR #139's
-`original_confidence` reuse, PR #146's `LiveEmbeddingBackfillWorker`
-extension instead of fork). Five minutes of reading is cheaper than
-a duplicate-helpers rebase a month later.
-
-### CI gate
-
-`.github/workflows/ci.yml` splits tests into:
-- full suite (advisory, pre-existing failures)
-- **TZ-1 scope (blocking)** — this is the regression fence for TZ-1
-  contracts. Every new test that protects a TZ-1 invariant belongs in
-  the blocking list.
+- Полный прогон тестов, lint, alembic-drift — **advisory** (есть pre-existing долги).
+- **Blocking-scope** — явный список тест-файлов, защищающих ключевые инварианты
+  (client_domain, finalize-parity, auth-refresh concurrency, RAG-изоляция) + `tsc`/`build`
+  фронта + Trivy. Красный blocking = PR не готов. Новый тест на инвариант — в blocking-scope.
 
 ---
 
-## 2. Production server (`72.56.38.62:/opt/hunter888`)
+## 2. Прод-сервер (`/opt/legalhunter` на общем VM)
 
-> **The server is pull-only. Never run `git push` from the server.**
-> Never run destructive git commands there.
+> **Сервер pull-only. Никогда не пушь и не делай деструктивных git-команд на сервере.**
 
-### 2.0 Wrong-VM trap (added 2026-05-03 — near-miss with hunter-club)
+Прод-домен — **legalhunter.pro**. Код — `/opt/legalhunter` (clone `origin/main`).
 
-> **`72.56.38.62` resolves to TWO different VMs.** Only one is Hunter888.
-> SSH may land on either depending on routing/IPv6/timing.
+### ВАЖНО: сервер общий с чужими проектами
 
-| hostname | Hunter888? | layout |
-|---|---|---|
-| `msk-1-vm-cqax` | ✅ yes | `/opt/hunter888`, 6× Docker containers `hunter888-{api,web,whisper,redis,postgres,nginx}-1` |
-| `msk-1-vm-ofzn` | ❌ NO | hunter-club + techforum + manyasha. The `python3` process on `:8000` is **hunter-club**, NOT Hunter888. The `/root/hunter-*.sh` scripts and `/opt/hunter-club*` dirs all belong to that other project. |
+VM (`msk-1-vm-cqax`, `72.56.38.62`) — **многоарендный**. На нём живут чужие проекты
+(aspb-partners, agentum-realtors, hunter-club, hunter888, techforum, profit-partner-path).
+**Первая команда после SSH — `hostname`** (убедиться, что ты на нужном VM).
 
-**Mandatory first command after every SSH session:**
-```bash
-hostname
-```
-- `msk-1-vm-cqax` → proceed in `/opt/hunter888`.
-- `msk-1-vm-ofzn` → **disconnect immediately**. Do NOT `cd`, do NOT `git pull`, do NOT touch `/proc/<pid>/cwd`, do NOT edit any `hunter-*` file. Mutating anything on ofzn breaks a different team's production.
+**НАШЕ — только:**
+- `/opt/legalhunter` (код + `deployment/`);
+- контейнеры `legalhunter-{api,web,bot,postgres,redis}`;
+- nginx-vhost `/etc/nginx/sites-*/legalhunter.pro`.
 
-If repeat SSH attempts keep landing on ofzn, the user has out-of-band access to cqax (their own ssh-config / VPN / portal console). Ask them to run the deploy themselves rather than improvising on ofzn.
+**ЧУЖОЕ не трогать:** их `/opt/<project>`, их docker-контейнеры, их nginx-vhost, их БД.
+Мутация чужого ломает чужой прод.
 
-### 2.1 Note on `scripts/deploy-prod.sh`
+- **Host-nginx (не docker) владеет портами 80/443** и фронтит все проекты. **Не поднимай
+  ничего на 80/443** (никакого Caddy) — сломаешь всех. Наши web/api слушают только
+  `127.0.0.1:3300` / `127.0.0.1:8300`, host-nginx проксирует по домену.
 
-As of **2026-05-04** the wrapper script lands on cqax (`/opt/hunter888/scripts/deploy-prod.sh`, 65 lines, exec-bit set) and is the canonical deploy path — verified by FIND-008 deploy-loop on 2026-05-04T11:57Z (`/api/version` reported the deployed sha back, FIND-007 closed). Use the script. Operators **must not** run `docker compose build` directly: the env-var-dropping flow that produced `release_sha=unknown` is the regression this script exists to prevent.
+### Разрешено на сервере
+`git fetch/pull --ff-only origin main` (только после мёржа PR), `git log/status`,
+`docker compose -f deployment/docker-compose.prod.yml ... build|up -d|logs|exec|ps`.
 
-Reasons:
-- GitHub password auth is disabled — `git push` from the server will
-  always fail. If it ever succeeds (personal access token stored), it
-  would push a local-only commit that never went through review.
-- The server's `main` branch is the deploy pointer. Rewriting it (force
-  push, reset) detaches from GitHub and breaks the next `git pull`.
+### Запрещено на сервере
+`git push` (любой), `git reset --hard`, `git rebase/commit/merge`, `git checkout` на
+не-main, ручная правка файлов рабочей копии (перезатрутся при следующем pull).
 
-### Allowed on the server
-
-- `git fetch origin main`
-- `git pull origin main` (only after a PR has been merged on GitHub)
-- `git log --oneline -N`
-- `git status`
-- `docker compose -f docker-compose.yml -f docker-compose.prod.yml build|up -d|logs|exec|ps`
-
-### Forbidden on the server
-
-- `git push`, `git push --force` (any variant)
-- `git reset --hard`, `git rebase`, `git commit`, `git merge`
-- `git checkout <branch>` onto anything other than `main`
-- Editing files in the working copy directly (they get overwritten on
-  next pull)
-
-### Deploy flow (official)
-
-Use the `scripts/deploy-prod.sh` wrapper — it captures `RELEASE_SHA`
-and `BUILD_TIME`, builds with those baked in, then verifies the
-running container reports the expected sha back via `/api/version`.
-The 2026-05-02 audit (FIND-007) found `release_sha=unknown` on prod
-because operators were running the raw `docker compose build` chain
-below and dropping the env-vars on the floor. The script closes that
-loop and fails loud if the SHA doesn't make it into the container.
+### Деплой
 
 ```
-ssh root@72.56.38.62
-cd /opt/hunter888
-bash scripts/deploy-prod.sh
+git pull --ff-only origin main
+cd deployment
+export RELEASE_SHA=$(cd /opt/legalhunter && git rev-parse HEAD) BUILD_TIME=$(date -u +%FT%TZ)
+docker compose -f docker-compose.prod.yml --env-file prod.env up -d --build [api|web]
+curl -s https://legalhunter.pro/api/version   # release_sha должен совпасть, не "unknown"
 ```
 
-What the script does (read it before running — it's ~50 lines):
+Без явного `export RELEASE_SHA` compose подставит `unknown` — задеплоишь неопознанный
+образ. Шаг `curl /api/version` не опционален. Эталон конфигов и runbook — [docs/deploy/](docs/deploy).
+Прод-секреты живут в `deployment/prod.env` (chmod 600, не в git).
 
-  1. `git fetch origin main && git pull --ff-only origin main`
-  2. captures `RELEASE_SHA = git rev-parse HEAD` and `BUILD_TIME` (UTC)
-  3. `docker compose ... up -d --build` with both vars exported, so
-     the Dockerfile ARG → ENV chain bakes them into the image
-  4. waits 8 s for API to come up
-  5. `curl /api/version` and asserts the reported `release_sha`
-     matches the local one — exits non-zero if it doesn't
-
-Manual flow (if the script is unavailable for some reason):
-
-```
-git pull origin main
-export RELEASE_SHA=$(git rev-parse HEAD) BUILD_TIME=$(date -u +%FT%TZ)
-docker compose -f docker-compose.yml -f docker-compose.prod.yml build api web
-docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d api web
-curl -s https://x-hunter.expert/api/version  # must show your $RELEASE_SHA
-```
-
-Without the explicit `export RELEASE_SHA=...`, the compose default
-`${RELEASE_SHA:-unknown}` kicks in and you'll deploy an
-unidentifiable image. The `/api/version` step is not optional — it's
-the only way you find out which sha is actually running before the
-next pilot user hits a broken endpoint.
-
-Other verification:
-```
-docker compose -f docker-compose.yml -f docker-compose.prod.yml exec api \
-  python -m scripts.client_domain_ops parity
-```
-
-### If a rollback is needed
-
-Do not `git reset` on the server. Open a revert PR on GitHub, merge it,
-then pull on the server as usual. Docker image tags on GHCR (`:latest`
-plus `:<sha>`) allow targeted rollback via `image: ghcr.io/.../api:<sha>`
-override in a compose file if urgent.
+### Откат
+Не `git reset` на сервере. Открой revert-PR на GitHub, смёржи, потом `git pull` на сервере.
 
 ---
 
-## 3. TZ-1 canonical-helper invariants
+## 3. AI-слой и инфраструктурные ловушки (на них уже наступали)
 
-The client-domain (TZ-1) enforces four runtime invariants. Breaking any of
-them fails the blocking CI tests. Read them before editing any code path
-that touches `ClientInteraction`, `DomainEvent`, or session completion.
-
-1. **Never write to `ClientInteraction` directly.** Use
-   `app.services.client_domain.create_crm_interaction_with_event` or
-   let the repair/projector modules do it. Enforced by
-   `tests/test_client_domain_invariants.py` (AST scan).
-
-2. **Never construct a `DomainEvent(lead_client_id=...)` outside
-   `client_domain.emit_domain_event`.** Producers call the helper; the
-   helper handles idempotency, savepoints, logging. Enforced by the
-   same AST test.
-
-3. **Session completion goes through `ConversationCompletionPolicy`
-   exclusively.** REST end, WS end, emotion FSM hangup, AI farewell,
-   silence timeout, WS disconnect, PvP finalize — all 7 terminal paths
-   call `finalize_training_session` or `finalize_pvp_duel`. Partial
-   side-effect blocks (only follow-up, only XP, only CRM) are what the
-   policy exists to consolidate.
-
-4. **Every emitted `DomainEvent` must carry a `correlation_id`.** Prefer
-   `session_id`, fall back to `aggregate_id`, fall back to `client.id`.
-   `NULL` breaks timeline joins (§15.1).
+- **Главный LLM = navy.api через `NAVY_LLM_*`** (`NAVY_LLM_ENABLED=true`, `NAVY_LLM_URL`,
+  `NAVY_LLM_API_KEY`). Одинокий `NAVY_API_KEY` питает только генерацию картинок — без
+  `NAVY_LLM_*` весь ИИ мёртв. STT/Whisper и TTS переиспользуют navy-ключ.
+- api entrypoint падает FATAL в проде, если пусты `POSTGRES_PASSWORD` **или**
+  `REDIS_PASSWORD` в env api → пробрось оба; redis запускается с `--requirepass`.
+- **TG-бот `@BFLHUNTER_bot`** работает в POLLING (РФ блокирует `api.telegram.org` в обе
+  стороны → webhook невозможен). Отдельный сервис `bot` + `extra_hosts` пин
+  `api.telegram.org:149.154.167.220`. У api-сервиса токен пуст (только у bot). Если IP
+  умрёт — найди живой: `curl --resolve api.telegram.org:443:<ip> .../getMe`.
+- **Сиды:** entrypoint гонит `seed_db`+`seed_levels`; lifespan сидит scenarios +
+  legal_knowledge (только если таблица пуста). Полный контент —
+  `python -m scripts.seed_all` + `python -m scripts.seed_championship`.
+- База знаний = **624 чанка** (`scripts/knowledge_data/legal_chunks.jsonl.gz`, грузить на
+  ПУСТУЮ таблицу — иначе коллизия `content_hash`). Это RAG/«Маняша».
+- **Тесты** (карта, `/pvp/quiz`) — отдельный банк `test_blocks/test_questions/test_answers`
+  (63/1500/4500), грузится `seed_test_bank`.
+- **Экзамены** работают на `exam_items` (`seed_exam_content`), а НЕ `exam_questions`
+  (мёртвая таблица; `seed_exam_questions` — мёртвый скрипт).
+- Секреты (navy-ключ, пароли, токены) — только в `prod.env` (сервер) и dev
+  `apps/api/.env` (gitignored). **Ничего секретного не коммить** — репозиторий публичный.
 
 ---
 
-## 4. Verification gaps to avoid (lessons paid in production)
+## 4. Доменные инварианты (client-domain, completion policy)
 
-When you say "this works" you are making a claim. Each failure mode below
-is a real time we said "OK" and then production proved otherwise. None of
-them are exotic — they are gaps in **how** we test, not in **what** we
-test. Read this list before declaring any task done.
+Код обучающих сессий держит рантайм-инварианты, закрытые AST-гардами в `tests/` —
+PR, который их обходит, падает в CI до ревью. Прочти перед правкой путей, трогающих
+`ClientInteraction`, `DomainEvent` или завершение сессии.
 
-### 4.1 "Tests passed" ≠ "concurrency works"
+1. **Не пиши в `ClientInteraction` напрямую** — только через
+   `app.services.client_domain.create_crm_interaction_with_event`.
+2. **Не конструируй `DomainEvent(lead_client_id=...)`** вне
+   `client_domain.emit_domain_event` (идемпотентность + `correlation_id`).
+3. **Завершение сессии — через `ConversationCompletionPolicy.finalize_*`** (все
+   терминальные пути сведены к одному writer'у).
+4. **Каждый `DomainEvent` несёт `correlation_id`** (NOT NULL) — иначе ломается timeline.
 
-**Symptom:** PR #10 A10 unit tests were green, CI green, deploy green,
-prod `/health` OK. First real 5-parallel `/auth/refresh` from a user gave
-`401 401 401 401 200` and blacklisted them.
-
-**Why:** the unit tests ran `await call(); await call();` — sequentially.
-The second await always saw the cache the first await had finished
-writing. A genuine race needs `asyncio.gather`.
-
-**Rule:** any code that interacts with locks, SETNX, idempotency keys,
-WAL, savepoint conflicts, or generally "two requests at the same time"
-**must** be tested with `asyncio.gather(...)` (or threads), not
-sequential awaits. The test must reproduce the symptom on pre-fix code.
-Pattern in `apps/api/tests/test_auth_refresh_concurrency.py::test_genuinely_parallel_refresh_burst_no_blacklist`.
-
-### 4.2 "PR CI green" ≠ "post-merge CI green"
-
-**Symptom:** PR #12 merged, all PR-CI jobs were green. Post-merge CI on
-`main` turned red because the `docker push to ghcr.io` job is gated on
-`if: push && main` — it never runs on a PR. The image-name had a
-hard-coded uppercase repo path (`HunterBillion/Hunter888`) which ghcr
-rejects. Fix shipped as PR #13.
-
-**Rule:** after merging anything, verify post-merge CI on main:
-```
-gh run list --repo HunterBillion/Hunter888 --workflow CI --branch main --limit 3
-```
-Watch for any job that's gated `if: push && main` (build-push-image,
-deploy, release-tagging, smoke tests). If they go red, the PR isn't
-truly done.
-
-### 4.3 "Tests passed" ≠ "migration runs"
-
-**Symptom:** PR #12 lattice-check migration passed all unit tests
-(they don't touch Postgres). CI failed on `alembic upgrade head` because
-`bind.execute(raw_string)` was rejected by SQLAlchemy 2.x — the unit
-tests ran the model, not the migration script.
-
-**Rule:** before claiming a migration is ready, run it against a real
-PG locally (or at minimum let CI's `alembic upgrade head` pass before
-calling the PR ready). Always wrap raw SQL in `sa.text(...)`. Migration
-scripts are runtime code, not declarative — treat them like any other
-async code path.
-
-### 4.4 "API answers /health" ≠ "user feature works"
-
-**Symptom:** I declared "deploy successful" after `/api/health → 200`
-and `release_sha` matched. The actual user-facing scenario (concurrent
-refresh) was broken.
-
-**Rule:** "deploy verified" requires running **the user-facing scenario
-that motivated the change**. For A10 the verification is "5 parallel
-`/auth/refresh` with one token return 5×200 and the user is not
-blacklisted" — not just `release_sha=X`. Write this verification
-checklist into the PR body before merging.
-
-### 4.5 "Cache write happens" ≠ "cache write happens before reader"
-
-**Symptom:** A10 v1 wrote the reissued cache **after** the slow DB
-lookup. Concurrent losers landed before the write, saw an empty cache,
-fell through to blacklist. Fixed in v2 by reserving the slot with a
-`PENDING` sentinel **before** the DB call, so losers see "in flight"
-and poll instead of "missing" and blacklisting.
-
-**Rule:** when a fast operation depends on a slow one publishing a
-result, the fast operation needs either a sentinel ("in flight") or a
-lock with timeout. Plain "I will publish at the end" loses the race.
-
-### 4.6 Self-checklist before declaring a task done
-
-For any non-trivial change, before saying "done":
-
-1. Did I run the failing pre-fix test on the pre-fix code? (proves the
-   test catches the bug)
-2. Does the test cover **the symptom**, not just the implementation?
-   (e.g. "5 parallel returns 5×200" — not "the cache key is set")
-3. If the change touches concurrency, is there an `asyncio.gather`
-   test in the blocking scope?
-4. If the change touches a migration, did `alembic upgrade head`
-   actually run somewhere?
-5. After merge, did I check post-merge CI on `main`?
-6. After deploy, did I run the user-facing scenario, not just
-   `/health`?
-
-If any answer is "no", the task is not done.
+> Видишь `MemoryPersona(...)` / `DomainEvent(...)` / `ClientInteraction(...)` вне
+> канонического сервиса — это уже сломанный билд. Маршрутизируй через сервис.
 
 ---
 
-## 5. Testing discipline
+## 5. Верификация (уроки, оплаченные в проде)
 
-- Tests in the blocking CI scope must survive a real DB. Prefer
-  `pytest`'s async session fixtures over `AsyncMock(db)` for anything
-  that exercises `begin_nested`, UNIQUE constraints, or projector
-  replay.
-- When adding a new invariant, add it as a test before the code — the
-  test should fail on pre-fix code and pass on post-fix code.
-- When fixing a bug, the regression test goes in the blocking scope so
-  the same bug cannot silently return.
-- The AST invariant tests (`test_client_domain_invariants.py`) are a
-  pre-commit guard — do **not** weaken them to ship a change. If you
-  need to extend the allow-list, justify in the PR description why the
-  new write site cannot go through the canonical helper.
+Правило: **«зелёные тесты ≠ работает под нагрузкой».** Перед «готово»:
 
----
+1. Прогнал ли ты падающий pre-fix тест на pre-fix коде? (тест реально ловит баг)
+2. Тест покрывает **симптом**, а не реализацию? (напр. «5 параллельных запросов → 5×200»)
+3. Concurrency/lock/idempotency? → тест с `asyncio.gather`, не последовательные `await`.
+4. Тронул миграцию? → `alembic upgrade head` реально прогнан (raw SQL в `sa.text(...)`).
+5. После мёржа проверил post-merge CI на `main`?
+6. После деплоя прогнал **user-facing сценарий**, а не только `/health`?
 
-## 6. Subagent / delegation model policy
-
-> **Every call to the ``Agent`` tool in this repository must use the latest
-> Opus model available at the time of execution.** Do not delegate code
-> work, audits, or migrations to Sonnet, Haiku, or unspecified defaults.
-
-### Why
-
-Subagent output ships to production through human review. Each downgrade
-to a smaller model has, in practice, produced one of the failure modes
-catalogued in §4 — shallow analysis that misses concurrency races,
-incomplete file traversals that miss call sites, and overconfident
-"looks fine" summaries on partially-read files. The cost of a missed
-issue (a re-debug session in prod, see §4 for receipts) is several
-orders of magnitude higher than the latency / token cost of running on
-the strongest model.
-
-### How
-
-When invoking the ``Agent`` tool, set the ``model`` parameter explicitly:
-
-```
-Agent(
-  description="...",
-  subagent_type="...",
-  model="opus",          # ← required for any task touching this repo
-  prompt="..."
-)
-```
-
-The literal value ``opus`` resolves to the latest Opus model the platform
-exposes. As of this rule's introduction (2026-04-25) that is **Claude Opus
-4.7** (model id ``claude-opus-4-7``). When Anthropic ships a newer Opus
-(4.8, 5.x, etc.), the literal ``opus`` continues to resolve correctly —
-**no edit to this file is required for the model bump itself**. Update
-this section only if the convention changes (e.g. the platform
-deprecates the ``opus`` shorthand).
-
-### Exceptions
-
-- ``statusline-setup``, ``keybindings-help``, simple file-name-only
-  searches via ``Explore`` with ``thoroughness: "quick"`` — these
-  built-in agents have their own model defaults that the platform
-  optimises for the task. Do **not** override unless the platform has
-  obviously picked the wrong tool for the job.
-- One-off documentation summaries with no code touch can run on the
-  default. If you cannot articulate a concrete reason to downgrade, use
-  ``model="opus"``.
-
-### Enforcement
-
-Reviewers in the multi-agent rotation should reject PRs whose commit
-messages credit a non-Opus subagent on a non-trivial change. The
-``Co-Authored-By:`` trailer in commit messages records the actual model
-used — it is auditable.
+«Deploy verified» = реальный пользовательский сценарий (`curl`/живой прогон), а не
+«собралось» и не `/health → 200`.
 
 ---
 
-## 7. What to do when these rules conflict with a task
+## 6. Делегирование субагентам
 
-Stop and surface the conflict in your turn's text. Do not work around a
-rule silently. The human maintainer may grant a one-off exemption (and
-usually asks you to file a follow-up to clean it up) — but only when
-the situation is explicit. Quiet workarounds in multi-agent sessions
-compound quickly.
+> **Каждый вызов `Agent` tool использует последний Opus** (`model="opus"`). Не делегируй
+> код/аудит/миграции на Sonnet/Haiku/дефолт — их вывод идёт в прод через ревью.
+
+Исключения: `statusline-setup`, `keybindings-help`, быстрый файл-поиск через `Explore`,
+одноразовые саммари без кода. Не можешь назвать причину downgrade — ставь `model="opus"`.
+
+---
+
+## 7. Язык и дизайн
+
+- **Все ответы пользователю — на русском.**
+- **Дизайн-язык — malvah:** монохром (светлый/тёплый фон + тёмный текст) + ОДИН сдержанный
+  акцент. Без декоративных эмодзи, без «светофорных» (красный/жёлтый/зелёный) цветов
+  оценки, без неонового glow/градиентов. Сдержанность важнее украшательства. Цвета — через
+  токены (`--bg-*`, `--text-*`, `--accent`, `--border-color`), не сырой hex.
+
+---
+
+## 8. Локальный L0-хук и что делать при конфликте
+
+- Локальный L0-хук блокирует `rm -rf`, `git push --force`, `git reset --hard`,
+  `--no-verify`, запись в `.env*` (поэтому прод-env называется `prod.env`, а не
+  `.env.production`). **Хук не обходить трюками** — объясни причину, спроси разрешение.
+- Если правило отсюда мешает задаче — **останови работу и обозначь конфликт в тексте хода**.
+  Не обходи правило молча. Владелец может дать разовое исключение — но только явно.
