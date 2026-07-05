@@ -160,6 +160,7 @@ jobs:
             tests/test_manyasha_citations.py \
             tests/test_latent_bug_fixes.py \
             tests/test_championship_draw_proof.py \
+            tests/test_call_finalize.py \
             tests/test_wiki_foundation.py \
             tests/test_methodology_model.py \
             tests/test_wiki_governance.py \
