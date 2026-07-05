@@ -5,7 +5,7 @@
  *
  * Reads approved reviews from GET /api/reviews; submitting (POST) requires auth
  * and goes to moderation. Leaving a review is one of the championship entry
- * conditions (docs/contest/CHAMPIONSHIP_PLAN.md §6).
+ * conditions (CHAMPIONSHIP_PLAN §6).
  */
 import { useEffect, useState } from "react";
 import Link from "next/link";

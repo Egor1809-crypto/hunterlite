@@ -8,7 +8,7 @@ guidance — content that belongs to one team, can be authored only by
 that team's ROP / admin, and must not surface in the RAG of another
 team.
 
-The full design rationale lives in :doc:`docs/TZ-8_methodology_rag.md`.
+The full design rationale lives in :doc:`TZ-8_methodology_rag`.
 This module is the schema-only deliverable of PR-A; the REST API,
 the retriever and the UI live in PR-B / PR-C.
 

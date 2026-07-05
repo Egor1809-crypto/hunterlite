@@ -1,4 +1,4 @@
-"""Real-navy calibration smoke for the exam grader (docs/exam/EXAM_TZ.md §9b).
+"""Real-navy calibration smoke for the exam grader (EXAM_TZ §9b).
 
 Skipped by default — it hits live deepseek-v4-pro via navy and costs tokens. Run
 it deliberately when tuning rubrics or after a model bump:

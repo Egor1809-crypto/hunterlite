@@ -3,7 +3,7 @@
 Created 2026-04-18 as the redesign of knowledge_quiz scoring from a
 disconnected Q&A into a story-driven investigation over one "case".
 
-Extended 2026-05-03 (Path A, design doc ``docs/QUIZ_V2_ARENA_DESIGN.md``)
+Extended 2026-05-03 (Path A, design doc ``QUIZ_V2_ARENA_DESIGN``)
 with the deterministic grader / LLM-explainer split that aligns the
 quiz arena with the standard pattern shared by Kahoot/Quizizz/Slido.
 

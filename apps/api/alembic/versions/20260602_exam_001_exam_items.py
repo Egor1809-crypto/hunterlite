@@ -4,7 +4,7 @@ Revision ID: 20260602_exam_001
 Revises: 20260602_003
 Create Date: 2026-06-02
 
-Adds the exam-rebuild schema described in docs/exam/EXAM_TZ.md §2:
+Adds the exam-rebuild schema described in EXAM_TZ §2:
 
   * exam_definitions       += mechanic, blueprint
   * exam_attempts          += weighted_score, max_weighted_score, grading_status

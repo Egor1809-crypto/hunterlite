@@ -1,6 +1,6 @@
 """add championship tables (championships, entries, winners)
 
-Backs the championship/giveaway feature (see docs/contest/CHAMPIONSHIP_PLAN.md).
+Backs the championship/giveaway feature (see CHAMPIONSHIP_PLAN).
 Three new tables: championships (one row per season), championship_entries
 (participant progress / draw pool), championship_winners (rank → prize + ст.10.1
 publication consent).

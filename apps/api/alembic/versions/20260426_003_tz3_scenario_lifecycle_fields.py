@@ -5,7 +5,7 @@ Revises: 20260426_002
 Create Date: 2026-04-26
 
 Phase 1 of TZ-3 (Constructor & ScenarioVersion Contracts). See
-``docs/TZ-3_constructor_scenario_version_contracts.md`` §14.1 for the
+``TZ-3_constructor_scenario_version_contracts`` §14.1 for the
 full field table — this file implements that table verbatim.
 
 Adds the lifecycle metadata that subsequent phases (C2 publisher,

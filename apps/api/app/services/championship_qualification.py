@@ -1,6 +1,6 @@
 """Championship qualification — compute real entry-condition signals.
 
-The product gate (docs/contest/CHAMPIONSHIP_PLAN.md §3.3): a participant is
+The product gate (CHAMPIONSHIP_PLAN §3.3): a participant is
 ``qualified`` (and thus enters the draw pool) when they satisfy the objective
 conditions. We compute them from the authoritative tables that actually exist:
 

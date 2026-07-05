@@ -5,7 +5,7 @@ Revises: 20260501_001
 Create Date: 2026-05-01
 
 PR-A of the TZ-8 (per-team methodology RAG) plan
-(``docs/TZ-8_methodology_rag.md``). Two coordinated schema moves
+(``TZ-8_methodology_rag``). Two coordinated schema moves
 that *must* land in the same revision so the runtime never sees a
 half-applied state:
 

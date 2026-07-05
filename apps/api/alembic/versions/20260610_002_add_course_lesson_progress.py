@@ -1,6 +1,6 @@
 """add course_lesson_progress table
 
-Backs the course progress / mini-check feature (see docs/courses/COURSE_PROGRESS_TZ.md).
+Backs the course progress / mini-check feature (see COURSE_PROGRESS_TZ).
 One row per (user, course, lesson): attempts counter + completed_at (passed 3/3).
 
 Revision ID: 20260610_002

@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 # (non-demo) user can never satisfy check_consent_accepted and gets stuck with a
 # 403 at training start. Seeding demo-consent below only unblocks the demo
 # accounts; the missing acceptance UI is a separate product task that must be
-# built before non-demo onboarding works. See docs/constructor/CONSENT_GAP.md.
+# built before non-demo onboarding works. See CONSENT_GAP.
 REQUIRED_CONSENTS = [
     {"consent_type": "personal_data_processing", "version": "1.0"},
 ]

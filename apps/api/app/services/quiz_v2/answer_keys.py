@@ -11,7 +11,7 @@ The table mirrors ``legal_knowledge_chunks`` columns (knowledge_status,
 is_active, source, original_confidence) so the existing review-policy
 state machine and review-queue UI can be reused without copy.
 
-Design doc: docs/QUIZ_V2_ARENA_DESIGN.md §6.
+Design doc: QUIZ_V2_ARENA_DESIGN §6.
 A0 contains the public surface only. A1 ships the migration. A2 fills in
 the loader using the shared async session.
 """
