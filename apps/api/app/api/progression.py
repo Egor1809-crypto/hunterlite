@@ -17,11 +17,6 @@ router = APIRouter()
 
 # ─── Schemas ─────────────────────────────────────────────────────────────────
 
-class HunterScoreResponse(BaseModel):
-    user_id: str
-    hunter_score: float
-
-
 class APBalanceResponse(BaseModel):
     arena_points: int
     shop_items: list[dict]
@@ -50,33 +45,6 @@ class SoftenResponse(BaseModel):
     checkpoint_code: str
     action: str
     message: str
-
-
-# ─── Hunter Score ────────────────────────────────────────────────────────────
-
-@router.get("/hunter-score", response_model=HunterScoreResponse)
-async def get_hunter_score(
-    user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    """Get current user's Hunter Score composite metric."""
-    from app.services.hunter_score import update_hunter_score
-
-    score = await update_hunter_score(db, user.id)
-    return HunterScoreResponse(user_id=str(user.id), hunter_score=score)
-
-
-@router.post("/hunter-score/recalculate", response_model=HunterScoreResponse)
-async def recalculate_hunter_score(
-    user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    """Force recalculate and persist Hunter Score."""
-    from app.services.hunter_score import update_hunter_score
-
-    score = await update_hunter_score(db, user.id)
-    await db.commit()
-    return HunterScoreResponse(user_id=str(user.id), hunter_score=score)
 
 
 # ─── Arena Points ────────────────────────────────────────────────────────────
