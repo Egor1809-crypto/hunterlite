@@ -1032,7 +1032,7 @@ async def run_extraction(
             from app.database import async_session as _recovery_session_factory
 
             async with _recovery_session_factory() as _recovery_db:
-                from app.models.attachment import Attachment as _Attachment
+                from app.models.client import Attachment as _Attachment
                 from sqlalchemy import update as _update
 
                 await _recovery_db.execute(

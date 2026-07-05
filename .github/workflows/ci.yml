@@ -158,6 +158,7 @@ jobs:
             tests/test_rag_security.py \
             tests/test_rag_invariants.py \
             tests/test_manyasha_citations.py \
+            tests/test_latent_bug_fixes.py \
             tests/test_wiki_foundation.py \
             tests/test_methodology_model.py \
             tests/test_wiki_governance.py \

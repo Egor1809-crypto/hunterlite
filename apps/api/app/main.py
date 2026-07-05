@@ -120,22 +120,9 @@ async def lifespan(application: FastAPI):
                 except Exception as e:
                     logger.warning("Lifespan: expanded legal seed failed: %s", e)
 
-            async def _seed_lorebook():
-                try:
-                    from scripts.seed_lorebook import seed_all_archetypes
-                    from app.database import async_session as _lb_session
-                    async with _lb_session() as _lb_db:
-                        lb_results = await seed_all_archetypes(_lb_db)
-                        total = sum(r.get("entries_created", 0) + r.get("examples_created", 0) for r in lb_results)
-                        if total > 0:
-                            logger.info("Lifespan: lorebook seed complete (%d items)", total)
-                except Exception as e:
-                    logger.warning("Lifespan: lorebook seed failed: %s", e)
-
             await asyncio.gather(
                 _seed_scenarios(),
                 _seed_legal(),
-                _seed_lorebook(),
                 return_exceptions=True,
             )
             logger.info("Lifespan: parallel seeds complete")
