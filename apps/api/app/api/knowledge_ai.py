@@ -95,6 +95,9 @@ class SendMessageResponse(BaseModel):
     status: str
     used_chunks: list[SourceItem] = []
     grounded: bool = True
+    # Grounding-статус по цитатам ФЗ-127: grounded / partial / ungrounded /
+    # hallucinated / no_context. FE может показать «ссылки не подтверждены базой».
+    citation_status: str = "no_context"
     tool_trace: list[dict] = []
     model: str = ""
 
@@ -353,6 +356,7 @@ async def send_message(
         status=result.status,
         used_chunks=_sources_to_items(result.used_chunks),
         grounded=result.grounded,
+        citation_status=result.citation_status,
         tool_trace=result.tool_trace,
         model=result.model,
     )
