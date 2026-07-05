@@ -52,48 +52,6 @@ SKILL_SMOOTHING_ALPHA = 0.30
 COLD_START_SESSIONS = 5
 WEAK_POINT_GAP = 15  # навык ниже среднего на 15+ → weak
 
-# ── Skill mastery levels ─────────────────────────────────────────────
-SKILL_MASTERY_LEVELS: list[dict] = [
-    {"level": 1, "name": "Стажёр",       "name_en": "trainee",      "min_score": 0,  "max_score": 25,  "badge": "🔰"},
-    {"level": 2, "name": "Практикант",    "name_en": "apprentice",   "min_score": 26, "max_score": 45,  "badge": "📘"},
-    {"level": 3, "name": "Специалист",    "name_en": "specialist",   "min_score": 46, "max_score": 65,  "badge": "⭐"},
-    {"level": 4, "name": "Профессионал",  "name_en": "professional", "min_score": 66, "max_score": 80,  "badge": "🏅"},
-    {"level": 5, "name": "Эксперт",       "name_en": "expert",       "min_score": 81, "max_score": 95,  "badge": "💎"},
-    {"level": 6, "name": "Мастер",        "name_en": "master",       "min_score": 96, "max_score": 100, "badge": "👑"},
-]
-
-
-def get_skill_mastery(score: float) -> dict:
-    """Get mastery level info for a skill score (0-100).
-
-    Returns dict with: level, name, name_en, badge, progress_in_level (0-100%).
-    """
-    score = max(0.0, min(100.0, score))
-    for mastery in reversed(SKILL_MASTERY_LEVELS):
-        if score >= mastery["min_score"]:
-            range_size = mastery["max_score"] - mastery["min_score"] + 1
-            progress = ((score - mastery["min_score"]) / range_size) * 100 if range_size > 0 else 100
-            return {
-                "level": mastery["level"],
-                "name": mastery["name"],
-                "name_en": mastery["name_en"],
-                "badge": mastery["badge"],
-                "progress_in_level": round(min(100.0, progress), 1),
-            }
-    return {"level": 1, "name": "Стажёр", "name_en": "trainee", "badge": "🔰", "progress_in_level": 0}
-
-
-def get_all_skill_masteries(skills: dict[str, float]) -> dict[str, dict]:
-    """Get mastery levels for all 6 skills.
-
-    Args:
-        skills: Dict of skill_name → score (0-100)
-
-    Returns:
-        Dict of skill_name → mastery info
-    """
-    return {skill: get_skill_mastery(score) for skill, score in skills.items()}
-
 # Маппинг навыков → архетипы для рекомендаций
 SKILL_ARCHETYPE_MAP: dict[str, list[str]] = {
     "empathy": ["anxious", "desperate", "crying", "ashamed", "overwhelmed"],

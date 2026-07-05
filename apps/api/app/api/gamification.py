@@ -250,46 +250,6 @@ async def get_ocean_profile_endpoint(
     return await get_ocean_profile(user.id, db)
 
 
-@router.get("/me/skill-mastery")
-async def get_skill_mastery_endpoint(
-    user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    """Get skill mastery levels for current user."""
-    from app.models.progress import ManagerProgress
-    from app.services.manager_progress import get_all_skill_masteries
-    from sqlalchemy import select
-
-    result = await db.execute(
-        select(ManagerProgress).where(ManagerProgress.user_id == user.id)
-    )
-    progress = result.scalar_one_or_none()
-
-    if not progress:
-        return {"skills": {}, "message": "No training data yet"}
-
-    skills = {
-        "empathy": float(progress.skill_empathy or 0),
-        "knowledge": float(progress.skill_knowledge or 0),
-        "objection_handling": float(progress.skill_objection_handling or 0),
-        "stress_resistance": float(progress.skill_stress_resistance or 0),
-        "closing": float(progress.skill_closing or 0),
-        "qualification": float(progress.skill_qualification or 0),
-    }
-
-    masteries = get_all_skill_masteries(skills)
-
-    return {
-        "skills": {
-            name: {
-                "score": round(skills[name], 1),
-                **mastery,
-            }
-            for name, mastery in masteries.items()
-        }
-    }
-
-
 # ── Team Challenges ──────────────────────────────────────────────────────────
 
 
