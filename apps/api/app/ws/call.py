@@ -140,6 +140,9 @@ async def _handle_user_turn(ws: WebSocket, state: dict, webm_bytes: bytes) -> No
 
     # 4. persona decided to hang up?
     if wants_hangup(raw_reply):
+        # Запоминаем исход для терминального контракта: маппится в
+        # client_farewell_detected при финализации в _do_end_call.
+        state["call_outcome"] = "hangup"
         await _send(ws, "client_hangup", {"text": clean_reply})
     else:
         await _send(ws, "turn_end", {})
@@ -165,6 +168,42 @@ async def _do_end_call(ws: WebSocket, state: dict) -> None:
             if session is not None:
                 session.score_total = float(total)
                 session.scoring_details = scoring_details
+                # Провести звонок через единый контракт завершения (TZ-1 §3):
+                # ставит status=completed / ended_at / terminal_outcome и эмитит
+                # канонический session.completed DomainEvent. Без этого звонок
+                # оставался status=active и выпадал из /history/unified и CRM
+                # (в отличие от чат-тренинга). Не фатально: как в ws/training.py,
+                # сбой финализации не должен ломать выдачу скора.
+                try:
+                    from app.services.completion_policy import (
+                        CompletedVia,
+                        TerminalReason,
+                        finalize_training_session,
+                        outcome_from_raw,
+                    )
+
+                    _raw_outcome = state.get("call_outcome")
+                    _reason = (
+                        TerminalReason.client_farewell_detected
+                        if _raw_outcome == "hangup"
+                        else TerminalReason.user_ended
+                    )
+                    await finalize_training_session(
+                        db,
+                        session=session,
+                        outcome=outcome_from_raw(_raw_outcome),
+                        reason=_reason,
+                        completed_via=CompletedVia.ws,
+                        manager_id=session.user_id,
+                        emit_followup=False,
+                        emit_crm=False,
+                        emit_gamification=False,
+                    )
+                except Exception:
+                    logger.warning(
+                        "call: completion_policy finalize failed for %s",
+                        state["session_id"], exc_info=True,
+                    )
                 await db.commit()
     except Exception:
         logger.exception("call: failed to persist score for session %s", state["session_id"])
