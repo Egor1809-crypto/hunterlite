@@ -244,7 +244,7 @@ class Settings(BaseSettings):
 
     # 2026-04-18: Knowledge quiz v2 — case-driven narrative. Off by default,
     # turn on with USE_QUIZ_V2=true in .env. Legacy path stays intact as
-    # rollback. See apps/api/app/services/quiz_v2/ + docs/RAG_ARENA_REDESIGN_TZ.md.
+    # rollback. See apps/api/app/services/quiz_v2/ + RAG_ARENA_REDESIGN_TZ.
     use_quiz_v2: bool = False
 
     # Tier B (template+LLM fill) and Tier C (full LLM gen) flags — allow
@@ -619,7 +619,7 @@ class Settings(BaseSettings):
     # OAuth (Yandex) — 2026-06-19 (149-ФЗ): Google OAuth removed. Foreign
     # identity providers (Google/Apple/etc.) are not permitted under 149-ФЗ.
     # Only Yandex ID (allowed RU provider) remains, alongside own
-    # email/password + SMS. See docs/auth/AUTH_REBUILD_TZ.md.
+    # email/password + SMS. See AUTH_REBUILD_TZ.
     yandex_client_id: str = ""
     yandex_client_secret: str = ""
     yandex_redirect_uri: str = ""  # e.g. http://localhost:3000/auth/callback
@@ -709,7 +709,7 @@ class Settings(BaseSettings):
     # ── Quiz Arena v2 (Path A) — A0 scaffolding ───────────────────────
     # Master flag for the deterministic-grader / LLM-explainer redesign
     # of the knowledge-quiz arena. Design doc:
-    # ``docs/QUIZ_V2_ARENA_DESIGN.md``. While False (default), the
+    # ``QUIZ_V2_ARENA_DESIGN``. While False (default), the
     # entire v2 pipeline is dormant — no behavior change. While True,
     # ``ws/knowledge.py`` consults ``quiz_v2.grader`` instead of the
     # legacy streaming evaluator. Roll out via the user-whitelist

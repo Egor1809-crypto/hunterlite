@@ -5,7 +5,7 @@ Mirrors ``LegalKnowledgeChunk`` review-lifecycle columns
 ``reviewed_by/at``) so the existing ``knowledge_review_policy.mark_reviewed``
 state machine and ``KnowledgeReviewQueue`` UI can be reused without copy.
 
-Design doc: ``docs/QUIZ_V2_ARENA_DESIGN.md`` §6.
+Design doc: ``QUIZ_V2_ARENA_DESIGN`` §6.
 Migration:  ``alembic/versions/20260503_001_quiz_v2_answer_keys.py``.
 """
 

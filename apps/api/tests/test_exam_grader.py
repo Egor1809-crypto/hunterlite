@@ -1,6 +1,6 @@
 """Tests for the strict exam AI grader (app.services.exam_grader).
 
-Covers docs/exam/EXAM_TZ.md §9 acceptance for the grader in isolation:
+Covers EXAM_TZ §9 acceptance for the grader in isolation:
   (b) golden answer → high score, garbage → low score (mocked model, but the
       scaling/clamp/parse contract is exercised),
   (г) determinism — same (item, answer) returns the cached grade without a 2nd

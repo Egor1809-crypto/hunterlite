@@ -1,6 +1,6 @@
 """Seed the exam-rebuild learning-content DB (exam_item) + per-exam mechanic.
 
-docs/exam/EXAM_TZ.md §2-3, §10 stage 3. ONLY банкротство ФИЗЛИЦ / ФЗ-127.
+EXAM_TZ §2-3, §10 stage 3. ONLY банкротство ФИЗЛИЦ / ФЗ-127.
 
   * exam-3 «Анализ дела» — the reference exam (DECISION-B): 3 deep case_analysis
     items with rubrics + RAG refs, AI-graded by deepseek-v4-pro.

@@ -10,7 +10,7 @@ Why this exists
 Path A redesigns the knowledge-quiz arena to grade answers
 deterministically against a pre-computed answer key (Kahoot/Quizizz
 pattern) instead of streaming a verdict from an LLM. Design doc:
-``docs/QUIZ_V2_ARENA_DESIGN.md``.
+``QUIZ_V2_ARENA_DESIGN``.
 
 This migration creates the ``quiz_v2_answer_keys`` table that backs the
 deterministic grader.

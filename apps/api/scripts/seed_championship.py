@@ -1,7 +1,7 @@
 """Seed Championship #1 (idempotent).
 
 The летне-осенний season: starts 1 June, tally week at the second-to-last week
-of autumn, ends with autumn. See docs/contest/CHAMPIONSHIP_PLAN.md §2.
+of autumn, ends with autumn. See CHAMPIONSHIP_PLAN §2.
 
 Run standalone:  python -m scripts.seed_championship
 """

@@ -2,7 +2,7 @@
 multi_step).
 
 Modelled on ``warmup_grader.py`` but with three deliberate differences mandated
-by docs/exam/EXAM_TZ.md §4:
+by EXAM_TZ §4:
 
   1. Model is ``settings.exam_model`` (deepseek-v4-pro) via the navy proxy.
   2. There is **no "this is a warm-up, be lenient" instruction.** The exam is

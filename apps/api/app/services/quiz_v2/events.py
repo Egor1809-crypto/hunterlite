@@ -17,7 +17,7 @@ Every event is also published through ``services.arena_bus.publish``
 (when ``arena_bus_dual_write_enabled``) so AuditLogConsumer captures it
 without parallel infrastructure.
 
-Design doc: docs/QUIZ_V2_ARENA_DESIGN.md §5.
+Design doc: QUIZ_V2_ARENA_DESIGN §5.
 A0 contains the public surface only. A4 fills in the publish path.
 """
 

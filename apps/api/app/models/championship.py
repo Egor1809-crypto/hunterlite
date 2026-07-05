@@ -1,7 +1,7 @@
 """Championship / giveaway (чемпионат-розыгрыш) models.
 
 Backs the Apple-style championship page (landing + platform) — see
-docs/contest/CHAMPIONSHIP_PLAN.md. Three tables:
+CHAMPIONSHIP_PLAN. Three tables:
 
 - ``championships``        — one row per season (sequential number, FSM status,
                              prize fund, winner-selection mode).

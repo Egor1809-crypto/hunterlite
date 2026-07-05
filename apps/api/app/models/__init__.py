@@ -200,7 +200,7 @@ from app.models.methodology import MethodologyChunk, MethodologyKind
 # wrapper; bulk inserts use Core insert() for batch efficiency.
 from app.models.analytics_event import AnalyticsEvent
 # Quiz Arena v2 (Path A) — pre-computed answer keys for the deterministic
-# grader. Migration 20260503_001. See docs/QUIZ_V2_ARENA_DESIGN.md.
+# grader. Migration 20260503_001. See QUIZ_V2_ARENA_DESIGN.
 from app.models.quiz_v2 import QuizV2AnswerKey
 from app.models.training_map import TrainingMapProgress
 from app.models.telegram_link import TelegramLinkToken

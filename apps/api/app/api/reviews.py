@@ -6,7 +6,7 @@
 The ``Review`` table plus its moderation flag and TTL scheduler already exist
 (see app/models/review.py, services/review_ttl_scheduler.py); before this router
 there were no public read/write endpoints. Leaving a review is one of the
-championship entry conditions (see docs/contest/CHAMPIONSHIP_PLAN.md §6).
+championship entry conditions (see CHAMPIONSHIP_PLAN §6).
 """
 from __future__ import annotations
 

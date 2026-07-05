@@ -3,7 +3,7 @@
 /**
  * ChampionshipPage — Apple-composition championship/giveaway page.
  *
- * Design decision (docs/contest/CHAMPIONSHIP_PLAN.md §11): Apple-style layout —
+ * Design decision (CHAMPIONSHIP_PLAN §11): Apple-style layout —
  * huge type, generous whitespace, sticky scroll-storytelling, scroll-linked
  * reveals — but using OUR theme accent (--primary) so it works in light + dark.
  *

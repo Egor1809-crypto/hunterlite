@@ -1,6 +1,6 @@
 """Deterministic (rule-based) grading for non-AI exam item types.
 
-docs/exam/EXAM_TZ.md §3/§5: mcq, multi_select, numeric, sequencing, matching
+EXAM_TZ §3/§5: mcq, multi_select, numeric, sequencing, matching
 are graded synchronously and deterministically here — no LLM. Each grader takes
 the item's ``answer_key`` + the user's ``raw_answer`` and returns a partial
 0..points score so weighted scoring (sum(score)/sum(max)) works uniformly with

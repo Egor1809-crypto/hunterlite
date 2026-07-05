@@ -1,6 +1,6 @@
 """Championship / giveaway (чемпионат-розыгрыш) API.
 
-Endpoints (see docs/contest/CHAMPIONSHIP_PLAN.md §3.2):
+Endpoints (see CHAMPIONSHIP_PLAN §3.2):
 
 - GET  /championship/current             — current season + prizes + status (public).
 - GET  /championship/{id}/leaderboard    — qualified pool / engagement ordering (public).

@@ -5,7 +5,7 @@ file is named `task_followup_policy.py` because it explicitly distinguishes
 the canonical `TaskFollowUp` row creation from the legacy
 `ManagerReminder` dual-write peer in `crm_followup.py`. See the
 implementation-status table in
-docs/TZ-2_runtime_integrity_guards_followup.md §15.1.
+TZ-2_runtime_integrity_guards_followup §15.1.
 
 Replaces the heuristic-on-emotion logic in ``crm_followup.py`` with a
 typed policy that maps a session terminal_outcome to a structured

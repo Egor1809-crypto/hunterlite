@@ -1,7 +1,7 @@
 """Championship season FSM + date formulas.
 
 Two seasons per year, sequential championship numbering
-(docs/contest/CHAMPIONSHIP_PLAN.md §2 / §5.2):
+(CHAMPIONSHIP_PLAN §2 / §5.2):
 
   * ``summer_autumn`` — starts **1 June**, ends **30 November** (23:59:59);
     tally week = the **last 7 days** of November (24–30).

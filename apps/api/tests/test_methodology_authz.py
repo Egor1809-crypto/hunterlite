@@ -1,6 +1,6 @@
 """TZ-8 PR-B — :func:`check_methodology_team_access` authorisation matrix.
 
-Mirrors §4.2 of ``docs/TZ-8_methodology_rag.md``. Every cell of the
+Mirrors §4.2 of ``TZ-8_methodology_rag``. Every cell of the
 matrix has a test; missing a test for a role × mode pair lets a
 future PR weaken the gate silently.
 """

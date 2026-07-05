@@ -7,7 +7,7 @@ Create Date: 2026-04-29
 Background
 ----------
 
-TZ-5 (docs/TZ-5_input_funnel_parser.md) lets ROP/admin upload existing
+TZ-5 (TZ-5_input_funnel_parser) lets ROP/admin upload existing
 team materials (.docx/.pdf/.txt/.md/.pptx) and parses them into a
 ``ScenarioDraft`` -- a pre-filled card the editor can review and turn
 into a normal TZ-3 ``ScenarioTemplate`` + ``ScenarioVersion``.

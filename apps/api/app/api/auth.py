@@ -692,7 +692,7 @@ async def oauth_status():
 
     2026-06-19 (149-ФЗ): Google OAuth removed — foreign identity providers are
     not permitted. Only Yandex ID (allowed RU provider) + own email/password +
-    SMS remain. See docs/auth/AUTH_REBUILD_TZ.md.
+    SMS remain. See AUTH_REBUILD_TZ.
     """
     return {
         "yandex": settings.yandex_oauth_configured,
