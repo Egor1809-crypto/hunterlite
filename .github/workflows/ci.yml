@@ -161,6 +161,7 @@ jobs:
             tests/test_latent_bug_fixes.py \
             tests/test_championship_draw_proof.py \
             tests/test_call_finalize.py \
+            tests/test_ws_lock_failclosed.py \
             tests/test_wiki_foundation.py \
             tests/test_methodology_model.py \
             tests/test_wiki_governance.py \

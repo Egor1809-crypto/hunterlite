@@ -572,6 +572,10 @@ async def _authenticate_first_message(ws: WebSocket, raw: str) -> uuid.UUID | No
 _WS_LOCK_KEY = "ws:lock:{session_id}"
 _WS_LOCK_OWNER_KEY = "ws:lock:{session_id}:owner"  # user_id of current holder
 _WS_LOCK_TTL = 60  # seconds, refreshed on heartbeat
+# BUG-4: сколько heartbeat'ов подряд с недоступным Redis пережить, прежде чем
+# fail-closed (замок непроверяем → останавливаем сессию). Грейс переживает
+# короткий флап Redis, но не даёт держать замок вслепую бесконечно (был fail-open).
+_LOCK_ERROR_GRACE = 3  # ~3 heartbeat'а (heartbeat ~30s) ≈ 90s недоступности Redis
 
 
 async def _acquire_session_lock(
@@ -615,11 +619,13 @@ async def _acquire_session_lock(
         return False  # Fail-CLOSED: reject if lock cannot be verified (security > availability)
 
 
-async def _refresh_session_lock(session_id: uuid.UUID, ws_id: str) -> bool:
+async def _refresh_session_lock(session_id: uuid.UUID, ws_id: str) -> bool | None:
     """Refresh lock TTL on heartbeat. Only refreshes if we still own the lock.
 
     Uses Lua script for atomic check-and-expire to prevent TOCTOU race.
-    Returns True if lock was refreshed, False if lost.
+    Returns True if refreshed, False if the lock was lost (takeover), None if
+    Redis was unverifiable (error) — the caller applies a grace window and then
+    fail-closes instead of silently holding the lock (BUG-4).
     """
     from app.core.redis_pool import get_redis
     r = get_redis()
@@ -643,8 +649,12 @@ async def _refresh_session_lock(session_id: uuid.UUID, ws_id: str) -> bool:
             return False
         return True
     except Exception as e:
+        # BUG-4 fix: НЕ fail-open. Возвращаем None («не удалось проверить»), чтобы
+        # вызывающий применил грейс (пережить короткий флап Redis) и fail-closed
+        # после _LOCK_ERROR_GRACE подряд ошибок — вместо того чтобы держать замок
+        # вслепую (два коннекта при недоступном Redis оба «держали» → дубли реплик).
         logger.warning("Failed to refresh WS lock for session %s: %s", session_id, e)
-        return True  # On Redis error, assume we still hold (fail-open for heartbeat)
+        return None  # unverifiable — caller decides (grace → fail-closed)
 
 
 async def _release_session_lock(session_id: uuid.UUID, ws_id: str) -> None:
@@ -6999,6 +7009,27 @@ async def training_websocket(websocket: WebSocket) -> None:
                     await update_activity(state["session_id"])
                     # Refresh WS mutex lock on heartbeat
                     lock_ok = await _refresh_session_lock(state["session_id"], ws_id)
+                    if lock_ok is None:
+                        # BUG-4: Redis недоступен — владение замком не проверить.
+                        # Грейс: короткий флап (до _LOCK_ERROR_GRACE heartbeat'ов)
+                        # переживаем, чтобы не рвать живую сессию; дольше держать
+                        # замок вслепую нельзя (был fail-open → два коннекта могли
+                        # оба писать). После порога — fail-closed: сообщаем клиенту
+                        # и выходим из цикла (finally снимет замок и закроет WS).
+                        state["_lock_redis_errors"] = state.get("_lock_redis_errors", 0) + 1
+                        if state["_lock_redis_errors"] >= _LOCK_ERROR_GRACE:
+                            logger.error(
+                                "WS lock unverifiable for session %s after %d heartbeats "
+                                "(Redis down) — fail-closed",
+                                state["session_id"], state["_lock_redis_errors"],
+                            )
+                            await _send(websocket, "session.lock_error", {
+                                "message": "Потеряна синхронизация сессии. Переоткройте тренировку.",
+                            })
+                            break
+                        await _send(websocket, "pong", {})
+                        continue
+                    state["_lock_redis_errors"] = 0
                     if not lock_ok:
                         # Lock lost. Distinguish same-user takeover (dev HMR /
                         # React Strict-Mode remount / user opened new tab) from
