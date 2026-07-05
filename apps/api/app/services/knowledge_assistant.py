@@ -28,6 +28,7 @@ import os
 import time
 import re
 import uuid
+from types import SimpleNamespace
 from dataclasses import dataclass, field
 
 from sqlalchemy import desc, select
@@ -38,6 +39,7 @@ from app.models.rag import LegalKnowledgeChunk
 from app.models.knowledge_status import STATUSES_VISIBLE_IN_RAG
 from app.services.content_filter import _sanitize_rag_field, filter_ai_output, strip_markdown_formatting
 from app.services.rag_legal import retrieve_legal_context
+from app.services.rag_grounding import check_citations
 
 logger = logging.getLogger(__name__)
 
@@ -183,6 +185,10 @@ class AgentResult:
     # surfaces a "не подтверждено базой" hint so the user doesn't mistake an
     # ungrounded reply for a sourced one (ТЗ §7а).
     grounded: bool = False
+    # Grounding-статус по цитатам ФЗ-127 (check_citations): grounded / partial /
+    # ungrounded / hallucinated / no_context. "hallucinated" = ответ ссылается на
+    # статью, которой НЕТ в retrieved-источниках — главный юр-риск ассистента.
+    citation_status: str = "no_context"
 
 
 # ── Tool dispatch ──────────────────────────────────────────────────────────────
@@ -579,6 +585,26 @@ async def run_agent_turn(
             generation_ms=generation_ms,
         )
 
+    # Grounding-проверка: сверяем статьи ФЗ-127, процитированные в ответе, с
+    # теми, что реально есть в retrieved-чанках. "hallucinated" (ссылка на статью
+    # вне источников) — главный юр-риск Маняши. check_citations читает
+    # ``.law_article``, а used_chunks — dict'ы, поэтому оборачиваем в лёгкие
+    # адаптеры. Текст ответа НЕ аннотируем (annotate_answer добавляет эмодзи —
+    # против дизайн-правила); статус прокидываем в AgentResult, FE решает показ.
+    _cite_ctx = [
+        SimpleNamespace(law_article=c.get("law_article", ""))
+        for c in used_chunks.values()
+    ]
+    citation = check_citations(final_content, _cite_ctx)
+    if citation.status in ("hallucinated", "partial"):
+        logger.warning(
+            "Manyasha citation %s: cited=%s unsupported=%s (user=%s)",
+            citation.status,
+            citation.cited_articles,
+            citation.unsupported_articles,
+            user_id,
+        )
+
     return AgentResult(
         content=final_content,
         status="ok",
@@ -588,6 +614,7 @@ async def run_agent_turn(
         model=_MODEL,
         generation_ms=generation_ms,
         grounded=bool(used_chunks),
+        citation_status=citation.status,
     )
 
 
