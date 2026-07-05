@@ -14,7 +14,7 @@ operator action recorded into ``championship_winners`` — not exposed here.
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 
 import logging
 
@@ -406,9 +406,22 @@ async def conduct_draw(
                 publish_consent=False,
             )
         )
+    # Provenance: сохраняем верификацию рандомайзера (RANDOM.ORG живёт
+    # off-platform — тут ссылка на его результат) и момент проведения — чтобы
+    # честность розыгрыша была доказуема «по нажатию», а не только в логе.
+    champ.draw_verification = payload.random_org_verification
+    champ.drawn_at = datetime.now(timezone.utc)
     if payload.finalize:
         champ.status = "finished"
-    await db.commit()
+    # TOCTOU: guard «розыгрыш уже проведён» (выше) читает счётчик ДО коммита,
+    # поэтому два одновременных admin-draw могут оба пройти его. Уникальный
+    # ключ (championship_id, rank) на championship_winners ловит гонку на
+    # коммите — отдаём чистый 409 вместо 500 (паттерн как в enroll).
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(status_code=409, detail="Розыгрыш уже проведён")
 
     logger.info(
         "championship %s draw recorded: %d winners, mode=%s, verification=%s",
