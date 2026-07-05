@@ -67,6 +67,14 @@ class Championship(Base):
     # Ordered list of prizes: [{"rank":1,"name":"MacBook Air 13 M4","value":120000,"image":"…"}, …]
     prize_fund: Mapped[list | None] = mapped_column(JSONB, nullable=True)
 
+    # Draw provenance (доказуемость честности розыгрыша): строка-верификация
+    # результата внешнего рандомайзера (RANDOM.ORG) + момент проведения.
+    # Заполняются в conduct_draw; до розыгрыша NULL.
+    draw_verification: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    drawn_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
