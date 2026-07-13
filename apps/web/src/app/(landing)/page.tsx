@@ -510,7 +510,7 @@ function TariffsSection({ openRegister }: { openRegister: () => void }) {
                 <Button
                   variant={lead ? "primary" : "secondary"}
                   size="lg"
-                  onClick={openRegister}
+                  onClick={lead ? () => { window.location.href = "https://tech-pravo.ru/buy?site=legalhunter.pro&product=" + encodeURIComponent(plan.name) + "&price=" + String(plan.price).replace(/[^0-9]/g, ""); } : openRegister}
                   iconRight={<ArrowRight size={18} />}
                   fluid
                   className="mt-7"
