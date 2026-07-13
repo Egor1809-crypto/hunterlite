@@ -51,6 +51,7 @@ const products = [
 ];
 
 const ecosystem = [
+  { label: "Expertum · проверка и практика", href: "https://expertum.pro/" },
   "AI-ассистент юриста",
   "Анализ судебной практики",
   "Проверка контрагентов",
@@ -305,10 +306,10 @@ function ProductsSection() {
         <Eyebrow>
           03 · Наши продукты &amp;{" "}
           <a
-            href="https://pravotech.pro/"
+            href="https://tech-pravo.ru/"
             target="_blank"
             rel="noopener noreferrer"
-            title="ТехнологИИ Права — pravotech.pro"
+            title="ТехнологИИ Права — tech-pravo.ru"
             className="underline decoration-2 underline-offset-4 transition-opacity hover:opacity-80"
             style={{ color: "#22D3EE", textDecorationColor: "#22D3EE", fontWeight: 800 }}
           >
@@ -356,7 +357,7 @@ function ProductsSection() {
           <span className="hidden font-mono text-[11px] uppercase tracking-[0.16em] sm:block" style={{ color: "var(--text-muted)" }}>12 направлений в разработке</span>
         </div>
         <div
-          className="group relative overflow-hidden py-5 w-screen left-1/2 -translate-x-1/2"
+          className="group relative overflow-hidden py-7 w-screen left-1/2 -translate-x-1/2"
           style={{
             background: "var(--surface-card)",
             borderTop: "1px solid var(--border-color)", borderBottom: "1px solid var(--border-color)",
@@ -364,13 +365,31 @@ function ProductsSection() {
             WebkitMaskImage: "linear-gradient(to right, transparent, #000 8%, #000 92%, transparent)",
           }}
         >
-          <div className="flex w-max animate-[ticker_42s_linear_infinite] gap-3 group-hover:[animation-play-state:paused]">
-            {[...ecosystem, ...ecosystem].map((item, i) => (
-              <span key={`${item}-${i}`} className="inline-flex shrink-0 items-center gap-2 rounded-full px-5 py-2.5 text-sm font-medium" style={{ border: "1px solid var(--border-color)", background: "var(--bg-primary)", color: "var(--text-secondary)" }}>
-                <span className="h-1.5 w-1.5 rounded-full" style={{ background: "var(--primary)" }} />
-                {item}
-              </span>
-            ))}
+          <div className="flex w-max animate-[ticker_42s_linear_infinite] gap-4 group-hover:[animation-play-state:paused]">
+            {[...ecosystem, ...ecosystem].map((item, i) =>
+              typeof item === "string" ? (
+                <span
+                  key={`${item}-${i}`}
+                  className="inline-flex shrink-0 items-center gap-2.5 rounded-full px-6 py-3 text-[15px] font-medium"
+                  style={{ border: "1px solid var(--border-color)", background: "var(--bg-primary)", color: "var(--text-secondary)" }}
+                >
+                  <span className="h-1.5 w-1.5 rounded-full" style={{ background: "var(--primary)" }} />
+                  {item}
+                </span>
+              ) : (
+                <a
+                  key={`${item.label}-${i}`}
+                  href={item.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex shrink-0 items-center gap-2.5 rounded-full px-6 py-3 text-[15px] font-semibold transition-opacity hover:opacity-90"
+                  style={{ border: "1px solid var(--primary)", background: "var(--primary)", color: "#fff" }}
+                >
+                  <span className="h-2 w-2 rounded-full" style={{ background: "#fff" }} />
+                  {item.label}
+                </a>
+              )
+            )}
           </div>
         </div>
       </motion.div>
