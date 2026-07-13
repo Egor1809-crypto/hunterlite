@@ -48,10 +48,14 @@ const products = [
     title: "Экзамен и сертификат",
     text: "Объективная проверка знаний, отчёт о результате и сертификат — подтверждение, что вам можно доверить дело.",
   },
+  {
+    title: "Expertum",
+    text: "Отдельный сервис экосистемы «AI & право» — экспертные инструменты для юридической практики. Открыть expertum.pro.",
+    href: "https://expertum.pro/",
+  },
 ];
 
 const ecosystem = [
-  { label: "Expertum · проверка и практика", href: "https://expertum.pro/" },
   "AI-ассистент юриста",
   "Анализ судебной практики",
   "Проверка контрагентов",
@@ -325,30 +329,55 @@ function ProductsSection() {
       </motion.div>
 
       <div className="mt-12 flex flex-col" style={{ borderTop: "1px solid var(--border-color)" }}>
-        {products.map((product, index) => (
-          <motion.article
-            key={product.title}
-            {...reveal(0.06 + index * 0.06)}
-            className="group grid items-start gap-5 py-8 sm:grid-cols-[110px_1fr]"
-            style={{ borderBottom: "1px solid var(--border-color)" }}
-          >
+        {products.map((product, index) => {
+          const href = "href" in product ? product.href : undefined;
+          const num = (
             <div
               className="font-mono font-semibold tabular-nums transition-colors"
               style={{ color: "var(--text-muted)", fontSize: "clamp(2.4rem, 4vw, 3.4rem)", letterSpacing: "-0.04em", lineHeight: 0.9 }}
             >
               {String(index + 1).padStart(2, "0")}
             </div>
+          );
+          const body = (
             <div>
               <h3
-                className="font-semibold tracking-tight transition-transform group-hover:translate-x-1"
+                className="flex items-center gap-2 font-semibold tracking-tight transition-transform group-hover:translate-x-1"
                 style={{ color: "var(--text-primary)", fontSize: "clamp(1.4rem, 2.4vw, 2rem)", letterSpacing: "-0.02em" }}
               >
                 {product.title}
+                {href && <ArrowRight size={22} style={{ color: "var(--primary)" }} />}
               </h3>
               <p className="mt-3 max-w-2xl text-[16px] leading-relaxed" style={{ color: "var(--text-secondary)" }}>{product.text}</p>
             </div>
-          </motion.article>
-        ))}
+          );
+          const cls = "group grid items-start gap-5 py-8 sm:grid-cols-[110px_1fr]";
+          const st = { borderBottom: "1px solid var(--border-color)" };
+          return href ? (
+            <motion.a
+              key={product.title}
+              href={href}
+              target="_blank"
+              rel="noopener noreferrer"
+              {...reveal(0.06 + index * 0.06)}
+              className={cls}
+              style={st}
+            >
+              {num}
+              {body}
+            </motion.a>
+          ) : (
+            <motion.article
+              key={product.title}
+              {...reveal(0.06 + index * 0.06)}
+              className={cls}
+              style={st}
+            >
+              {num}
+              {body}
+            </motion.article>
+          );
+        })}
       </div>
 
       <motion.div {...reveal(0.28)} className="mt-10">
@@ -366,30 +395,16 @@ function ProductsSection() {
           }}
         >
           <div className="flex w-max animate-[ticker_42s_linear_infinite] gap-4 group-hover:[animation-play-state:paused]">
-            {[...ecosystem, ...ecosystem].map((item, i) =>
-              typeof item === "string" ? (
-                <span
-                  key={`${item}-${i}`}
-                  className="inline-flex shrink-0 items-center gap-2.5 rounded-full px-6 py-3 text-[15px] font-medium"
-                  style={{ border: "1px solid var(--border-color)", background: "var(--bg-primary)", color: "var(--text-secondary)" }}
-                >
-                  <span className="h-1.5 w-1.5 rounded-full" style={{ background: "var(--primary)" }} />
-                  {item}
-                </span>
-              ) : (
-                <a
-                  key={`${item.label}-${i}`}
-                  href={item.href}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex shrink-0 items-center gap-2.5 rounded-full px-6 py-3 text-[15px] font-semibold transition-opacity hover:opacity-90"
-                  style={{ border: "1px solid var(--primary)", background: "var(--primary)", color: "#fff" }}
-                >
-                  <span className="h-2 w-2 rounded-full" style={{ background: "#fff" }} />
-                  {item.label}
-                </a>
-              )
-            )}
+            {[...ecosystem, ...ecosystem].map((item, i) => (
+              <span
+                key={`${item}-${i}`}
+                className="inline-flex shrink-0 items-center gap-2.5 rounded-full px-6 py-3 text-[15px] font-medium"
+                style={{ border: "1px solid var(--border-color)", background: "var(--bg-primary)", color: "var(--text-secondary)" }}
+              >
+                <span className="h-1.5 w-1.5 rounded-full" style={{ background: "var(--primary)" }} />
+                {item}
+              </span>
+            ))}
           </div>
         </div>
       </motion.div>
