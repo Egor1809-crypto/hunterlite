@@ -144,8 +144,11 @@ class Settings(BaseSettings):
     # dialogue. gemini-3.5-flash answers in ~1.5-2s with good Russian. Only
     # task_type=="roleplay" uses this; exam grading / accuracy-critical paths
     # keep deepseek (exam_model). Empty = no override (back to local_llm_model).
+    # 2026-07-14 (owner model consolidation): live chat persona → deepseek-v4-flash
+    # (fast, inside navy's sanctioned 5-model set; replaces gemini-3.5-flash).
+    # See memory audit-2026-07-13-functional.
     local_llm_persona_model: str = Field(
-        default="gemini-3.5-flash",
+        default="deepseek-v4-flash",
         validation_alias=AliasChoices("NAVY_LLM_PERSONA_MODEL", "LOCAL_LLM_PERSONA_MODEL"),
     )
     # 2026-06-07: model used ONLY for the live CALL roleplay (session_mode=="call").
@@ -154,8 +157,10 @@ class Settings(BaseSettings):
     # local_llm_persona_model so haiku does NOT leak into chat roleplay, the
     # post-session judge/coach, Manyasha (knowledge_ai_model), or exams
     # (exam_model). Override via CALL_MODEL.
+    # 2026-07-14 (owner consolidation): live CALL roleplay → deepseek-v4-flash
+    # (fast, sanctioned set; replaces claude-haiku-4.5).
     call_model: str = Field(
-        default="claude-haiku-4.5",
+        default="deepseek-v4-flash",
         validation_alias=AliasChoices("CALL_MODEL"),
     )
     # 2026-06-04: model-level fallback chain on navy.api. The primary model
@@ -167,8 +172,12 @@ class Settings(BaseSettings):
     # temperature param for gpt-5.x models. Empty string = no fallback (legacy
     # retry-primary-only behaviour). Verified live on navy.api 2026-06-04:
     # gemini-3.5-flash ✓ (~1.4s), gpt-5.5 ✓ (needs default temp).
+    # 2026-07-14 (owner consolidation): fallback chain moved onto the sanctioned
+    # navy models: deepseek-v4-pro (primary) → qwen3.5-397b-a17b → deepseek-v4-flash
+    # → minimax-m3. NB: this rescues per-model failures (500/timeout), NOT a 429
+    # daily-token limit — every model draws from the same navy account quota.
     local_llm_fallback_models: str = Field(
-        default="gpt-5.5,gemini-3.5-flash",
+        default="qwen3.5-397b-a17b,deepseek-v4-flash,minimax-m3",
         validation_alias=AliasChoices("NAVY_LLM_FALLBACK_MODELS"),
     )
     # Context window of the local LLM — controls when auto-router pushes to cloud.

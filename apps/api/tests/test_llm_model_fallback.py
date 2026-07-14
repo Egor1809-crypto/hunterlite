@@ -2,9 +2,10 @@
 
 When the primary model (deepseek-v4-pro, a reasoning model) lags or 500s,
 ``_call_with_backoff`` must retry the SAME request against the configured
-fallback models (gpt-5.5, gemini-3.5-flash) — first healthy answer wins,
-flagged ``is_fallback`` — and must record provider health on the OVERALL
-outcome so a fallback-rescued request does not open the circuit breaker.
+fallback models (2026-07-14: qwen3.5-397b-a17b, deepseek-v4-flash, minimax-m3
+— the owner's sanctioned navy set) — first healthy answer wins, flagged
+``is_fallback`` — and must record provider health on the OVERALL outcome so a
+fallback-rescued request does not open the circuit breaker.
 
 Each test fails on the pre-fallback code (no model rotation in
 ``_call_with_backoff``).
@@ -177,3 +178,45 @@ def test_call_navy_omits_temperature_for_gpt5(monkeypatch, model, expects_temper
 
     asyncio.run(_call_navy("sys", [{"role": "user", "content": "hi"}], 5.0, max_tokens=16, temperature=0.7, model_override=model))
     assert ("temperature" in captured) is expects_temperature
+
+
+# ── 2026-07-14: owner model consolidation onto navy's sanctioned set ──────────
+# The live-AI chat slots (primary / persona / call / fallback) must stay inside
+# the owner-approved navy models. Guards against a future edit silently
+# reintroducing gemini / claude / gpt into a live chat path. Env-independent —
+# asserts on the config field DEFAULTS, not a live-constructed instance.
+# See memory audit-2026-07-13-functional.
+SANCTIONED_CHAT_MODELS = {
+    "deepseek-v4-pro",
+    "deepseek-v4-flash",
+    "qwen3.5-397b-a17b",
+    "minimax-m3",
+}
+
+
+def test_default_chat_slots_are_sanctioned_navy_models():
+    from app.config import Settings
+
+    f = Settings.model_fields
+    assert f["local_llm_model"].default == "deepseek-v4-pro"          # primary
+    assert f["local_llm_persona_model"].default == "deepseek-v4-flash"  # live chat
+    assert f["call_model"].default == "deepseek-v4-flash"             # live voice
+    for slot in ("local_llm_model", "local_llm_persona_model", "call_model"):
+        assert f[slot].default in SANCTIONED_CHAT_MODELS, (
+            f"unsanctioned model in chat slot {slot!r}: {f[slot].default!r}"
+        )
+
+
+def test_default_fallback_chain_is_sanctioned_and_ordered(monkeypatch):
+    from app.config import Settings
+
+    default_chain = Settings.model_fields["local_llm_fallback_models"].default
+    assert default_chain == "qwen3.5-397b-a17b,deepseek-v4-flash,minimax-m3"
+    # the parser must yield exactly that order, exclude the primary, and never
+    # surface a legacy provider.
+    monkeypatch.setattr(settings, "local_llm_model", "deepseek-v4-pro")
+    monkeypatch.setattr(settings, "local_llm_fallback_models", default_chain)
+    chain = _resolve_fallback_models(None)
+    assert chain == ["qwen3.5-397b-a17b", "deepseek-v4-flash", "minimax-m3"]
+    assert all(m in SANCTIONED_CHAT_MODELS for m in chain)
+    assert "deepseek-v4-pro" not in chain  # primary excluded from its own chain
