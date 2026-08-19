@@ -60,6 +60,9 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET required in .env.production}
       CSRF_SECRET: ${CSRF_SECRET:?CSRF_SECRET required in .env.production}
+      # Signed server-to-server bridge from tech-pravo.ru campaign quizzes.
+      # Required and shared only by the two backend services; never exposed to browsers.
+      TECH_PRAVO_BRIDGE_SECRET: ${TECH_PRAVO_BRIDGE_SECRET:?TECH_PRAVO_BRIDGE_SECRET required}
       # Domain / CORS — single-origin behind nginx.
       FRONTEND_URL: ${PUBLIC_URL}
       CORS_ORIGINS: ${PUBLIC_URL}
