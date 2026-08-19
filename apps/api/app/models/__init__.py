@@ -1,4 +1,5 @@
 from app.models.user import User, Team, UserConsent, UserFriendship
+from app.models.championship import ChampionshipExternalGrant
 from app.models.character import Character, Objection
 from app.models.scenario import Scenario, ScenarioTemplate, ScenarioVersion, ScenarioCode, ScenarioType
 from app.models.script import Script, Checkpoint, ScriptEmbedding

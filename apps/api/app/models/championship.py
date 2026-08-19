@@ -14,6 +14,7 @@ Winner selection: per the product decision the mechanic is a randomized draw
 *among qualified participants* (``winner_mode='draw'``); the legally-safer
 objective ranking is kept as a fallback (``winner_mode='ranking'``).
 """
+
 from __future__ import annotations
 
 import uuid
@@ -44,9 +45,7 @@ WINNER_MODES = ("draw", "ranking")
 class Championship(Base):
     __tablename__ = "championships"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     # Sequential championship number (1, 2, 3 …), shown to users.
     number: Mapped[int] = mapped_column(Integer, nullable=False, unique=True)
     season_type: Mapped[str] = mapped_column(String(32), nullable=False)  # SEASON_TYPES
@@ -71,9 +70,7 @@ class Championship(Base):
     # результата внешнего рандомайзера (RANDOM.ORG) + момент проведения.
     # Заполняются в conduct_draw; до розыгрыша NULL.
     draw_verification: Mapped[str | None] = mapped_column(String(500), nullable=True)
-    drawn_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
+    drawn_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
@@ -86,9 +83,7 @@ class ChampionshipEntry(Base):
         UniqueConstraint("championship_id", "user_id", name="uq_entry_championship_user"),
     )
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     championship_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("championships.id", ondelete="CASCADE"),
@@ -117,15 +112,52 @@ class ChampionshipEntry(Base):
     )
 
 
+class ChampionshipExternalGrant(Base):
+    """Auditable qualification granted by an approved external campaign.
+
+    The authoritative participant still lives in LegalHunter.  External
+    systems may only grant qualification after proving the user's email; they
+    never write directly to ``championship_entries`` or the users table.
+    """
+
+    __tablename__ = "championship_external_grants"
+    __table_args__ = (
+        UniqueConstraint("source_system", "external_ref", name="uq_champ_external_grant_ref"),
+        UniqueConstraint("championship_id", "user_id", name="uq_champ_external_grant_user"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    championship_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("championships.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    source_system: Mapped[str] = mapped_column(String(64), nullable=False)
+    external_ref: Mapped[str] = mapped_column(String(128), nullable=False)
+    audience: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    quiz_result: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    metadata_json: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
 class ChampionshipWinner(Base):
     __tablename__ = "championship_winners"
     __table_args__ = (
         UniqueConstraint("championship_id", "rank", name="uq_winner_championship_rank"),
     )
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     championship_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("championships.id", ondelete="CASCADE"),
@@ -140,9 +172,7 @@ class ChampionshipWinner(Base):
     # Name to publish on the winners wall (may differ from full_name).
     published_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
     # Separate ст.10.1 152-ФЗ consent to publish name/photo (silence != consent).
-    publish_consent: Mapped[bool] = mapped_column(
-        Boolean, nullable=False, server_default="false"
-    )
+    publish_consent: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

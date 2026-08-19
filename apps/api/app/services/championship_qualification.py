@@ -25,16 +25,17 @@ Recomputation is lazy: ``recompute_entry`` is called on enroll and on GET /me,
 and in bulk by the scheduler / operator before a draw. It only writes when a
 value actually changed, so a GET stays side-effect-light.
 """
+
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.data.course_quizzes import QUIZZES
-from app.models.championship import ChampionshipEntry
+from app.models.championship import ChampionshipEntry, ChampionshipExternalGrant
 from app.models.course_progress import CourseLessonProgress
 from app.models.exam import ExamAttempt, ExamCertificate
 from app.models.review import Review
@@ -95,7 +96,7 @@ async def _has_active_subscription(db: AsyncSession, user: User) -> bool:
     role = getattr(user.role, "value", user.role)
     if role in _COMPED_ROLES:
         return True
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     row = await db.execute(
         select(UserSubscription).where(UserSubscription.user_id == user.id).limit(1)
     )
@@ -106,7 +107,7 @@ async def _has_active_subscription(db: AsyncSession, user: User) -> bool:
         return False
     if sub.expires_at is not None:
         # Postgres returns tz-aware; SQLite (tests) naive — normalize to UTC.
-        exp = sub.expires_at if sub.expires_at.tzinfo else sub.expires_at.replace(tzinfo=timezone.utc)
+        exp = sub.expires_at if sub.expires_at.tzinfo else sub.expires_at.replace(tzinfo=UTC)
         if exp <= now:
             return False
     return True
@@ -119,13 +120,34 @@ async def _has_review(db: AsyncSession, user_id: uuid.UUID) -> bool:
     return row.first() is not None
 
 
-async def compute_metrics(db: AsyncSession, user: User) -> dict:
+async def _has_external_grant(
+    db: AsyncSession, user_id: uuid.UUID, championship_id: uuid.UUID | None
+) -> bool:
+    if championship_id is None:
+        return False
+    row = await db.execute(
+        select(ChampionshipExternalGrant.id)
+        .where(
+            ChampionshipExternalGrant.user_id == user_id,
+            ChampionshipExternalGrant.championship_id == championship_id,
+            ChampionshipExternalGrant.confirmed_at.isnot(None),
+            ChampionshipExternalGrant.revoked_at.is_(None),
+        )
+        .limit(1)
+    )
+    return row.first() is not None
+
+
+async def compute_metrics(
+    db: AsyncSession, user: User, championship_id: uuid.UUID | None = None
+) -> dict:
     """Snapshot of the real qualification signals for a user."""
     exam_passed = await _has_certificate(db, user.id)
     subscribed = await _has_active_subscription(db, user)
     review_left = await _has_review(db, user.id)
     courses_done = await _courses_done(db, user.id)
     exam_score = await _best_exam_score(db, user.id)
+    external_qualified = await _has_external_grant(db, user.id, championship_id)
     return {
         "exam_passed": exam_passed,
         "subscribed": subscribed,
@@ -134,16 +156,20 @@ async def compute_metrics(db: AsyncSession, user: User) -> dict:
         # per-lesson mini-checks. Empty courses are skipped until populated.
         "courses_done": courses_done,
         "exam_score": exam_score,
+        "external_qualified": external_qualified,
     }
 
 
 def qualifies(metrics: dict) -> bool:
     """Objective gate: certified + paid subscription + both courses 100% + review."""
     return bool(
-        metrics.get("exam_passed")
-        and metrics.get("subscribed")
-        and metrics.get("courses_done")
-        and metrics.get("review_left")
+        metrics.get("external_qualified")
+        or (
+            metrics.get("exam_passed")
+            and metrics.get("subscribed")
+            and metrics.get("courses_done")
+            and metrics.get("review_left")
+        )
     )
 
 
@@ -159,6 +185,8 @@ def compute_score(metrics: dict) -> float:
         score += 5
     if metrics.get("exam_passed"):
         score += 5
+    if metrics.get("external_qualified"):
+        score += 1
     return score
 
 
@@ -173,15 +201,11 @@ async def recompute_entry(
     if entry.status == "disqualified":
         return entry
 
-    metrics = await compute_metrics(db, user)
+    metrics = await compute_metrics(db, user, entry.championship_id)
     score = compute_score(metrics)
     new_status = "qualified" if qualifies(metrics) else "enrolled"
 
-    changed = (
-        entry.metrics != metrics
-        or entry.score != score
-        or entry.status != new_status
-    )
+    changed = entry.metrics != metrics or entry.score != score or entry.status != new_status
     if changed:
         entry.metrics = metrics
         entry.score = score

@@ -599,6 +599,12 @@ class Settings(BaseSettings):
     smtp_from_name: str = "Hunter888"
     smtp_use_tls: bool = True
 
+    # Signed server-to-server bridge used by tech-pravo.ru campaign funnels.
+    # Empty disables every bridge endpoint (fail closed).
+    tech_pravo_bridge_secret: str = ""
+    tech_pravo_bridge_clock_skew_seconds: int = 300
+    drand_public_url: str = "https://api.drand.sh"
+
     @property
     def smtp_configured(self) -> bool:
         """True if SMTP is ready to send."""

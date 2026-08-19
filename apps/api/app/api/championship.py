@@ -263,7 +263,7 @@ async def my_entry(
         return MyEntryOut(enrolled=False, criteria=await compute_metrics(db, user))
     entry = await _fetch_entry(db, champ.id, user.id)
     if entry is None:
-        return MyEntryOut(enrolled=False, criteria=await compute_metrics(db, user))
+        return MyEntryOut(enrolled=False, criteria=await compute_metrics(db, user, champ.id))
     # Lazy recompute so the user sees live progress against the conditions.
     await recompute_entry(db, entry, user)
     return _entry_out(entry)
