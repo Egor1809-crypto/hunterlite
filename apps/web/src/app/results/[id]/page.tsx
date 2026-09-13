@@ -21,6 +21,7 @@ import {
     Sparkles,
     BookOpen,
   } from "lucide-react";
+import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { downloadTranscript, copyTranscript, copyToClipboard } from "@/lib/exportTranscript";
 import AuthLayout from "@/components/layout/AuthLayout";
@@ -124,6 +125,7 @@ export default function ResultsPage() {
       // Hard fail: backend marked the session terminal but with no scores
       // (rare race). Treat as "done" so we don't spin forever.
       if (sess.status === "abandoned" || sess.status === "error") return true;
+      if ((data.score_breakdown as Record<string,unknown>)?._scoring_unavailable) return true;
       if (sess.score_total === null || sess.score_total === undefined) return false;
       // Judge runs only on transcripts with enough user turns. If the
       // transcript is short, skip the judge check.
@@ -250,6 +252,7 @@ export default function ResultsPage() {
   }
 
   const { session, messages } = result;
+  const scoringUnavailable = Boolean((result.score_breakdown as Record<string,unknown>)?._scoring_unavailable);
   const totalScore = session.score_total ?? 0;
   const hasScores = session.score_total !== null;
 
@@ -272,7 +275,7 @@ export default function ResultsPage() {
   );
   // Show the placeholder only when there are genuinely no scores yet.
   // Once `hasScores` flips true the real widgets take over immediately.
-  const scoringPending = !hasScores && (processing || scoringPendingFlag);
+  const scoringPending = !scoringUnavailable && !hasScores && (processing || scoringPendingFlag);
 
   // Phase C (2026-05-08): branch on terminal_outcome. Sessions that
   // ended due to system error / timeout / operator abort get the
@@ -517,6 +520,7 @@ export default function ResultsPage() {
             half-page. The transcript / weak-legal / client sections below
             stay visible the whole time; this block is replaced in-place by
             the real score widgets as soon as polling sees `score_total`. */}
+        {scoringUnavailable && <section role="status" className="rounded-xl p-6 mb-6" style={{background:"var(--surface-card)",border:"1px solid var(--border-color)"}}><h2 className="font-display text-2xl">Оценка временно недоступна</h2><p className="mt-3" style={{color:"var(--text-secondary)"}}>Текст разговора сохранён. Сервис оценки не ответил — это не влияет на ваш балл.</p><button className="call-secondary mt-4" onClick={async(e)=>{const button=e.currentTarget;button.disabled=true;button.textContent="Повторяю оценку…";try{await api.post(`/training/sessions/${String(params.id)}/rescore-call`,{});window.location.reload();}catch{button.disabled=false;button.textContent="Повторить оценку";toast.error("Сервис пока недоступен. Попробуйте позже.");}}}>Повторить оценку</button></section>}
         {scoringPending && !scoringStuck && (
           <motion.div
             initial={{ opacity: 0, y: 12 }}
@@ -555,7 +559,7 @@ export default function ResultsPage() {
             infinite skeleton, surface an explicit, recoverable state with a
             manual refresh — the background scorer is still guaranteed to finish
             (it owns its own DB session and is detached from the client). */}
-        {scoringStuck && !hasScores && (
+        {scoringStuck && !hasScores && !scoringUnavailable && (
           <motion.div
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}

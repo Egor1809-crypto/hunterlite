@@ -243,6 +243,7 @@ export function useMicrophone(
           autoGainControl: true,
         },
       });
+      if (!mountedRef.current) {stream.getTracks().forEach(track=>track.stop());return false;}
       streamRef.current = stream;
       setPermissionState("granted");
       setErrorReason(null);
@@ -327,6 +328,11 @@ export function useMicrophone(
       animFrameRef.current = requestAnimationFrame(monitorAudio);
       return true;
     } catch (err) {
+      streamRef.current?.getTracks().forEach(track=>track.stop());
+      streamRef.current = null;
+      audioContextRef.current?.close().catch(()=>{});
+      audioContextRef.current = null;
+      analyserRef.current = null;
       const reason = classifyMicError(err);
       logger.error("[useMicrophone] startRecording failed:", { reason, err });
       setPermissionState(reason === "denied" ? "denied" : "error");
@@ -346,6 +352,11 @@ export function useMicrophone(
 
       const mediaRecorder = mediaRecorderRef.current;
       if (!mediaRecorder || mediaRecorder.state === "inactive") {
+        streamRef.current?.getTracks().forEach(track=>track.stop());
+        streamRef.current = null;
+        audioContextRef.current?.close().catch(()=>{});
+        audioContextRef.current = null;
+        analyserRef.current = null;
         setRecordingState("idle");
         setAudioLevel(0);
         resolve(null);
@@ -354,7 +365,7 @@ export function useMicrophone(
 
       // Listen for the final dataavailable event before building Blob
       mediaRecorder.addEventListener("stop", () => {
-        const blob = new Blob(chunksRef.current, { type: "audio/webm" });
+        const blob = new Blob(chunksRef.current, { type: mediaRecorder.mimeType || chunksRef.current[0]?.type || "audio/webm" });
         chunksRef.current = [];
 
         // Stop all tracks

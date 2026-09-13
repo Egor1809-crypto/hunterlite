@@ -504,7 +504,9 @@ export function useTTS(options: UseTTSOptions = {}): UseTTSReturn {
   useEffect(() => {
     return () => {
       if (audioRef.current) {
-        audioRef.current.pause();
+        audioRef.current.onended = null;
+      audioRef.current.onerror = null;
+      audioRef.current.pause();
         audioRef.current = null;
       }
       if (objectUrlRef.current) {
@@ -634,6 +636,7 @@ export function useTTS(options: UseTTSOptions = {}): UseTTSReturn {
     // Stop couple queue
     coupleQueueRef.current = [];
     couplePlayingRef.current = false;
+    chunkEpochRef.current += 1;
     // Stop streaming TTS chunk queue
     if (pendingChunksRef.current) {
       pendingChunksRef.current.clear();
@@ -1168,6 +1171,7 @@ export function useTTS(options: UseTTSOptions = {}): UseTTSReturn {
   // expected index — guarantees correct playback order without missing or
   // reordering sentences.
   // ---------------------------------------------------------------------------
+  const chunkEpochRef = useRef(0);
   const pendingChunksRef = useRef<Map<number, { audio: string; index: number; isLast: boolean }>>(new Map());
   const nextExpectedIndexRef = useRef(0);
   const playingChunkRef = useRef(false);
@@ -1184,10 +1188,12 @@ export function useTTS(options: UseTTSOptions = {}): UseTTSReturn {
   }, []);
 
   const playNextChunk = useCallback(() => {
+    const epoch = chunkEpochRef.current;
     if (playingChunkRef.current) return;
     const chunk = pendingChunksRef.current.get(nextExpectedIndexRef.current);
     if (!chunk) return;
     pendingChunksRef.current.delete(nextExpectedIndexRef.current);
+    if (!chunk.audio) {nextExpectedIndexRef.current += 1;playNextChunk();return;}
     playingChunkRef.current = true;
     const blob = new Blob(
       [Uint8Array.from(atob(chunk.audio), (c) => c.charCodeAt(0))],
@@ -1225,6 +1231,7 @@ export function useTTS(options: UseTTSOptions = {}): UseTTSReturn {
     }
     const advance = (failed: boolean = false) => {
       safeRevoke();
+      if (epoch !== chunkEpochRef.current) return;
       playingChunkRef.current = false;
       nextExpectedIndexRef.current += 1;
       // Audit Pattern 4 #10: when chunks fail one-by-one, the fallback
@@ -1262,6 +1269,7 @@ export function useTTS(options: UseTTSOptions = {}): UseTTSReturn {
     let retried = false;
     audio.onended = () => advance(false);
     audio.onerror = () => {
+      if (epoch !== chunkEpochRef.current) return;
       const code = audio.error?.code ?? 0;
       console.warn("[TTS] ✗ chunk media error", chunk.index, "code", code);
       if (!retried && (code === MediaError.MEDIA_ERR_ABORTED || code === 1)) {
@@ -1289,9 +1297,11 @@ export function useTTS(options: UseTTSOptions = {}): UseTTSReturn {
     };
     setSpeaking(true);
     audio.play().then(() => {
+      if (epoch !== chunkEpochRef.current) return;
       // First successful chunk after a streak — clear the stale error.
       if (chunkFailureStreakRef.current > 0) setPlaybackError(null);
     }).catch((err) => {
+      if (epoch !== chunkEpochRef.current) {safeRevoke();return;}
       // Chunked path: on autoplay-block, route to the same unlock UX used
       // by decodeAndPlay so the first sentence of a phone-call reply isn't
       // silently dropped when the browser suppresses autoplay.
