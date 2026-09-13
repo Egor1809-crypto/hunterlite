@@ -1,21 +1,18 @@
 "use client";
+import { trainingDay } from "@/lib/trainingDay";
 
+import { Home, History, Settings, GraduationCap, Award } from "@/components/ui/RuneIcons";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Home,
   Crosshair,
-  History,
   BookOpen,
-  Settings,
   LogOut,
   ChevronDown,
   PanelLeftClose,
   PanelLeft,
   Briefcase,
-  GraduationCap,
-  Award,
   Library,
   Trophy,
   Zap,
@@ -39,7 +36,7 @@ const DAILY_ENERGY = 25;
 type NavItem = {
   href: string;
   label: string;
-  icon: typeof Home;
+  icon: React.ComponentType<{size?:number;className?:string;style?:React.CSSProperties}>;
 };
 
 function buildNavForRole(): NavItem[] {
@@ -92,7 +89,7 @@ export default function AppSidebar({ collapsed, onToggle }: AppSidebarProps) {
     const key = user?.id ? `${ENERGY_STORAGE_KEY}:${user.id}` : ENERGY_STORAGE_KEY;
     const readEnergy = () => {
       try {
-        const today = new Date().toISOString().slice(0, 10);
+        const today = trainingDay();
         const raw = localStorage.getItem(key);
         if (!raw) {
           setEnergy(DAILY_ENERGY);

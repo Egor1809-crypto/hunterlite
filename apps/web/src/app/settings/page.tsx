@@ -353,11 +353,7 @@ export default function SettingsPage() {
 
           {/* Page title — editorial header */}
           <div className="pt-2 pb-2">
-            <div aria-hidden className="mb-4 h-0.5 w-8" style={{ background: "var(--primary)" }} />
-            <p className="font-mono text-[11px] uppercase tracking-[0.16em]" style={{ color: "var(--text-secondary)" }}>
-              LegalHunter
-            </p>
-            <h1 className="mt-2 text-3xl sm:text-4xl font-semibold tracking-tight" style={{ color: "var(--text-primary)" }}>
+            <h1 className="editorial-title" style={{ color: "var(--text-primary)" }}>
               Настройки
             </h1>
             <p className="text-sm mt-2" style={{ color: "var(--text-muted)" }}>

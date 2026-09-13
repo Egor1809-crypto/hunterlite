@@ -99,10 +99,7 @@ export function OnboardingHint({
       <span aria-hidden className="absolute left-0 top-0 h-full w-[3px]" style={{ background: "var(--accent)" }} />
 
       <div className="p-6 sm:p-8">
-        <div className="flex items-start justify-between gap-4">
-          <p className="font-mono text-[11px] uppercase tracking-[0.18em]" style={{ color: "var(--accent)" }}>
-            {eyebrow}
-          </p>
+        <div className="flex justify-end">
           <button
             type="button"
             onClick={remember}

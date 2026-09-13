@@ -406,15 +406,12 @@ export default function CharacterBuilder({ onGoToTests }: CharacterBuilderProps)
             <span aria-hidden className="absolute left-0 right-0 top-0 h-[3px]" style={{ background: "var(--accent)" }} />
             <div className="flex flex-wrap items-start justify-between gap-5">
               <div className="min-w-0">
-                <p className="font-mono text-[11px] uppercase tracking-[0.2em]" style={{ color: "var(--text-muted)" }}>
-                  Досье клиента · ФЗ-127
-                </p>
-                <h1
-                  className="mt-3.5 font-display font-bold"
+                <h2
+                  className="font-display font-bold"
                   style={{ color: "var(--text-primary)", fontSize: "clamp(2rem, 5vw, 3.25rem)", lineHeight: 0.98, letterSpacing: "-0.035em" }}
                 >
                   {selected.name}
-                </h1>
+                </h2>
                 {tags.length > 0 && (
                   <div className="mt-5 flex flex-wrap gap-2">
                     {tags.map((t, i) => (
@@ -508,12 +505,9 @@ export default function CharacterBuilder({ onGoToTests }: CharacterBuilderProps)
     <div className="mt-8">
       {/* Заголовок-интро: whitespace-first, editorial-типографика. */}
       <div className="mb-8">
-        <p className="font-mono text-[11px] uppercase tracking-[0.18em] mb-3" style={{ color: "var(--text-muted)" }}>
-          Практика · {personas.length} клиент{plural(personas.length, "", "а", "ов")}
-        </p>
-        <h1 className="font-display text-3xl sm:text-4xl font-bold leading-tight" style={{ color: "var(--text-primary)" }}>
+        <h2 className="font-display text-3xl sm:text-4xl font-bold leading-tight" style={{ color: "var(--text-primary)" }}>
           Мои клиенты
-        </h1>
+        </h2>
         <p className="mt-3 max-w-xl text-sm sm:text-[15px] leading-relaxed" style={{ color: "var(--text-muted)" }}>
           Подберите должника и проведите консультацию по ФЗ-127 — в чате или по звонку.
         </p>
@@ -629,60 +623,14 @@ export default function CharacterBuilder({ onGoToTests }: CharacterBuilderProps)
         )
       )}
 
-      {/* Editorial-грид карточек: индекс, точка-сложность, hover-стрелка, hairline + lift. */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
-        {filtered.map((p, i) => {
-          const dm = difficultyMeta(p.difficulty);
-          const situation = shortSituation(p);
-          return (
-            <button
-              key={p.slug}
-              onClick={() => setSelectedSlug(p.slug)}
-              className="group relative flex flex-col text-left rounded-2xl p-6 sm:p-7 bg-[var(--surface-card)] border border-[var(--border-color)] [box-shadow:var(--shadow-sm)] transition-all duration-200 hover:-translate-y-0.5 hover:border-[var(--accent)] hover:[box-shadow:var(--shadow-md)]"
-            >
-              {/* Верхняя строка: индекс + индикатор сложности (точка + mono-лейбл). */}
-              <div className="flex items-center justify-between">
-                <span className="shrink-0 whitespace-nowrap font-mono text-[11px] tabular-nums tracking-widest" style={{ color: "var(--text-muted)" }}>
-                  {String(i + 1).padStart(2, "0")}
-                </span>
-                <span className="shrink-0 whitespace-nowrap inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.14em]" style={{ color: dm.tone }}>
-                  <span className="h-1.5 w-1.5 rounded-full" style={{ background: dm.tone }} aria-hidden />
-                  {dm.label}
-                </span>
-              </div>
-
-              {/* Имя крупно. */}
-              <h3 className="mt-4 font-display text-xl font-semibold leading-snug" style={{ color: "var(--text-primary)" }}>
-                {p.name}
-              </h3>
-
-              {/* Мета: характер · эмоция. */}
-              <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs" style={{ color: "var(--text-muted)" }}>
-                {p.archetype_label && <span>{p.archetype_label}</span>}
-                {emotionLabel(p.emotion_preset) && (
-                  <><span aria-hidden>·</span><span>{emotionLabel(p.emotion_preset)}</span></>
-                )}
-              </div>
-
-              {/* Ситуация — одна-две строки. */}
-              {situation && (
-                <p className="mt-4 text-sm leading-relaxed line-clamp-2" style={{ color: "var(--text-secondary)" }}>
-                  {situation}
-                </p>
-              )}
-
-              {/* Hover-аффорданс: «Открыть досье →». */}
-              <span
-                className="mt-5 inline-flex items-center gap-1.5 font-mono text-[11px] uppercase tracking-[0.14em] transition-colors group-hover:text-[var(--accent)]"
-                style={{ color: "var(--text-muted)" }}
-              >
-                Открыть досье
-                <ArrowRight size={13} className="transition-transform group-hover:translate-x-0.5" />
-              </span>
-            </button>
-          );
-        })}
-      </div>
+      <div className="client-directory">{filtered.map(p=>{
+        const dm=difficultyMeta(p.difficulty);const situation=shortSituation(p);
+        return <button key={p.slug} onClick={()=>setSelectedSlug(p.slug)} className="client-directory-row">
+          <span className="client-directory-avatar" aria-hidden="true">{p.name.split(" ").slice(0,2).map(n=>n[0]).join("")}</span>
+          <span className="min-w-0 flex-1"><span className="block font-display text-xl sm:text-2xl">{p.name}</span><span className="block mt-1 text-sm" style={{color:"var(--text-secondary)"}}>{[p.archetype_label,emotionLabel(p.emotion_preset)].filter(Boolean).join(" · ")}</span>{situation&&<span className="block mt-3 text-sm leading-relaxed" style={{color:"var(--text-secondary)"}}>{situation}</span>}</span>
+          <span className="client-directory-meta"><span style={{color:dm.tone}}>{dm.label}</span><span className="inline-flex items-center gap-2 mt-3">Открыть досье <ArrowRight size={16}/></span></span>
+        </button>;
+      })}</div>
     </div>
   );
 }

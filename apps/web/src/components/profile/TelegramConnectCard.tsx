@@ -1,133 +1,138 @@
 "use client";
-
-/**
- * TelegramConnectCard — привязка аккаунта к @BFLHUNTER_bot прямо из профиля.
- *
- * Бот — единая экосистема платформы: начисление и докупка попыток,
- * статус прогресса, уведомления. Привязка одноразовым deeplink'ом
- * (`/training-map/telegram/link` → t.me/<bot>?start=link_<token>).
- *
- * Визуальный язык — наш «vibe» (var(--*) токены, стекло, воздух) с
- * аккуратным телеграм-синим акцентом. Вдохновение: malvah/abstract —
- * премиум через минимализм.
- */
-
-import { useState } from "react";
-import { motion } from "framer-motion";
-import { Send, Check, Loader2, ArrowUpRight } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Send, Check } from "@/components/ui/RuneIcons";
 import { api } from "@/lib/api";
 import { useAuthStore } from "@/stores/useAuthStore";
-
-const TG_BLUE = "42,158,217"; // #2A9ED9 — telegram brand, в формате r,g,b
-
-interface LinkResponse {
-  deeplink: string;
-  telegram_linked: boolean;
-}
-
+import type { AttemptBalance } from "@/lib/trainingDay";
 export function TelegramConnectCard() {
   const user = useAuthStore((s) => s.user);
-  const refresh = useAuthStore((s) => s.fetchUser);
-  const invalidate = useAuthStore((s) => s.invalidate);
   const linked = !!user?.telegram_linked;
-
-  const [loading, setLoading] = useState(false);
-  const [opened, setOpened] = useState(false);
-
-  const handleConnect = async () => {
-    if (loading) return;
-    setLoading(true);
-    try {
-      const res = (await api.post("/training-map/telegram/link", {})) as LinkResponse;
-      if (res?.deeplink) {
-        window.open(res.deeplink, "_blank", "noopener,noreferrer");
-        setOpened(true);
+  const [url, setUrl] = useState("");
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [balance, setBalance] = useState<AttemptBalance | null>(null);
+  useEffect(() => {
+    let disposed = false;
+    const refresh = async () => {
+      if (document.hidden) return;
+      try {
+        const b = await api.get<AttemptBalance>("/training-map/attempts");
+        if (!disposed) setBalance(b);
+        if (url && !linked) {
+          useAuthStore.getState().invalidate();
+          await useAuthStore.getState().fetchUser();
+        }
+      } catch {
+        /* explicit link errors appear below; existing balance remains readable */
       }
-      // Привязка происходит на стороне бота — сбрасываем кэш и подтягиваем
-      // свежий статус через пару секунд (fetchUser иначе вернёт кэш).
-      setTimeout(() => { invalidate?.(); void refresh?.(); }, 4000);
-    } finally {
-      setLoading(false);
-    }
-  };
-
+    };
+    void refresh();
+    window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", refresh);
+    const interval = url && !linked ? setInterval(refresh, 4000) : undefined;
+    // Polling is bounded; a return to the page always refreshes again.
+    const stop = setTimeout(() => clearInterval(interval), 120000);
+    return () => {
+      disposed = true;
+      clearInterval(interval);
+      clearTimeout(stop);
+      window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", refresh);
+    };
+  }, [url, linked]);
   return (
-    <div
-      className="relative overflow-hidden rounded-2xl"
+    <section
+      className="rounded-xl p-5"
       style={{
-        // Solid surface (token-based) — раньше плашка была полупрозрачной
-        // (rgba TG-blue 0.08→0.02) и «протекала» сквозь фон страницы в тёмной
-        // теме. Телеграм-синий оставляем только на иконке и кнопке как акцент.
         background: "var(--surface-card)",
         border: "1px solid var(--border-color)",
-        boxShadow: "var(--shadow-sm)",
       }}
     >
-      <div className="flex items-center gap-4 p-5">
-        <div
-          className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl"
-          style={{ background: `rgba(${TG_BLUE},0.14)`, border: `1px solid rgba(${TG_BLUE},0.28)` }}
-        >
-          {linked ? (
-            <Check size={20} style={{ color: `rgb(${TG_BLUE})` }} />
-          ) : (
-            <Send size={18} style={{ color: `rgb(${TG_BLUE})` }} />
-          )}
-        </div>
-
-        <div className="min-w-0 flex-1">
-          <div className="text-[10px] font-semibold uppercase tracking-[0.18em]" style={{ color: `rgb(${TG_BLUE})` }}>
-            Telegram
-          </div>
-          <div className="mt-0.5 text-sm font-bold" style={{ color: "var(--text-primary)" }}>
-            {linked ? "Аккаунт привязан" : "Подключить @BFLHUNTER_bot"}
-          </div>
-          <div className="mt-0.5 text-[12px] leading-relaxed" style={{ color: "var(--text-muted)" }}>
-            {linked
-              ? "Попытки, статус прогресса и уведомления — в боте."
-              : "Докупка попыток, статус и уведомления в одном месте."}
-          </div>
-        </div>
-
-        {linked ? (
-          <span
-            className="inline-flex shrink-0 items-center gap-1 rounded-full px-3 py-1.5 text-[11px] font-bold"
-            style={{ background: `rgba(${TG_BLUE},0.12)`, color: `rgb(${TG_BLUE})` }}
-          >
-            <Check size={12} /> Активно
+      <div className="flex items-center gap-3">
+        <Send size={24} />
+        {linked && (
+          <span className="ml-auto flex items-center gap-2 text-sm">
+            <Check size={16} />
+            Подключён
           </span>
-        ) : (
-          <motion.button
-            onClick={handleConnect}
-            disabled={loading}
-            className="inline-flex shrink-0 items-center gap-2 rounded-full px-4 py-2.5 text-[13px] font-bold transition disabled:opacity-60"
-            style={{ background: `rgb(${TG_BLUE})`, color: "#fff" }}
-            whileHover={loading ? undefined : { scale: 1.03 }}
-            whileTap={loading ? undefined : { scale: 0.97 }}
-          >
-            {loading ? (
-              <Loader2 size={14} className="animate-spin" />
-            ) : opened ? (
-              <>
-                <ArrowUpRight size={14} /> Открыть бота
-              </>
-            ) : (
-              <>
-                <Send size={14} /> Привязать
-              </>
-            )}
-          </motion.button>
         )}
       </div>
-
-      {opened && !linked && (
-        <div
-          className="px-5 py-2 text-center text-[11px]"
-          style={{ color: "var(--text-muted)", borderTop: `1px solid rgba(${TG_BLUE},0.18)` }}
-        >
-          Открыли Telegram — нажмите «Запустить» в боте, статус обновится автоматически.
-        </div>
+      <p
+        className="mt-3 text-sm leading-relaxed"
+        style={{ color: "var(--text-secondary)" }}
+      >
+        {linked
+          ? "Прогресс и баланс доступны в @BFLHUNTER_bot."
+          : "Привяжите @BFLHUNTER_bot, чтобы видеть свой прогресс и баланс попыток."}
+      </p>
+      {!linked &&
+        (url ? (
+          <a
+            href={url}
+            target="_blank"
+            rel="noreferrer"
+            className="call-primary mt-4"
+          >
+            Открыть бота и нажать «Запустить»
+          </a>
+        ) : (
+          <button
+            className="call-primary mt-4"
+            disabled={busy}
+            onClick={async () => {
+              setBusy(true);
+              setError("");
+              try {
+                const r = await api.post<{ deeplink: string }>(
+                  "/training-map/telegram/link",
+                  {},
+                );
+                setUrl(r.deeplink);
+              } catch (e) {
+                setError(
+                  e instanceof Error
+                    ? e.message
+                    : "Не удалось создать ссылку. Попробуйте ещё раз.",
+                );
+              } finally {
+                setBusy(false);
+              }
+            }}
+          >
+            {busy ? "Подготавливаю ссылку…" : "Привязать Telegram"}
+          </button>
+        ))}
+      {url && !linked && (
+        <p role="status" className="text-sm mt-3">
+          После подтверждения в Telegram статус обновится автоматически.
+        </p>
       )}
-    </div>
+      {error && (
+        <p role="alert" className="mt-3">
+          {error}
+        </p>
+      )}
+      <div
+        className="mt-5 pt-5 border-t"
+        style={{ borderColor: "var(--border-color)" }}
+      >
+        <h3 className="text-lg font-semibold">10 попыток · 1 499 ₽</h3>
+        <p
+          className="mt-2 text-sm leading-relaxed"
+          style={{ color: "var(--text-secondary)" }}
+        >
+          Общие для всех тестов. Действуют до 00:00 по Москве в день оплаты.
+        </p>
+        <p className="text-sm mt-2">
+          Покупка пока недоступна — оплата ещё не подключена.
+        </p>
+        {balance && (
+          <p className="text-sm mt-3">
+            Дополнительных попыток сегодня:{" "}
+            <strong>{balance.paid_remaining}</strong>
+          </p>
+        )}
+      </div>
+    </section>
   );
 }
