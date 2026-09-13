@@ -69,14 +69,6 @@ const stages = [
   { key: "practice", title: "Практика", href: "/training?tab=builder", icon: MessageCircle },
 ];
 
-function getTimeGreeting(): string {
-  const h = new Date().getHours();
-  if (h >= 5 && h < 12) return "Доброе утро";
-  if (h >= 12 && h < 17) return "Добрый день";
-  if (h >= 17 && h < 22) return "Добрый вечер";
-  return "Доброй ночи";
-}
-
 export default function HomePage() {
   const router = useRouter();
   const { user } = useAuth();
@@ -170,7 +162,6 @@ export default function HomePage() {
     }
   };
 
-  const firstName = user?.full_name?.split(" ")[0] || "Пользователь";
   const progress = learningPath?.progress || {};
   const stats = learningPath?.stats;
   const overallPercent = learningPath?.overall_percent ?? 0;
@@ -190,11 +181,8 @@ export default function HomePage() {
             className="mb-12 grid gap-6 lg:grid-cols-[1fr_340px] lg:items-end"
           >
             <div>
-              <p className="mb-4 font-mono text-[11px] font-semibold uppercase tracking-[0.18em]" style={{ color: "var(--text-secondary)" }}>
-                {getTimeGreeting()}
-              </p>
               <h1 className="max-w-3xl font-display font-semibold leading-[0.95] tracking-[-0.045em]" style={{ color: "var(--text-primary)", fontSize: "clamp(3.25rem, 7vw, 5.5rem)" }}>
-                {firstName}
+                Центр обучения
               </h1>
               <p className="mt-5 max-w-xl text-lg leading-snug" style={{ color: "var(--text-secondary)" }}>
                 Обучение, практика, кейсы и аттестация — в одной траектории.

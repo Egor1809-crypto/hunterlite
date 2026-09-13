@@ -188,6 +188,10 @@ async def create_session(
             detail="PvP mode requires max_players >= 2.",
         )
 
+    if body.map_level is not None:
+        from app.services.daily_attempts import consume
+        await consume(db, user.id, body.map_level)
+
     # Auto-close any stale active/waiting sessions for this user to prevent IntegrityError
     stale_stmt = (
         select(KnowledgeQuizSession)

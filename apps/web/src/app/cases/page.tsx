@@ -81,12 +81,8 @@ export default function CasesPage() {
         <div className="mx-auto max-w-[920px] px-6 sm:px-10 py-12 sm:py-20">
           {/* Header */}
           <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, ease: EASE }}>
-            <div className="flex items-center justify-between">
-              <MonoLabel>Практикум · банкротство физлиц</MonoLabel>
-              <MonoLabel>ФЗ-127</MonoLabel>
-            </div>
             <h1
-              className="font-display mt-6"
+              className="font-display"
               style={{ fontSize: "clamp(44px,9vw,92px)", lineHeight: 0.95, letterSpacing: "-0.05em", fontWeight: 600 }}
             >
               Кейсы

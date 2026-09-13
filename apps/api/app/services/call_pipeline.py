@@ -1,15 +1,9 @@
-"""Voice-call streaming cascade — STT → streaming-LLM → per-sentence TTS.
+"""Bounded voice pipeline: STT, streaming roleplay, per-sentence synthesis.
 
-CALL_REBUILD_TZ §1, §4, §6, §7. This module is the navy.api glue for the
-rebuilt voice-call mode (`app/ws/call.py`). It is intentionally small and
-linear — no VAD, no one-turn-lock, no emotion FSM. Turn boundaries are
-push-to-talk on the frontend; this module only converts one webm turn into
-streamed sentence audio and, at end of call, scores the transcript.
-
-navy.api is UNSTABLE (documented spikes 11-139s), so every network call is
-wrapped in ``asyncio.wait_for`` with a per-leg timeout and degrades
-gracefully (filler / «повторите, пожалуйста») rather than raising.
+Push-to-talk boundaries come from the client. Provider failures raise an
+explicit error, and incomplete grading is never converted to zero points.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -37,17 +31,32 @@ _HEADERS = {"Authorization": f"Bearer {settings.local_llm_api_key}"}
 
 
 # ─── STT ──────────────────────────────────────────────────────────────────
-async def stt_transcribe(webm_bytes: bytes) -> str:
+class CallProviderError(RuntimeError):
+    """An upstream failure, distinct from silence or an incorrect answer."""
+
+
+async def stt_transcribe(webm_bytes: bytes, mime: str = "audio/webm") -> str:
     """Transcribe one webm turn via navy /v1/audio/transcriptions (multipart).
 
     gpt-4o-transcribe REJECTS verbose_json — only json/text. On timeout or
-    any error returns "" so the caller asks the user to repeat.
+    errors raise CallProviderError; only an empty transcription returns "".
     """
     if not webm_bytes:
         return ""
 
     async def _do() -> str:
-        files = {"file": ("turn.webm", BytesIO(webm_bytes), "audio/webm")}
+        media_type = mime.split(";", 1)[0].lower()
+        extensions = {
+            "audio/webm": "webm",
+            "audio/mp4": "mp4",
+            "audio/ogg": "ogg",
+            "audio/wav": "wav",
+        }
+        if media_type not in extensions:
+            raise CallProviderError(
+                "Неподдерживаемый формат записи. Используйте Chrome или Safari."
+            )
+        files = {"file": (f"turn.{extensions[media_type]}", BytesIO(webm_bytes), media_type)}
         data = {
             "model": settings.call_stt_model,
             "language": "ru",
@@ -67,10 +76,14 @@ async def stt_transcribe(webm_bytes: bytes) -> str:
         return await asyncio.wait_for(_do(), timeout=settings.call_stt_timeout)
     except asyncio.TimeoutError:
         logger.warning("call STT timed out after %.1fs", settings.call_stt_timeout)
-        return ""
+        raise CallProviderError(
+            "Сервис распознавания не ответил вовремя. Отправьте реплику ещё раз."
+        ) from None
     except Exception:
         logger.warning("call STT failed", exc_info=True)
-        return ""
+        raise CallProviderError(
+            "Сервис распознавания временно недоступен. Попробуйте ещё раз."
+        ) from None
 
 
 # Cyrillic letters — STT junk = empty / single-char / no Cyrillic at all
@@ -116,19 +129,19 @@ async def llm_stream(
         "messages": [{"role": "system", "content": system_prompt}, *history],
     }
 
-    async def _gen() -> AsyncGenerator[str, None]:
+    async def _gen(model: str) -> AsyncGenerator[str, None]:
         async with httpx.AsyncClient(timeout=settings.call_llm_timeout) as client:
             async with client.stream(
                 "POST",
                 f"{_navy_base()}/chat/completions",
-                json=payload,
+                json={**payload, "model": model},
                 headers=_HEADERS,
             ) as r:
                 r.raise_for_status()
                 async for line in r.aiter_lines():
                     if not line or not line.startswith("data:"):
                         continue
-                    chunk = line[len("data:"):].strip()
+                    chunk = line[len("data:") :].strip()
                     if not chunk:
                         continue
                     if chunk == "[DONE]":
@@ -141,22 +154,27 @@ async def llm_stream(
                     if token:
                         yield token
 
-    try:
-        gen = _gen()
-        while True:
-            try:
-                token = await asyncio.wait_for(
-                    gen.__anext__(), timeout=settings.call_llm_timeout
-                )
-            except StopAsyncIteration:
+    emitted = False
+    models = list(dict.fromkeys([settings.call_llm_model, settings.local_llm_persona_model]))
+    for model in models:
+        try:
+            async with asyncio.timeout(settings.call_llm_timeout):
+                async for token in _gen(model):
+                    emitted = True
+                    yield token
+            if emitted:
+                return
+            raise ValueError("Empty model response")
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logger.warning("call LLM failed model=%s partial=%s", model, emitted, exc_info=True)
+            # Retrying after speech started would concatenate contradictory replies.
+            if emitted:
                 break
-            yield token
-    except asyncio.TimeoutError:
-        logger.warning("call LLM stream timed out after %.1fs", settings.call_llm_timeout)
-        return
-    except Exception:
-        logger.warning("call LLM stream failed", exc_info=True)
-        return
+    raise CallProviderError(
+        "Сервис ИИ временно недоступен. Ваша реплика сохранена. Попробуйте продолжить разговор."
+    )
 
 
 # ─── TTS (per sentence) ────────────────────────────────────────────────────
@@ -399,18 +417,9 @@ _JUDGE_TIMEOUT_S = 25.0
 
 
 async def _judge_invoke(prompt: str) -> str:
-    """Rubric-judge invoke — DIRECT navy call on the fast call LLM
-    (``claude-haiku-4.5``), NOT the shared ``task_type="judge"`` path.
-
-    2026-06-09 re-measurement (§11): the named «fast» judge model on navy is
-    in fact a reasoning model taking 30-85s/call and timing out under 6-way
-    concurrency → all-zero scores. ``claude-haiku-4.5`` judges the same rubric
-    in ~2-3s/criterion (≈3s for all 6 concurrent) with adequate accuracy.
-    Scoring is end-of-call (not real-time, §7), but must stay reliable — this
-    path does. Returns raw content (may be ```json-fenced; caller strips it).
-    """
+    """Use the configured assessment model, independent of voice roleplay."""
     payload = {
-        "model": settings.call_llm_model,
+        "model": settings.exam_model,
         "temperature": 0.2,
         "max_tokens": 200,
         "messages": [
@@ -425,12 +434,10 @@ async def _judge_invoke(prompt: str) -> str:
         ],
     }
     async with httpx.AsyncClient(timeout=settings.call_llm_timeout) as client:
-        r = await client.post(
-            f"{_navy_base()}/chat/completions", json=payload, headers=_HEADERS
-        )
+        r = await client.post(f"{_navy_base()}/chat/completions", json=payload, headers=_HEADERS)
         r.raise_for_status()
         data = r.json()
-        return (data["choices"][0]["message"]["content"] or "")
+        return data["choices"][0]["message"]["content"] or ""
 
 
 def _criterion_cap(kind: str) -> int:
@@ -454,11 +461,11 @@ async def _judge_criterion(
     criterion_ru: str,
     kind: str,
     transcript: str,
-) -> tuple[int, str]:
+) -> tuple[int | None, str]:
     """Run ONE LLM judge for a single rubric criterion.
 
     Returns (raw_score, rationale_ru). raw_score is clamped to the kind's
-    cap. Fail-soft: any error/timeout/parse-failure → (0, degradation note).
+    cap. An error/timeout/parse-failure returns None, never a zero score.
     """
     from app.services.scoring_llm_judge import _strip_code_fence
 
@@ -482,20 +489,27 @@ async def _judge_criterion(
     )
 
     try:
-        content = await asyncio.wait_for(
-            _judge_invoke(prompt), timeout=_JUDGE_TIMEOUT_S
-        )
+        content = await asyncio.wait_for(_judge_invoke(prompt), timeout=_JUDGE_TIMEOUT_S)
     except Exception:
-        logger.warning("call judge failed for criterion=%r — fail-soft", criterion_ru, exc_info=True)
-        return 0, "Оценка недоступна (сбой судьи)."
+        logger.warning(
+            "call judge failed for criterion=%r — fail-soft", criterion_ru, exc_info=True
+        )
+        return None, "Оценка недоступна (сбой сервиса ИИ)."
 
     try:
         parsed = json.loads(_strip_code_fence(content))
-        raw = int(parsed.get("score", 0))
+        raw_value = parsed["score"]
+        if (
+            isinstance(raw_value, bool)
+            or not isinstance(raw_value, (int, float))
+            or not 0 <= raw_value <= cap
+        ):
+            raise ValueError("Invalid score")
+        raw = int(raw_value)
         rationale = str(parsed.get("rationale_ru", "") or "").strip()
-    except (json.JSONDecodeError, TypeError, ValueError):
+    except (json.JSONDecodeError, TypeError, ValueError, KeyError):
         logger.warning("call judge parse failed for criterion=%r", criterion_ru)
-        return 0, "Не удалось разобрать ответ судьи."
+        return None, "Не удалось разобрать ответ сервиса оценки."
 
     raw = max(0, min(cap, raw))
     if not rationale:
@@ -508,6 +522,7 @@ async def score_call(
     session_id: str,
     user_messages: list[str],
     assistant_messages: list[str],
+    history: list[dict[str, str]] | None = None,
 ) -> dict:
     """Score a finished call via per-criterion LLM judges (§7).
 
@@ -524,9 +539,7 @@ async def score_call(
     from app.services.scoring_llm_judge import _format_transcript
 
     # Empty guard — count substantive user turns (≥2 words).
-    substantive = sum(
-        1 for m in (user_messages or []) if len((m or "").split()) >= 2
-    )
+    substantive = sum(1 for m in (user_messages or []) if len((m or "").split()) >= 2)
     if substantive < 2:
         return {
             "total": 0,
@@ -542,14 +555,26 @@ async def score_call(
                     ),
                     "red_flags": [],
                     "strengths": [],
-                    "model_used": "deepseek-v4-pro",
+                    "model_used": settings.exam_model,
                     "latency_ms": 0,
                 },
                 "_call_rubric": [],
             },
         }
 
-    transcript = _format_transcript(user_messages, assistant_messages)
+    if history is not None:
+        lines = []
+        user_index = 0
+        for message in history:
+            if message["role"] == "user":
+                user_index += 1
+                speaker = f"M[{user_index}]"
+            else:
+                speaker = "К"
+            lines.append(f"{speaker}: {message['content']}")
+        transcript = "\n".join(lines)
+    else:
+        transcript = _format_transcript(user_messages, assistant_messages)
 
     results = await asyncio.gather(
         *(
@@ -557,6 +582,17 @@ async def score_call(
             for (criterion_ru, kind, _weight) in _RUBRIC
         )
     )
+
+    if any(raw is None for raw, _ in results):
+        return {
+            "total": None,
+            "scoring_details": {
+                "_scoring_unavailable": True,
+                "_scoring_pending": False,
+                "_scoring_error": "Сервис оценки временно недоступен. Звонок сохранён, балл не выставлен.",
+                "_call_rubric": [],
+            },
+        }
 
     total = 0.0
     rubric_rows: list[dict] = []
@@ -589,9 +625,7 @@ async def score_call(
         for r in rubric_rows
         if (r["score"] / r["cap"]) < 0.4
     ]
-    rationale_ru = "; ".join(
-        f"{r['criterion']}: {r['score']}/{r['cap']}" for r in rubric_rows
-    )
+    rationale_ru = "; ".join(f"{r['criterion']}: {r['score']}/{r['cap']}" for r in rubric_rows)
 
     scoring_details = {
         "judge": {
@@ -600,7 +634,7 @@ async def score_call(
             "rationale_ru": rationale_ru,
             "red_flags": red_flags,
             "strengths": strengths,
-            "model_used": "deepseek-v4-pro",
+            "model_used": settings.exam_model,
             "latency_ms": 0,
         },
         "_call_rubric": rubric_rows,

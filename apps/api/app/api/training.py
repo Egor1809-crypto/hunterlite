@@ -1426,22 +1426,23 @@ async def generate_script_hints(
     user_prompt = f"Сценарий: {scenario_ctx}\n\nИстория:\n{history_text}\n\nДай 3 варианта следующей реплики менеджера."
 
     try:
-        result = await generate_response(
+        import asyncio
+        import json
+        from app.services.scoring_llm_judge import _strip_code_fence
+        result = await asyncio.wait_for(generate_response(
             system_prompt=system_prompt,
             messages=[{"role": "user", "content": user_prompt}],
             emotion_state="cold",
-            task_type="coach",
+            task_type="structured",
             prefer_provider="auto",
-        )
-        import json
-        raw = result.content.strip()
-        # Strip markdown code fences if present
-        if raw.startswith("```"):
-            raw = raw.strip("`").lstrip("json").strip()
+            max_tokens=500,
+            temperature=0.2,
+        ), timeout=8)
+        raw = _strip_code_fence(result.content.strip())
         parsed = json.loads(raw)
         hints = parsed.get("hints", [])
         # Sanity filter
-        hints = [h for h in hints if isinstance(h, dict) and h.get("text")]
+        hints = [{"text":h["text"].strip()[:400], "label":str(h.get("label") or "Подсказка")[:40]} for h in hints if isinstance(h, dict) and isinstance(h.get("text"), str) and h["text"].strip()]
         if not hints:
             raise ValueError("empty hints")
         return {"hints": hints[:4]}
@@ -3315,3 +3316,28 @@ async def generate_ideal_response(
         emotion_explanation=parsed.get("emotion_explanation"),
         trap_handling=parsed.get("trap_handling"),
     )
+
+
+@router.post("/sessions/{session_id}/rescore-call")
+@limiter.limit("3/minute")
+async def rescore_call(session_id: uuid.UUID, request: Request,
+    user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    """Retry an unavailable call score without replaying completion side effects."""
+    from app.services.call_pipeline import score_call
+    session = await db.scalar(select(TrainingSession).where(
+        TrainingSession.id == session_id, TrainingSession.user_id == user.id).with_for_update())
+    if session is None:
+        raise HTTPException(404, "Звонок не найден")
+    details = session.scoring_details or {}
+    if not details.get("_scoring_unavailable"):
+        return {"score_total": session.score_total}
+    history = details.get("_call_history", [])
+    result = await score_call(session_id=str(session.id),
+        user_messages=[m["content"] for m in history if m["role"] == "user"],
+        assistant_messages=[m["content"] for m in history if m["role"] == "assistant"], history=history)
+    if result.get("total") is None:
+        raise HTTPException(503, "Сервис оценки пока недоступен")
+    session.score_total = float(result["total"])
+    session.scoring_details = {**details, **result["scoring_details"], "_scoring_unavailable":False}
+    await db.commit()
+    return {"score_total":session.score_total}

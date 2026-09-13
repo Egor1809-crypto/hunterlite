@@ -39,17 +39,6 @@ import type { WSMessage } from "@/types";
 /* ─── Quiz Session Page ──────────────────────────────────────────────────── */
 
 const TRAINING_MAP_PASS_SCORE = 88;
-// Должно совпадать с TestWorldMap: базовый лимит попыток на уровень в день
-// и дневной запас энергии. Списание происходит здесь — по факту завершения
-// теста, а не на старте сессии (иначе брошенный заход сжигал бы попытку).
-const TRAINING_MAP_MAX_ATTEMPTS = 5;
-const TRAINING_MAP_DAILY_ENERGY = 25;
-
-/** UTC-дата (YYYY-MM-DD) — тот же ключ, что использует TestWorldMap. */
-function trainingDateKey(): string {
-  return new Date().toISOString().slice(0, 10);
-}
-
 export default function KnowledgeSessionPageWrapper() {
   return (
     <PageAuthGate>
@@ -210,7 +199,6 @@ function KnowledgeSessionPage() {
     const userId = useAuthStore.getState().user?.id ?? null;
     const key = userId ? `hunterlite_test_map_progress:${userId}` : "hunterlite_test_map_progress";
     const energyKey = userId ? `hunterlite_daily_energy:${userId}` : "hunterlite_daily_energy";
-    const today = trainingDateKey();
     try {
       const current = JSON.parse(localStorage.getItem(key) || "[]");
       if (!Array.isArray(current)) return;
@@ -219,45 +207,13 @@ function KnowledgeSessionPage() {
       const prev = current[idx] || { level: mapLevel };
       // Уровень уже был пройден до этого захода — пересдача не списывает
       // ни попытку, ни энергию (как и на стороне карты).
-      const wasCompleted = prev.status === "completed";
       const bestScore = Math.max(Number(prev.bestScore || 0), scorePercent);
 
-      // Списываем попытку по факту завершения (а не на старте). Дневной
-      // ключ attemptsDate: при смене UTC-дня карта обнулит счётчик.
-      const sameDay = prev.attemptsDate === today;
-      const bonusAttempts = sameDay && Number.isFinite(prev.bonusAttempts)
-        ? Math.max(0, Number(prev.bonusAttempts))
-        : 0;
-      const prevAttempts = sameDay && Number.isFinite(prev.attempts)
-        ? Math.max(0, Number(prev.attempts))
-        : 0;
-      const nextAttempts = wasCompleted
-        ? prevAttempts
-        : Math.min(TRAINING_MAP_MAX_ATTEMPTS + bonusAttempts, prevAttempts + 1);
-
       current[idx] = {
-        ...prev,
-        level: mapLevel,
+        ...prev, level: mapLevel,
         status: bestScore >= TRAINING_MAP_PASS_SCORE ? "completed" : "failed",
         bestScore,
-        attempts: nextAttempts,
-        attemptsDate: today,
-        bonusAttempts,
       };
-
-      // Энергия: 1 завершённый тест = 1 энергия (пересдача пройденного — нет).
-      let nextEnergy: { date: string; remaining: number } | null = null;
-      if (!wasCompleted) {
-        try {
-          const rawEnergy = JSON.parse(localStorage.getItem(energyKey) || "null");
-          const base = rawEnergy && rawEnergy.date === today
-            ? Math.max(0, Math.min(TRAINING_MAP_DAILY_ENERGY, Number(rawEnergy.remaining ?? TRAINING_MAP_DAILY_ENERGY)))
-            : TRAINING_MAP_DAILY_ENERGY;
-          nextEnergy = { date: today, remaining: Math.max(0, base - 1) };
-          localStorage.setItem(energyKey, JSON.stringify(nextEnergy));
-          window.dispatchEvent(new CustomEvent("hunterlite:energy", { detail: nextEnergy }));
-        } catch { /* energy is best-effort */ }
-      }
 
       if (bestScore >= TRAINING_MAP_PASS_SCORE && mapLevel < 100) {
         const nextIdx = mapLevel;
@@ -274,9 +230,11 @@ function KnowledgeSessionPage() {
       }
 
       localStorage.setItem(key, JSON.stringify(current));
-      const body: { test_map: unknown[]; energy?: { date: string; remaining: number } } = { test_map: current };
-      if (nextEnergy) body.energy = nextEnergy;
-      api.put("/training-map/progress", body).catch(() => {});
+      api.put<{test_map:unknown;energy:unknown}>("/training-map/progress", {test_map:current}).then(server=>{
+        localStorage.setItem(key,JSON.stringify(server.test_map));
+        localStorage.setItem(energyKey,JSON.stringify(server.energy));
+        window.dispatchEvent(new CustomEvent("hunterlite:energy",{detail:server.energy}));
+      }).catch(()=>{});
     } catch { /* local training-map progress is best-effort */ }
   }, [mapLevel, store.correct, store.incorrect, store.totalQuestions]);
 

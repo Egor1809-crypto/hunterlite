@@ -10,7 +10,7 @@ from app.main import app
 
 
 def _paths() -> set[str]:
-    return {getattr(r, "path", "") for r in app.routes}
+    return set(app.openapi()["paths"])
 
 
 def test_consent_endpoints_are_mounted():

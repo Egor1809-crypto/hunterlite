@@ -1,13 +1,7 @@
 #!/usr/bin/env python3
-"""
-Run the Telegram bot in long-polling mode (development only).
+"""Run the Telegram bot in long-polling mode (including polling deployments).
 
-Usage:
-    cd apps/api
-    python -m scripts.run_bot_polling
-
-This is for local development where no public URL is available for webhooks.
-In production, the bot runs in webhook mode via the FastAPI app.
+Use one consumer per token; pending commands survive a process restart.
 """
 import asyncio
 import logging
@@ -36,14 +30,18 @@ async def main() -> None:
     dp = create_dispatcher()
 
     # Delete any existing webhook so polling works
-    await bot.delete_webhook(drop_pending_updates=True)
+    await bot.delete_webhook(drop_pending_updates=False)
     logger.info("Webhook deleted. Starting long-polling...")
 
     me = await bot.get_me()
     logger.info("Bot started: @%s (%s)", me.username, me.full_name)
 
     try:
-        await dp.start_polling(bot)
+        await dp.start_polling(
+            bot, polling_timeout=25,
+            allowed_updates=dp.resolve_used_update_types(),
+            tasks_concurrency_limit=32,
+        )
     finally:
         await bot.session.close()
         logger.info("Bot stopped.")

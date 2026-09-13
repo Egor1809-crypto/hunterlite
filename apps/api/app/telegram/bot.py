@@ -1,11 +1,11 @@
 import logging
+from html import escape
 from aiogram import Bot, Dispatcher, Router, F
 from aiogram.filters import CommandStart, Command, CommandObject
 from aiogram.types import (
     Message,
     InlineKeyboardMarkup,
     InlineKeyboardButton,
-    WebAppInfo,
 )
 from aiogram.enums import ParseMode
 from app.config import settings
@@ -19,22 +19,16 @@ router = Router()
 WEBAPP_URL = settings.frontend_url
 
 
-def _is_https() -> bool:
-    """WebApp buttons require HTTPS. Fall back to regular URL buttons in dev."""
-    return WEBAPP_URL.startswith("https://")
-
-
 def _web_button(text: str, path: str) -> InlineKeyboardButton:
-    """Create a button — WebApp if HTTPS, otherwise a regular URL link."""
-    url = f"{WEBAPP_URL}{path}"
-    if _is_https():
-        return InlineKeyboardButton(text=text, web_app=WebAppInfo(url=url))
-    return InlineKeyboardButton(text=text, url=url)
+    # Account linking is not Telegram WebApp authentication. Ordinary links
+    # open the platform's supported browser login/session flow.
+    return InlineKeyboardButton(text=text, url=f"{WEBAPP_URL.rstrip('/')}{path}")
 
 
 def _main_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
-        [_web_button("🎯 Обучение", "/training")],
+        [_web_button("🎯 Тесты", "/training?tab=tests")],
+        [InlineKeyboardButton(text="10 попыток · 1 499 ₽", callback_data="daily_attempts")],
         [_web_button("📚 Кейсы", "/cases")],
         [_web_button("🎓 Экзамен", "/exam")],
         [_web_button("📖 База знаний", "/knowledge")],
@@ -66,6 +60,7 @@ async def _handle_deeplink(message: Message, arg: str) -> bool:
             "not_found": "Ссылка не найдена. Сгенерируйте новую на платформе.",
             "used": "Эта ссылка уже использована. Сгенерируйте новую на платформе.",
             "expired": "Срок действия ссылки истёк. Сгенерируйте новую на платформе.",
+            "account_linked": "Аккаунт платформы уже привязан к другому Telegram. Обратитесь в поддержку для смены привязки.",
             "tg_taken": "Этот Telegram уже привязан к другому аккаунту платформы.",
             "user_gone": "Аккаунт не найден. Попробуйте ещё раз с платформы.",
         }.get(err, "Не удалось обработать ссылку. Попробуйте ещё раз.")
@@ -75,25 +70,16 @@ async def _handle_deeplink(message: Message, arg: str) -> bool:
     linked_line = "🔗 Telegram привязан к вашему аккаунту.\n\n" if result.get("linked") else ""
 
     if result.get("purpose") == "buy":
-        pack = result.get("pack", 5)
-        level = result.get("level", 1)
-        bonus = result.get("bonus", pack)
         await message.answer(
-            f"{linked_line}"
-            f"✅ <b>Готово — +{pack} попыток</b>\n\n"
-            f"Уровень {level}: добавлено {pack} попыток "
-            f"(бонус на сегодня: {bonus}).\n"
-            "Вернитесь на платформу и продолжайте — попытки уже доступны.",
+            f"{linked_line}" + _offer_text(),
             parse_mode=ParseMode.HTML,
-            reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-                [_web_button("▶️ Продолжить тренировку", "/training?tab=tests")],
-            ]),
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=[[_web_button("Вернуться к тестам", "/training?tab=tests")]]),
         )
     else:
         await message.answer(
             f"{linked_line}"
             "✅ <b>Аккаунт привязан</b>\n\n"
-            "Теперь я смогу начислять попытки и присылать уведомления.",
+            "Ваша привязка сохранена. Проверить прогресс — /status. Узнать о пакете попыток — /buy.",
             parse_mode=ParseMode.HTML,
             reply_markup=_main_keyboard(),
         )
@@ -106,7 +92,7 @@ async def cmd_start(message: Message, command: CommandObject) -> None:
     if arg and await _handle_deeplink(message, arg):
         return
 
-    user_name = message.from_user.first_name if message.from_user else "Коллега"
+    user_name = escape(message.from_user.first_name if message.from_user else "Коллега")
     await message.answer(
         f"<b>Добро пожаловать, {user_name}!</b>\n\n"
         "🏛 <b>LegalHunter</b> — учебная платформа для арбитражных управляющих\n\n"
@@ -131,6 +117,7 @@ async def cmd_help(message: Message) -> None:
         "/exam — Экзамен и сертификация\n"
         "/knowledge — База знаний ФЗ-127\n"
         "/status — Мой прогресс и энергия\n"
+        "/buy — 10 общих попыток на день\n"
         "/help — Список команд",
         parse_mode=ParseMode.HTML,
     )
@@ -139,7 +126,7 @@ async def cmd_help(message: Message) -> None:
 @router.message(Command("train"))
 async def cmd_train(message: Message) -> None:
     kb = InlineKeyboardMarkup(inline_keyboard=[
-        [_web_button("💬 Текстовая тренировка", "/training")],
+        [_web_button("💬 Тренировка с клиентом", "/training?tab=builder")],
         [_web_button("🎯 Тесты по ФЗ-127", "/training?tab=tests")],
     ])
     await message.answer(
@@ -232,13 +219,13 @@ async def cmd_status(message: Message) -> None:
             "<b>📊 Статус</b>\n\n"
             "Ваш Telegram ещё не привязан к аккаунту платформы.\n"
             "Откройте платформу и нажмите «Привязать Telegram», "
-            "чтобы я мог показывать прогресс и начислять попытки.",
+            "чтобы видеть прогресс и баланс попыток.",
             parse_mode=ParseMode.HTML,
             reply_markup=_main_keyboard(),
         )
         return
 
-    name = summary.get("user_name") or "Коллега"
+    name = escape(summary.get("user_name") or "Коллега")
     completed = summary.get("completed", 0)
     total = summary.get("total", 100)
     energy = summary.get("energy_remaining")
@@ -250,7 +237,9 @@ async def cmd_status(message: Message) -> None:
     await message.answer(
         f"<b>📊 Статус — {name}</b>\n\n"
         f"✅ Пройдено уровней: <b>{completed}</b> из {total}\n"
-        f"{energy_line}\n"
+        f"Бесплатных попыток: <b>{summary['attempts']['free_remaining']}</b>\n"
+        f"Общих дополнительных попыток: <b>{summary['attempts']['paid_remaining']}</b>\n"
+        "Обновление дня — 00:00 по Москве.\n\n"
         "Продолжайте тренировку, чтобы открыть новые уровни.",
         parse_mode=ParseMode.HTML,
         reply_markup=InlineKeyboardMarkup(inline_keyboard=[
@@ -278,6 +267,22 @@ async def notify_user(bot: Bot, telegram_id: str, text: str) -> bool:
         logger.warning("Failed to deliver Telegram notification to %s", telegram_id)
         return False
 
+
+def _offer_text() -> str:
+    return ("<b>10 попыток · 1 499 ₽</b>\n\n"
+            "Общий пакет для всех тестов. Действует до 00:00 по Москве в день оплаты.\n\n"
+            "Покупка пока недоступна: приём платежей ещё не подключён. "
+            "Деньги не списываются, дополнительные попытки не начисляются.")
+
+@router.message(Command("buy"))
+async def cmd_buy(message: Message) -> None:
+    await message.answer(_offer_text(), parse_mode=ParseMode.HTML, reply_markup=_main_keyboard())
+
+@router.callback_query(F.data == "daily_attempts")
+async def daily_attempts_callback(callback) -> None:
+    await callback.answer()
+    if callback.message:
+        await callback.message.answer(_offer_text(), parse_mode=ParseMode.HTML, reply_markup=_main_keyboard())
 
 @router.message(F.text)
 async def fallback_text(message: Message) -> None:

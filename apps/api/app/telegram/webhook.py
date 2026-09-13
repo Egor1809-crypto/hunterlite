@@ -46,7 +46,7 @@ async def setup_webhook(base_url: str) -> None:
     try:
         if secret:
             await _bot.set_webhook(
-                webhook_url, drop_pending_updates=True, secret_token=secret,
+                webhook_url, drop_pending_updates=False, secret_token=secret,
             )
         else:
             logger.warning(
@@ -54,7 +54,7 @@ async def setup_webhook(base_url: str) -> None:
                 "(TELEGRAM_WEBHOOK_SECRET unset) — the endpoint is "
                 "unauthenticated. Set TELEGRAM_WEBHOOK_SECRET in production."
             )
-            await _bot.set_webhook(webhook_url, drop_pending_updates=True)
+            await _bot.set_webhook(webhook_url, drop_pending_updates=False)
         logger.info("Telegram webhook set: %s", webhook_url)
     except Exception as e:
         # set_webhook can fail transiently — most often TelegramRetryAfter

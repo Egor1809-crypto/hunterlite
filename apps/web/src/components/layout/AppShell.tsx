@@ -67,14 +67,14 @@ export default function AppShell({ children }: { children: ReactNode }) {
   /* Prevent layout flash before hydration */
   if (!mounted) {
     return (
-      <div className="min-h-screen" style={{ background: "var(--bg-primary)" }}>
+      <div className="editorial-app min-h-screen" style={{ background: "var(--bg-primary)" }}>
         <main className="min-w-0">{children}</main>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen" style={{ background: "var(--bg-primary)" }}>
+    <div className="editorial-app min-h-screen" style={{ background: "var(--bg-primary)" }}>
       {/* ── Desktop sidebar (fixed) ───────────────────── */}
       {isDesktop && (
         <AppSidebar collapsed={collapsed} onToggle={toggleCollapse} />

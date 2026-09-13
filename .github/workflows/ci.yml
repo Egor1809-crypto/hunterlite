@@ -128,6 +128,8 @@ jobs:
         run: pytest -v --tb=short --cov=app --cov-report=term-missing
 
       - name: Test — TZ-1 scope (blocking)
+        env:
+          TEST_POSTGRES_URL: ${{ env.DATABASE_URL }}
         # These are the tests that protect the TZ-1 contract: canonical
         # helpers, projector replay, parity of REST/WS paths, invariant
         # guards. Any regression here MUST fail CI.
@@ -161,6 +163,10 @@ jobs:
             tests/test_latent_bug_fixes.py \
             tests/test_championship_draw_proof.py \
             tests/test_call_finalize.py \
+            tests/test_call_reliability.py \
+            tests/test_daily_attempts.py \
+            tests/test_telegram_commands.py \
+            tests/test_daily_attempts_concurrency.py \
             tests/test_ws_lock_failclosed.py \
             tests/test_wiki_foundation.py \
             tests/test_methodology_model.py \
@@ -207,6 +213,9 @@ jobs:
 
       - name: Type check
         run: npx tsc --noEmit
+
+      - name: Call reliability tests
+        run: npm test -- --run src/hooks/__tests__/useCallConnection.test.ts src/hooks/__tests__/useTTS-interrupt.test.ts
 
       - name: Build
         run: npm run build

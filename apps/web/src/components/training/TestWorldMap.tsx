@@ -1,29 +1,15 @@
 "use client";
+import { trainingDay, type AttemptBalance } from "@/lib/trainingDay";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Lock,
-  Check,
-  ArrowRight,
   Loader2,
   AlertTriangle,
-  GraduationCap,
   X,
-  Award,
-  ClipboardCheck,
-  Landmark,
-  Home,
-  Scale,
-  Coins,
-  Users,
-  FileText,
-  Clock,
-  Gavel,
-  ShieldCheck,
-  type LucideIcon,
 } from "lucide-react";
+import { ClipboardCheck, Landmark, Home, Scale, Coins, Users, FileText, Clock, Gavel, ShieldCheck, Check, Lock, ArrowRight, GraduationCap, Award } from "@/components/ui/RuneIcons";
 import { api } from "@/lib/api";
 import { useAuthStore } from "@/stores/useAuthStore";
 import { AttemptsBooster } from "@/components/training/AttemptsBooster";
@@ -37,7 +23,7 @@ interface Island {
   id: string;
   category: string;
   name: string;
-  Icon: LucideIcon;
+  Icon: typeof ClipboardCheck;
   levels: number[];
   checkpoint: number | null;
   examId: string | null;
@@ -192,7 +178,7 @@ interface EnergyState {
 }
 
 function getEnergyDateKey(): string {
-  return new Date().toISOString().slice(0, 10);
+  return trainingDay();
 }
 
 // Apply daily reset + clamp to a raw energy object from any source (server or cache).
@@ -216,13 +202,6 @@ function loadEnergy(userId: string | null): EnergyState {
   }
 }
 
-function saveEnergy(energy: EnergyState, userId: string | null) {
-  if (typeof window === "undefined") return;
-  localStorage.setItem(energyKey(userId), JSON.stringify(energy));
-  window.dispatchEvent(new CustomEvent("hunterlite:energy", { detail: energy }));
-  scheduleServerSync({ energy });
-}
-
 function normalizeProgress(value: unknown): LevelState[] {
   const initial = getInitialLevelStates();
   if (!Array.isArray(value)) return initial;
@@ -242,7 +221,7 @@ function normalizeProgress(value: unknown): LevelState[] {
       ? Math.max(0, Math.min(50, Number(candidate.bonusAttempts)))
       : 0;
     const attempts = attemptsDate === today && Number.isFinite(candidate.attempts)
-      ? Math.max(0, Math.min(MAX_ATTEMPTS + bonusAttempts, Number(candidate.attempts)))
+      ? Math.max(0, Number(candidate.attempts))
       : fallback.attempts;
     const questionsCount = Number.isFinite(candidate.questionsCount)
       ? Math.max(QUESTIONS_PER_LEVEL_MIN, Math.min(QUESTIONS_PER_LEVEL_MAX, Number(candidate.questionsCount)))
@@ -299,48 +278,23 @@ function loadProgress(userId: string | null): LevelState[] {
 
 // Pull authoritative per-user state from the server. Returns null on failure so
 // the caller can fall back to the local cache.
-async function hydrateFromServer(): Promise<{ states: LevelState[]; energy: EnergyState } | null> {
+async function hydrateFromServer(): Promise<{ states: LevelState[]; energy: EnergyState; attempts: AttemptBalance | null } | null> {
   try {
     const res = await api.get("/training-map/progress") as {
       test_map?: unknown;
+      attempts?: AttemptBalance;
       energy?: Partial<EnergyState> | null;
     };
     const hasTestMap = Array.isArray(res?.test_map) && (res.test_map as unknown[]).length > 0;
     return {
       states: hasTestMap ? normalizeProgress(res.test_map) : getInitialLevelStates(),
       energy: normalizeEnergy(res?.energy),
+      attempts: res.attempts || null,
     };
   } catch {
     return null;
   }
 }
-
-let _saveTimer: ReturnType<typeof setTimeout> | null = null;
-let _pendingSync: { test_map?: LevelState[]; energy?: EnergyState } = {};
-
-// Debounced PUT that coalesces test_map and energy writes into one request.
-function scheduleServerSync(patch: { test_map?: LevelState[]; energy?: EnergyState }) {
-  if (typeof window === "undefined") return;
-  _pendingSync = { ..._pendingSync, ...patch };
-  if (_saveTimer) clearTimeout(_saveTimer);
-  _saveTimer = setTimeout(() => {
-    const body = _pendingSync;
-    _pendingSync = {};
-    api.put("/training-map/progress", body).catch(() => {});
-  }, 2000);
-}
-
-function saveProgress(states: LevelState[], userId: string | null) {
-  if (typeof window === "undefined") return;
-  try {
-    localStorage.setItem(progressKey(userId), JSON.stringify(states));
-  } catch { /* ignore */ }
-  scheduleServerSync({ test_map: states });
-}
-
-/* ═══════════════════════════════════════════════════════════════════════════
-   DIFFICULTY FOR LEVEL — ramps up within region
-   ═══════════════════════════════════════════════════════════════════════════ */
 
 function getLevelDifficulty(level: number): "easy" | "medium" | "hard" | "expert" {
   const posInIsland = ((level - 1) % 10);
@@ -360,149 +314,10 @@ function getDifficultyConfig(d: ReturnType<typeof getLevelDifficulty>) {
 }
 
 // 3-letter region code in the malvah "quiet classification" spirit (R03 · ИМУ).
-function regionCode(idx: number, name: string): string {
-  return `R${String(idx + 1).padStart(2, "0")} · ${name.slice(0, 3).toUpperCase()}`;
-}
-
-/* ═══════════════════════════════════════════════════════════════════════════
-   TOPO TERRAIN — one continuous topographic field behind the WHOLE trail.
-   A single SVG stretched across the full column makes it read as one island.
-   ═══════════════════════════════════════════════════════════════════════════ */
-
-function TopoTerrain() {
-  return (
-    <svg
-      aria-hidden
-      className="pointer-events-none absolute inset-0 h-full w-full"
-      viewBox="0 0 400 1000"
-      preserveAspectRatio="none"
-      style={{ opacity: "var(--topo-opacity)", zIndex: 0 }}
-    >
-      <g fill="none" stroke="var(--primary)" strokeWidth={1} vectorEffect="non-scaling-stroke">
-        <path d="M-20,70 C90,30 150,120 250,80 C330,48 370,110 420,84" />
-        <path d="M-20,150 C80,110 160,200 250,160 C340,124 380,190 420,164" />
-        <path d="M-20,250 C100,300 170,210 260,260 C340,304 380,234 420,276" />
-        <path d="M-20,360 C90,320 150,420 250,380 C340,346 380,420 420,392" />
-        <path d="M-20,470 C100,520 180,430 260,480 C340,524 380,452 420,496" />
-        <path d="M-20,580 C90,540 160,640 250,600 C340,566 380,640 420,612" />
-        <path d="M-20,690 C100,740 180,650 260,700 C340,742 380,672 420,716" />
-        <path d="M-20,800 C90,760 160,860 250,820 C340,786 380,860 420,832" />
-        <path d="M-20,910 C100,952 180,872 260,920 C340,960 380,892 420,936" />
-      </g>
-    </svg>
-  );
-}
-
-/* ═══════════════════════════════════════════════════════════════════════════
-   TRAIL ROW — a single stop on the journey. Each row paints its own left
-   trail-segment (solid = travelled, dashed = ahead) so the column reads as one
-   continuous line without any global pixel math. The marker sits on the line.
-   ═══════════════════════════════════════════════════════════════════════════ */
-
-const TRAIL_X = 15; // px — centre of the trail line / markers
-
-function TrailRow({
-  travelled,
-  firstSegment,
-  lastSegment,
-  marker,
-  children,
-  onClick,
-  disabled,
-  minHeight = 60,
-}: {
-  travelled: boolean;       // solid primary segment vs dashed border
-  firstSegment?: boolean;   // no line above
-  lastSegment?: boolean;    // no line below
-  marker: React.ReactNode;
-  children: React.ReactNode;
-  onClick?: () => void;
-  disabled?: boolean;
-  minHeight?: number;
-}) {
-  const Comp: React.ElementType = onClick && !disabled ? "button" : "div";
-  return (
-    <Comp
-      onClick={!disabled ? onClick : undefined}
-      className="group relative flex w-full items-center text-left outline-none"
-      style={{ minHeight, paddingLeft: 44, cursor: onClick && !disabled ? "pointer" : "default" }}
-    >
-      {/* trail segment (behind marker) */}
-      <span
-        aria-hidden
-        className="absolute"
-        style={{
-          left: TRAIL_X,
-          width: 2,
-          top: firstSegment ? "50%" : 0,
-          bottom: lastSegment ? "50%" : 0,
-          transform: "translateX(-50%)",
-          background: travelled
-            ? "var(--primary)"
-            : "repeating-linear-gradient(to bottom, var(--border-color) 0 3px, transparent 3px 9px)",
-          opacity: travelled ? 1 : 0.9,
-        }}
-      />
-      {/* marker on the line */}
-      <span
-        className="absolute z-10 flex items-center justify-center"
-        style={{ left: TRAIL_X, top: "50%", transform: "translate(-50%,-50%)" }}
-      >
-        {marker}
-      </span>
-      <span className="min-w-0 flex-1 py-2">{children}</span>
-    </Comp>
-  );
-}
-
-/* ── Markers ──────────────────────────────────────────────────────────────── */
-
-function levelMarker(state: LevelState) {
-  const s = state.status;
-  if (s === "completed") {
-    return (
-      <span className="flex h-7 w-7 items-center justify-center rounded-full" style={{ background: "var(--primary)" }}>
-        <Check size={15} strokeWidth={3} style={{ color: "#fff" }} />
-      </span>
-    );
-  }
-  if (s === "available") {
-    return (
-      <span
-        className="flex h-7 w-7 items-center justify-center rounded-full"
-        style={{ background: "var(--surface-card)", border: "2px solid var(--primary)" }}
-      >
-        <span className="h-2.5 w-2.5 rounded-full" style={{ background: "var(--primary)" }} />
-      </span>
-    );
-  }
-  if (s === "failed") {
-    return (
-      <span
-        className="flex h-7 w-7 items-center justify-center rounded-full"
-        style={{ background: "var(--danger-muted)", border: "2px solid var(--danger)" }}
-      >
-        <X size={14} strokeWidth={3} style={{ color: "var(--danger)" }} />
-      </span>
-    );
-  }
-  // locked — visually inert
-  return (
-    <span className="flex h-7 w-7 items-center justify-center" style={{ opacity: 0.5 }}>
-      <span className="h-2 w-2 rounded-full" style={{ background: "var(--text-muted)" }} />
-    </span>
-  );
-}
-
-/* ═══════════════════════════════════════════════════════════════════════════
-   REGION — active (full level stops) / completed (compact) / locked (faint).
-   ═══════════════════════════════════════════════════════════════════════════ */
-
 type RegionStatus = "active" | "completed" | "locked";
 
 function RegionBlock({
   island,
-  idx,
   levels,
   status,
   expanded,
@@ -511,7 +326,6 @@ function RegionBlock({
   onLevelClick,
 }: {
   island: Island;
-  idx: number;
   levels: LevelState[];
   status: RegionStatus;
   expanded: boolean;
@@ -520,244 +334,28 @@ function RegionBlock({
   onLevelClick: (level: number) => void;
 }) {
   const completedCount = levels.filter(s => s.status === "completed").length;
-  const code = regionCode(idx, island.name);
-
-  // ── Header marker per region status ──
-  const headerMarker =
-    status === "completed" ? (
-      <span className="flex h-7 w-7 items-center justify-center rounded-full" style={{ background: "var(--primary)" }}>
-        <Check size={15} strokeWidth={3} style={{ color: "#fff" }} />
-      </span>
-    ) : status === "active" ? (
-      <span
-        className="flex h-7 w-7 items-center justify-center rounded-full"
-        style={{ background: "var(--primary-muted)", border: "2px solid var(--primary)" }}
-      >
-        <span className="h-2.5 w-2.5 rounded-full" style={{ background: "var(--primary)" }} />
-      </span>
-    ) : (
-      <span className="flex h-7 w-7 items-center justify-center" style={{ opacity: 0.5 }}>
-        <Lock size={13} style={{ color: "var(--text-muted)" }} />
-      </span>
-    );
-
-  const travelled = status !== "locked";
-  const clickable = status !== "locked";
-
-  return (
-    <div>
-      {/* Region header row */}
-      <TrailRow
-        travelled={travelled}
-        marker={headerMarker}
-        onClick={clickable ? onToggle : undefined}
-        disabled={!clickable}
-        minHeight={status === "active" ? 72 : 56}
-      >
-        <div
-          className="flex items-center gap-3.5 rounded-2xl px-3.5 py-3 transition-colors"
-          style={{
-            background:
-              status === "locked"
-                ? "transparent"
-                : `linear-gradient(180deg, color-mix(in srgb, var(--primary) ${status === "active" ? 9 : 5}%, var(--surface-card)), var(--surface-card))`,
-            border: `1px solid ${status === "locked" ? "var(--border-color)" : `color-mix(in srgb, var(--primary) ${status === "active" ? 38 : 20}%, var(--border-color))`}`,
-            boxShadow: status === "active" ? `0 1px 0 color-mix(in srgb, var(--primary) 10%, transparent)` : "none",
-          }}
-        >
-          {/* Region identity tile — colour-coded legal domain */}
-          <span
-            className="flex shrink-0 items-center justify-center rounded-xl"
-            style={{
-              width: status === "active" ? 48 : 40,
-              height: status === "active" ? 48 : 40,
-              background: status === "locked" ? "var(--bg-secondary)" : `color-mix(in srgb, var(--primary) 16%, var(--surface-card))`,
-              border: `1px solid ${status === "locked" ? "var(--border-color)" : `color-mix(in srgb, var(--primary) 32%, transparent)`}`,
-              opacity: status === "locked" ? 0.55 : 1,
-            }}
-          >
-            <island.Icon
-              size={status === "active" ? 24 : 20}
-              strokeWidth={1.75}
-              color={status === "locked" ? "var(--text-muted)" : `var(--primary)`}
-            />
-          </span>
-
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2">
-              <span className="font-mono text-[11px] uppercase tracking-[0.16em]" style={{ color: status === "locked" ? "var(--text-muted)" : `var(--primary)`, opacity: status === "locked" ? 0.6 : 1 }}>
-                {code}
-              </span>
-              {status === "completed" && (
-                <span className="flex items-center gap-1 font-mono text-[11px] font-semibold uppercase tracking-[0.1em]" style={{ color: "var(--primary)" }}>
-                  <Check size={11} strokeWidth={3} /> пройден
-                </span>
-              )}
-            </div>
-            <h3
-              className="mt-0.5 truncate font-semibold tracking-tight"
-              style={{
-                color: status === "locked" ? "var(--text-muted)" : "var(--text-primary)",
-                fontSize: status === "active" ? 21 : 16,
-                opacity: status === "locked" ? 0.6 : 1,
-              }}
-            >
-              {island.name}
-            </h3>
-
-            {/* 10-segment progress — one tick per level, in the region colour */}
-            {status !== "locked" ? (
-              <div className="mt-2 flex items-center gap-2">
-                <div className="flex flex-1 gap-1">
-                  {Array.from({ length: 10 }).map((_, k) => {
-                    const filled = k < completedCount;
-                    return (
-                      <span
-                        key={k}
-                        className="h-[3px] flex-1 rounded-full"
-                        style={{ background: filled ? `var(--primary)` : "var(--border-color)", opacity: filled ? 1 : 0.7 }}
-                      />
-                    );
-                  })}
-                </div>
-                <span className="shrink-0 font-mono text-[11px] font-semibold tabular-nums" style={{ color: status === "completed" ? "var(--primary)" : `var(--primary)` }}>
-                  {completedCount}/10
-                </span>
-              </div>
-            ) : (
-              <p className="mt-0.5 text-[11.5px]" style={{ color: "var(--text-muted)", opacity: 0.7 }}>
-                Откроется на уровне {island.levels[0]}.
-              </p>
-            )}
-          </div>
-
-          {clickable && (
-            <ArrowRight
-              size={16}
-              className="shrink-0 transition-transform group-hover:translate-x-0.5"
-              style={{ color: "var(--text-muted)", transform: expanded ? "rotate(90deg)" : "none" }}
-            />
-          )}
-        </div>
-      </TrailRow>
-
-      {/* Expanded level stops */}
-      <AnimatePresence initial={false}>
-        {expanded && status !== "locked" && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.24, ease: "easeOut" }}
-            className="overflow-hidden"
-          >
-            {island.levels.map((lvl, i) => {
-              const st = levels.find(s => s.level === lvl)!;
-              const isHere = hereLevel === lvl;
-              const interactive = st.status === "available" || st.status === "failed" || st.status === "completed";
-              const diff = getDifficultyConfig(getLevelDifficulty(lvl));
-              return (
-                <TrailRow
-                  key={lvl}
-                  travelled={st.status === "completed"}
-                  lastSegment={i === island.levels.length - 1}
-                  marker={levelMarker(st)}
-                  onClick={interactive ? () => onLevelClick(lvl) : undefined}
-                  disabled={!interactive}
-                  minHeight={56}
-                >
-                  <div className="flex items-center gap-2">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <span
-                          className="text-[13.5px] font-semibold"
-                          style={{ color: st.status === "locked" ? "var(--text-muted)" : "var(--text-primary)", opacity: st.status === "locked" ? 0.6 : 1 }}
-                        >
-                          Уровень {lvl}
-                        </span>
-                        {isHere && (
-                          <span
-                            className="rounded-full px-2 py-0.5 text-[9.5px] font-bold uppercase tracking-[0.1em]"
-                            style={{ background: "var(--primary-muted)", color: "var(--primary)" }}
-                          >
-                            вы здесь
-                          </span>
-                        )}
-                        {island.checkpoint === lvl && (
-                          <GraduationCap size={13} style={{ color: "var(--warning)" }} />
-                        )}
-                      </div>
-                      <div className="mt-0.5 text-[11px]" style={{ color: "var(--text-muted)" }}>
-                        {st.status === "failed" ? (
-                          <span style={{ color: "var(--danger)" }}>
-                            {Math.max(0, MAX_ATTEMPTS + (st.bonusAttempts ?? 0) - st.attempts)} попыток сегодня
-                          </span>
-                        ) : st.status === "completed" && st.bestScore !== null ? (
-                          <span style={{ color: "var(--primary)" }}>Пройден · {Math.round(st.bestScore)}%</span>
-                        ) : (
-                          <span>{st.questionsCount} вопросов · {diff?.label}</span>
-                        )}
-                      </div>
-                    </div>
-                    {interactive && st.status !== "completed" && (
-                      <ArrowRight size={15} className="shrink-0 transition-transform group-hover:translate-x-0.5" style={{ color: "var(--text-muted)" }} />
-                    )}
-                  </div>
-                </TrailRow>
-              );
-            })}
-          </motion.div>
-        )}
-      </AnimatePresence>
+  return <section className={`learning-region ${status}`}>
+    <h3><button className="learning-region-heading" onClick={onToggle} disabled={status === "locked"} aria-expanded={expanded} aria-controls={`region-${island.id}`}>
+      <span className="learning-region-icon"><island.Icon size={25}/>{status === "completed" && <span className="learning-region-seal"><Check size={10}/></span>}</span>
+      <span className="min-w-0 flex-1"><span className="block font-display text-xl sm:text-2xl">{island.name}</span><span className="block mt-1 text-sm font-normal" style={{color:"var(--text-secondary)"}}>Уровни {island.levels[0]}–{island.levels[9]} · {completedCount} из 10 пройдено</span></span>
+      <span className="learning-region-status">{status === "completed" ? "Пройдено" : status === "locked" ? <Lock size={16}/> : "В процессе"}</span>
+      {status !== "locked" && <ArrowRight size={18} className={expanded ? "rotate-90" : ""}/>}
+    </button></h3>
+    <div id={`region-${island.id}`} hidden={!expanded || status === "locked"}>
+      <div className="learning-levels">{levels.map(st => <button key={st.level} onClick={()=>onLevelClick(st.level)} disabled={st.status === "locked"} aria-current={hereLevel === st.level ? "step" : undefined} className={`learning-level ${st.status}`}>
+        <span className="flex items-center justify-between gap-2"><span>Уровень {st.level}</span>{st.status === "completed" ? <Check size={15}/> : st.status === "locked" ? <Lock size={14}/> : <ArrowRight size={14}/>}</span>
+        <span className="block text-xs mt-3" style={{color:"var(--text-secondary)"}}>{st.status === "completed" ? `${Math.round(st.bestScore || 0)}% · пройдено` : `${st.questionsCount} вопросов`}</span>
+      </button>)}</div>
     </div>
-  );
+  </section>;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
    EXAM GATE — a milestone on the trail (not a level node).
    ═══════════════════════════════════════════════════════════════════════════ */
 
-function ExamGate({ index, unlocked, levelsLeft }: { index: number; unlocked: boolean; levelsLeft: number }) {
-  const marker = (
-    <span
-      className="flex items-center justify-center"
-      style={{
-        width: 18,
-        height: 18,
-        transform: "rotate(45deg)",
-        background: unlocked ? "var(--primary)" : "var(--surface-card)",
-        border: `1.5px solid ${unlocked ? "var(--primary)" : "var(--border-color)"}`,
-      }}
-    >
-      <span style={{ transform: "rotate(-45deg)" }}>
-        <GraduationCap size={10} style={{ color: unlocked ? "#fff" : "var(--text-muted)" }} />
-      </span>
-    </span>
-  );
-  return (
-    <TrailRow travelled={unlocked} marker={marker} minHeight={56} disabled>
-      <div
-        className="flex items-center justify-between gap-2 rounded-xl px-3 py-2"
-        style={{
-          background: unlocked ? "var(--primary-muted)" : "transparent",
-          border: `1px solid ${unlocked ? "var(--primary)" : "var(--border-color)"}`,
-        }}
-      >
-        <div className="min-w-0">
-          <div
-            className="font-mono text-[11px] font-semibold uppercase tracking-[0.16em]"
-            style={{ color: unlocked ? "var(--primary)" : "var(--text-muted)" }}
-          >
-            Контрольный экзамен {index}
-          </div>
-          <div className="mt-0.5 text-[11.5px]" style={{ color: "var(--text-secondary)" }}>
-            {unlocked ? "Открыт. Порог — 88%." : `Ещё ${levelsLeft} уровней.`}
-          </div>
-        </div>
-        {unlocked && <ArrowRight size={15} style={{ color: "var(--primary)" }} />}
-      </div>
-    </TrailRow>
-  );
+function ExamGate({index, unlocked, levelsLeft}: {index:number;unlocked:boolean;levelsLeft:number}) {
+  return <div className="learning-exam"><GraduationCap size={20}/><span className="flex-1">Контрольный экзамен {index}<span className="block text-xs mt-1" style={{color:"var(--text-secondary)"}}>{unlocked ? "Доступен в разделе экзаменов" : `Осталось пройти уровней: ${levelsLeft}`}</span></span>{unlocked ? <a href="/exam" className="underline underline-offset-4">Перейти</a> : <Lock size={15}/>}</div>;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -769,7 +367,7 @@ function CertificateSummit({ completed, total, energy }: { completed: number; to
   const pct = Math.round((completed / total) * 100);
   return (
     <div
-      className="sticky top-2 z-30 mb-3 flex items-center gap-4 rounded-2xl px-4 py-3"
+      className="mb-8 flex items-center gap-4 rounded-xl px-4 py-5"
       style={{
         background: "var(--bg-panel)",
         border: "1px solid var(--border-color)",
@@ -826,53 +424,11 @@ function CertificateSummit({ completed, total, energy }: { completed: number; to
    TRAIL SPINE — left minimap: regions · gates · summit, with "you are here".
    ═══════════════════════════════════════════════════════════════════════════ */
 
-interface SpineItem { kind: "region" | "gate"; status: RegionStatus | "gate-open" | "gate-locked"; active: boolean }
-
-function TrailSpine({ items }: { items: SpineItem[] }) {
-  return (
-    <div className="relative hidden w-7 shrink-0 lg:flex lg:flex-col lg:items-center">
-      <div className="sticky top-24 flex flex-col items-center">
-        {/* summit dot */}
-        <span className="flex h-4 w-4 items-center justify-center rounded-full" style={{ border: "1.5px solid var(--primary)" }}>
-          <span className="h-1.5 w-1.5 rounded-full" style={{ background: "var(--primary)" }} />
-        </span>
-        {items.map((it, i) => (
-          <div key={i} className="flex flex-col items-center">
-            <span className="my-1 h-4 w-px" style={{ background: "var(--border-color)" }} />
-            {it.kind === "gate" ? (
-              <span
-                style={{
-                  width: 8, height: 8, transform: "rotate(45deg)",
-                  background: it.status === "gate-open" ? "var(--primary)" : "transparent",
-                  border: `1.5px solid ${it.status === "gate-open" ? "var(--primary)" : "var(--border-color)"}`,
-                }}
-              />
-            ) : it.active ? (
-              <span className="flex items-center gap-1">
-                <span className="h-3 w-[3px] rounded-full" style={{ background: "var(--primary)" }} />
-                <span className="h-2.5 w-2.5 rounded-full" style={{ border: "2px solid var(--primary)" }} />
-              </span>
-            ) : (
-              <span
-                className="h-2 w-2 rounded-full"
-                style={{ background: it.status === "completed" ? "var(--primary)" : "var(--text-muted)", opacity: it.status === "completed" ? 1 : 0.45 }}
-              />
-            )}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-/* ═══════════════════════════════════════════════════════════════════════════
-   LEVEL DETAIL MODAL
-   ═══════════════════════════════════════════════════════════════════════════ */
-
 function LevelDetailModal({
   state,
   island,
   energy,
+  paidRemaining,
   onClose,
   onStart,
   onPurchase,
@@ -881,6 +437,7 @@ function LevelDetailModal({
   state: LevelState;
   island: Island;
   energy: EnergyState;
+  paidRemaining: number;
   onClose: () => void;
   onStart: () => void;
   onPurchase: (packSize?: number) => Promise<void> | void;
@@ -889,16 +446,15 @@ function LevelDetailModal({
   const diff = getLevelDifficulty(state.level);
   const diffCfg = getDifficultyConfig(diff);
   const isCompleted = state.status === "completed";
-  const bonusAttempts = state.bonusAttempts ?? 0;
-  const effectiveMax = MAX_ATTEMPTS + bonusAttempts;
-  const attemptsRemaining = Math.max(0, effectiveMax - state.attempts);
+  const bonusAttempts = paidRemaining;
+  const attemptsRemaining = Math.min(energy.remaining, Math.max(0, MAX_ATTEMPTS - state.attempts)) + paidRemaining;
   const blockedByAttempts = !isCompleted && attemptsRemaining <= 0;
-  const blockedByEnergy = !isCompleted && energy.remaining <= 0;
+  const blockedByEnergy = !isCompleted && energy.remaining <= 0 && paidRemaining <= 0;
   const passed = (state.bestScore ?? 0) >= PASS_THRESHOLD * 100;
   const actionLabel = blockedByAttempts
     ? "Лимит попыток на сегодня"
     : blockedByEnergy
-      ? "Энергия закончилась"
+      ? "Дневной лимит исчерпан"
       : state.attempts > 0
         ? "Попробовать снова"
         : "Начать уровень";
@@ -982,7 +538,7 @@ function LevelDetailModal({
                 className="font-mono text-[15px] font-bold tabular-nums"
                 style={{ color: attemptsRemaining === 0 && !isCompleted ? "var(--warning)" : "var(--text-primary)" }}
               >
-                {isCompleted ? "∞" : `${attemptsRemaining}/${effectiveMax}`}
+                {isCompleted ? "∞" : String(attemptsRemaining)}
               </span>
             </div>
             {state.bestScore !== null && (
@@ -998,7 +554,7 @@ function LevelDetailModal({
           {/* Energy — slim bar */}
           <div className="mt-4">
             <div className="flex items-center justify-between">
-              <span className="text-[10px] uppercase tracking-[0.18em]" style={{ color: "var(--text-muted)" }}>Энергия на сегодня</span>
+              <span className="text-[10px] uppercase tracking-[0.18em]" style={{ color: "var(--text-muted)" }}>Бесплатный дневной лимит</span>
               <span
                 className="font-mono text-[12px] font-bold tabular-nums"
                 style={{ color: energy.remaining > 0 ? "var(--primary)" : "var(--warning)" }}
@@ -1023,20 +579,21 @@ function LevelDetailModal({
           </div>
 
           {/* Счётчик до обновления + докупка попыток (Task #6) */}
-          {!isCompleted && blockedByAttempts && (
+          {!isCompleted && (blockedByAttempts || blockedByEnergy) && (
             <div className="mt-4">
               <AttemptsBooster
                 used={state.attempts}
                 baseMax={MAX_ATTEMPTS}
                 bonus={bonusAttempts}
-                onPurchase={() => onPurchase(5)}
-                packSize={5}
+                onPurchase={() => onPurchase(10)}
+                packSize={10}
               />
             </div>
           )}
 
           {/* Action */}
           <div className="mt-6">
+            <p className="mb-3 text-xs" style={{color:"var(--text-secondary)"}}>Попытка списывается при запуске теста. Обновление лимита — в 00:00 по Москве.</p>
             <motion.button
               onClick={onStart}
               disabled={starting || (!isCompleted && (blockedByAttempts || blockedByEnergy))}
@@ -1066,7 +623,7 @@ function LevelDetailModal({
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   MAIN COMPONENT — one island, one continuous trail to the certificate.
+   Learning stages, with one topic icon and compact level controls.
    ═══════════════════════════════════════════════════════════════════════════ */
 
 export default function TestWorldMap() {
@@ -1076,6 +633,7 @@ export default function TestWorldMap() {
   const [energy, setEnergy] = useState<EnergyState>(() => ({ date: getEnergyDateKey(), remaining: DAILY_ENERGY }));
   const [openIsland, setOpenIsland] = useState<string | null>(null);
   const [selectedLevel, setSelectedLevel] = useState<number | null>(null);
+  const [attempts, setAttempts] = useState<AttemptBalance | null>(null);
   const [starting, setStarting] = useState(false);
   const [startError, setStartError] = useState<string | null>(null);
 
@@ -1088,14 +646,24 @@ export default function TestWorldMap() {
     setEnergy(cachedEnergy);
 
     let cancelled = false;
-    hydrateFromServer().then((server) => {
+    const refresh = async () => {
+      if (document.hidden) return;
+      const server = await hydrateFromServer();
       if (cancelled || !server) return;
       setLevelStates(server.states);
       setEnergy(server.energy);
-      try { localStorage.setItem(progressKey(userId), JSON.stringify(server.states)); } catch { /* ignore */ }
-      saveEnergy(server.energy, userId);
-    });
-    return () => { cancelled = true; };
+      setAttempts(server.attempts);
+      try {
+        localStorage.setItem(progressKey(userId), JSON.stringify(server.states));
+        localStorage.setItem(energyKey(userId), JSON.stringify(server.energy));
+        window.dispatchEvent(new CustomEvent("hunterlite:energy", {detail:server.energy}));
+      } catch { /* cache is optional */ }
+    };
+    void refresh();
+    window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", refresh);
+    const timer = setInterval(refresh, 60000);
+    return () => {cancelled=true;clearInterval(timer);window.removeEventListener("focus",refresh);document.removeEventListener("visibilitychange",refresh);};
   }, [userId]);
 
   useEffect(() => {
@@ -1138,8 +706,8 @@ export default function TestWorldMap() {
   }, [activeIdx]);
 
   useEffect(() => {
-    if (!openIsland) setOpenIsland(autoOpenId);
-  }, [autoOpenId, openIsland]);
+    setOpenIsland(autoOpenId);
+  }, [autoOpenId]);
 
   const totalCompleted = levelStates.filter(s => s.status === "completed").length;
 
@@ -1158,18 +726,7 @@ export default function TestWorldMap() {
     const state = levelStates.find(s => s.level === selectedLevel);
     if (!state) return;
 
-    const effectiveMax = MAX_ATTEMPTS + (state.bonusAttempts ?? 0);
-    if (state.status !== "completed" && state.attempts >= effectiveMax) {
-      setStartError("Попытки на этот уровень закончились");
-      return;
-    }
-
-    const currentEnergy = loadEnergy(userId);
-    setEnergy(currentEnergy);
-    if (state.status !== "completed" && currentEnergy.remaining <= 0) {
-      setStartError("Энергия на сегодня закончилась");
-      return;
-    }
+    // Server checks the shared wallet atomically; the cache cannot authorize a test.
     const island = findIslandForLevel(selectedLevel);
     setStarting(true);
     setStartError(null);
@@ -1189,8 +746,7 @@ export default function TestWorldMap() {
 
       const sid = res?.id || res?.session_id;
       if (sid) {
-        // NB: попытка/энергия списываются НЕ здесь, а при фактическом
-        // завершении теста (quiz-страница, syncMapLevelProgress).
+        // Daily usage is reserved by the server when the test is created.
         const params = new URLSearchParams({
           mode: "themed",
           category: island.category,
@@ -1208,17 +764,17 @@ export default function TestWorldMap() {
     } finally {
       setStarting(false);
     }
-  }, [selectedLevel, levelStates, starting, findIslandForLevel, router, userId]);
+  }, [selectedLevel, levelStates, starting, findIslandForLevel, router]);
 
   // Докупка попыток идёт через @BFLHUNTER_bot — единая экосистема.
-  const purchaseAttempts = useCallback(async (packSize = 5) => {
+  const purchaseAttempts = useCallback(async (packSize = 10) => {
     if (!selectedLevel) return;
     try {
       const res = await api.post<{ deeplink: string; telegram_linked: boolean }>(
         "/training-map/attempts/deeplink",
         { level: selectedLevel, pack: packSize },
       );
-      window.open(res.deeplink, "_blank", "noopener,noreferrer");
+      window.location.assign(res.deeplink);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Не удалось открыть бота. Попробуйте ещё раз.";
       setStartError(message);
@@ -1227,19 +783,6 @@ export default function TestWorldMap() {
 
   const selectedState = selectedLevel ? levelStates.find(s => s.level === selectedLevel) : null;
   const selectedIsland = selectedLevel ? findIslandForLevel(selectedLevel) : null;
-
-  // Spine items (regions + gates interleaved).
-  const spineItems: SpineItem[] = useMemo(() => {
-    const out: SpineItem[] = [];
-    regions.forEach((r) => {
-      const st = regionStatus(r);
-      out.push({ kind: "region", status: st, active: st === "active" });
-      if (r.island.checkpoint) {
-        out.push({ kind: "gate", status: r.completedCount === 10 ? "gate-open" : "gate-locked", active: false });
-      }
-    });
-    return out;
-  }, [regions, regionStatus]);
 
   let examCounter = 0;
 
@@ -1267,6 +810,7 @@ export default function TestWorldMap() {
 
       {/* The certificate — destination, always visible */}
       <CertificateSummit completed={totalCompleted} total={100} energy={energy} />
+      <p className="mb-6 text-sm" style={{color:"var(--text-secondary)"}}>Дополнительных попыток: {attempts?.paid_remaining || 0}. Общий пакет — 10 попыток за 1 499 ₽ до 00:00 МСК. Покупка пока недоступна.</p>
 
       {/* One island: topo terrain behind the whole trail + spine + trail column */}
       <motion.div
@@ -1275,9 +819,9 @@ export default function TestWorldMap() {
         transition={{ duration: 0.35 }}
         className="relative"
       >
-        <TopoTerrain />
+
         <div className="relative flex gap-4" style={{ zIndex: 1 }}>
-          <TrailSpine items={spineItems} />
+
 
           <div className="min-w-0 flex-1">
             {regions.map((r) => {
@@ -1288,7 +832,6 @@ export default function TestWorldMap() {
                 <div key={r.island.id}>
                   <RegionBlock
                     island={r.island}
-                    idx={r.idx}
                     levels={r.levels}
                     status={st}
                     expanded={openIsland === r.island.id}
@@ -1313,6 +856,7 @@ export default function TestWorldMap() {
             state={selectedState}
             island={selectedIsland}
             energy={energy}
+            paidRemaining={attempts?.paid_remaining || 0}
             onClose={() => setSelectedLevel(null)}
             onStart={startLevel}
             onPurchase={purchaseAttempts}
