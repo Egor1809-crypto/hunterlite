@@ -11,7 +11,7 @@ from app.database import get_db
 from app.models.user import User
 from app.models.training_map import TrainingMapProgress
 from app.core.deps import get_current_user
-from app.services import telegram_attempts
+from app.services import telegram_attempts, daily_attempts
 from app.services.constructor_access import (
     CONSTRUCTOR_UNLOCK_HINT,
     is_constructor_unlocked,
@@ -26,6 +26,7 @@ class TrainingMapResponse(BaseModel):
     cases: Any
     energy: Any
     # CONSTRUCTOR_TZ §3 — разблокировка конструктора по региону 1 теста.
+    attempts: dict | None = None
     constructor_unlocked: bool = False
     constructor_unlock_hint: str | None = None
 
@@ -42,19 +43,22 @@ async def get_progress(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> TrainingMapResponse:
+    await daily_attempts.locked_wallet(db, user.id)
     result = await db.execute(
         select(TrainingMapProgress).where(TrainingMapProgress.user_id == user.id)
     )
     row = result.scalar_one_or_none()
     if row is None:
         return TrainingMapResponse(
-            test_map={}, exams={}, cases={}, energy={},
+            test_map={}, exams={}, cases={}, energy={}, attempts=await daily_attempts.balance(db, user.id),
             constructor_unlocked=False,
             constructor_unlock_hint=CONSTRUCTOR_UNLOCK_HINT,
         )
+    wallet = await daily_attempts.balance(db, user.id)
     unlocked = is_constructor_unlocked(row.test_map)
     return TrainingMapResponse(
-        test_map=row.test_map, exams=row.exams, cases=row.cases, energy=row.energy or {},
+        test_map=_map_with_attempts(row.test_map, wallet), exams=row.exams, cases=row.cases,
+        energy={"date":wallet["day"],"remaining":wallet["free_remaining"]}, attempts=wallet,
         constructor_unlocked=unlocked,
         constructor_unlock_hint=None if unlocked else CONSTRUCTOR_UNLOCK_HINT,
     )
@@ -66,6 +70,7 @@ async def save_progress(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> TrainingMapResponse:
+    await daily_attempts.locked_wallet(db, user.id)
     result = await db.execute(
         select(TrainingMapProgress).where(TrainingMapProgress.user_id == user.id)
     )
@@ -82,7 +87,7 @@ async def save_progress(
         db.add(row)
     else:
         if body.test_map is not None:
-            row.test_map = body.test_map
+            row.test_map = _map_with_attempts(body.test_map, await daily_attempts.balance(db, user.id))
         if body.exams is not None:
             row.exams = body.exams
         if body.cases is not None:
@@ -92,17 +97,19 @@ async def save_progress(
 
     await db.commit()
     await db.refresh(row)
+    wallet = await daily_attempts.balance(db, user.id)
     unlocked = is_constructor_unlocked(row.test_map)
     return TrainingMapResponse(
-        test_map=row.test_map, exams=row.exams, cases=row.cases, energy=row.energy or {},
+        test_map=_map_with_attempts(row.test_map, wallet), exams=row.exams, cases=row.cases,
+        energy={"date":wallet["day"],"remaining":wallet["free_remaining"]}, attempts=wallet,
         constructor_unlocked=unlocked,
         constructor_unlock_hint=None if unlocked else CONSTRUCTOR_UNLOCK_HINT,
     )
 
 
 class BuyAttemptsRequest(BaseModel):
-    level: int
-    pack: int = 5
+    level: int | None = None
+    pack: int = 10
 
 
 class DeeplinkResponse(BaseModel):
@@ -116,17 +123,9 @@ async def buy_attempts_deeplink(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> DeeplinkResponse:
-    """Mint a Telegram deeplink to buy more attempts on a level.
-
-    Payment isn't wired yet — the pilot bot grants the pack for free — but
-    the purchase always goes through @BFLHUNTER_bot so account linking,
-    granting and notifications live in one place.
-    """
-    if body.level < 1 or body.level > 100:
-        raise HTTPException(status_code=400, detail="level out of range")
-    pack = max(1, min(50, body.pack))
+    """Open the fixed daily offer. Checkout awaits provider integration."""
     deeplink = await telegram_attempts.create_buy_deeplink(
-        db, user=user, level=body.level, pack=pack,
+        db, user=user, level=body.level, pack=10,
     )
     return DeeplinkResponse(deeplink=deeplink, telegram_linked=user.telegram_id is not None)
 
@@ -139,3 +138,17 @@ async def telegram_link_deeplink(
     """Mint a Telegram deeplink that just links the account (no purchase)."""
     deeplink = await telegram_attempts.create_link_deeplink(db, user=user)
     return DeeplinkResponse(deeplink=deeplink, telegram_linked=user.telegram_id is not None)
+
+
+def _map_with_attempts(test_map, wallet):
+    if not isinstance(test_map, list):
+        return test_map
+    return [{**x, "attemptsDate":wallet["day"],
+        "attempts":wallet["level_uses"].get(str(x.get("level")),0), "bonusAttempts":0}
+        if isinstance(x,dict) else x for x in test_map]
+
+@router.get("/attempts")
+async def get_attempts(user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    await daily_attempts.locked_wallet(db, user.id)
+    await db.commit()
+    return await daily_attempts.balance(db, user.id)

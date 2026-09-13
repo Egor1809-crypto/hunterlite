@@ -435,3 +435,5 @@ __all__ = [
     "AssistantConversation",
     "AssistantMessage",
 ]
+
+from app.models.daily_attempts import DailyAttempts, AttemptPayment

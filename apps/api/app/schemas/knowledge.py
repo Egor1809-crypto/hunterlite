@@ -32,6 +32,7 @@ class CategoriesResponse(BaseModel):
 
 class SessionCreateRequest(BaseModel):
     """Create a new quiz session."""
+    map_level: int | None = Field(None, ge=1, le=100)
     mode: str = Field(..., description="Quiz mode: free_dialog | blitz | themed | pvp")
     category: str | None = Field(None, description="Category slug (required for themed mode)")
     difficulty: int = Field(3, ge=1, le=5, description="Difficulty 1-5")

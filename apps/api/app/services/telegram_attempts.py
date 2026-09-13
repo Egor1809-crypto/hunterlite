@@ -1,19 +1,8 @@
-"""Telegram-bridged training attempts (@BFLHUNTER_bot).
+"""Single-use account linking; purchase links display the fixed daily offer.
 
-The web app can't grant paid/boosted attempts on its own — purchases run
-through the Telegram bot so there's a single ecosystem (account linking +
-buying + notifications). The flow:
-
-  1. Web calls :func:`create_buy_deeplink` → gets ``https://t.me/<bot>?start=buy_<token>``.
-  2. User opens it; the bot receives ``/start buy_<token>``.
-  3. :func:`redeem_token` links the TG account to the web user (if not yet
-     linked) and grants the attempts on the encoded level.
-
-Tokens are short opaque strings (Telegram's ``start`` payload caps at 64
-chars / ``[A-Za-z0-9_-]``, so a JWT won't fit). They're single-use and
-short-lived, stored in ``telegram_link_tokens``.
+Opening a link never grants attempts. Paid credits require independently
+verified provider confirmation in daily_attempts.confirm_payment.
 """
-
 from __future__ import annotations
 
 import logging
@@ -22,7 +11,8 @@ from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm.attributes import flag_modified
+from sqlalchemy.exc import IntegrityError
+from app.services.daily_attempts import moscow_day, balance, PACK_SIZE, PRICE_KOPECKS
 
 from app.config import settings
 from app.models.telegram_link import TelegramLinkToken
@@ -36,8 +26,7 @@ MAX_BONUS_PER_LEVEL = 50
 
 
 def _utc_date_key() -> str:
-    """UTC date (YYYY-MM-DD) — matches the web client's attemptsDate key."""
-    return datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    return moscow_day().isoformat()
 
 
 def _deeplink(prefix: str, token: str) -> str:
@@ -61,11 +50,11 @@ async def _mint_token(
 
 
 async def create_buy_deeplink(
-    db: AsyncSession, *, user: User, level: int, pack: int = 5,
+    db: AsyncSession, *, user: User, level: int | None = None, pack: int = 10,
 ) -> str:
-    """Mint a one-time token for buying ``pack`` attempts on ``level``."""
+    """Mint a link to the fixed common daily offer."""
     token = await _mint_token(
-        db, user=user, purpose="buy", payload={"level": int(level), "pack": int(pack)},
+        db, user=user, purpose="buy", payload={"pack": PACK_SIZE, "price_kopecks": PRICE_KOPECKS},
     )
     return _deeplink("buy", token)
 
@@ -74,51 +63,6 @@ async def create_link_deeplink(db: AsyncSession, *, user: User) -> str:
     """Mint a one-time token for linking the Telegram account only."""
     token = await _mint_token(db, user=user, purpose="link", payload={})
     return _deeplink("link", token)
-
-
-async def _grant_attempts(
-    db: AsyncSession, *, user_id, level: int, pack: int,
-) -> int:
-    """Add ``pack`` bonus attempts to ``level`` in the user's training map.
-
-    Returns the new bonusAttempts total for the level. Mirrors the web
-    client's per-UTC-day reset: if attemptsDate is stale, the day's counters
-    start fresh and the pack is the only bonus.
-    """
-    result = await db.execute(
-        select(TrainingMapProgress).where(TrainingMapProgress.user_id == user_id)
-    )
-    row = result.scalar_one_or_none()
-    if row is None:
-        row = TrainingMapProgress(user_id=user_id, test_map=[], exams={}, cases={}, energy={})
-        db.add(row)
-
-    tm = row.test_map if isinstance(row.test_map, list) else []
-    idx = max(0, int(level) - 1)
-    while len(tm) <= idx:
-        tm.append(None)
-
-    item = tm[idx] if isinstance(tm[idx], dict) else {"level": int(level)}
-    today = _utc_date_key()
-    same_day = item.get("attemptsDate") == today
-    prev_bonus = int(item.get("bonusAttempts") or 0) if same_day else 0
-    prev_attempts = int(item.get("attempts") or 0) if same_day else 0
-    new_bonus = min(MAX_BONUS_PER_LEVEL, prev_bonus + int(pack))
-
-    item.update(
-        {
-            "level": int(level),
-            "attempts": prev_attempts,
-            "attemptsDate": today,
-            "bonusAttempts": new_bonus,
-            "status": item.get("status") or "available",
-        }
-    )
-    tm[idx] = item
-    row.test_map = tm
-    flag_modified(row, "test_map")
-    await db.commit()
-    return new_bonus
 
 
 async def redeem_token(
@@ -131,22 +75,26 @@ async def redeem_token(
        "bonus": int?, "error": str?, "linked": bool}
     """
     result = await db.execute(
-        select(TelegramLinkToken).where(TelegramLinkToken.token == token)
+        select(TelegramLinkToken).where(TelegramLinkToken.token == token).with_for_update()
     )
     row = result.scalar_one_or_none()
     if row is None:
         return {"ok": False, "error": "not_found"}
     if row.used_at is not None:
         return {"ok": False, "error": "used"}
-    if row.expires_at < datetime.now(timezone.utc):
+    if row.expires_at.replace(tzinfo=timezone.utc) < datetime.now(timezone.utc):
         return {"ok": False, "error": "expired"}
 
-    user = await db.get(User, row.user_id)
+    user = await db.scalar(select(User).where(User.id == row.user_id).with_for_update())
     if user is None:
         return {"ok": False, "error": "user_gone"}
 
     # Link the Telegram account if this TG id isn't bound yet. If it's bound
     # to a DIFFERENT user, refuse — one TG account maps to one web account.
+    if not telegram_id:
+        return {"ok": False, "error": "invalid_telegram"}
+    if user.telegram_id and user.telegram_id != str(telegram_id):
+        return {"ok": False, "error": "account_linked"}
     linked_now = False
     existing = await db.execute(
         select(User).where(User.telegram_id == str(telegram_id))
@@ -163,13 +111,12 @@ async def redeem_token(
     out: dict = {"ok": True, "purpose": row.purpose, "linked": linked_now,
                  "user_name": user.full_name}
     if row.purpose == "buy":
-        level = int(row.payload.get("level", 1))
-        pack = int(row.payload.get("pack", 5))
-        # commit happens inside _grant_attempts; link + used_at flush with it
-        bonus = await _grant_attempts(db, user_id=user.id, level=level, pack=pack)
-        out.update({"level": level, "pack": pack, "bonus": bonus})
-    else:
+        out.update({"pack": PACK_SIZE, "price_kopecks": PRICE_KOPECKS, "checkout_available": False})
+    try:
         await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        return {"ok": False, "error": "tg_taken"}
     return out
 
 
@@ -199,4 +146,5 @@ async def get_progress_summary(db: AsyncSession, *, telegram_id: str) -> dict | 
         "completed": completed,
         "total": 100,
         "energy_remaining": energy_remaining,
+        "attempts": await balance(db, user.id),
     }
