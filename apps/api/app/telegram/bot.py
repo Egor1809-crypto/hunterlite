@@ -219,7 +219,7 @@ async def cmd_status(message: Message) -> None:
             "<b>📊 Статус</b>\n\n"
             "Ваш Telegram ещё не привязан к аккаунту платформы.\n"
             "Откройте платформу и нажмите «Привязать Telegram», "
-            "чтобы я мог показывать прогресс и начислять попытки.",
+            "чтобы видеть прогресс и баланс попыток.",
             parse_mode=ParseMode.HTML,
             reply_markup=_main_keyboard(),
         )

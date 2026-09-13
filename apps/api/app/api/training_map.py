@@ -48,17 +48,25 @@ async def get_progress(
         select(TrainingMapProgress).where(TrainingMapProgress.user_id == user.id)
     )
     row = result.scalar_one_or_none()
+    wallet = await daily_attempts.balance(db, user.id)
     if row is None:
         return TrainingMapResponse(
-            test_map={}, exams={}, cases={}, energy={}, attempts=await daily_attempts.balance(db, user.id),
+            test_map={},
+            exams={},
+            cases={},
+            energy={"date": wallet["day"], "remaining": wallet["free_remaining"]},
+            attempts=wallet,
             constructor_unlocked=False,
             constructor_unlock_hint=CONSTRUCTOR_UNLOCK_HINT,
         )
     wallet = await daily_attempts.balance(db, user.id)
     unlocked = is_constructor_unlocked(row.test_map)
     return TrainingMapResponse(
-        test_map=_map_with_attempts(row.test_map, wallet), exams=row.exams, cases=row.cases,
-        energy={"date":wallet["day"],"remaining":wallet["free_remaining"]}, attempts=wallet,
+        test_map=_map_with_attempts(row.test_map, wallet),
+        exams=row.exams,
+        cases=row.cases,
+        energy={"date": wallet["day"], "remaining": wallet["free_remaining"]},
+        attempts=wallet,
         constructor_unlocked=unlocked,
         constructor_unlock_hint=None if unlocked else CONSTRUCTOR_UNLOCK_HINT,
     )
@@ -87,7 +95,9 @@ async def save_progress(
         db.add(row)
     else:
         if body.test_map is not None:
-            row.test_map = _map_with_attempts(body.test_map, await daily_attempts.balance(db, user.id))
+            row.test_map = _map_with_attempts(
+                body.test_map, await daily_attempts.balance(db, user.id)
+            )
         if body.exams is not None:
             row.exams = body.exams
         if body.cases is not None:
@@ -100,8 +110,11 @@ async def save_progress(
     wallet = await daily_attempts.balance(db, user.id)
     unlocked = is_constructor_unlocked(row.test_map)
     return TrainingMapResponse(
-        test_map=_map_with_attempts(row.test_map, wallet), exams=row.exams, cases=row.cases,
-        energy={"date":wallet["day"],"remaining":wallet["free_remaining"]}, attempts=wallet,
+        test_map=_map_with_attempts(row.test_map, wallet),
+        exams=row.exams,
+        cases=row.cases,
+        energy={"date": wallet["day"], "remaining": wallet["free_remaining"]},
+        attempts=wallet,
         constructor_unlocked=unlocked,
         constructor_unlock_hint=None if unlocked else CONSTRUCTOR_UNLOCK_HINT,
     )
@@ -125,7 +138,10 @@ async def buy_attempts_deeplink(
 ) -> DeeplinkResponse:
     """Open the fixed daily offer. Checkout awaits provider integration."""
     deeplink = await telegram_attempts.create_buy_deeplink(
-        db, user=user, level=body.level, pack=10,
+        db,
+        user=user,
+        level=body.level,
+        pack=10,
     )
     return DeeplinkResponse(deeplink=deeplink, telegram_linked=user.telegram_id is not None)
 
@@ -143,9 +159,18 @@ async def telegram_link_deeplink(
 def _map_with_attempts(test_map, wallet):
     if not isinstance(test_map, list):
         return test_map
-    return [{**x, "attemptsDate":wallet["day"],
-        "attempts":wallet["level_uses"].get(str(x.get("level")),0), "bonusAttempts":0}
-        if isinstance(x,dict) else x for x in test_map]
+    return [
+        {
+            **x,
+            "attemptsDate": wallet["day"],
+            "attempts": wallet["level_uses"].get(str(x.get("level")), 0),
+            "bonusAttempts": 0,
+        }
+        if isinstance(x, dict)
+        else x
+        for x in test_map
+    ]
+
 
 @router.get("/attempts")
 async def get_attempts(user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):

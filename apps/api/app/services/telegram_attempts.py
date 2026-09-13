@@ -3,6 +3,7 @@
 Opening a link never grants attempts. Paid credits require independently
 verified provider confirmation in daily_attempts.confirm_payment.
 """
+
 from __future__ import annotations
 
 import logging
@@ -12,7 +13,7 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import IntegrityError
-from app.services.daily_attempts import moscow_day, balance, PACK_SIZE, PRICE_KOPECKS
+from app.services.daily_attempts import moscow_day, balance, locked_wallet, PACK_SIZE, PRICE_KOPECKS
 
 from app.config import settings
 from app.models.telegram_link import TelegramLinkToken
@@ -22,7 +23,6 @@ from app.models.user import User
 logger = logging.getLogger(__name__)
 
 TOKEN_TTL_MINUTES = 30
-MAX_BONUS_PER_LEVEL = 50
 
 
 def _utc_date_key() -> str:
@@ -34,7 +34,11 @@ def _deeplink(prefix: str, token: str) -> str:
 
 
 async def _mint_token(
-    db: AsyncSession, *, user: User, purpose: str, payload: dict,
+    db: AsyncSession,
+    *,
+    user: User,
+    purpose: str,
+    payload: dict,
 ) -> str:
     token = secrets.token_urlsafe(24)
     row = TelegramLinkToken(
@@ -50,11 +54,18 @@ async def _mint_token(
 
 
 async def create_buy_deeplink(
-    db: AsyncSession, *, user: User, level: int | None = None, pack: int = 10,
+    db: AsyncSession,
+    *,
+    user: User,
+    level: int | None = None,
+    pack: int = 10,
 ) -> str:
     """Mint a link to the fixed common daily offer."""
     token = await _mint_token(
-        db, user=user, purpose="buy", payload={"pack": PACK_SIZE, "price_kopecks": PRICE_KOPECKS},
+        db,
+        user=user,
+        purpose="buy",
+        payload={"pack": PACK_SIZE, "price_kopecks": PRICE_KOPECKS},
     )
     return _deeplink("buy", token)
 
@@ -66,7 +77,10 @@ async def create_link_deeplink(db: AsyncSession, *, user: User) -> str:
 
 
 async def redeem_token(
-    db: AsyncSession, *, token: str, telegram_id: str,
+    db: AsyncSession,
+    *,
+    token: str,
+    telegram_id: str,
 ) -> dict:
     """Consume a deeplink token: link the TG account + apply its action.
 
@@ -96,9 +110,7 @@ async def redeem_token(
     if user.telegram_id and user.telegram_id != str(telegram_id):
         return {"ok": False, "error": "account_linked"}
     linked_now = False
-    existing = await db.execute(
-        select(User).where(User.telegram_id == str(telegram_id))
-    )
+    existing = await db.execute(select(User).where(User.telegram_id == str(telegram_id)))
     owner = existing.scalar_one_or_none()
     if owner is None:
         user.telegram_id = str(telegram_id)
@@ -108,8 +120,12 @@ async def redeem_token(
 
     row.used_at = datetime.now(timezone.utc)
 
-    out: dict = {"ok": True, "purpose": row.purpose, "linked": linked_now,
-                 "user_name": user.full_name}
+    out: dict = {
+        "ok": True,
+        "purpose": row.purpose,
+        "linked": linked_now,
+        "user_name": user.full_name,
+    }
     if row.purpose == "buy":
         out.update({"pack": PACK_SIZE, "price_kopecks": PRICE_KOPECKS, "checkout_available": False})
     try:
@@ -122,13 +138,13 @@ async def redeem_token(
 
 async def get_progress_summary(db: AsyncSession, *, telegram_id: str) -> dict | None:
     """Short progress digest for a linked TG account, or None if unlinked."""
-    result = await db.execute(
-        select(User).where(User.telegram_id == str(telegram_id))
-    )
+    result = await db.execute(select(User).where(User.telegram_id == str(telegram_id)))
     user = result.scalar_one_or_none()
     if user is None:
         return None
 
+    await locked_wallet(db, user.id)
+    await db.commit()
     tm_result = await db.execute(
         select(TrainingMapProgress).where(TrainingMapProgress.user_id == user.id)
     )
