@@ -299,12 +299,13 @@ def create_bot() -> Bot:
     # datacenters block it). Without it, set_webhook and every sendMessage
     # time out. http(s):// proxies work via aiohttp natively; socks5:// needs
     # the aiohttp_socks extra (declared in pyproject).
-    proxy = (settings.telegram_proxy or "").strip()
-    if proxy:
-        from aiogram.client.session.aiohttp import AiohttpSession
-        session = AiohttpSession(proxy=proxy)
-        return Bot(token=settings.telegram_bot_token, session=session)
-    return Bot(token=settings.telegram_bot_token)
+    from aiogram.client.session.aiohttp import AiohttpSession
+    from app.telegram.transport import RetryTransientRequests
+
+    proxy = (settings.telegram_proxy or "").strip() or None
+    session = AiohttpSession(proxy=proxy, timeout=10)
+    session.middleware(RetryTransientRequests())
+    return Bot(token=settings.telegram_bot_token, session=session)
 
 
 def create_dispatcher() -> Dispatcher:
