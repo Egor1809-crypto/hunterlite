@@ -17,7 +17,6 @@
  */
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { EditorialHeader } from "@/components/ui/EditorialHeader";
 import { useRouter } from "next/navigation";
 import {
   motion,
@@ -99,9 +98,9 @@ function ScrollProgress({ progress }: { progress: MotionValue<number> }) {
         scaleX: progress,
         transformOrigin: "0%",
         position: "sticky",
-        top: 0,
+        top: "var(--workspace-toolbar-height, 0px)",
         height: 3,
-        zIndex: 50,
+        zIndex: 30,
         background: "var(--primary)",
       }}
     />
@@ -370,214 +369,8 @@ export default function ChampionshipPage({ surface = "app" }: { surface?: "app" 
     }
   };
 
-  if (!isLanding)
-    return (
-      <main
-        ref={rootRef}
-        className="editorial-page mx-auto max-w-[920px] px-6 py-12 sm:px-10 sm:py-20"
-      >
-        <div ref={heroRef}>
-          <EditorialHeader
-            title="Чемпионат"
-            subtitle={
-              champ?.title ||
-              "Розыгрыш среди участников, выполнивших условия сезона."
-            }
-          />
-        </div>
-        <div className="editorial-season-summary">
-          <div>
-            <span>{countdownLabel}</span>
-            <strong>{cd ? `${cd.d} дн ${cd.h} ч ${cd.m} мин` : "—"}</strong>
-          </div>
-          <div>
-            <span>Квалифицировано участников</span>
-            <strong>{qualifiedCount}</strong>
-          </div>
-        </div>
-        {actionError && <p role="alert" className="mt-6">{actionError}</p>}
-        {!loading && !champ && <p className="mt-6" style={{color:"var(--text-secondary)"}}>Сейчас нет открытого сезона. Заявки станут доступны после его объявления.</p>}
-        <section className="mt-10">
-          <h2 className="font-display text-3xl tracking-tight">
-            Ваш путь к участию
-          </h2>
-          <div className="editorial-index mt-6">
-            {[
-              {
-                title: "Сдать аттестацию",
-                text: "Все экзамены на проходной балл",
-                done: me?.criteria?.exam_passed,
-                href: "/exam",
-              },
-              {
-                title: "Проверить подписку",
-                text: "Для участия нужна активная платная подписка",
-                done: me?.criteria?.subscribed,
-                href: "/pricing",
-              },
-              {
-                title: "Пройти курсы",
-                text: "Юридические аспекты и экспертный уровень БФЛ",
-                done: me?.criteria?.courses_done,
-                href: "/courses",
-              },
-              {
-                title: "Оставить отзыв",
-                text: "Поделиться опытом обучения",
-                done: me?.criteria?.review_left,
-                href: "/reviews",
-              },
-            ].map((step, i) => (
-              <Link
-                key={step.title}
-                href={step.href}
-                className="editorial-index-row"
-              >
-                <span className="editorial-index-number">
-                  {String(i + 1).padStart(2, "0")}
-                </span>
-                <div className="flex-1">
-                  <h3>{step.title}</h3>
-                  <p
-                    className="mt-1 text-sm"
-                    style={{ color: "var(--text-secondary)" }}
-                  >
-                    {step.text}
-                  </p>
-                </div>
-                <span
-                  className="text-sm"
-                  style={{
-                    color: step.done
-                      ? "var(--primary)"
-                      : "var(--text-secondary)",
-                  }}
-                >
-                  {step.done ? "Выполнено" : "Перейти"}
-                </span>
-                <ArrowRight size={18} />
-              </Link>
-            ))}
-          </div>
-          <div className="flex flex-wrap gap-4 items-center mt-6">
-            {me?.enrolled ? (
-              <p
-                className="inline-flex items-center gap-2"
-                style={{ color: "var(--primary)" }}
-              >
-                <Check size={18} />
-                Вы участвуете в розыгрыше
-              </p>
-            ) : (
-              <button
-                className="call-primary"
-                onClick={onEnroll}
-                disabled={
-                  enrolling ||
-                  loading ||
-                  !champ ||
-                  !["active", "upcoming"].includes(champ.status)
-                }
-              >
-                {enrolling ? "Отправляю…" : "Подать заявку"}
-                <ArrowRight size={18} />
-              </button>
-            )}
-            <Link href="/championship/rules" className="text-sm underline">
-              Полные условия участия
-            </Link>
-          </div>
-        </section>
-        {prizes.length > 0 && (
-          <section className="mt-14">
-            <h2 className="font-display text-3xl tracking-tight">
-              Призы сезона
-            </h2>
-            <div className="editorial-index mt-6">
-              {prizes.map((p) => (
-                <div key={p.rank} className="editorial-index-row">
-                  <span className="editorial-index-number">
-                    {String(p.rank).padStart(2, "0")}
-                  </span>
-                  <h3>{p.name}</h3>
-                </div>
-              ))}
-            </div>
-          </section>
-        )}
-        <section className="mt-14">
-          <h2 className="font-display text-3xl tracking-tight">Участники</h2>
-          <div className="editorial-index mt-6">
-            {leaderboard.length ? (
-              leaderboard.map((row) => (
-                <div
-                  key={`${row.rank}-${row.name}`}
-                  className="editorial-index-row"
-                >
-                  <span className="editorial-index-number">{row.rank}</span>
-                  <span className="flex-1">{row.name}</span>
-                  <span>{Math.round(row.score)} баллов</span>
-                </div>
-              ))
-            ) : (
-              <p
-                className="py-6 text-sm"
-                style={{ color: "var(--text-secondary)" }}
-              >
-                {loading
-                  ? "Загружаю участников…"
-                  : "Пока нет квалифицированных участников."}
-              </p>
-            )}
-          </div>
-          <p
-            className="mt-4 text-sm"
-            style={{ color: "var(--text-secondary)" }}
-          >
-            Победители определяются розыгрышем среди выполнивших условия. Место
-            в списке не определяет победителя.
-          </p>
-        </section>
-        <section className="mt-14">
-          <h2 className="font-display text-3xl tracking-tight">
-            Победители прошлых сезонов
-          </h2>
-          {winners.length ? (
-            winners.map((w) => (
-              <div
-                key={`${w.championship_number}-${w.rank}`}
-                className="editorial-index-row"
-              >
-                <span className="flex-1">{w.name}</span>
-                <span className="text-sm">
-                  {w.prize} · Сезон {w.championship_number}
-                </span>
-              </div>
-            ))
-          ) : (
-            <p
-              className="mt-4 text-sm"
-              style={{ color: "var(--text-secondary)" }}
-            >
-              Имена появятся после подведения итогов первого сезона.
-            </p>
-          )}
-        </section>
-        <footer
-          className="mt-14 border-t pt-6 flex flex-wrap gap-6 text-sm"
-          style={{ borderColor: "var(--border-color)" }}
-        >
-          <Link href="/championship/rules">Положение о чемпионате ↗</Link>
-          <a href={BOT_URL} target="_blank" rel="noopener noreferrer">
-            Вопрос в Telegram ↗
-          </a>
-        </footer>
-      </main>
-    );
-
-
   return (
-    <div ref={rootRef} className="relative">
+    <div ref={rootRef} className="relative min-w-0 [container-type:inline-size]">
       <ScrollProgress progress={scrollYProgress} />
 
       {/* ── HERO ── */}
@@ -590,11 +383,11 @@ export default function ChampionshipPage({ surface = "app" }: { surface?: "app" 
           {champ ? `Чемпионат №${champ.number} · ${seasonLabel(champ.season_type)}` : "Чемпионат сезона"}
         </div>
         <motion.h1
-          initial={{ opacity: 0, y: 16 }}
+          initial={heroReduced ? false : { opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, ease: "easeOut" }}
           className="mt-4 font-semibold"
-          style={{ fontSize: "clamp(38px, 6.4vw, 92px)", lineHeight: 0.94, letterSpacing: "-0.045em", color: "var(--text-primary)", hyphens: "none", WebkitHyphens: "none" }}
+          style={{ fontSize: "clamp(26px, 7.8cqw, 92px)", lineHeight: 0.94, letterSpacing: "-0.045em", color: "var(--text-primary)", hyphens: "none", WebkitHyphens: "none" }}
         >
           {(() => {
             const parts = (champ?.title ?? "Чемпионат сезона").split("·").map((s) => s.trim());
@@ -654,7 +447,7 @@ export default function ChampionshipPage({ surface = "app" }: { surface?: "app" 
           ) : (
             <button
               onClick={isLanding ? () => router.push("/register") : onEnroll}
-              disabled={enrolling || champ?.status === "finished"}
+              disabled={enrolling || loading || !champ || !["active", "upcoming"].includes(champ.status)}
               className="inline-flex items-center gap-2 rounded-full px-6 py-3.5 text-base font-semibold transition-transform hover:scale-[1.02] disabled:opacity-60"
               style={{ background: "var(--primary)", color: "var(--primary-contrast, #fff)" }}
             >
@@ -668,6 +461,8 @@ export default function ChampionshipPage({ surface = "app" }: { surface?: "app" 
             </span>
           )}
         </div>
+        {actionError && <p role="alert" className="mt-4" style={{ color: "var(--text-secondary)" }}>{actionError}</p>}
+        {!loading && !champ && <p className="mt-4" style={{ color: "var(--text-secondary)" }}>Сейчас нет открытого сезона. Заявки станут доступны после его объявления.</p>}
       </motion.section>
 
       {/* ── PRIZES (sticky storytelling) ── */}
@@ -696,13 +491,14 @@ export default function ChampionshipPage({ surface = "app" }: { surface?: "app" 
             02 · Как участвовать
           </div>
           <h2 className="font-semibold tracking-tight" style={{ fontSize: "clamp(32px, 5vw, 64px)", lineHeight: 1, letterSpacing: "-0.03em", color: "var(--text-primary)" }}>
-            Четыре шага до розыгрыша.
+            {isLanding ? "Четыре шага до розыгрыша." : "Пять шагов до розыгрыша."}
           </h2>
         </Reveal>
         <div className="mt-10 grid gap-4 sm:grid-cols-2">
           {[
-            { t: "Сдайте аттестацию", n: "Все экзамены на ≥ 88% — получите именной сертификат.", done: me?.criteria?.exam_passed, href: undefined as string | undefined },
-            { t: "Пройдите курсы", n: "«Юридические аспекты» и «Экспертный уровень БФЛ».", done: me?.criteria?.courses_done, href: undefined },
+            { t: "Сдайте аттестацию", n: "Все экзамены на ≥ 88% — получите именной сертификат.", done: me?.criteria?.exam_passed, href: isLanding ? undefined : "/exam" },
+            ...(!isLanding ? [{ t: "Проверьте подписку", n: "Для участия нужна активная платная подписка.", done: me?.criteria?.subscribed, href: "/pricing" }] : []),
+            { t: "Пройдите курсы", n: "«Юридические аспекты» и «Экспертный уровень БФЛ».", done: me?.criteria?.courses_done, href: isLanding ? undefined : "/courses" },
             { t: "Оставьте отзыв", n: "Поделитесь опытом на странице отзывов — это одно из условий участия.", done: me?.criteria?.review_left, href: "/reviews" },
             { t: "Подайте заявку", n: "Нажмите «Участвовать» — и вы в пуле розыгрыша.", done: me?.enrolled, href: undefined },
           ].map((step, i) => {
@@ -727,6 +523,7 @@ export default function ChampionshipPage({ surface = "app" }: { surface?: "app" 
                     {step.href ? <ArrowRight size={15} style={{ color: "var(--primary)" }} /> : null}
                   </div>
                   <div className="mt-1 text-sm leading-snug" style={{ color: "var(--text-secondary)" }}>{step.n}</div>
+                  {!isLanding && <div className="mt-3 text-xs font-medium" style={{ color: step.done ? "var(--primary)" : "var(--text-muted)" }}>{step.done ? "Выполнено" : "Ещё не выполнено"}</div>}
                 </div>
               </div>
             );
