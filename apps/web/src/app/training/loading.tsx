@@ -1,10 +1,2 @@
-import { PageSkeleton, LoadingTip } from "@/components/ui/Skeleton";
-
-export default function TrainingLoading() {
-  return (
-    <>
-      <PageSkeleton />
-      <LoadingTip />
-    </>
-  );
-}
+import { WorkspaceLoading } from "@/components/layout/WorkspaceLoading";
+export default function Loading() { return <WorkspaceLoading />; }

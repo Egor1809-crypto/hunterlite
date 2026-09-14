@@ -1356,7 +1356,7 @@ export default function TrainingSessionPage() {
     // Minimal loader — calm, no boot animation.
     return (
       <div
-        className="flex min-h-dvh items-center justify-center"
+        className="flex min-h-[var(--workspace-stage-height,100dvh)] items-center justify-center"
         style={{ background: "var(--bg-primary)" }}
       >
         <div className="flex flex-col items-center gap-3">
@@ -1379,7 +1379,7 @@ export default function TrainingSessionPage() {
   // Wait for auth bootstrap (token refresh via cookie if needed) before rendering
   if (!authReady) {
     return (
-      <div className="flex h-dvh items-center justify-center" style={{ background: "var(--bg-primary)" }}>
+      <div className="flex h-[var(--workspace-stage-height,100dvh)] items-center justify-center" style={{ background: "var(--bg-primary)" }}>
         <Loader2 size={28} className="animate-spin" style={{ color: "var(--accent)" }} />
       </div>
     );
@@ -1387,7 +1387,7 @@ export default function TrainingSessionPage() {
 
   return (
     <TrainingErrorBoundary sessionId={routeId}>
-    <div className="flex h-dvh flex-col overflow-hidden" style={{ background: "var(--bg-primary)" }}>
+    <div className="flex h-[var(--workspace-stage-height,100dvh)] flex-col overflow-hidden" style={{ background: "var(--bg-primary)" }}>
 
       {/* 2026-06-06 editorial refine: removed the full-screen .global-mic-glow
           neon overlay. Mic-active feedback now lives on the CrystalMic itself. */}

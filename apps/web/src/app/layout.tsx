@@ -3,6 +3,7 @@ import { headers } from "next/headers";
 import { Geist, Geist_Mono } from "next/font/google";
 import { ViewTransitions } from "next-view-transitions";
 import { Providers } from "@/components/providers/Providers";
+import WorkspaceFrame from "@/components/layout/WorkspaceFrame";
 import CookieBanner from "@/components/legal/CookieBanner";
 import "./globals.css";
 
@@ -86,7 +87,7 @@ export default async function RootLayout({
       <body className={`${geistSans.variable} ${geistMono.variable} min-h-screen antialiased`}>
         <ViewTransitions>
           <Providers>
-            {children}
+            <WorkspaceFrame>{children}</WorkspaceFrame>
             <CookieBanner />
           </Providers>
         </ViewTransitions>

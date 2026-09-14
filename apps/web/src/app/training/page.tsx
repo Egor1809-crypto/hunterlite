@@ -92,9 +92,9 @@ function TrainingPageContent() {
       >
         <div className="pointer-events-none absolute inset-0 z-0" style={{ backgroundImage: NOISE_SVG, backgroundRepeat: "repeat", opacity: 0.08 }} />
 
-        <div className="app-page">
+        <div className="workspace-page">
           {/* Header — единый редакторский паттерн (как /cases), без иконки-плашки */}
-          <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+          <motion.div initial={false}>
             <EditorialHeader
               eyebrowLeft="Практикум"
               eyebrowRight="ФЗ-127"

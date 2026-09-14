@@ -223,7 +223,7 @@ jobs:
         run: npx tsc --noEmit
 
       - name: Call reliability tests
-        run: npm test -- --run src/hooks/__tests__/useCallConnection.test.ts src/hooks/__tests__/useTTS-interrupt.test.ts src/components/training/__tests__/CallWorkspace.test.tsx src/lib/__tests__/pcm-wav.test.ts src/app/api/chat/route.test.ts src/lib/__tests__/manyashaRequest.test.ts src/components/__tests__/ManyashaChat.test.tsx src/lib/resultScoring.test.ts src/components/results/QualityAssessment.test.tsx
+        run: npm test -- --run src/hooks/__tests__/useCallConnection.test.ts src/hooks/__tests__/useTTS-interrupt.test.ts src/components/training/__tests__/CallWorkspace.test.tsx src/lib/__tests__/pcm-wav.test.ts src/app/api/chat/route.test.ts src/lib/__tests__/manyashaRequest.test.ts src/components/__tests__/ManyashaChat.test.tsx src/lib/resultScoring.test.ts src/components/results/QualityAssessment.test.tsx src/components/layout/__tests__/Workspace.test.tsx
 
       - name: Build
         run: npm run build

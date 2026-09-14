@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { EnergyStatus } from "@/components/layout/EnergyStatus";
 import AuthLayout from "@/components/layout/AuthLayout";
 import { CallWorkspace } from "@/components/training/CallWorkspace";
 import { useMicrophone } from "@/hooks/useMicrophone";
@@ -361,6 +362,7 @@ function CallScreen() {
             : "Можно говорить";
   return (
     <CallWorkspace
+      energyStatus={<EnergyStatus />}
       name={clientName}
       age={clientAge}
       portrait={portrait}

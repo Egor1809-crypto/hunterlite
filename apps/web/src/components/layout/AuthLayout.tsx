@@ -1,10 +1,9 @@
 "use client";
 
-import { useEffect, useState, useRef, Component, type ReactNode, type ErrorInfo } from "react";
+import { useEffect, useState, useRef, useContext, Component, type ReactNode, type ErrorInfo } from "react";
 import { useRouter, usePathname } from "next/navigation";
-import { motion } from "framer-motion";
 import { logger } from "@/lib/logger";
-import { Loader2, RefreshCw, AlertTriangle } from "lucide-react";
+import { RefreshCw, AlertTriangle } from "lucide-react";
 import { getToken, getRefreshToken, setTokens } from "@/lib/auth";
 import { api } from "@/lib/api";
 import { getApiBaseUrl } from "@/lib/public-origin";
@@ -45,6 +44,9 @@ function BootErrorCard({
   );
 }
 import AppShell from "./AppShell";
+import { WorkspaceContext } from "./WorkspaceContext";
+import { WorkspaceLoading } from "./WorkspaceLoading";
+import { useAuthStore } from "@/stores/useAuthStore";
 import { AutoBreadcrumbs } from "./AutoBreadcrumbs";
 import { KeyboardShortcutsOverlay } from "@/components/ui/KeyboardShortcutsOverlay";
 import { CommandPalette } from "@/components/ui/CommandPalette";
@@ -124,6 +126,7 @@ export default function AuthLayout({
   showBreadcrumbs = true,
   focusMode = false,
 }: AuthLayoutProps) {
+  const inWorkspace = useContext(WorkspaceContext);
   const router = useRouter();
   const pathname = usePathname();
   // Hide the floating Manyasha on /cases and on /knowledge: the knowledge page
@@ -220,6 +223,10 @@ export default function AuthLayout({
     boot();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps -- mount-only initialization
 
+  useEffect(() => {
+    if (state === "ready") void useAuthStore.getState().fetchUser();
+  }, [state]);
+
   if (state === "error") {
     const handleRetry = () => {
       const MAX_RETRIES = 5;
@@ -296,28 +303,12 @@ export default function AuthLayout({
     );
   }
 
-  if (state === "loading" || state === "redirecting") {
-    return (
-      <div className="flex min-h-screen items-center justify-center" style={{ background: "var(--bg-primary)" }}>
-        <motion.div
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="flex flex-col items-center gap-3"
-        >
-          <Loader2 size={28} className="animate-spin" style={{ color: "var(--primary)", opacity: 0.6 }} />
-          <span className="text-sm" style={{ color: "var(--text-muted)" }}>
-            {state === "loading" ? "Загрузка..." : "Перенаправление..."}
-          </span>
-        </motion.div>
-      </div>
-    );
-  }
+  if (state === "loading" || state === "redirecting") return <WorkspaceLoading />;
 
   if (focusMode) return <AuthErrorBoundary><div className="editorial-app call-focus">{children}</div></AuthErrorBoundary>;
 
-  return (
-    <AuthErrorBoundary>
-      <AppShell>
+  const content = (
+    <>
         <LLMDegradationBanner />
         {showBreadcrumbs && (
           <div className="max-w-7xl mx-auto px-4 pt-3">
@@ -333,7 +324,7 @@ export default function AuthLayout({
             {...(isContest ? { autoOpenMessage: CONTEST_INTRO, forceShow: true } : {})}
           />
         )}
-      </AppShell>
-    </AuthErrorBoundary>
+    </>
   );
+  return <AuthErrorBoundary>{inWorkspace ? content : <AppShell>{content}</AppShell>}</AuthErrorBoundary>;
 }

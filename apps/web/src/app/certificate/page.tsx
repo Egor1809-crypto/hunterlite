@@ -3,7 +3,8 @@
 import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { ArrowRight, ArrowUpRight, Loader2 } from "lucide-react";
+import { ArrowRight, ArrowUpRight } from "lucide-react";
+import { WorkspaceLoading } from "@/components/layout/WorkspaceLoading";
 import AuthLayout from "@/components/layout/AuthLayout";
 import { EditorialHeader } from "@/components/ui/EditorialHeader";
 import { Card } from "@/components/ui/Card";
@@ -86,12 +87,10 @@ export default function CertificatePage() {
     <AuthLayout showBreadcrumbs={false}>
       <div className="relative min-h-screen overflow-hidden editorial-page">
 
-        <div className="relative z-10 mx-auto max-w-[920px] px-5 py-8 sm:px-8 sm:py-12">
+        <div className="workspace-page relative z-10">
           {/* ── KEEP: editorial header framework ── */}
           <motion.div
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.24, ease: "easeOut" }}
+            initial={false}
           >
             <EditorialHeader
               eyebrowLeft="Аттестация · ФЗ-127"
@@ -102,9 +101,7 @@ export default function CertificatePage() {
           </motion.div>
 
           {loading ? (
-            <div className="mt-24 flex justify-center">
-              <Loader2 className="animate-spin" size={28} style={{ color: "var(--primary)" }} />
-            </div>
+            <WorkspaceLoading compact />
           ) : error ? (
             <Card variant="editorial" className="mt-10">
               <p className="text-sm" style={{ color: "var(--danger)" }}>

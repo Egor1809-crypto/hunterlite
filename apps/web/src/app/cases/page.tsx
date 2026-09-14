@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
+import { WorkspaceLoading } from "@/components/layout/WorkspaceLoading";
 import AuthLayout from "@/components/layout/AuthLayout";
 import { api } from "@/lib/api";
 
@@ -78,9 +79,9 @@ export default function CasesPage() {
   return (
     <AuthLayout showBreadcrumbs={false}>
       <div style={{ background: PAPER, color: INK, minHeight: "100vh" }}>
-        <div className="mx-auto max-w-[920px] px-6 sm:px-10 py-12 sm:py-20">
+        <div className="workspace-page">
           {/* Header */}
-          <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, ease: EASE }}>
+          <motion.div initial={false}>
             <h1
               className="font-display"
               style={{ fontSize: "clamp(44px,9vw,92px)", lineHeight: 0.95, letterSpacing: "-0.05em", fontWeight: 600 }}
@@ -120,9 +121,7 @@ export default function CasesPage() {
 
           {/* Index */}
           {loading ? (
-            <p className="font-mono mt-12" style={{ fontSize: 13, color: INK_FAINT }}>
-              загрузка…
-            </p>
+            <WorkspaceLoading compact />
           ) : cases.length === 0 ? (
             <p className="mt-12" style={{ fontSize: 15, color: INK_FAINT }}>
               Кейсы скоро появятся.
