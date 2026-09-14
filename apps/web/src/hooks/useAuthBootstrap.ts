@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { getToken, getRefreshToken, setTokens } from "@/lib/auth";
 import { getApiBaseUrl } from "@/lib/public-origin";
 import { logger } from "@/lib/logger";
+import { useAuthStore } from "@/stores/useAuthStore";
 
 type AuthState = "loading" | "ready" | "redirecting";
 
@@ -68,6 +69,7 @@ export function useAuthBootstrap() {
       }
 
       setState("ready");
+      void useAuthStore.getState().fetchUser();
     };
 
     boot();
