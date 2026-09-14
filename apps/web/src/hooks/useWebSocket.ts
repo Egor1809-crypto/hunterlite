@@ -145,7 +145,7 @@ export function useWebSocket({
     try {
       const refreshToken = getRefreshToken();
       if (!refreshToken) {
-        window.location.href = "/login";
+        window.location.href = "/";
         return;
       }
 
@@ -159,7 +159,7 @@ export function useWebSocket({
       });
 
       if (!res.ok) {
-        window.location.href = "/login";
+        window.location.href = "/";
         return;
       }
 
@@ -171,7 +171,7 @@ export function useWebSocket({
         typeof data?.refresh_token !== "string"
       ) {
         logger.error("[WS] REST refresh returned malformed payload — redirecting to login");
-        window.location.href = "/login";
+        window.location.href = "/";
         return;
       }
       setTokens(
@@ -183,7 +183,7 @@ export function useWebSocket({
       // Reconnect will happen automatically via connect()
     } catch {
       logger.error("[WS] REST token refresh failed, redirecting to login");
-      window.location.href = "/login";
+      window.location.href = "/";
     }
   }, []);
 
@@ -276,7 +276,7 @@ export function useWebSocket({
             const reason = data.data?.reason;
             if (reason === "refresh_expired") {
               logger.error("[WS] Refresh token expired, redirecting to login");
-              window.location.href = "/login";
+              window.location.href = "/";
             } else {
               logger.warn("[WS] auth.refresh_error", { reason: reason ?? "unknown" });
             }
@@ -314,7 +314,7 @@ export function useWebSocket({
         // 4003 = Token revoked — redirect to login, don't reconnect
         if (event.code === 4003) {
           setConnectionState("disconnected");
-          window.location.href = "/login";
+          window.location.href = "/";
           return;
         }
 

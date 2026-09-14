@@ -12,7 +12,7 @@ import { getToken, getRefreshToken } from "@/lib/auth";
  * IMPORTANT: This hook runs inside AuthLayout children. After a hard
  * navigation the in-memory access token is always null — AuthLayout
  * restores it via refresh before rendering children. We must NOT
- * redirect to /login based solely on getToken() === null; check for
+ * redirect to the landing page based solely on getToken() === null; check for
  * marker cookie / sessionStorage refresh token first.
  */
 export function useAuth() {
@@ -39,13 +39,13 @@ export function useAuth() {
         // Still try to fetch user once token becomes available.
         return;
       }
-      router.replace("/login");
+      router.replace("/");
       return;
     }
 
     // Store handles dedup via TTL cache — safe to call on every mount
     fetchUser().then((u) => {
-      if (!u) router.replace("/login");
+      if (!u) router.replace("/");
     });
   }, [fetchUser, router]);
 

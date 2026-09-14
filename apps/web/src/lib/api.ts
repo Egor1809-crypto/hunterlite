@@ -109,7 +109,7 @@ export function resetAuthCircuitBreaker() {
 }
 
 /**
- * Surface a single "Сессия истекла" toast before bouncing to /login.
+ * Surface a single "Сессия истекла" toast before returning to the landing page.
  *
  * Phase C (2026-04-20) fix for BUG-5: the refresh-failure path used to
  * redirect silently, leaving users confused about why they were logged
@@ -245,7 +245,7 @@ async function request(path: string, options: RequestInit = {}, timeoutMs?: numb
       _authFailed = true; // Trip circuit breaker — stop all parallel requests
       clearTokens();
       notifySessionExpired();
-      window.location.href = "/login";
+      window.location.href = "/";
       throw new ApiError("Unauthorized", 401);
     }
   }
@@ -391,7 +391,7 @@ async function uploadMultipart(
       _authFailed = true;
       clearTokens();
       notifySessionExpired();
-      window.location.href = "/login";
+      window.location.href = "/";
       throw new ApiError("Unauthorized", 401);
     }
   }
@@ -479,7 +479,7 @@ async function uploadFile(path: string, file: File): Promise<unknown> {
       _authFailed = true;
       clearTokens();
       notifySessionExpired();
-      window.location.href = "/login";
+      window.location.href = "/";
       throw new ApiError("Unauthorized", 401);
     }
   }

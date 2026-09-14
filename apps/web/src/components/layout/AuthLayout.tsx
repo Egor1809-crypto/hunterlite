@@ -147,7 +147,7 @@ export default function AuthLayout({
 
       // After full-page reload the in-memory token is gone, but httpOnly
       // refresh_token cookie may still be valid. Try to restore the session
-      // before giving up and redirecting to /login.
+      // before giving up and redirecting to the landing page.
       if (!token && hasAuthMarkerCookie()) {
         try {
           if (await tryRefreshToken()) token = getToken();
@@ -158,7 +158,7 @@ export default function AuthLayout({
 
       if (!token) {
         setState("redirecting");
-        router.replace("/login");
+        router.replace("/");
         return;
       }
 
@@ -225,7 +225,7 @@ export default function AuthLayout({
               if (await tryRefreshToken()) token = getToken();
             } catch { /* continue without token */ }
           }
-          if (!token) { setState("redirecting"); router.replace("/login"); return; }
+          if (!token) { setState("redirecting"); router.replace("/"); return; }
           if (!requireConsent) { setState("ready"); retryCount.current = 0; return; }
           try {
             const data = await api.get("/consent/status");
