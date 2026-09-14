@@ -75,7 +75,6 @@ const plans = [
   {
     name: "Старт",
     plan: "scout",
-    tagline: "Старт в профессии",
     code: "PL—01",
     price: "0",
     period: "₽ / мес",
@@ -94,7 +93,6 @@ const plans = [
   {
     name: "Эксперт",
     plan: "hunter",
-    tagline: "Полный профессиональный доступ",
     code: "PL—02",
     price: "120 000",
     period: "₽ · разовый доступ",
@@ -451,18 +449,15 @@ function TariffsSection({ openRegister }: { openRegister: () => void }) {
                   <span aria-hidden style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, background: "var(--primary)" }} />
                 )}
 
-                {/* tagline + code (abstract.com spec-эйбров) */}
-                <div className="flex items-center justify-between gap-3">
-                  <span className="font-mono uppercase" style={{ fontSize: 11, letterSpacing: "0.18em", color: lead ? "var(--primary)" : "var(--text-secondary)" }}>
-                    {plan.tagline}
-                  </span>
+                {/* Plan metadata */}
+                <div className="flex min-h-7 items-center justify-end gap-3">
                   <div className="flex items-center gap-2">
                     {lead && (
-                      <span className="rounded-full px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.14em]" style={{ background: "var(--primary-muted)", color: "var(--primary)" }}>
+                      <span className="whitespace-nowrap rounded-full px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.14em]" style={{ background: "var(--primary-muted)", color: "var(--primary)" }}>
                         Рекомендуем
                       </span>
                     )}
-                    <span className="font-mono uppercase tabular-nums" style={{ fontSize: 11, letterSpacing: "0.16em", color: "var(--text-muted)" }}>
+                    <span className="whitespace-nowrap font-mono uppercase tabular-nums" style={{ fontSize: 11, letterSpacing: "0.16em", color: "var(--text-muted)" }}>
                       {plan.code}
                     </span>
                   </div>

@@ -637,7 +637,7 @@ export default function CharacterBuilder({ onGoToTests }: CharacterBuilderProps)
         return <button key={p.slug} onClick={()=>setSelectedSlug(p.slug)} className="client-directory-row">
           <ClientPortrait name={p.name} src={p.portrait_url} size={64} />
           <span className="min-w-0 flex-1"><span className="block font-display text-xl sm:text-2xl">{p.name}{p.age ? `, ${p.age}` : ""}</span><span className="block mt-1 text-sm" style={{color:"var(--text-secondary)"}}>{[p.archetype_label,emotionLabel(p.emotion_preset)].filter(Boolean).join(" · ")}</span>{situation&&<span className="block mt-3 text-sm leading-relaxed" style={{color:"var(--text-secondary)"}}>{situation}</span>}</span>
-          <span className="client-directory-meta"><span style={{color:dm.tone}}>{dm.label}</span><span className="inline-flex items-center gap-2 mt-3">Открыть досье <ArrowRight size={16}/></span></span>
+          <span className="client-directory-meta"><span style={{color:dm.tone}}>{dm.label}</span><span className="client-directory-action">Открыть досье <ArrowRight size={16} aria-hidden="true"/></span></span>
         </button>;
       })}</div>
     </div>

@@ -1562,7 +1562,55 @@ html.light .editorial-app main .learning-region-heading {border:0;}
 @media(max-width:1050px){.learning-overview{grid-template-columns:repeat(3,minmax(0,1fr));row-gap:16px;}}
 @media(max-width:540px){.learning-overview{grid-template-columns:repeat(2,minmax(0,1fr));}.learning-tabs{gap:22px;}}
 
-.client-directory{border-top:1px solid var(--border-color);}.editorial-app main .client-directory-row{display:flex;align-items:center;gap:20px;padding:26px 2px;width:100%;text-align:left;border:0;border-bottom:1px solid var(--border-color);border-radius:0;background:transparent;}.client-directory-avatar{display:grid;place-items:center;width:50px;height:50px;flex-shrink:0;border:1px solid var(--border-color);border-radius:12px;color:var(--primary);background:var(--surface-card);}.client-directory-meta{font-size:12px;text-align:right;flex-shrink:0;}.client-directory-row:hover .client-directory-avatar{border-color:var(--primary);}@media(max-width:600px){.editorial-app main .client-directory-row{gap:14px;flex-wrap:wrap;}.client-directory-meta{width:100%;padding-left:64px;text-align:left;}.client-directory-meta>span{margin:0 16px 0 0;}}
+/* Client actions keep their own spacing at every directory width. */
+.client-directory { border-top: 1px solid var(--border-color); }
+.editorial-app main .client-directory-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 20px;
+  padding: 26px 2px;
+  width: 100%;
+  text-align: start;
+  border: 0;
+  border-bottom: 1px solid var(--border-color);
+  border-radius: 0;
+  background: transparent;
+}
+.client-directory-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 12px;
+  font-size: 12px;
+}
+.client-directory-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  white-space: nowrap;
+  color: var(--text-primary);
+}
+.client-directory-action svg { flex-shrink: 0; }
+.editorial-app main .client-directory-row:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 4px;
+}
+@media (max-width: 700px) {
+  .editorial-app main .client-directory-row { grid-template-columns: auto minmax(0, 1fr); gap: 14px; }
+  .client-directory-meta { grid-column: 2; flex-direction: row; flex-wrap: wrap; align-items: center; gap: 12px 24px; }
+}
+@media (hover: hover) {
+  .client-directory-row:hover .client-directory-action { color: var(--primary); }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .client-directory-action { transition: color 150ms ease-out; }
+  .client-directory-action svg { transition: transform 150ms cubic-bezier(0.2, 0, 0, 1); }
+}
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .client-directory-row:hover .client-directory-action svg { transform: translateX(3px); }
+}
+
 /* Focused call workspace. The global shell is not mounted on this route. */
 .call-focus {
   min-height: 100dvh;
