@@ -32,7 +32,7 @@ RUN apt-get update \
 
 COPY pyproject.toml uv.lock ./
 RUN uv export --frozen --no-dev --no-emit-project --format requirements-txt --output-file /tmp/requirements.lock \
-    && uv pip install --system -r /tmp/requirements.lock \
+    && uv pip install --no-cache --system -r /tmp/requirements.lock \
     && rm /tmp/requirements.lock
 
 COPY --chown=appuser:appuser . .
