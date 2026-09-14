@@ -10,19 +10,29 @@
 # other tenants. postgres + redis are internal (no host port published).
 #
 # Run from this folder:
-#   docker compose -f docker-compose.prod.yml --env-file .env.production up -d --build
+#   See README.md: pull immutable CI images; never build on the shared VM.
 name: legalhunter
+
+x-logging: &bounded-logs
+  driver: local
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 
 services:
   postgres:
     # pgvector image — the schema needs `CREATE EXTENSION vector` for the
     # Vector(768) RAG/embedding columns. Plain postgres:16 has no pgvector.
     image: pgvector/pgvector:pg16
+    mem_limit: 512m
+    mem_reservation: 128m
     restart: unless-stopped
+    logging: *bounded-logs
     environment:
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD required in .env.production}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD required in prod.env}
     volumes:
       - pg_data:/var/lib/postgresql/data
     healthcheck:
@@ -33,24 +43,30 @@ services:
 
   redis:
     image: redis:7-alpine
+    mem_limit: 128m
+    mem_reservation: 32m
     restart: unless-stopped
+    logging: *bounded-logs
     # Password required: the api entrypoint security pre-flight FATALs in
     # production if REDIS_PASSWORD is empty.
-    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD:?REDIS_PASSWORD required}", "--save", "60", "1", "--appendonly", "no"]
+    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD:?REDIS_PASSWORD required}", "--save", "60", "1", "--appendonly", "no", "--maxmemory", "64mb", "--maxmemory-policy", "noeviction", "--loglevel", "warning"]
     volumes:
       - redis_data:/data
 
   api:
-    build:
-      context: ../apps/api
-      target: production
-      args:
-        RELEASE_SHA: ${RELEASE_SHA:-unknown}
-        BUILD_TIME: ${BUILD_TIME:-unknown}
+    image: ${API_IMAGE_REF:?Set immutable API image in release.env}
+    mem_limit: 1536m
+    mem_reservation: 768m
     restart: unless-stopped
+    logging: *bounded-logs
+    volumes:
+      - ../../deployment/uploads:/app/uploads
     environment:
       APP_ENV: production
       APP_DEBUG: "false"
+      WEB_CONCURRENCY: "2"
+      DB_POOL_SIZE: "10"
+      DB_MAX_OVERFLOW: "10"
       LOG_FORMAT: json
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       DATABASE_URL_SYNC: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
@@ -58,8 +74,8 @@ services:
       REDIS_PASSWORD: ${REDIS_PASSWORD}
       # entrypoint security pre-flight reads POSTGRES_PASSWORD directly.
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET required in .env.production}
-      CSRF_SECRET: ${CSRF_SECRET:?CSRF_SECRET required in .env.production}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET required in prod.env}
+      CSRF_SECRET: ${CSRF_SECRET:?CSRF_SECRET required in prod.env}
       # Signed server-to-server bridge from tech-pravo.ru campaign quizzes.
       # Required and shared only by the two backend services; never exposed to browsers.
       TECH_PRAVO_BRIDGE_SECRET: ${TECH_PRAVO_BRIDGE_SECRET:?TECH_PRAVO_BRIDGE_SECRET required}
@@ -71,7 +87,7 @@ services:
       #    NAVY_API_KEY below only feeds the image-generation MCP tool.
       NAVY_LLM_ENABLED: "true"
       NAVY_LLM_URL: ${NAVY_BASE_URL:-https://api.navy/v1}
-      NAVY_LLM_API_KEY: ${NAVY_API_KEY:?NAVY_API_KEY required in .env.production}
+      NAVY_LLM_API_KEY: ${NAVY_API_KEY:?NAVY_API_KEY required in prod.env}
       NAVY_LLM_MODEL: ${NAVY_LLM_MODEL:-deepseek-v4-pro}
       # STT (training Whisper path) via navy — needs the bearer key.
       WHISPER_URL: ${WHISPER_URL:-https://api.navy}
@@ -104,15 +120,11 @@ services:
       - "127.0.0.1:8300:8000"
 
   web:
-    build:
-      context: ../apps/web
-      target: production
-      args:
-        # NEXT_PUBLIC_* are baked at build time → must be the public domain.
-        NEXT_PUBLIC_API_URL: ${PUBLIC_URL}
-        NEXT_PUBLIC_WS_URL: ${PUBLIC_WS_URL}
-        NEXT_PUBLIC_RELEASE_SHA: ${RELEASE_SHA:-unknown}
+    image: ${WEB_IMAGE_REF:?Set immutable web image in release.env}
+    mem_limit: 512m
+    mem_reservation: 128m
     restart: unless-stopped
+    logging: *bounded-logs
     environment:
       NODE_ENV: production
       # Next.js /api/chat and /api/tts proxy the LLM (navy).
@@ -126,14 +138,19 @@ services:
       - "127.0.0.1:3300:3000"
 
   bot:
-    image: legalhunter-api
+    image: ${API_IMAGE_REF:?Set immutable API image in release.env}
+    mem_limit: 512m
+    mem_reservation: 128m
     restart: unless-stopped
+    logging: *bounded-logs
     # Telegram bot in long-polling mode. Webhook delivery (Telegram->server) is
     # blocked from this RU host; polling (server->Telegram via the IP pin) works.
     # SINGLE instance — concurrent getUpdates is rejected by Telegram.
     entrypoint: ["python", "-m", "scripts.run_bot_polling"]
     environment:
       APP_ENV: production
+      DB_POOL_SIZE: "2"
+      DB_MAX_OVERFLOW: "3"
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
       REDIS_PASSWORD: ${REDIS_PASSWORD}

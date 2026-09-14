@@ -30,6 +30,10 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+asyncpg://localhost:5432/trainer_db"
     database_url_sync: str = "postgresql://localhost:5432/trainer_db"
 
+    # Per process: two API workers + one bot must fit PostgreSQL max_connections=100.
+    db_pool_size: int = Field(default=10, ge=1, le=50)
+    db_max_overflow: int = Field(default=10, ge=0, le=20)
+
     # Redis (no default password — must come from .env)
     redis_url: str = "redis://localhost:6379/0"
 

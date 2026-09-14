@@ -30,8 +30,10 @@ RUN apt-get update \
     && groupadd -r appuser && useradd -r -g appuser -d /app -s /sbin/nologin appuser \
     && mkdir -p /app/uploads && chown -R appuser:appuser /app
 
-COPY pyproject.toml .
-RUN uv pip install --system .
+COPY pyproject.toml uv.lock ./
+RUN uv export --frozen --no-dev --no-emit-project --format requirements-txt --output-file /tmp/requirements.lock \
+    && uv pip install --system -r /tmp/requirements.lock \
+    && rm /tmp/requirements.lock
 
 COPY --chown=appuser:appuser . .
 
@@ -47,8 +49,8 @@ EXPOSE 8000
 ENTRYPOINT ["/docker-entrypoint.sh"]
 
 # Worker count: configurable via WEB_CONCURRENCY env var
-# Pilot: 2 workers (pool 50+20=70 × 2 = 140 < 200 max_connections)
-# Production: 4 workers (needs PgBouncer for >50 concurrent users)
+# Shared VM: 2 workers × (10 base + 10 burst) = 40 connections.
+# Dedicated bot: 2 + 3 = 5; keep headroom below PostgreSQL max_connections=100.
 # --timeout 300: aligned with nginx proxy_read_timeout — long LLM calls
 #   through reranker + confidence gate can take 2-4 minutes end-to-end.
 # --graceful-timeout 30: wait 30s for WS connections to close on deploy

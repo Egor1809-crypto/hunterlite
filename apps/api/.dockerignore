@@ -23,3 +23,7 @@ docker-compose*
 Makefile
 backups
 nginx
+
+# Runtime user data must never be baked into images.
+uploads
+run_tests.sh

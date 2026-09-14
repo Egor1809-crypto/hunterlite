@@ -8,12 +8,10 @@ from app.config import settings
 engine = create_async_engine(
     settings.database_url,
     echo=settings.app_debug,
-    # Pool size: 4 gunicorn workers × ~15 concurrent requests each at 500-600 DAU peak.
-    # Each training session can hold 2-3 connections briefly (message save + scoring + emotion).
-    # pool_size is per-process: 50 base + 20 burst = 70 max per worker.
-    # PostgreSQL max_connections should be >= 4 × 70 + 20 admin = 300.
-    pool_size=50,
-    max_overflow=20,
+    # Bounded per-process pool; production reserves capacity for the bot,
+    # migrations and administration instead of exceeding PostgreSQL limits.
+    pool_size=settings.db_pool_size,
+    max_overflow=settings.db_max_overflow,
     pool_pre_ping=True,   # Detect stale connections after DB restart/network hiccup
     pool_recycle=1800,     # Recycle connections every 30min to prevent stale TCP
     pool_timeout=30,       # Queue up to 30s for a connection (was 10 — too aggressive, causes cascading failures)
