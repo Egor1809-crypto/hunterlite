@@ -31,7 +31,7 @@ vi.mock("@/stores/useAuthStore", () => ({
   },
 }));
 
-import { api } from "../api";
+import { api, resetAuthCircuitBreaker } from "../api";
 import { getToken, clearTokens } from "../auth";
 
 // Helper to create mock Response.
@@ -64,6 +64,7 @@ describe("api client", () => {
   let fetchMock: Mock;
 
   beforeEach(() => {
+    resetAuthCircuitBreaker();
     fetchMock = vi.fn();
     global.fetch = fetchMock;
     vi.clearAllMocks();
@@ -73,6 +74,24 @@ describe("api client", () => {
       value: { href: "" },
       writable: true,
     });
+  });
+
+  it("keeps a wrong password on the login form without refresh or navigation", async () => {
+    fetchMock.mockResolvedValueOnce(mockResponse(401, {detail:"Неверный email или пароль"}));
+    await expect(api.post("/auth/login", {email:"test@example.ru",password:"wrong"})).rejects.toThrow("Неверный email или пароль");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(clearTokens).not.toHaveBeenCalled();
+    expect(window.location.href).toBe("");
+    fetchMock.mockResolvedValueOnce(mockResponse(200, {access_token:"new"}));
+    await expect(api.post("/auth/login", {})).resolves.toEqual({access_token:"new"});
+  });
+  it("allows login and provider discovery after an expired session", async () => {
+    fetchMock.mockResolvedValueOnce(mockResponse(401)).mockResolvedValueOnce(mockResponse(401));
+    await expect(api.get("/private")).rejects.toThrow("Unauthorized");
+    fetchMock.mockResolvedValueOnce(mockResponse(200, {yandex:true}));
+    await expect(api.get("/auth/oauth/status")).resolves.toEqual({yandex:true});
+    fetchMock.mockResolvedValueOnce(mockResponse(200, {access_token:"new"}));
+    await expect(api.post("/auth/login", {})).resolves.toEqual({access_token:"new"});
   });
 
   describe("api.get", () => {

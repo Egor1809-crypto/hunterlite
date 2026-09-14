@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { api } from "@/lib/api";
 import { clearTokens, getToken } from "@/lib/auth";
-import { resetConsentCache } from "@/components/layout/AuthLayout";
+import { resetConsentCache } from "@/lib/consentCache";
 import type { User } from "@/types";
 
 const ACCENT_CLASSES = ["accent-blue", "accent-emerald", "accent-amber", "accent-rose"];
