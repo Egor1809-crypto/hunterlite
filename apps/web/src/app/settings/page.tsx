@@ -167,7 +167,7 @@ function SettingsSection({
 function SettingsCard({ children, className = "" }: { children: ReactNode; className?: string }) {
   return (
     <div
-      className={`rounded-xl p-4 ${className}`}
+      className={`settings-field-row ${className}`}
       style={{
         background: "var(--bg-secondary)",
         border: "1px solid var(--border-color)",
@@ -346,8 +346,8 @@ export default function SettingsPage() {
   };
 
   return (
-    <AuthLayout>
-      <div className="relative panel-grid-bg min-h-screen">
+    <AuthLayout showBreadcrumbs={false}>
+      <div className="editorial-page relative min-h-screen">
         <div className="app-page max-w-4xl mx-auto">
           <BackButton href="/home" label="На главную" />
 

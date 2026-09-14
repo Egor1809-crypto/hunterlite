@@ -163,6 +163,7 @@ jobs:
             tests/test_latent_bug_fixes.py \
             tests/test_championship_draw_proof.py \
             tests/test_call_finalize.py \
+            tests/test_live_transcription.py \
             tests/test_call_reliability.py \
             tests/test_daily_attempts.py \
             tests/test_telegram_commands.py \
@@ -215,7 +216,7 @@ jobs:
         run: npx tsc --noEmit
 
       - name: Call reliability tests
-        run: npm test -- --run src/hooks/__tests__/useCallConnection.test.ts src/hooks/__tests__/useTTS-interrupt.test.ts
+        run: npm test -- --run src/hooks/__tests__/useCallConnection.test.ts src/hooks/__tests__/useTTS-interrupt.test.ts src/components/training/__tests__/CallWorkspace.test.tsx src/lib/__tests__/pcm-wav.test.ts
 
       - name: Build
         run: npm run build

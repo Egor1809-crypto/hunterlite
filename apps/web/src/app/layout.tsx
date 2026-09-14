@@ -55,7 +55,6 @@ export const viewport: Viewport = {
   ],
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
   // 2026-06-15: opt into the notch — без этого env(safe-area-inset-*),
   // которым пользуются панели чата/звонка/квиза, получает нули на iPhone
   // с челкой в standalone-режиме (PWA).

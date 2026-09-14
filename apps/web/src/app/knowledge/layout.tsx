@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "База знаний | XHunter",
-  description: "Проверьте свои знания по продукту, скриптам и возражениям",
+  title: "База знаний | LegalHunter",
+  description: "Справочник по банкротству, судебная практика и учебные материалы",
 };
 
 export default function KnowledgeLayout({

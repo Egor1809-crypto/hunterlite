@@ -1,0 +1,127 @@
+{
+  "ref-irina-petrova": {
+    "name": "Ирина Петрова",
+    "age": 36,
+    "gender": "female"
+  },
+  "ref-viktor-kozlov": {
+    "name": "Виктор Козлов",
+    "age": 44,
+    "gender": "male"
+  },
+  "ref-galina-morozova": {
+    "name": "Галина Морозова",
+    "age": 68,
+    "gender": "female"
+  },
+  "ref-dmitriy-orlov": {
+    "name": "Дмитрий Орлов",
+    "age": 41,
+    "gender": "male"
+  },
+  "ref-svetlana-belova": {
+    "name": "Светлана Белова",
+    "age": 31,
+    "gender": "female"
+  },
+  "ref-oleg-sokolov": {
+    "name": "Олег Соколов",
+    "age": 47,
+    "gender": "male"
+  },
+  "ref-timur-yusupov": {
+    "name": "Тимур Юсупов",
+    "age": 38,
+    "gender": "male"
+  },
+  "ref-andrey-lebedev": {
+    "name": "Андрей Лебедев",
+    "age": 52,
+    "gender": "male"
+  },
+  "ref-roman-vorontsov": {
+    "name": "Роман Воронцов",
+    "age": 49,
+    "gender": "male"
+  },
+  "ref-natalya-zaytseva": {
+    "name": "Наталья Зайцева",
+    "age": 43,
+    "gender": "female"
+  },
+  "ref-kirill-gromov": {
+    "name": "Кирилл Громов",
+    "age": 35,
+    "gender": "male"
+  },
+  "ref-pavel-denisov": {
+    "name": "Павел Денисов",
+    "age": 33,
+    "gender": "male"
+  },
+  "ref-alina-soboleva": {
+    "name": "Алина Соболева",
+    "age": 36,
+    "gender": "female"
+  },
+  "ref-zhanna-kudryavtseva": {
+    "name": "Жанна Кудрявцева",
+    "age": 37,
+    "gender": "female"
+  },
+  "ref-oksana-litvinova": {
+    "name": "Оксана Литвинова",
+    "age": 40,
+    "gender": "female"
+  },
+  "ref-stepan-gureev": {
+    "name": "Степан Гуреев",
+    "age": 45,
+    "gender": "male"
+  },
+  "ref-zoya-arkhipova": {
+    "name": "Зоя Архипова",
+    "age": 46,
+    "gender": "female"
+  },
+  "ref-vadim-tikhonov": {
+    "name": "Вадим Тихонов",
+    "age": 44,
+    "gender": "male"
+  },
+  "ref-yulia-karpova": {
+    "name": "Юлия Карпова",
+    "age": 34,
+    "gender": "female"
+  },
+  "ref-marina-solovieva": {
+    "name": "Марина Соловьёва",
+    "age": 38,
+    "gender": "female"
+  },
+  "ref-maksim-tretyakov": {
+    "name": "Максим Третьяков",
+    "age": 48,
+    "gender": "male"
+  },
+  "ref-denis-frolov": {
+    "name": "Денис Фролов",
+    "age": 48,
+    "gender": "male"
+  },
+  "ref-leonid-zhukov": {
+    "name": "Леонид Жуков",
+    "age": 53,
+    "gender": "male"
+  },
+  "ref-igor-savelyev": {
+    "name": "Игорь Савельев",
+    "age": 41,
+    "gender": "male"
+  },
+  "ref-artem-nikitin": {
+    "name": "Артём Никитин",
+    "age": 35,
+    "gender": "male"
+  }
+}

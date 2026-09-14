@@ -15,7 +15,7 @@
 
 import { forwardRef } from "react";
 
-export type CardVariant = "frameless" | "hairline" | "interactive";
+export type CardVariant = "frameless" | "hairline" | "interactive" | "editorial";
 
 export interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
   variant?: CardVariant;
@@ -30,13 +30,15 @@ export const Card = forwardRef<HTMLDivElement, CardProps>(function Card(
   ref,
 ) {
   const frameless = variant === "frameless";
+  const editorial = variant === "editorial";
   const base: React.CSSProperties = {
     position: "relative",
-    borderRadius: frameless ? undefined : "var(--radius-2xl)",
-    background: frameless ? "transparent" : "var(--surface-card)",
-    border: frameless ? undefined : "1px solid var(--border-color)",
-    padding: padded ? "var(--space-card)" : undefined,
-    overflow: accentTop && !frameless ? "hidden" : undefined,
+    borderRadius: editorial ? 0 : frameless ? undefined : "var(--radius-2xl)",
+    background: editorial ? "transparent" : frameless ? "transparent" : "var(--surface-card)",
+    border: editorial ? "none" : frameless ? undefined : "1px solid var(--border-color)",
+    borderBottom: editorial ? "1px solid var(--border-color)" : undefined,
+    padding: editorial ? "24px 0" : padded ? "var(--space-card)" : undefined,
+    overflow: accentTop && !frameless && !editorial ? "hidden" : undefined,
     ...style,
   };
 
@@ -47,7 +49,7 @@ export const Card = forwardRef<HTMLDivElement, CardProps>(function Card(
       style={base}
       {...rest}
     >
-      {accentTop && !frameless && (
+      {accentTop && !frameless && !editorial && (
         <span
           aria-hidden
           style={{ position: "absolute", top: 0, left: 0, right: 0, height: 2, background: "var(--primary)" }}

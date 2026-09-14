@@ -18,6 +18,8 @@ import uuid
 from sqlalchemy import select
 from starlette.websockets import WebSocket, WebSocketDisconnect
 
+from app.services.live_transcription import LiveTranscription
+from app.services.client_identity import client_identity
 from app.database import async_session
 from app.models.training import Message, MessageRole, TrainingSession
 from app.services.call_pipeline import (
@@ -61,6 +63,7 @@ def _build_client_card(persona_name: str, custom_params: dict) -> dict:
     """Small inline client card for the FE 'ready' frame (persona-derived)."""
     cp = custom_params or {}
     return {
+        **client_identity(cp.get("reference_persona_slug"), name=persona_name, brief=str(cp.get("persona_brief") or "")),
         "name": persona_name,
         "brief": str(cp.get("persona_brief") or "")[:2000],
         "emotion_preset": cp.get("emotion_preset"),
@@ -354,8 +357,16 @@ async def call_websocket(ws: WebSocket) -> None:
     ws_id = uuid.uuid4().hex
     locked_session = None
 
+    async def send_preview(frame):
+        if state is None or not await _refresh_session_lock(state["session_id"], ws_id):
+            raise asyncio.CancelledError()
+        await ws.send_json(frame)
+
+    preview = LiveTranscription(send_preview)
+
     async def cancel_turn():
         nonlocal turn_task
+        await preview.cancel()
         if turn_task is not None:
             if not turn_task.done():
                 turn_task.cancel()
@@ -489,6 +500,11 @@ async def call_websocket(ws: WebSocket) -> None:
                         "client_card": _build_client_card(persona_name, custom_params),
                     },
                 )
+                continue
+
+            if mtype == "audio_preview":
+                if state is not None and (turn_task is None or turn_task.done()):
+                    preview.offer(data, last_turn_id)
                 continue
 
             # ── audio: one full turn (base64 webm) ──

@@ -1,14 +1,20 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { pcmWav } from "@/lib/pcm-wav";
 import { logger } from "@/lib/logger";
-import type { MicErrorReason, MicrophonePermissionState, RecordingState } from "@/types";
+import type {
+  MicErrorReason,
+  MicrophonePermissionState,
+  RecordingState,
+} from "@/types";
 
 // Map a getUserMedia rejection (or pre-flight failure) to a specific
 // MicErrorReason. Using the DOMException.name keeps us forward-compatible
 // when browsers add new error names.
 function classifyMicError(err: unknown): MicErrorReason {
-  if (typeof window !== "undefined" && !window.isSecureContext) return "insecure";
+  if (typeof window !== "undefined" && !window.isSecureContext)
+    return "insecure";
   if (!(err instanceof DOMException)) return "unknown";
   switch (err.name) {
     case "NotAllowedError":
@@ -39,6 +45,8 @@ const ANALYSER_FFT_SIZE = 256;
 
 interface UseMicrophoneOptions {
   onChunk?: (chunk: Blob) => void;
+  onPreview?: (snapshot: Blob) => void;
+  onPreviewUnavailable?: () => void;
   onSilenceTimeout?: () => void;
 }
 
@@ -61,6 +69,7 @@ export function useMicrophone(
     useState<MicrophonePermissionState>("prompt");
   const [errorReason, setErrorReason] = useState<MicErrorReason | null>(null);
   const [audioLevel, setAudioLevel] = useState(0);
+  const lastLevelUpdate = useRef(0);
   const isSupported =
     typeof window !== "undefined" &&
     typeof navigator !== "undefined" &&
@@ -78,6 +87,8 @@ export function useMicrophone(
   const analyserRef = useRef<AnalyserNode | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const chunksRef = useRef<Blob[]>([]);
+  const previewRef = useRef<AudioWorkletNode | null>(null);
+  const recordingStarted = useRef(0);
   const animFrameRef = useRef<number>(0);
   const silenceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastSoundTimeRef = useRef<number>(Date.now());
@@ -125,9 +136,15 @@ export function useMicrophone(
     mountedRef.current = true;
     return () => {
       mountedRef.current = false;
+      previewRef.current?.disconnect();
+      if (previewRef.current) previewRef.current.port.onmessage = null;
+      previewRef.current = null;
       cancelAnimationFrame(animFrameRef.current);
       if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
-      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+      if (
+        mediaRecorderRef.current &&
+        mediaRecorderRef.current.state !== "inactive"
+      ) {
         mediaRecorderRef.current.stop();
         mediaRecorderRef.current = null;
       }
@@ -159,7 +176,10 @@ export function useMicrophone(
 
     // Convert to 0-100 scale (byte values are 0-255)
     const level = Math.min(100, Math.round((avg / 255) * 100 * 2));
-    setAudioLevel(level);
+    if (Date.now() - lastLevelUpdate.current >= 100) {
+      setAudioLevel(level);
+      lastLevelUpdate.current = Date.now();
+    }
 
     // Compute dB for noise gate
     const rms =
@@ -185,11 +205,18 @@ export function useMicrophone(
     // streamed silent chunks indefinitely. Now the recorder always stops
     // on its own, the callback is informational.
     const silenceDuration = Date.now() - lastSoundTimeRef.current;
-    if (silenceDuration >= SILENCE_TIMEOUT_MS) {
+    if (
+      silenceDuration >= SILENCE_TIMEOUT_MS ||
+      Date.now() - recordingStarted.current >= 120_000
+    ) {
       optionsRef.current.onSilenceTimeout?.();
       const mr = mediaRecorderRef.current;
       if (mr && mr.state !== "inactive") {
-        try { mr.stop(); } catch { /* already stopping */ }
+        try {
+          mr.stop();
+        } catch {
+          /* already stopping */
+        }
       }
       // Belt: also drop tracks immediately so the OS-level mic indicator
       // (browser tray) goes away even if `mr.stop()` is async.
@@ -216,7 +243,10 @@ export function useMicrophone(
       return true;
     } catch (err) {
       const reason = classifyMicError(err);
-      logger.error("[useMicrophone] requestPermission failed:", { reason, err });
+      logger.error("[useMicrophone] requestPermission failed:", {
+        reason,
+        err,
+      });
       setPermissionState(reason === "denied" ? "denied" : "error");
       setErrorReason(reason);
       return false;
@@ -243,7 +273,10 @@ export function useMicrophone(
           autoGainControl: true,
         },
       });
-      if (!mountedRef.current) {stream.getTracks().forEach(track=>track.stop());return false;}
+      if (!mountedRef.current) {
+        stream.getTracks().forEach((track) => track.stop());
+        return false;
+      }
       streamRef.current = stream;
       setPermissionState("granted");
       setErrorReason(null);
@@ -253,7 +286,9 @@ export function useMicrophone(
       // chunks while the user thought we were listening.
       stream.getTracks().forEach((track) => {
         track.onended = () => {
-          logger.warn("[useMicrophone] track ended unexpectedly (unplug/revoke)");
+          logger.warn(
+            "[useMicrophone] track ended unexpectedly (unplug/revoke)",
+          );
           if (mountedRef.current) {
             setRecordingState("idle");
             setAudioLevel(0);
@@ -266,7 +301,8 @@ export function useMicrophone(
       // fallback for older iOS Safari (<14.1).
       const Ctor: typeof AudioContext =
         window.AudioContext ||
-        (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext ||
+        (window as unknown as { webkitAudioContext?: typeof AudioContext })
+          .webkitAudioContext ||
         AudioContext;
       const audioContext = new Ctor();
       // iOS Safari starts contexts in "suspended" state — must resume
@@ -281,6 +317,36 @@ export function useMicrophone(
       analyser.smoothingTimeConstant = 0.8;
       source.connect(analyser);
       analyserRef.current = analyser;
+
+      if (optionsRef.current.onPreview) {
+        try {
+          await audioContext.audioWorklet.addModule(
+            "/audio/call-preview.worklet.js",
+          );
+          if (!mountedRef.current) {
+            stream.getTracks().forEach((t) => t.stop());
+            await audioContext.close();
+            return false;
+          }
+          const preview = new AudioWorkletNode(audioContext, "call-preview");
+          const pcm: Float32Array[] = [];
+          preview.port.onmessage = (event: MessageEvent<Float32Array>) => {
+            if (
+              !mountedRef.current ||
+              mediaRecorderRef.current?.state !== "recording"
+            )
+              return;
+            pcm.push(event.data);
+            optionsRef.current.onPreview?.(pcmWav(pcm));
+          };
+          source.connect(preview);
+          // A zero-output worklet runs in the graph without microphone feedback.
+          preview.connect(audioContext.destination);
+          previewRef.current = preview;
+        } catch {
+          optionsRef.current.onPreviewUnavailable?.();
+        }
+      }
 
       // Set up MediaRecorder. Safari doesn't support webm/opus —
       // fall back to mp4/aac and finally to default (browser-chosen).
@@ -303,8 +369,7 @@ export function useMicrophone(
           // Check noise gate: only forward chunks above threshold
           const result = computeAudioLevel();
           const aboveGate =
-            !result ||
-            result.dB >= -((100 - NOISE_GATE_THRESHOLD) / 100) * 50;
+            !result || result.dB >= -((100 - NOISE_GATE_THRESHOLD) / 100) * 50;
 
           chunksRef.current.push(event.data);
 
@@ -322,15 +387,16 @@ export function useMicrophone(
       mediaRecorder.start(TIMESLICE_MS);
       mediaRecorderRef.current = mediaRecorder;
       lastSoundTimeRef.current = Date.now();
+      recordingStarted.current = Date.now();
       setRecordingState("recording");
 
       // Start audio monitoring loop
       animFrameRef.current = requestAnimationFrame(monitorAudio);
       return true;
     } catch (err) {
-      streamRef.current?.getTracks().forEach(track=>track.stop());
+      streamRef.current?.getTracks().forEach((track) => track.stop());
       streamRef.current = null;
-      audioContextRef.current?.close().catch(()=>{});
+      audioContextRef.current?.close().catch(() => {});
       audioContextRef.current = null;
       analyserRef.current = null;
       const reason = classifyMicError(err);
@@ -344,6 +410,9 @@ export function useMicrophone(
 
   const stopRecording = useCallback((): Promise<Blob | null> => {
     return new Promise((resolve) => {
+      previewRef.current?.disconnect();
+      if (previewRef.current) previewRef.current.port.onmessage = null;
+      previewRef.current = null;
       cancelAnimationFrame(animFrameRef.current);
       if (silenceTimerRef.current) {
         clearTimeout(silenceTimerRef.current);
@@ -352,9 +421,9 @@ export function useMicrophone(
 
       const mediaRecorder = mediaRecorderRef.current;
       if (!mediaRecorder || mediaRecorder.state === "inactive") {
-        streamRef.current?.getTracks().forEach(track=>track.stop());
+        streamRef.current?.getTracks().forEach((track) => track.stop());
         streamRef.current = null;
-        audioContextRef.current?.close().catch(()=>{});
+        audioContextRef.current?.close().catch(() => {});
         audioContextRef.current = null;
         analyserRef.current = null;
         setRecordingState("idle");
@@ -364,33 +433,42 @@ export function useMicrophone(
       }
 
       // Listen for the final dataavailable event before building Blob
-      mediaRecorder.addEventListener("stop", () => {
-        const blob = new Blob(chunksRef.current, { type: mediaRecorder.mimeType || chunksRef.current[0]?.type || "audio/webm" });
-        chunksRef.current = [];
+      mediaRecorder.addEventListener(
+        "stop",
+        () => {
+          const blob = new Blob(chunksRef.current, {
+            type:
+              mediaRecorder.mimeType ||
+              chunksRef.current[0]?.type ||
+              "audio/webm",
+          });
+          chunksRef.current = [];
 
-        // Stop all tracks
-        if (streamRef.current) {
-          streamRef.current.getTracks().forEach((track) => track.stop());
-          streamRef.current = null;
-        }
+          // Stop all tracks
+          if (streamRef.current) {
+            streamRef.current.getTracks().forEach((track) => track.stop());
+            streamRef.current = null;
+          }
 
-        // Close audio context
-        if (audioContextRef.current) {
-          audioContextRef.current.close().catch(() => {});
-          audioContextRef.current = null;
-        }
-        analyserRef.current = null;
+          // Close audio context
+          if (audioContextRef.current) {
+            audioContextRef.current.close().catch(() => {});
+            audioContextRef.current = null;
+          }
+          analyserRef.current = null;
 
-        setRecordingState("processing");
-        setAudioLevel(0);
+          setRecordingState("processing");
+          setAudioLevel(0);
 
-        // Reset to idle after a moment
-        setTimeout(() => {
-          if (mountedRef.current) setRecordingState("idle");
-        }, 100);
+          // Reset to idle after a moment
+          setTimeout(() => {
+            if (mountedRef.current) setRecordingState("idle");
+          }, 100);
 
-        resolve(blob);
-      }, { once: true });
+          resolve(blob);
+        },
+        { once: true },
+      );
 
       mediaRecorder.stop();
       mediaRecorderRef.current = null;
