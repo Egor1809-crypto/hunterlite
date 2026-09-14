@@ -135,6 +135,8 @@ class Settings(BaseSettings):
     # document_drafting, multi_step). Routed via the same navy proxy
     # (`local_llm_url`). Default deepseek-v4-pro — strict legal reasoning, not
     # the lenient warmup grader. See app/services/exam_grader.py.
+    conversation_scoring_model: str = "gemini-3.5-flash"
+
     exam_model: str = Field(
         default="deepseek-v4-pro",
         validation_alias=AliasChoices("EXAM_MODEL"),

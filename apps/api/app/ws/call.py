@@ -273,6 +273,16 @@ async def _do_end_call(ws: WebSocket, state: dict) -> None:
                 and str(getattr(session.status, "value", session.status)) == "active"
             ):
                 session.score_total = float(total) if total is not None else None
+                if total is not None and scoring_details.get("_quality_assessment"):
+                    from app.services.conversation_quality import to_breakdown
+                    grade = to_breakdown(result)
+                    session.score_script_adherence = grade.script_adherence
+                    session.score_objection_handling = grade.objection_handling
+                    session.score_communication = grade.communication
+                    session.score_anti_patterns = grade.anti_patterns
+                    session.score_result = grade.result
+                    session.score_human_factor = grade.human_factor
+                    session.score_legal = grade.legal_accuracy
                 session.scoring_details = {
                     **scoring_details,
                     "_call_history": list(state["history"]),

@@ -164,6 +164,10 @@ jobs:
             tests/test_championship_draw_proof.py \
             tests/test_call_finalize.py \
             tests/test_live_transcription.py \
+            tests/test_async_results_background_scoring.py \
+            tests/test_quality_regrade_concurrency.py \
+            tests/test_conversation_quality.py \
+            tests/test_judge_fallback_verdict.py \
             tests/test_call_reliability.py \
             tests/test_daily_attempts.py \
             tests/test_telegram_commands.py \
@@ -219,7 +223,7 @@ jobs:
         run: npx tsc --noEmit
 
       - name: Call reliability tests
-        run: npm test -- --run src/hooks/__tests__/useCallConnection.test.ts src/hooks/__tests__/useTTS-interrupt.test.ts src/components/training/__tests__/CallWorkspace.test.tsx src/lib/__tests__/pcm-wav.test.ts src/app/api/chat/route.test.ts src/lib/__tests__/manyashaRequest.test.ts src/components/__tests__/ManyashaChat.test.tsx
+        run: npm test -- --run src/hooks/__tests__/useCallConnection.test.ts src/hooks/__tests__/useTTS-interrupt.test.ts src/components/training/__tests__/CallWorkspace.test.tsx src/lib/__tests__/pcm-wav.test.ts src/app/api/chat/route.test.ts src/lib/__tests__/manyashaRequest.test.ts src/components/__tests__/ManyashaChat.test.tsx src/lib/resultScoring.test.ts src/components/results/QualityAssessment.test.tsx
 
       - name: Build
         run: npm run build
@@ -285,6 +289,8 @@ jobs:
           context: ./apps/web
           push: true
           build-args: |
+            NEXT_PUBLIC_API_URL=https://legalhunter.pro
+            NEXT_PUBLIC_WS_URL=wss://legalhunter.pro
             NEXT_PUBLIC_RELEASE_SHA=${{ github.sha }}
           tags: |
             ${{ env.WEB_IMAGE }}:latest

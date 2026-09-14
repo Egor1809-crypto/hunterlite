@@ -183,19 +183,6 @@ export default function TrainingSessionPage() {
     const sid = currentSessionIdRef.current || routeId;
     setTimeout(() => router.replace(`/results/${sid}`), 120);
   };
-  const [scoreHint, setScoreHint] = useState<{
-    script_adherence: number;
-    objection_handling: number;
-    communication: number;
-    anti_patterns: number;
-    result: number;
-    chain_traversal: number;
-    trap_handling: number;
-    human_factor: number;
-    legal: number;
-    realtime_estimate: number;
-    max_possible_realtime: number;
-  } | null>(null);
   const [preferBrowserSpeech, setPreferBrowserSpeech] = useState(false);
   const [sttWarningDismissed, setSttWarningDismissed] = useState(false);
   // 2026-05-03 redesign: right-sidebar tab state. Replaces the 9-panel
@@ -694,26 +681,7 @@ export default function TrainingSessionPage() {
           break;
 
         case "score.hint":
-          // B9: All 8 real-time layers
-          setScoreHint({
-            script_adherence: Number(data.data.script_adherence || 0),
-            objection_handling: Number(data.data.objection_handling || 0),
-            communication: Number(data.data.communication || 0),
-            anti_patterns: Number(data.data.anti_patterns || 0),
-            result: Number(data.data.result || 0),
-            chain_traversal: Number(data.data.chain_traversal || 0),
-            trap_handling: Number(data.data.trap_handling || 0),
-            human_factor: Number(data.data.human_factor || 0),
-            legal: Number(data.data.legal || 0),
-            realtime_estimate: Number(data.data.realtime_estimate || 0),
-            max_possible_realtime: Number(data.data.max_possible_realtime || 0),
-          });
-          // 2026-05-03: removed `s.setRealtimeScores(...)` write —
-          // the consuming `<RealtimeScores>` panel was removed during
-          // the redesign and the slice had no other readers. Keeping
-          // a setter that nobody read kept renders alive on every
-          // score.hint and added store churn for no reason. Sub-scores
-          // now render directly from local `scoreHint` useState.
+          // Legacy live heuristics are not grades. Evidence is assessed after completion.
           break;
 
         case "silence.warning":
@@ -1922,7 +1890,7 @@ export default function TrainingSessionPage() {
                       ? `говорит ${s.characterName?.split(" ")[0] || "клиент"}`
                       : micRecording
                         ? "слушаю вас"
-                        : `${EMOTION_MAP[s.emotion]?.labelRu || "нейтрально"} · балл ${s.messages.length === 0 ? "—" : Math.round(s.scriptScore)}`}
+                        : `${EMOTION_MAP[s.emotion]?.labelRu || "нейтрально"} · оценка после разговора`}
                   </span>
                 </span>
               </span>
@@ -1991,7 +1959,7 @@ export default function TrainingSessionPage() {
                         <div className="flex items-center justify-between rounded-xl p-3" style={{ background: "var(--bg-tertiary)" }}>
                           <span className="text-sm font-semibold" style={{ color: "var(--text-secondary)" }}>Общий балл</span>
                           <span className="text-2xl font-bold tabular-nums" style={{ color: "var(--accent)" }}>
-                            {s.messages.length === 0 ? "—" : <>{Math.round(s.scriptScore)}<span className="text-sm font-normal ml-0.5" style={{ color: "var(--text-muted)" }}>/100</span></>}
+                            <span className="text-sm font-normal">После разговора</span>
                           </span>
                         </div>
                         <div className="rounded-xl p-3" style={{ background: "var(--bg-tertiary)" }}>
@@ -2158,86 +2126,9 @@ export default function TrainingSessionPage() {
                 <TalkListenRatio talkPercent={s.talkTime + s.listenTime > 0 ? Math.round((s.talkTime / (s.talkTime + s.listenTime)) * 100) : 50} />
               </div>
 
-              <div className="rounded-xl p-4 relative overflow-hidden" style={{ background: "var(--bg-tertiary)" }}>
-                <AnimatePresence>
-                  {checkpointFlash && (
-                    <motion.div
-                      className="absolute inset-0 rounded-xl pointer-events-none"
-                      initial={{ opacity: 0.3 }}
-                      animate={{ opacity: 0 }}
-                      exit={{ opacity: 0 }}
-                      transition={{ duration: 0.8 }}
-                      style={{ background: "var(--accent-muted)" }}
-                    />
-                  )}
-                </AnimatePresence>
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-sm font-semibold" style={{ color: "var(--text-secondary)" }}>Общий балл</span>
-                  <motion.div
-                    className="text-2xl font-bold tabular-nums"
-                    style={{ color: "var(--accent)" }}
-                    key={Math.round(s.scriptScore)}
-                    initial={{ scale: 1.2, opacity: 0.7 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    transition={{ type: "spring", stiffness: 500, damping: 25 }}
-                  >
-                    {s.messages.length === 0 ? "—" : <>{Math.round(s.scriptScore)}<span className="text-sm font-normal ml-0.5" style={{ color: "var(--text-muted)" }}>/100</span></>}
-                  </motion.div>
-                </div>
-                {scoreHint ? (
-                  // P3 (training-rework): relabelled to the legal-consultation
-                  // rubric. Caps match the new weighting model (L1=18, L5=18,
-                  // L2=12, L4 penalty offset 15) and the post-call /results
-                  // pentagram + ScoreLayersBreakdown, so the in-call mirror
-                  // matches the final card.
-                  //
-                  // P3.1: the «Правовая точность ФЗ-127» (L10, max 25) axis is
-                  // POST-SESSION only — calculate_realtime_scores does NOT emit
-                  // `legal` (it is computed after the call ends, see scoring.py
-                  // realtime note). Rendering it as a live 0/25 bar made the
-                  // heaviest axis read as a hard failure for the whole call. We
-                  // render it as a "после завершения" placeholder instead of a
-                  // false zero.
-                  <div className="mt-3 space-y-2">
-                    {([
-                      ["Полнота выяснения обстоятельств", scoreHint.script_adherence, 18, "var(--accent)", false],
-                      ["Правовая точность ФЗ-127", 0, 25, "var(--info)", true],
-                      ["Корректность рекомендации", scoreHint.result, 18, "var(--success)", false],
-                      ["Отработка сомнений и страхов", scoreHint.objection_handling, 12, "var(--warning)", false],
-                      ["Этические нарушения", Math.max(0, 15 + (scoreHint.anti_patterns ?? 0)), 15, "var(--danger)", false],
-                    ] as const).map(([label, value, max, color, pending]) => (
-                      <div key={label}>
-                        <div className="mb-0.5 flex items-center justify-between text-[11px]" style={{ color: "var(--text-muted)" }}>
-                          <span>{label}</span>
-                          {pending ? (
-                            <span className="italic opacity-60">после завершения</span>
-                          ) : (
-                            <span className="tabular-nums font-mono" style={{ color }}>{Math.round(value)}<span className="opacity-50">/{max}</span></span>
-                          )}
-                        </div>
-                        <div className="h-1.5 w-full rounded-full overflow-hidden" style={{ background: "var(--bg-secondary)" }}>
-                          {pending ? (
-                            <div
-                              className="h-full w-full rounded-full opacity-30"
-                              style={{ background: `repeating-linear-gradient(90deg, ${"var(--text-muted)"} 0 4px, transparent 4px 8px)` }}
-                            />
-                          ) : (
-                            <motion.div
-                              className="h-full rounded-full"
-                              animate={{ width: `${Math.min(100, (value / max) * 100)}%` }}
-                              transition={{ duration: 0.5, ease: "easeOut" }}
-                              style={{ background: color }}
-                            />
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="mt-2 text-xs" style={{ color: "var(--text-muted)" }}>
-                    Баллы появятся после первого ответа
-                  </div>
-                )}
+              <div className="rounded-xl p-4" style={{ background: "var(--bg-tertiary)" }}>
+                <p className="font-semibold">Оценка после разговора</p>
+                <p className="mt-2 text-sm" style={{ color: "var(--text-secondary)" }}>После завершения проверим качество консультации и покажем, за какие реплики начислены баллы и штрафы. Настроение клиента само по себе баллов не добавляет.</p>
               </div>
             </div>
           )}

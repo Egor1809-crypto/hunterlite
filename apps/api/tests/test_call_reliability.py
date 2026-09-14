@@ -15,7 +15,8 @@ from app.ws import call
 
 @pytest.mark.asyncio
 async def test_failed_judge_is_unavailable_not_zero(monkeypatch):
-    monkeypatch.setattr(pipeline, "_judge_criterion", AsyncMock(return_value=(None, "Unavailable")))
+    from app.services import conversation_quality
+    monkeypatch.setattr(conversation_quality, "assess_session", AsyncMock(side_effect=conversation_quality.AssessmentUnavailable("offline")))
     result = await pipeline.score_call(
         session_id="test", user_messages=["Первый вопрос", "Второй вопрос"], assistant_messages=[]
     )

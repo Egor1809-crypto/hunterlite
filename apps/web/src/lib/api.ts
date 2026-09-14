@@ -186,7 +186,7 @@ async function fetchWithTimeout(
   }
 }
 
-async function request(path: string, options: RequestInit = {}): Promise<unknown> {
+async function request(path: string, options: RequestInit = {}, timeoutMs?: number): Promise<unknown> {
   // Circuit breaker: if auth already failed (refresh expired), skip API call
   // to prevent a cascade of 401 errors flooding the console.
   if (_authFailed) {
@@ -219,7 +219,7 @@ async function request(path: string, options: RequestInit = {}): Promise<unknown
       ...options,
       headers,
       credentials: "include", // Send httpOnly cookies
-    });
+    }, timeoutMs);
   } catch {
     throw new ApiError("Сервер недоступен. Проверьте подключение.", 0);
   }
@@ -237,7 +237,7 @@ async function request(path: string, options: RequestInit = {}): Promise<unknown
         ...options,
         headers,
         credentials: "include",
-      });
+      }, timeoutMs);
     }
 
     if (response.status === 401) {
@@ -272,7 +272,7 @@ async function request(path: string, options: RequestInit = {}): Promise<unknown
           ...options,
           headers,
           credentials: "include",
-        });
+        }, timeoutMs);
       }
     }
   }
@@ -530,8 +530,8 @@ async function uploadFile(path: string, file: File): Promise<unknown> {
 export const api = {
   get: <T = any>(path: string, opts?: { signal?: AbortSignal }): Promise<T> =>
     request(path, { signal: opts?.signal }) as Promise<T>,
-  post: <T = any>(path: string, body: unknown, opts?: { signal?: AbortSignal }): Promise<T> =>
-    request(path, { method: "POST", body: JSON.stringify(body), signal: opts?.signal }) as Promise<T>,
+  post: <T = any>(path: string, body: unknown, opts?: { signal?: AbortSignal; timeoutMs?: number }): Promise<T> =>
+    request(path, { method: "POST", body: JSON.stringify(body), signal: opts?.signal }, opts?.timeoutMs) as Promise<T>,
   put: <T = any>(
     path: string,
     body: unknown,
