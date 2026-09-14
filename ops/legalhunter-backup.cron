@@ -1,0 +1,5 @@
+# Runs at 02:17 in the host timezone (Europe/Moscow on the audited VM).
+# Only LegalHunter; status overwritten instead of accumulating an unbounded log.
+SHELL=/bin/sh
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+17 2 * * * root umask 077; /usr/bin/python3 /opt/legalhunter/ops/backup.py > /opt/legalhunter/deployment/backup-status.json 2> /opt/legalhunter/deployment/backup-error.log

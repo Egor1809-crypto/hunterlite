@@ -73,6 +73,8 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>
 > **Сервер pull-only. Никогда не пушь и не делай деструктивных git-команд на сервере.**
 
 Прод-домен — **legalhunter.pro**. Код — `/opt/legalhunter` (clone `origin/main`).
+Compose — версионируемый `docs/deploy/docker-compose.prod.yml`; старый файл в
+`deployment/` не использовать. Образы приходят из main CI (GHCR), на общей VM не собирать.
 
 ### ВАЖНО: сервер общий с чужими проектами
 
@@ -94,7 +96,7 @@ VM (`msk-1-vm-cqax`, `72.56.38.62`) — **многоарендный**. На н�
 
 ### Разрешено на сервере
 `git fetch/pull --ff-only origin main` (только после мёржа PR), `git log/status`,
-`docker compose -f deployment/docker-compose.prod.yml ... build|up -d|logs|exec|ps`.
+`docker compose -f docs/deploy/docker-compose.prod.yml ... up -d|logs|exec|ps`.
 
 ### Запрещено на сервере
 `git push` (любой), `git reset --hard`, `git rebase/commit/merge`, `git checkout` на
@@ -104,15 +106,18 @@ VM (`msk-1-vm-cqax`, `72.56.38.62`) — **многоарендный**. На н�
 
 ```
 git pull --ff-only origin main
-cd deployment
-export RELEASE_SHA=$(cd /opt/legalhunter && git rev-parse HEAD) BUILD_TIME=$(date -u +%FT%TZ)
-docker compose -f docker-compose.prod.yml --env-file prod.env up -d --build [api|web]
+# Сначала дождаться main CI, скачать API/web по SHA, записать immutable digest refs
+# в deployment/release.env. Полная процедура и бэкапы — docs/deploy/README.md.
+python3 ops/backup.py
+docker compose --env-file deployment/prod.env --env-file deployment/release.env \
+  -f docs/deploy/docker-compose.prod.yml up -d --no-build --pull never api web bot
 curl -s https://legalhunter.pro/api/version   # release_sha должен совпасть, не "unknown"
 ```
 
-Без явного `export RELEASE_SHA` compose подставит `unknown` — задеплоишь неопознанный
-образ. Шаг `curl /api/version` не опционален. Эталон конфигов и runbook — [docs/deploy/](docs/deploy).
-Прод-секреты живут в `deployment/prod.env` (chmod 600, не в git).
+`RELEASE_SHA` и оба digest сохраняются в `deployment/release.env` (600). API и bot
+используют один образ. `curl /api/version` после деплоя обязателен. Прод-секреты —
+только `deployment/prod.env` (600, не в git). Файлы пользователей — `deployment/uploads`;
+ежедневные резервные копии — `deployment/backups`, сохраняются 14 успешных копий.
 
 ### Откат
 Не `git reset` на сервере. Открой revert-PR на GitHub, смёржи, потом `git pull` на сервере.

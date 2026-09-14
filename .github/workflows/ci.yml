@@ -15,6 +15,13 @@ env:
   WEB_IMAGE: ghcr.io/egor1809-crypto/hunterlite/web
 
 jobs:
+  maintenance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Backup ownership and retention tests
+        run: python3 -m unittest discover -s ops/tests -v
+
   backend:
     runs-on: ubuntu-latest
     defaults:
@@ -141,6 +148,7 @@ jobs:
             tests/test_client_domain_parity.py \
             tests/test_client_domain_replay.py \
             tests/test_password_reset_delivery.py \
+            tests/test_database_capacity.py \
             tests/test_auth_refresh_concurrency.py \
             tests/test_attachment_security.py \
             tests/test_runtime_catalog.py \
@@ -250,7 +258,7 @@ jobs:
           format: 'table'
 
   docker:
-    needs: [backend, frontend]
+    needs: [backend, frontend, security, maintenance]
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     permissions:
@@ -285,8 +293,8 @@ jobs:
           tags: |
             ${{ env.API_IMAGE }}:latest
             ${{ env.API_IMAGE }}:${{ github.sha }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=api
+          cache-to: type=gha,mode=max,scope=api
 
       - name: Build and push Web image
         uses: docker/build-push-action@v5
@@ -300,5 +308,5 @@ jobs:
           tags: |
             ${{ env.WEB_IMAGE }}:latest
             ${{ env.WEB_IMAGE }}:${{ github.sha }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=web
+          cache-to: type=gha,mode=max,scope=web
