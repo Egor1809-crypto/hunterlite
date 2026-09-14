@@ -2788,10 +2788,10 @@ async def _generate_character_reply(
     # this up via rudeness_detected + msg_count + not_question signals.
     #
     #   * EXPLICIT marker [END_CALL] → trust the LLM's hangup intent. Only
-    #     keep a minimal sanity floor (msg_count >= 4) so a bot can't end on
-    #     turn 1 due to a buggy first reply.
+    #     keep a minimal sanity floor (one exchange, msg_count >= 2) so a bot can't end on
+    #     the automatic opener before any exchange.
     #   * SUBSTRING without marker → weighted decision (see hangup_decision.py).
-    _MARKER_MIN_MESSAGES = 4
+    _MARKER_MIN_MESSAGES = 2
     _can_ai_end_explicit = (
         _has_end_call_marker
         and _msg_count_for_ai_farewell >= _MARKER_MIN_MESSAGES
@@ -2838,30 +2838,9 @@ async def _generate_character_reply(
         state["call_outcome"] = "hangup"
         logger.info(
             "AI-initiated farewell detected (session=%s, content snippet=%r) — "
-            "auto-firing session.end after current TTS plays.",
+            "finalizing after delivering the closing reply.",
             session_id, llm_result.content[:80],
         )
-        # Send a hangup notification so the frontend shows the modal/redirect
-        # consistently with FSM-driven hangups.
-        try:
-            await _send(ws, "client.hangup", {
-                "reason": "Клиент сам завершил разговор",
-                "emotion": current_emotion,
-                "hangup_phrase": llm_result.content,
-                "call_can_continue": False,
-                "triggers": [],
-            })
-        except Exception:
-            logger.debug("client.hangup send failed (non-fatal)", exc_info=True)
-        # Schedule auto-end after TTS finishes — same pattern as user farewell.
-        async def _auto_end_after_ai_farewell():
-            try:
-                await asyncio.sleep(3.5)  # let TTS of farewell finish playing
-                await _handle_session_end(ws, {}, state)
-                state["_should_stop"] = True
-            except Exception:
-                logger.exception("auto session.end after AI farewell failed (session=%s)", session_id)
-        asyncio.create_task(_auto_end_after_ai_farewell())
 
     # Check for fake transition prompt and inject into NEXT LLM call
     try:
@@ -2908,6 +2887,12 @@ async def _generate_character_reply(
         "latency_ms": llm_result.latency_ms,
         "is_fallback": llm_result.is_fallback,
     })
+
+    if _can_ai_end:
+        # The reply has already been persisted and delivered. Finalize before
+        # accepting another WS message; no detached timer racing new turns/TTS.
+        await _finish_ai_hangup(ws, state, clean_content, str(current_emotion))
+        return
 
     # ── Stage tracking: update quality score from AI client response ──
     try:
@@ -3255,6 +3240,20 @@ async def _generate_character_reply(
                 logger.warning("training.adaptive_difficulty: hangup warning dispatch failed for session %s", session_id, exc_info=True)
     except Exception:
         logger.warning("Adaptive difficulty failed for session %s", session_id, exc_info=True)
+
+
+async def _finish_ai_hangup(ws: WebSocket, state: dict, phrase: str, emotion: str) -> None:
+    state["ai_initiated_farewell"] = True
+    state["call_outcome"] = "hangup"
+    await _send(ws, "client.hangup", {
+        "reason": "Клиент завершил разговор",
+        "emotion": emotion,
+        "hangup_phrase": phrase,
+        "call_can_continue": False,
+        "triggers": [],
+    })
+    await _handle_session_end(ws, {}, state)
+    state["_should_stop"] = True
 
 
 async def _silence_watchdog(
@@ -5106,6 +5105,10 @@ async def _handle_audio_chunk(
 
     Otherwise falls back to batch Whisper transcription.
     """
+    if state.get("ai_initiated_farewell") or state.get("_should_stop"):
+        await _send_error(ws, "Клиент завершил разговор.", "session_completed")
+        return
+
     session_id = state.get("session_id")
     if not session_id:
         await _send_error(ws, "No active session. Send session.start first.", "no_session")
@@ -5640,6 +5643,10 @@ async def _handle_audio_interrupted(
     The session keeps running (the cue won't fire next turn but call
     isn't broken).
     """
+    if state.get("ai_initiated_farewell") or state.get("_should_stop"):
+        await _send_error(ws, "Клиент завершил разговор.", "session_completed")
+        return
+
     session_id = state.get("session_id")
     if not session_id:
         return
@@ -5809,6 +5816,10 @@ async def _handle_text_message(
     state: dict,
 ) -> None:
     """Handle text.message: accept text input directly (fallback for no mic)."""
+    if state.get("ai_initiated_farewell") or state.get("_should_stop"):
+        await _send_error(ws, "Клиент завершил разговор.", "session_completed")
+        return
+
     session_id = state.get("session_id")
     if not session_id:
         await _send_error(ws, "No active session. Send session.start first.", "no_session")

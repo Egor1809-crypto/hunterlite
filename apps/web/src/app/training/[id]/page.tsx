@@ -753,6 +753,9 @@ export default function TrainingSessionPage() {
           break;
 
         case "client.hangup": {
+          s.setSessionState("ending");
+          s.setIsTyping(false);
+          if (timerRef.current) clearInterval(timerRef.current);
           const canContinue = Boolean(data.data.call_can_continue);
           // Phase H (2026-05-08): mirror call-route Bug 2 fix. Pre-fix
           // the chat handler set the modal but DID NOT stop TTS — so
@@ -1560,7 +1563,7 @@ export default function TrainingSessionPage() {
                   className="flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium"
                   style={{ background: "var(--bg-tertiary)", color: "var(--text-muted)" }}
                 >
-                  Ваш ход
+                  {s.sessionState === "ending" || s.sessionState === "completed" ? "Разговор завершён" : "Ваш ход"}
                 </motion.div>
               )}
             </AnimatePresence>

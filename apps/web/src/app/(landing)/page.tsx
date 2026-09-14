@@ -122,14 +122,6 @@ const SECTIONS = [
 
 type SectionId = (typeof SECTIONS)[number]["id"];
 
-function Eyebrow({ children }: { children: React.ReactNode }) {
-  return (
-    <p className="font-mono uppercase tabular-nums" style={{ fontSize: 12, letterSpacing: "0.2em", color: "var(--text-secondary)" }}>
-      {children}
-    </p>
-  );
-}
-
 /* Shared stagger reveal for section children */
 const reveal = (delay: number) => ({
   initial: { opacity: 0, y: 16 },
@@ -180,18 +172,9 @@ function ThemePanel() {
 function AboutSection({ openRegister }: { openRegister: () => void }) {
   return (
     <div className="py-2">
-      <motion.div {...reveal(0)}>
-        <Eyebrow>
-          <span style={{ fontWeight: 800, color: "var(--text-primary)", letterSpacing: "0.04em" }}>
-            Legal<span style={{ color: "var(--brand-logo-hunter)" }}>Hunter</span>
-          </span>
-          {" · Платформа №1 в России"}
-        </Eyebrow>
-      </motion.div>
-
       <motion.h1
         {...reveal(0.06)}
-        className="mt-7 font-display font-bold"
+        className="font-display font-bold"
         style={{ color: "var(--text-primary)", fontSize: "clamp(2.6rem, 7vw, 6rem)", lineHeight: 0.96, letterSpacing: "-0.05em" }}
       >
         Учим юристов
@@ -254,9 +237,8 @@ function ExpertsSection() {
     <div className="py-2">
       <motion.div {...reveal(0)} className="flex flex-col justify-between gap-6 lg:flex-row lg:items-end">
         <div>
-          <Eyebrow>02 · Эксперты</Eyebrow>
           <h2
-            className="mt-4 max-w-4xl font-display font-semibold"
+            className="max-w-4xl font-display font-semibold"
             style={{ color: "var(--text-primary)", fontSize: "clamp(2.2rem, 5.2vw, 4.5rem)", lineHeight: 0.96, letterSpacing: "-0.045em", hyphens: "none", WebkitHyphens: "none", wordBreak: "normal" }}
           >
             Практики, которые учат на реальных процедурах.
@@ -307,21 +289,8 @@ function ProductsSection() {
   return (
     <div className="py-2">
       <motion.div {...reveal(0)}>
-        <Eyebrow>
-          03 · Наши продукты &amp;{" "}
-          <a
-            href="https://tech-pravo.ru/"
-            target="_blank"
-            rel="noopener noreferrer"
-            title="ТехнологИИ Права — tech-pravo.ru"
-            className="underline decoration-2 underline-offset-4 transition-opacity hover:opacity-80"
-            style={{ color: "#22D3EE", textDecorationColor: "#22D3EE", fontWeight: 800 }}
-          >
-            Технолог<span style={{ color: "#EC4899" }}>ИИ</span> Права
-          </a>
-        </Eyebrow>
         <h2
-          className="mt-4 max-w-3xl font-display font-semibold"
+          className="max-w-3xl font-display font-semibold"
           style={{ color: "var(--text-primary)", fontSize: "clamp(2.2rem, 5.2vw, 4.5rem)", lineHeight: 0.96, letterSpacing: "-0.045em" }}
         >
           Обучение, практика, аттестация.
@@ -381,10 +350,6 @@ function ProductsSection() {
       </div>
 
       <motion.div {...reveal(0.28)} className="mt-10">
-        <div className="mb-4 flex items-center justify-between">
-          <Eyebrow>Экосистема AI &amp; право</Eyebrow>
-          <span className="hidden font-mono text-[11px] uppercase tracking-[0.16em] sm:block" style={{ color: "var(--text-muted)" }}>12 направлений в разработке</span>
-        </div>
         <div
           className="group relative overflow-hidden py-7 w-screen left-1/2 -translate-x-1/2"
           style={{
@@ -416,9 +381,8 @@ function CertificateSection({ openRegister }: { openRegister: () => void }) {
   return (
     <div className="mx-auto max-w-4xl py-2 text-center">
       <motion.div {...reveal(0)}>
-        <Eyebrow>04 · Сертификат</Eyebrow>
         <h2
-          className="mx-auto mt-5 font-display font-semibold"
+          className="mx-auto font-display font-semibold"
           style={{ color: "var(--text-primary)", fontSize: "clamp(2.4rem, 5.8vw, 5rem)", lineHeight: 0.95, letterSpacing: "-0.045em" }}
         >
           Сертификат,
@@ -457,11 +421,9 @@ function CertificateSection({ openRegister }: { openRegister: () => void }) {
 function TariffsSection({ openRegister }: { openRegister: () => void }) {
   return (
     <div className="py-2">
-      {/* ── КАРКАС: верхние слова сохранены ── */}
       <motion.div {...reveal(0)}>
-        <Eyebrow>05 · Тарифы</Eyebrow>
         <h2
-          className="mt-4 max-w-3xl font-display font-semibold"
+          className="max-w-3xl font-display font-semibold"
           style={{ color: "var(--text-primary)", fontSize: "clamp(2.2rem, 5.4vw, 4.6rem)", lineHeight: 0.95, letterSpacing: "-0.045em" }}
         >
           Выберите свой тариф.

@@ -1647,7 +1647,7 @@ export type RecordingState = "idle" | "recording" | "processing";
 
 // ─── Training Session UI State ─────────────────────────────────────────────
 
-export type SessionState = "connecting" | "briefing" | "ready" | "completed";
+export type SessionState = "connecting" | "briefing" | "ready" | "ending" | "completed";
 
 // ─── Chat UI ───────────────────────────────────────────────────────────────
 

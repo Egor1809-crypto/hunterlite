@@ -59,3 +59,27 @@ def test_strip_idempotent() -> None:
 def test_no_brackets_short_circuits() -> None:
     """Inputs without '[' shortcut to no-detect (microbenchmark sanity)."""
     assert detect_end_call("обычный ответ без маркеров") is False
+
+
+@pytest.mark.parametrize("raw", [
+    "Всё, хватит. Я не собираюсь это слушать. До свидания. (прерывает разговор)",
+    "До свидания. *кладёт трубку*",
+    "Хватит. [завершает звонок]",
+])
+def test_declared_disconnect_is_terminal_even_without_machine_marker(raw):
+    terminal, spoken = detect_and_strip(raw)
+    assert terminal is True
+    assert spoken and "трубку" not in spoken and "прерывает" not in spoken
+
+
+@pytest.mark.parametrize("raw", [
+    "Если продолжите, я положу трубку.",
+    "Я не прерываю разговор. Что вы предлагаете?",
+    "Вы хотите, чтобы я положил трубку?",
+    "(не прерывает разговор)",
+    "(если продолжит — прерывает разговор)",
+    "Он сказал: «(прерывает разговор)».",
+    "До свидания? (смотрит с сомнением)",
+])
+def test_threat_question_or_quoted_action_is_not_explicit_disconnect(raw):
+    assert detect_and_strip(raw) == (False, raw)
