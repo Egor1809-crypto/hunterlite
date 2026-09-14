@@ -520,49 +520,39 @@ async def _create_tokens(user_id: str, role: str = "manager") -> TokenResponse:
 _auth_logger = _logger  # alias for backward compat within this module
 
 
-async def _send_reset_email(to_email: str, user_name: str, reset_url: str) -> None:
-    """Send password-reset email via SMTP. Falls back to logging if SMTP not configured."""
+async def _send_reset_email(to_email: str, user_name: str, reset_url: str) -> bool:
+    """Return delivery status. Reset links must never be written to logs."""
     if not settings.smtp_configured:
-        _auth_logger.warning(
-            "SMTP not configured — reset link logged instead of emailed. "
-            "Set SMTP_HOST / SMTP_USER / SMTP_PASSWORD in .env to enable email."
-        )
-        _auth_logger.info("Password reset link for %s: %s", to_email, reset_url)
-        return
+        return False
 
     import aiosmtplib
     from email.mime.multipart import MIMEMultipart
     from email.mime.text import MIMEText
-
-    subject = "Сброс пароля — Hunter888"
-    html_body = (
-        f"<p>Здравствуйте, {user_name}!</p>"
-        f"<p>Вы запросили сброс пароля. Перейдите по ссылке ниже (действительна 1 час):</p>"
-        f'<p><a href="{reset_url}">{reset_url}</a></p>'
-        f"<p>Если вы не запрашивали сброс — просто проигнорируйте это письмо.</p>"
-        f"<p>— Команда Hunter888</p>"
-    )
+    from html import escape
 
     msg = MIMEMultipart("alternative")
-    msg["Subject"] = subject
+    msg["Subject"] = "Сброс пароля — LegalHunter"
     msg["From"] = f"{settings.smtp_from_name} <{settings.smtp_user}>"
     msg["To"] = to_email
+    html_body = (
+        f"<p>Здравствуйте, {escape(user_name)}!</p>"
+        "<p>Ссылка для восстановления пароля действует 1 час:</p>"
+        f'<p><a href="{escape(reset_url, quote=True)}">Восстановить пароль</a></p>'
+        "<p>Если вы не запрашивали сброс, проигнорируйте письмо.</p>"
+        "<p>Команда LegalHunter</p>"
+    )
     msg.attach(MIMEText(html_body, "html", "utf-8"))
-
     try:
         await aiosmtplib.send(
-            msg,
-            hostname=settings.smtp_host,
-            port=settings.smtp_port,
-            username=settings.smtp_user,
-            password=settings.smtp_password,
-            use_tls=settings.smtp_use_tls,
+            msg, hostname=settings.smtp_host, port=settings.smtp_port,
+            username=settings.smtp_user, password=settings.smtp_password,
+            use_tls=settings.smtp_use_tls, timeout=10,
         )
-        _auth_logger.info("Reset email sent to %s", to_email)
+        return True
     except Exception as exc:
-        _auth_logger.error("Failed to send reset email to %s: %s", to_email, exc)
-        # Still log the link as fallback so the reset isn't lost
-        _auth_logger.info("Fallback — reset link for %s: %s", to_email, reset_url)
+        # SMTP exceptions can include addresses or server payloads; log type only.
+        _auth_logger.error("Password reset delivery failed (%s)", type(exc).__name__)
+        return False
 
 
 from pydantic import BaseModel, Field, field_validator
@@ -593,6 +583,10 @@ async def forgot_password(request: Request, body: ForgotPasswordRequest, db: Asy
     """
     import secrets
 
+    # Uniform response before looking up the account: no false success or enumeration.
+    if not settings.smtp_configured:
+        raise HTTPException(503, "Сейчас не можем отправить письмо. Попробуйте позже.")
+
     result = await db.execute(select(User).where(User.email == body.email))
     user = result.scalar_one_or_none()
 
@@ -614,7 +608,10 @@ async def forgot_password(request: Request, body: ForgotPasswordRequest, db: Asy
             )
 
         reset_url = f"{settings.frontend_url}/reset-password?token={reset_token}"
-        await _send_reset_email(body.email, user.full_name or body.email, reset_url)
+        sent = await _send_reset_email(body.email, user.full_name or body.email, reset_url)
+        if not sent:
+            await r.delete(f"reset_token:{token_hash}")
+            raise HTTPException(503, "Сейчас не можем отправить письмо. Попробуйте позже.")
 
     # Always return success (don't reveal if email exists)
     return {"message": "Если указанный email зарегистрирован, на него отправлена ссылка для сброса пароля."}
