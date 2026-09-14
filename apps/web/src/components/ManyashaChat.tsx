@@ -291,12 +291,7 @@ function useInjectStyles() {
   }, []);
 }
 
-/**
- * Замораживает видео-маскот на одном кадре (прозрачность webm сохраняется,
- * в отличие от непрозрачного jpg-постера). autoPlay заставляет браузер
- * декодировать и отрисовать кадр, после чего сразу ставим на паузу → маскот
- * статичен, ничего не «дёргается».
- */
+/** Static transparent portrait, also visible before the mascot video loads. */
 function ManyashaAvatar({ poster, name }: { poster: string; name?: string }) {
   return <img src={poster} alt={name ?? ""} draggable={false} className="mnya-avatar-video" />;
 }
