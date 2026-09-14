@@ -26,14 +26,14 @@ vi.mock("@/lib/auth", () => ({
   clearTokens: vi.fn(),
 }));
 
-vi.mock("@/components/layout/AuthLayout", () => ({
+vi.mock("@/lib/consentCache", () => ({
   resetConsentCache: vi.fn(),
 }));
 
 import { useAuthStore } from "../useAuthStore";
 import { api } from "@/lib/api";
 import { getToken, clearTokens } from "@/lib/auth";
-import { resetConsentCache } from "@/components/layout/AuthLayout";
+import { resetConsentCache } from "@/lib/consentCache";
 
 const mockUser = {
   id: "user-1",

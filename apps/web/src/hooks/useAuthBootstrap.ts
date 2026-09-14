@@ -2,8 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { getToken, getRefreshToken, setTokens } from "@/lib/auth";
-import { getApiBaseUrl } from "@/lib/public-origin";
+import { getToken } from "@/lib/auth";
+import { tryRefreshToken } from "@/lib/api";
 import { logger } from "@/lib/logger";
 import { useAuthStore } from "@/stores/useAuthStore";
 
@@ -43,20 +43,7 @@ export function useAuthBootstrap() {
 
       if (!token && hasAuthMarkerCookie()) {
         try {
-          const storedRefreshToken = getRefreshToken();
-          const res = await fetch(`${getApiBaseUrl()}/api/auth/refresh`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(storedRefreshToken ? { refresh_token: storedRefreshToken } : {}),
-            credentials: "include",
-          });
-          if (res.ok) {
-            const data = await res.json();
-            if (data.access_token) {
-              setTokens(data.access_token, data.refresh_token, data.csrf_token);
-              token = data.access_token;
-            }
-          }
+          if (await tryRefreshToken()) token = getToken();
         } catch (err) {
           logger.warn("[useAuthBootstrap] refresh failed:", err);
         }

@@ -2,7 +2,8 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import { useAuthStore } from "@/stores/useAuthStore";
-import AppShell from "./AppShell";
+import dynamic from "next/dynamic";
+const AppShell = dynamic(() => import("./AppShell"));
 import { WorkspaceContext } from "./WorkspaceContext";
 import { usesWorkspace } from "@/lib/workspaceRoutes";
 

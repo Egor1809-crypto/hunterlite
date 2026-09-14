@@ -4,9 +4,8 @@ import { useEffect, useState, useRef, useContext, Component, type ReactNode, typ
 import { useRouter, usePathname } from "next/navigation";
 import { logger } from "@/lib/logger";
 import { RefreshCw, AlertTriangle } from "lucide-react";
-import { getToken, getRefreshToken, setTokens } from "@/lib/auth";
-import { api } from "@/lib/api";
-import { getApiBaseUrl } from "@/lib/public-origin";
+import { getToken } from "@/lib/auth";
+import { api, tryRefreshToken } from "@/lib/api";
 import { Button } from "@/components/ui/Button";
 
 /** Token-based boot error card — used by the error boundary and the
@@ -107,18 +106,7 @@ interface AuthLayoutProps {
   focusMode?: boolean;
 }
 
-// Module-level consent cache (avoids re-fetching on every page nav)
-// Keyed by user token hash to prevent cross-user cache leakage
-let _consentChecked = false;
-let _consentOk = false;
-let _consentUserToken: string | null = null;
-
-/** Reset consent cache — MUST be called on logout to prevent cross-user leakage */
-export function resetConsentCache() {
-  _consentChecked = false;
-  _consentOk = false;
-  _consentUserToken = null;
-}
+import { consentCache } from "@/lib/consentCache";
 
 export default function AuthLayout({
   children,
@@ -162,20 +150,7 @@ export default function AuthLayout({
       // before giving up and redirecting to /login.
       if (!token && hasAuthMarkerCookie()) {
         try {
-          const storedRefreshToken = getRefreshToken();
-          const res = await fetch(`${getApiBaseUrl()}/api/auth/refresh`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(storedRefreshToken ? { refresh_token: storedRefreshToken } : {}),
-            credentials: "include",
-          });
-          if (res.ok) {
-            const data = await res.json();
-            if (data.access_token) {
-              setTokens(data.access_token, data.refresh_token, data.csrf_token);
-              token = data.access_token;
-            }
-          }
+          if (await tryRefreshToken()) token = getToken();
         } catch {
           // Refresh failed — will redirect to login below
         }
@@ -188,33 +163,33 @@ export default function AuthLayout({
       }
 
       // Invalidate consent cache if user changed (prevents cross-user leakage)
-      if (_consentUserToken && _consentUserToken !== token) {
-        _consentChecked = false;
-        _consentOk = false;
+      if (consentCache.userToken && consentCache.userToken !== token) {
+        consentCache.checked = false;
+        consentCache.ok = false;
       }
-      _consentUserToken = token;
+      consentCache.userToken = token;
 
-      if (!requireConsent || _consentOk) {
+      if (!requireConsent || consentCache.ok) {
         setState("ready");
         return;
       }
 
-      if (_consentChecked) {
+      if (consentCache.checked) {
         // Missing consent → show the acceptance gate (no longer a dead-end
         // redirect to /home, which itself requires consent).
-        setState(_consentOk ? "ready" : "consent");
+        setState(consentCache.ok ? "ready" : "consent");
         return;
       }
 
       try {
         const data = await api.get("/consent/status");
-        _consentChecked = true;
-        _consentOk = data.all_accepted;
+        consentCache.checked = true;
+        consentCache.ok = data.all_accepted;
         setState(data.all_accepted ? "ready" : "consent");
       } catch (err: unknown) {
         logger.error("[AuthLayout] consent error:", err);
-        _consentChecked = false;
-        _consentOk = false;
+        consentCache.checked = false;
+        consentCache.ok = false;
         setState("error");
         setErrorMessage(err instanceof Error ? err.message : "Не удалось проверить статус согласия");
       }
@@ -236,8 +211,8 @@ export default function AuthLayout({
       }
       retryCount.current += 1;
       didRun.current = false;
-      _consentChecked = false;
-      _consentOk = false;
+      consentCache.checked = false;
+      consentCache.ok = false;
       setState("loading");
       setErrorMessage("");
       const delay = Math.min(200 * Math.pow(2, retryCount.current - 1), 5000);
@@ -247,28 +222,15 @@ export default function AuthLayout({
           let token = getToken();
           if (!token && hasAuthMarkerCookie()) {
             try {
-              const storedRefreshToken = getRefreshToken();
-              const res = await fetch(`${getApiBaseUrl()}/api/auth/refresh`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(storedRefreshToken ? { refresh_token: storedRefreshToken } : {}),
-                credentials: "include",
-              });
-              if (res.ok) {
-                const data = await res.json();
-                if (data.access_token) {
-                  setTokens(data.access_token, data.refresh_token, data.csrf_token);
-                  token = data.access_token;
-                }
-              }
+              if (await tryRefreshToken()) token = getToken();
             } catch { /* continue without token */ }
           }
           if (!token) { setState("redirecting"); router.replace("/login"); return; }
           if (!requireConsent) { setState("ready"); retryCount.current = 0; return; }
           try {
             const data = await api.get("/consent/status");
-            _consentChecked = true;
-            _consentOk = data.all_accepted;
+            consentCache.checked = true;
+            consentCache.ok = data.all_accepted;
             setState(data.all_accepted ? "ready" : "consent");
             if (data.all_accepted) retryCount.current = 0;
           } catch {
@@ -294,8 +256,8 @@ export default function AuthLayout({
     return (
       <ConsentGate
         onAccepted={() => {
-          _consentChecked = true;
-          _consentOk = true;
+          consentCache.checked = true;
+          consentCache.ok = true;
           retryCount.current = 0;
           setState("ready");
         }}

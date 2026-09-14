@@ -287,6 +287,11 @@ function ProductsSection() {
   return (
     <div className="py-2">
       <motion.div {...reveal(0)}>
+        <div className="product-partnership" aria-label="LegalHunter + ТехнологИИ Права">
+          <span className="product-partnership-legal">Legal<span>Hunter</span></span>
+          <span className="product-partnership-plus" aria-hidden="true">+</span>
+          <span className="product-partnership-tech">Технолог<span>ИИ</span> Права</span>
+        </div>
         <h2
           className="max-w-3xl font-display font-semibold"
           style={{ color: "var(--text-primary)", fontSize: "clamp(2.2rem, 5.2vw, 4.5rem)", lineHeight: 0.96, letterSpacing: "-0.045em" }}

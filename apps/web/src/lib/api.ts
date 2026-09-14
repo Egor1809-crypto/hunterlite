@@ -189,7 +189,8 @@ async function fetchWithTimeout(
 async function request(path: string, options: RequestInit = {}, timeoutMs?: number): Promise<unknown> {
   // Circuit breaker: if auth already failed (refresh expired), skip API call
   // to prevent a cascade of 401 errors flooding the console.
-  if (_authFailed) {
+  const publicAuth = /^\/auth\/(login|register|forgot-password|reset-password|oauth\/status|yandex\/(login|callback))(?:\?|$)/.test(path);
+  if (_authFailed && !publicAuth) {
     throw new ApiError("Unauthorized", 401);
   }
 
@@ -225,7 +226,7 @@ async function request(path: string, options: RequestInit = {}, timeoutMs?: numb
   }
 
   // On 401, try refresh token before giving up
-  if (response.status === 401) {
+  if (response.status === 401 && !publicAuth) {
     const refreshed = await handleTokenRefresh();
     if (refreshed) {
       // Retry with new token
@@ -250,7 +251,7 @@ async function request(path: string, options: RequestInit = {}, timeoutMs?: numb
   }
 
   // On 403 CSRF error, refresh token (which also refreshes the CSRF cookie) and retry once
-  if (response.status === 403 && _CSRF_METHODS.has(method)) {
+  if (response.status === 403 && !publicAuth && _CSRF_METHODS.has(method)) {
     // Clone before reading: reading response.json() consumes the body stream,
     // so any later attempt to read the same response (error surfacing) fails and
     // masks the real 403 detail as a generic "Request failed" (mirrors 429 branch).
