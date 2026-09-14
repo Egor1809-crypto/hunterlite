@@ -290,7 +290,7 @@ function ProductsSection() {
         <div className="product-partnership" aria-label="LegalHunter + ТехнологИИ Права">
           <span className="product-partnership-legal">Legal<span>Hunter</span></span>
           <span className="product-partnership-plus" aria-hidden="true">+</span>
-          <span className="product-partnership-tech">Технолог<span>ИИ</span> Права</span>
+          <a className="product-partnership-tech" href="https://tech-pravo.ru/" aria-label="ТехнологИИ Права">Технолог<span>ИИ</span> Права</a>
         </div>
         <h2
           className="max-w-3xl font-display font-semibold"

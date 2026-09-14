@@ -2376,7 +2376,8 @@ html:has(.workspace-shell) { scroll-padding-top: 76px; }
 .product-partnership-legal { font-size: clamp(22px,3vw,32px); font-weight: 700; letter-spacing: -.04em; color: var(--text-primary); }
 .product-partnership-legal > span { color: var(--brand-logo-hunter); }
 .product-partnership-plus { font-size: 24px; color: var(--text-muted); font-weight: 400; }
-.product-partnership-tech { font-size: clamp(17px,2.4vw,27px); font-weight: 900; letter-spacing: -.045em; text-transform: uppercase; color: var(--tech-pravo-cyan); }
+.product-partnership-tech { text-decoration: none; display: inline-flex; align-items: center; min-height: 44px; white-space: pre; font-size: clamp(17px,2.4vw,27px); font-weight: 900; letter-spacing: -.045em; text-transform: uppercase; color: var(--tech-pravo-cyan); }
+.product-partnership-tech:focus-visible { outline: 2px solid var(--text-primary); outline-offset: 5px; border-radius: 4px; }
 .product-partnership-tech > span { color: var(--tech-pravo-pink); }
 @media(max-width: 400px) { .auth-card { padding: 24px 20px; } .auth-close { inset-inline-end: -4px; } .product-partnership { gap: 10px; } }
 @media(hover:hover) { .auth-close:hover,.auth-password button:hover { background: var(--primary-muted); } .auth-primary:hover { background: var(--primary-hover); } }

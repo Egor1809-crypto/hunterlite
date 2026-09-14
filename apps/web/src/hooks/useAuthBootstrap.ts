@@ -21,7 +21,7 @@ function hasAuthMarkerCookie(): boolean {
  * Handles the same auth flow as AuthLayout's boot():
  * 1. Check in-memory token
  * 2. If missing but cookie marker exists → try POST /auth/refresh
- * 3. If still no token → redirect to /login
+ * 3. If still no token → redirect to the landing page
  *
  * Returns { ready: true } when safe to proceed, { ready: false } while booting
  * or redirecting. Usage:
@@ -51,7 +51,7 @@ export function useAuthBootstrap() {
 
       if (!token) {
         setState("redirecting");
-        router.replace("/login");
+        router.replace("/");
         return;
       }
 

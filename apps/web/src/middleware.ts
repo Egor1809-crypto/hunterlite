@@ -98,6 +98,8 @@ const PUBLIC_ROUTES = [
   "/auth/callback",
   "/change-password",
   "/reset-password",
+  "/legal",
+  "/exam/certificate/verify",
   // Championship/giveaway marketing pages — public (reached from the landing).
   "/championship",
   "/reviews",
@@ -115,6 +117,7 @@ function isPublicRoute(pathname: string): boolean {
   }
   return PUBLIC_ROUTES.some((route) => {
     if (route === pathname) return true;
+    if (route === "/") return false; // Home is public, not every URL starting with /.
     if (route.endsWith("/") && pathname.startsWith(route)) return true;
     // Prefix-match sub-routes (e.g. /championship → /championship/rules).
     if (pathname.startsWith(route + "/")) return true;
@@ -126,10 +129,10 @@ function isPublicRoute(pathname: string): boolean {
 // Role-based access control
 // ---------------------------------------------------------------------------
 
-type UserRole = "manager";
+type UserRole = "manager" | "rop" | "methodologist" | "admin";
 
 const ROLE_PROTECTED_ROUTES: Record<string, UserRole[]> = {
-  "/dashboard": ["manager"],
+  "/dashboard": ["rop", "admin"],
 };
 
 /**
@@ -151,7 +154,7 @@ function extractRoleFromJwt(token: string): UserRole | null {
       Buffer.from(parts[1].replace(/-/g, "+").replace(/_/g, "/"), "base64").toString("utf-8")
     );
     const role = payload.role || payload.user_role || payload.sub_role;
-    if (role && ["manager"].includes(role)) {
+    if (role && ["manager", "rop", "methodologist", "admin"].includes(role)) {
       return role as UserRole;
     }
     return null;
@@ -165,7 +168,7 @@ function extractRoleFromJwt(token: string): UserRole | null {
  * Returns redirect URL if unauthorized, null if allowed.
  */
 function checkRoleAccess(pathname: string, token: string | undefined): string | null {
-  if (!token) return null; // No token = auth guard will handle redirect to /login
+  if (!token) return null; // No token = auth guard will return to the landing page
 
   for (const [routePrefix, allowedRoles] of Object.entries(ROLE_PROTECTED_ROUTES)) {
     if (pathname.startsWith(routePrefix)) {
@@ -184,7 +187,7 @@ function checkRoleAccess(pathname: string, token: string | undefined): string | 
 // ---------------------------------------------------------------------------
 
 export function middleware(request: NextRequest) {
-  const { pathname, searchParams } = request.nextUrl;
+  const { pathname } = request.nextUrl;
 
   // ── 1. Generate nonce ────────────────────────────────────────────────
   const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
@@ -218,18 +221,9 @@ export function middleware(request: NextRequest) {
   const hasMarker = request.cookies.get("vh_authenticated");
 
   if (!hasAccessToken && !hasMarker) {
-    // GUARD: Prevent infinite redirect loops.
-    const redirectTarget = searchParams.get("redirect");
-    if (redirectTarget === "/login" || pathname === "/login") {
-      const response = NextResponse.next();
-      response.headers.set("Content-Security-Policy", cspHeaderValue);
-      response.headers.set("x-nonce", nonce);
-      return response;
-    }
-
-    const loginUrl = new URL("/login", request.url);
-    loginUrl.searchParams.set("redirect", pathname);
-    const response = NextResponse.redirect(loginUrl);
+    // A cleared/expired session returns to the public landing. Sign-in stays
+    // an explicit action; do not bypass the guard for old ?redirect=/login URLs.
+    const response = NextResponse.redirect(new URL("/", request.url));
 
     // Clear potentially stale/invalid auth cookies
     response.cookies.delete("access_token");

@@ -216,7 +216,7 @@ describe("api client", () => {
       expect(fetchMock).toHaveBeenCalledTimes(3);
     });
 
-    it("redirects to login on failed refresh", async () => {
+    it("returns to the landing on failed refresh", async () => {
       // First: 401
       fetchMock.mockResolvedValueOnce(mockResponse(401, {}));
       // Refresh: also fails
@@ -226,6 +226,7 @@ describe("api client", () => {
 
       await expect(api.get("/protected")).rejects.toThrow("Unauthorized");
       expect(clearTokens).toHaveBeenCalled();
+      expect(window.location.href).toBe("/");
     });
   });
 });

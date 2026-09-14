@@ -70,7 +70,7 @@ export default async function RootLayout({
   const nonce = (await headers()).get("x-nonce") ?? "";
 
   return (
-    <html lang="ru" suppressHydrationWarning data-scroll-behavior="smooth">
+    <html lang="ru" className="light" suppressHydrationWarning data-scroll-behavior="smooth">
       <head>
         <meta property="csp-nonce" content={nonce} />
         <style nonce={nonce} suppressHydrationWarning>{`
