@@ -102,6 +102,7 @@ interface AuthLayoutProps {
   children: ReactNode;
   requireConsent?: boolean;
   showBreadcrumbs?: boolean;
+  focusMode?: boolean;
 }
 
 // Module-level consent cache (avoids re-fetching on every page nav)
@@ -121,6 +122,7 @@ export default function AuthLayout({
   children,
   requireConsent = false,
   showBreadcrumbs = true,
+  focusMode = false,
 }: AuthLayoutProps) {
   const router = useRouter();
   const pathname = usePathname();
@@ -311,6 +313,8 @@ export default function AuthLayout({
     );
   }
 
+  if (focusMode) return <AuthErrorBoundary><div className="editorial-app call-focus">{children}</div></AuthErrorBoundary>;
+
   return (
     <AuthErrorBoundary>
       <AppShell>
@@ -326,7 +330,7 @@ export default function AuthLayout({
         {!hideAssistant && (
           <ManyashaChat
             config={{ apiEndpoint: "/api/chat" }}
-            {...(isContest ? { autoOpen: true, autoOpenMessage: CONTEST_INTRO, forceShow: true } : {})}
+            {...(isContest ? { autoOpenMessage: CONTEST_INTRO, forceShow: true } : {})}
           />
         )}
       </AppShell>

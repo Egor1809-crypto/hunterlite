@@ -20,7 +20,9 @@ export function LLMDegradationBanner() {
   const [status, setStatus] = useState<LLMStatus | null>(null);
   const [dismissed, setDismissed] = useState(() => {
     if (typeof sessionStorage !== "undefined") {
-      try { return sessionStorage.getItem("llm_banner_dismissed") === "1"; } catch {}
+      try {
+        return sessionStorage.getItem("llm_banner_dismissed") === "1";
+      } catch {}
     }
     return false;
   });
@@ -43,7 +45,9 @@ export function LLMDegradationBanner() {
           // Auto-dismiss when restored
           if (!data.fallback) {
             setDismissed(false);
-            try { sessionStorage.removeItem("llm_banner_dismissed"); } catch {}
+            try {
+              sessionStorage.removeItem("llm_banner_dismissed");
+            } catch {}
           }
         }
       } catch {
@@ -58,7 +62,7 @@ export function LLMDegradationBanner() {
       mounted = false;
       clearInterval(timer);
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status?.fallback]);
 
   // Listen for WS notifications
@@ -66,17 +70,37 @@ export function LLMDegradationBanner() {
     function handleWSMessage(event: CustomEvent<{ type: string }>) {
       const data = event.detail;
       if (data.type === "system.llm_degraded") {
-        setStatus(prev => prev ? { ...prev, fallback: true, status: "fallback", message: "AI-сервер временно недоступен." } : null);
+        setStatus((prev) =>
+          prev
+            ? {
+                ...prev,
+                fallback: true,
+                status: "fallback",
+                message: "AI-сервер временно недоступен.",
+              }
+            : null,
+        );
         setDismissed(false);
       } else if (data.type === "system.llm_restored") {
-        setStatus(prev => prev ? { ...prev, fallback: false, status: "ok", message: null } : null);
+        setStatus((prev) =>
+          prev
+            ? { ...prev, fallback: false, status: "ok", message: null }
+            : null,
+        );
         setRestored(true);
         setTimeout(() => setRestored(false), 5000);
       }
     }
 
-    window.addEventListener("llm-status-change" as never, handleWSMessage as never);
-    return () => window.removeEventListener("llm-status-change" as never, handleWSMessage as never);
+    window.addEventListener(
+      "llm-status-change" as never,
+      handleWSMessage as never,
+    );
+    return () =>
+      window.removeEventListener(
+        "llm-status-change" as never,
+        handleWSMessage as never,
+      );
   }, []);
 
   // Don't show if: no data, ok status, dismissed, or disabled
@@ -87,9 +111,17 @@ export function LLMDegradationBanner() {
   if (restored && !status.fallback) {
     return (
       <div className="fixed top-16 left-1/2 -translate-x-1/2 z-50 animate-fade-in">
-        <div className="flex items-center gap-2 rounded-lg border border-green-500/30 bg-green-500/10 px-4 py-2 text-sm text-green-400 backdrop-blur-sm">
+        <div
+          role="status"
+          className="flex items-center gap-2 rounded-lg border px-4 py-2 text-sm"
+          style={{
+            background: "var(--primary-muted)",
+            color: "var(--text-primary)",
+            borderColor: "var(--border-color)",
+          }}
+        >
           <CheckCircle className="h-4 w-4 shrink-0" />
-          <span>AI-сервер восстановлен</span>
+          <span>Сервис ИИ снова доступен</span>
         </div>
       </div>
     );
@@ -99,20 +131,31 @@ export function LLMDegradationBanner() {
   if (!status.fallback || dismissed) return null;
 
   return (
-    <div className="relative z-50 border-b border-yellow-500/30 bg-yellow-500/10 px-4 py-2">
+    <div
+      role="status"
+      className="relative z-50 border-b px-4 py-2"
+      style={{
+        background: "var(--primary-muted)",
+        color: "var(--text-primary)",
+        borderColor: "var(--border-color)",
+      }}
+    >
       <div className="mx-auto flex max-w-7xl items-center justify-between">
-        <div className="flex items-center gap-2 text-sm text-yellow-400">
+        <div className="flex items-center gap-2 text-sm">
           <AlertTriangle className="h-4 w-4 shrink-0" />
           <span>
-            AI-сервер перезагружается. Чаты и PvP работают в облачном режиме.
+            Сервис ИИ работает с ограничениями. Некоторые ответы могут
+            задерживаться.
           </span>
         </div>
         <button
           onClick={() => {
             setDismissed(true);
-            try { sessionStorage.setItem("llm_banner_dismissed", "1"); } catch {}
+            try {
+              sessionStorage.setItem("llm_banner_dismissed", "1");
+            } catch {}
           }}
-          className="ml-4 rounded p-1 text-yellow-400/60 hover:text-yellow-400 transition-colors"
+          className="ml-4 rounded p-3 transition-colors"
           aria-label="Закрыть"
         >
           <X className="h-4 w-4" />

@@ -393,7 +393,7 @@ function WeeklySummary({ weekly, loading }: { weekly: WeeklyReportResponse | nul
   const recs = (weekly?.recommendations ?? []).filter((r): r is string => typeof r === "string" && r.length > 0);
 
   return (
-    <Card accentTop className="mt-6">
+    <Card variant="editorial" accentTop className="mt-6">
       <div className="mb-2 flex items-center gap-2">
         <Sparkles size={15} style={{ color: "var(--primary)" }} />
         <span className="font-mono text-[11px] uppercase tracking-[0.16em]" style={{ color: "var(--text-secondary)" }}>Итоги недели</span>
@@ -597,9 +597,9 @@ export default function HistoryPage() {
   /* ── Render ──────────────────────────────────────────────── */
 
   return (
-    <AuthLayout>
-      <div className="relative min-h-screen overflow-hidden bg-page-glow">
-        <AbstractBackdrop />
+    <AuthLayout showBreadcrumbs={false}>
+      <div className="relative min-h-screen overflow-hidden editorial-page">
+
         <div className="app-page relative z-10 max-w-4xl">
 
           {/* ── Header — единый редакторский паттерн (как /cases) ── */}
@@ -623,17 +623,13 @@ export default function HistoryPage() {
           <WeeklySummary weekly={weekly} loading={weeklyLoading} />
 
           {/* ── 180-day activity ── */}
-          <Card className="mt-6">
-            <div className="mb-3 flex items-center gap-2">
-              <Activity size={15} style={{ color: "var(--text-muted)" }} />
-              <span className="font-mono text-[11px] uppercase tracking-[0.16em]" style={{ color: "var(--text-secondary)" }}>Активность за 180 дней</span>
-            </div>
+          <Card variant="editorial" className="mt-6">
             <ActivityHeatmap days={180} accent="var(--primary)" />
           </Card>
 
           {/* ── Score trend ── */}
           {!loading && trendData.length >= 2 && (
-            <Card accentTop className="mt-6">
+            <Card variant="editorial" accentTop className="mt-6">
               <div className="mb-2 flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <BarChart3 size={15} style={{ color: "var(--text-muted)" }} />
@@ -654,7 +650,7 @@ export default function HistoryPage() {
           {!loading && items.length > 0 && (
             <div className="mt-6 grid grid-cols-2 gap-3 md:grid-cols-4">
               {statCards.map((item) => (
-                <Card key={item.label}>
+                <Card variant="editorial" key={item.label}>
                   <div className="flex items-start justify-between gap-2">
                     <div className="font-mono text-[11px] uppercase tracking-[0.12em]" style={{ color: "var(--text-muted)" }}>{item.label}</div>
                     {item.trend !== null && (
@@ -672,7 +668,7 @@ export default function HistoryPage() {
 
           {/* ── Filters ── */}
           {!loading && items.length > 0 && (
-            <Card className="mt-6">
+            <Card variant="editorial" className="mt-6">
               <div className="flex flex-wrap items-center gap-x-3 gap-y-3">
                 <Filter size={15} style={{ color: "var(--text-muted)" }} />
                 <div className="flex flex-wrap gap-1.5">
@@ -697,7 +693,7 @@ export default function HistoryPage() {
           {loading ? (
             <div className="mt-6 space-y-3">
               {[1, 2, 3, 4, 5].map((i) => (
-                <Card key={i} className="flex items-center gap-4">
+                <Card variant="editorial" key={i} className="flex items-center gap-4">
                   <div className="h-11 w-11 animate-pulse rounded-full" style={{ background: "var(--bg-tertiary)" }} />
                   <div className="flex-1 space-y-2">
                     <div className="h-3 w-24 animate-pulse rounded" style={{ background: "var(--bg-tertiary)" }} />
@@ -746,7 +742,7 @@ export default function HistoryPage() {
                       return (
                         <motion.div key={key} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: Math.min(i * 0.03, 0.2) }}>
                           <Card
-                            variant="interactive"
+                            variant="editorial"
                             role="link"
                             tabIndex={0}
                             onClick={() => router.push(item.deep_link)}

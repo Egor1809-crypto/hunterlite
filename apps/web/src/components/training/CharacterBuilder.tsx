@@ -1,6 +1,7 @@
 "use client";
+import { ClientPortrait } from "./ClientPortrait";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { logger } from "@/lib/logger";
@@ -28,6 +29,8 @@ interface CharacterBuilderProps {
 type Difficulty = "easy" | "medium" | "hard";
 
 interface ReferencePersona {
+  age?: number | null;
+  portrait_url?: string | null;
   slug: string;
   name: string;
   archetype: string | null;
@@ -226,6 +229,7 @@ export default function CharacterBuilder({ onGoToTests }: CharacterBuilderProps)
   // ── Gallery state ──
   const [personas, setPersonas] = useState<ReferencePersona[] | null>(null);
   const [loadError, setLoadError] = useState<string>("");
+  const dossierTop = useRef<HTMLDivElement>(null);
   const [selectedSlug, setSelectedSlug] = useState<string | null>(null);
   const [difficultyFilter, setDifficultyFilter] = useState<Difficulty | null>(null);
   const [archetypeFilter, setArchetypeFilter] = useState<string | null>(null);
@@ -258,6 +262,10 @@ export default function CharacterBuilder({ onGoToTests }: CharacterBuilderProps)
       });
     return () => { cancelled = true; };
   }, [unlocked]);
+
+  useEffect(() => {
+    if (selectedSlug) dossierTop.current?.scrollIntoView({ block: "start" });
+  }, [selectedSlug]);
 
   const selected = useMemo(
     () => personas?.find((p) => p.slug === selectedSlug) ?? null,
@@ -383,7 +391,7 @@ export default function CharacterBuilder({ onGoToTests }: CharacterBuilderProps)
     const level = selected.difficulty === "hard" ? 3 : selected.difficulty === "medium" ? 2 : 1;
     const tags = [selected.archetype_label, selected.profession, emotionLabel(selected.emotion_preset)].filter(Boolean) as string[];
     return (
-      <div className="mt-8 mx-auto max-w-3xl">
+      <div ref={dossierTop} className="mt-8 mx-auto max-w-3xl scroll-mt-6">
         <button
           onClick={() => setSelectedSlug(null)}
           className="mb-8 inline-flex items-center gap-1.5 font-mono text-[11px] uppercase tracking-[0.14em] transition-opacity hover:opacity-60"
@@ -405,12 +413,13 @@ export default function CharacterBuilder({ onGoToTests }: CharacterBuilderProps)
           <div className="relative px-7 pt-9 pb-8 sm:px-10 sm:pt-11">
             <span aria-hidden className="absolute left-0 right-0 top-0 h-[3px]" style={{ background: "var(--accent)" }} />
             <div className="flex flex-wrap items-start justify-between gap-5">
+              <ClientPortrait key={selected.slug} name={selected.name} src={selected.portrait_url} size={96} />
               <div className="min-w-0">
                 <h2
                   className="font-display font-bold"
                   style={{ color: "var(--text-primary)", fontSize: "clamp(2rem, 5vw, 3.25rem)", lineHeight: 0.98, letterSpacing: "-0.035em" }}
                 >
-                  {selected.name}
+                  {selected.name}{selected.age ? `, ${selected.age}` : ""}
                 </h2>
                 {tags.length > 0 && (
                   <div className="mt-5 flex flex-wrap gap-2">
@@ -491,7 +500,7 @@ export default function CharacterBuilder({ onGoToTests }: CharacterBuilderProps)
                 </Button>
               </div>
               <p className="mt-3 text-xs leading-relaxed" style={{ color: "var(--text-muted)" }}>
-                Чат — текстовая консультация в своём темпе. Звонок — голосовой разговор (зажмите «Говорить»).
+                Чат — текстовая консультация в своём темпе. Звонок — голосовой разговор (нажмите «Говорить»).
               </p>
             </div>
           </div>
@@ -626,8 +635,8 @@ export default function CharacterBuilder({ onGoToTests }: CharacterBuilderProps)
       <div className="client-directory">{filtered.map(p=>{
         const dm=difficultyMeta(p.difficulty);const situation=shortSituation(p);
         return <button key={p.slug} onClick={()=>setSelectedSlug(p.slug)} className="client-directory-row">
-          <span className="client-directory-avatar" aria-hidden="true">{p.name.split(" ").slice(0,2).map(n=>n[0]).join("")}</span>
-          <span className="min-w-0 flex-1"><span className="block font-display text-xl sm:text-2xl">{p.name}</span><span className="block mt-1 text-sm" style={{color:"var(--text-secondary)"}}>{[p.archetype_label,emotionLabel(p.emotion_preset)].filter(Boolean).join(" · ")}</span>{situation&&<span className="block mt-3 text-sm leading-relaxed" style={{color:"var(--text-secondary)"}}>{situation}</span>}</span>
+          <ClientPortrait name={p.name} src={p.portrait_url} size={64} />
+          <span className="min-w-0 flex-1"><span className="block font-display text-xl sm:text-2xl">{p.name}{p.age ? `, ${p.age}` : ""}</span><span className="block mt-1 text-sm" style={{color:"var(--text-secondary)"}}>{[p.archetype_label,emotionLabel(p.emotion_preset)].filter(Boolean).join(" · ")}</span>{situation&&<span className="block mt-3 text-sm leading-relaxed" style={{color:"var(--text-secondary)"}}>{situation}</span>}</span>
           <span className="client-directory-meta"><span style={{color:dm.tone}}>{dm.label}</span><span className="inline-flex items-center gap-2 mt-3">Открыть досье <ArrowRight size={16}/></span></span>
         </button>;
       })}</div>

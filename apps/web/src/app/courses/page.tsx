@@ -5,8 +5,6 @@ import { motion } from "framer-motion";
 import { ArrowUpRight } from "lucide-react";
 import AuthLayout from "@/components/layout/AuthLayout";
 import { EditorialHeader } from "@/components/ui/EditorialHeader";
-import { AbstractBackdrop } from "@/components/ui/AbstractBackdrop";
-import { Card } from "@/components/ui/Card";
 import { COURSES, hasLink, type Course } from "./data";
 
 /* ── Бейдж цены / «Бесплатно» ─────────────────────────────────────────────
@@ -60,91 +58,30 @@ function CourseCard({ course, index }: { course: Course; index: number }) {
     : "Уроки скоро появятся";
 
   return (
-    <motion.div
-      className="h-full"
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: 0.08 + index * 0.06, duration: 0.3, ease: "easeOut" }}
+    <Link
+      href={`/courses/${course.slug}`}
+      className="editorial-course-row group"
     >
-      <Link href={`/courses/${course.slug}`} className="group block h-full">
-        <Card
-          variant="interactive"
-          accentTop={!course.paid}
-          padded={false}
-          className="h-full"
-          style={{ padding: "clamp(22px, 3vw, 34px)" }}
+      <span className="editorial-index-number">{num}</span>
+      <div>
+        <h2 className="font-display text-2xl sm:text-3xl tracking-tight">
+          {course.title}
+        </h2>
+        <p
+          className="mt-3 text-sm leading-relaxed"
+          style={{ color: "var(--text-secondary)" }}
         >
-          <div className="flex h-full flex-col">
-            {/* Верх: код-номер · бейдж цены */}
-            <div className="flex items-start justify-between gap-4">
-              <span
-                className="font-mono uppercase tabular-nums"
-                style={{ fontSize: 11, letterSpacing: "0.16em", color: "var(--text-muted)" }}
-              >
-                {num} · {course.code}
-              </span>
-              <PriceBadge course={course} />
-            </div>
-
-            {/* Название — показываем полностью (без обрезки). Резервируем
-                высоту под 3 строки (minHeight), чтобы описание на всех
-                карточках начиналось на одном уровне, даже если заголовок
-                короче. wordBreak/overflowWrap: normal — не рвать слова
-                посередине («Сопровождение» остаётся целым). */}
-            <h2
-              className="mt-7 font-display"
-              style={{
-                fontSize: "clamp(24px, 3vw, 34px)",
-                lineHeight: 1.04,
-                minHeight: "3.12em",
-                letterSpacing: "-0.03em",
-                fontWeight: 600,
-                color: "var(--text-primary)",
-                wordBreak: "normal",
-                overflowWrap: "normal",
-              }}
-            >
-              {course.title}
-            </h2>
-
-            {/* Описание — целиком, без line-clamp, чтобы был виден весь текст. */}
-            <p
-              className="mt-4 text-[14px] leading-relaxed"
-              style={{ color: "var(--text-secondary)" }}
-            >
-              {course.description}
-            </p>
-
-            {/* Низ: счётчик уроков · стрелка — прижат к низу, чтобы все карточки
-                были одной высоты и нижние ряды совпадали по уровню. */}
-            <div
-              className="mt-auto flex items-center justify-between pt-5"
-              style={{ marginTop: "auto", borderTop: "1px solid var(--border-color)" }}
-            >
-              <span
-                className="font-mono uppercase"
-                style={{
-                  fontSize: 10.5,
-                  letterSpacing: "0.14em",
-                  color: hasLessons ? "var(--text-secondary)" : "var(--text-muted)",
-                }}
-              >
-                {lessonsLabel}
-              </span>
-              <span
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-all duration-300"
-                style={{ border: "1px solid var(--border-color)", color: "var(--text-primary)" }}
-              >
-                <ArrowUpRight
-                  size={16}
-                  className="transition-transform duration-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
-                />
-              </span>
-            </div>
-          </div>
-        </Card>
-      </Link>
-    </motion.div>
+          {course.description}
+        </p>
+        <p className="mt-4 text-sm" style={{ color: "var(--text-secondary)" }}>
+          {lessonsLabel}
+        </p>
+      </div>
+      <div className="editorial-course-action">
+        <PriceBadge course={course} />
+        <ArrowUpRight size={22} />
+      </div>
+    </Link>
   );
 }
 
@@ -153,9 +90,8 @@ export default function CoursesPage() {
 
   return (
     <AuthLayout showBreadcrumbs={false}>
-      <div className="relative min-h-screen overflow-hidden bg-page-glow">
-        <AbstractBackdrop />
-        <div className="relative z-10 mx-auto max-w-[1080px] px-5 py-8 sm:px-8 sm:py-12">
+      <div className="relative min-h-screen overflow-hidden editorial-page">
+        <div className="relative z-10 mx-auto max-w-[920px] px-5 py-8 sm:px-8 sm:py-12">
           <motion.div
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
@@ -175,29 +111,18 @@ export default function CoursesPage() {
             transition={{ duration: 0.28, ease: "easeOut", delay: 0.06 }}
             className="mt-12 sm:mt-16"
           >
-            <div className="mb-5 flex items-center justify-between">
-              <span
-                className="font-mono uppercase"
-                style={{ fontSize: 11, letterSpacing: "0.16em", color: "var(--text-muted)" }}
-              >
-                01 · Программы
-              </span>
-              <span
-                className="font-mono uppercase tabular-nums"
-                style={{ fontSize: 11, letterSpacing: "0.16em", color: "var(--text-muted)" }}
-              >
-                BFL
-              </span>
-            </div>
-
-            <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="editorial-index">
               {COURSES.map((course, i) => (
                 <CourseCard key={course.slug} course={course} index={i} />
               ))}
             </div>
 
-            <p className="mt-6 font-mono text-[11px]" style={{ color: "var(--text-muted)" }}>
-              Платные курсы открываются после оплаты. Бесплатный практикум доступен всем пользователям платформы.
+            <p
+              className="mt-6 font-mono text-[11px]"
+              style={{ color: "var(--text-muted)" }}
+            >
+              Платные курсы открываются после оплаты. Бесплатный практикум
+              доступен всем пользователям платформы.
             </p>
           </motion.section>
         </div>

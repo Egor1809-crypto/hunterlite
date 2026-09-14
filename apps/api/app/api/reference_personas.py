@@ -20,6 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.deps import get_current_user, get_db
 from app.models.reference_persona import ReferencePersona
 from app.models.user import User
+from app.services.client_identity import client_identity
 
 router = APIRouter()
 
@@ -99,6 +100,7 @@ def split_dossier(text: str | None) -> tuple[str, str]:
 def _persona_to_dict(p: ReferencePersona) -> dict:
     client_brief, lawyer_brief = split_dossier(p.cached_dossier)
     return {
+        **client_identity(p.slug, name=p.name, brief=client_brief),
         "slug": p.slug,
         "name": p.name,
         "archetype": p.archetype,

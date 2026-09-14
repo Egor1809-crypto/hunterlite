@@ -84,9 +84,9 @@ export default function CertificatePage() {
 
   return (
     <AuthLayout showBreadcrumbs={false}>
-      <div className="relative min-h-screen overflow-hidden bg-page-glow">
-        <AbstractBackdrop />
-        <div className="relative z-10 mx-auto max-w-[960px] px-5 py-8 sm:px-8 sm:py-12">
+      <div className="relative min-h-screen overflow-hidden editorial-page">
+
+        <div className="relative z-10 mx-auto max-w-[920px] px-5 py-8 sm:px-8 sm:py-12">
           {/* ── KEEP: editorial header framework ── */}
           <motion.div
             initial={{ opacity: 0, y: 8 }}
@@ -106,7 +106,7 @@ export default function CertificatePage() {
               <Loader2 className="animate-spin" size={28} style={{ color: "var(--primary)" }} />
             </div>
           ) : error ? (
-            <Card className="mt-10">
+            <Card variant="editorial" className="mt-10">
               <p className="text-sm" style={{ color: "var(--danger)" }}>
                 {error}
               </p>
@@ -382,7 +382,7 @@ export default function CertificatePage() {
                 className="mt-16 sm:mt-24"
               >
                 <Card
-                  variant="interactive"
+                  variant="editorial"
                   accentTop
                   padded={false}
                   className="group cursor-pointer"
