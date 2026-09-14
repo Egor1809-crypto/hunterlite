@@ -165,6 +165,20 @@ class ScoreBreakdown:
         33% lower than L8 (max 5.0) on skill radar visualization.
         """
         details = self.details
+        if details.get("_quality_assessment"):
+            # Evidence grades start at zero; absence of a penalty earns no skill.
+            return {
+                "empathy": self.human_factor / L8_MAX * 100,
+                "knowledge": self.legal_accuracy / L10_MAX * 100,
+                "objection_handling": self.objection_handling / L2_MAX * 100,
+                "stress_resistance": self.communication / L3_MAX * 100,
+                "closing": self.result / L5_MAX * 100,
+                "listening": self.script_adherence / L1_MAX * 100,
+                "communication": self.communication / L3_MAX * 100,
+                "adaptation": self.chain_traversal / L6_MAX * 100,
+                "time_management": 0,
+                "legal_accuracy": self.legal_accuracy / L10_MAX * 100,
+            }
 
         # check_score sub-score is stored on the raw 0-5 scale (see
         # _score_objection_handling); normalize against that, not a layer cap.
@@ -1668,7 +1682,13 @@ async def calculate_realtime_scores(
 # Full scoring (L1-L10) — called after session end
 # ---------------------------------------------------------------------------
 
-async def calculate_scores(
+async def calculate_scores(session_id: str | uuid.UUID, db: AsyncSession) -> ScoreBreakdown:
+    """Grade text and voice transcripts using the same evidence-based rubric."""
+    from app.services.conversation_quality import assess_session, to_breakdown
+    return to_breakdown(await assess_session(session_id, db))
+
+
+async def calculate_legacy_scores(
     session_id: str | uuid.UUID,
     db: AsyncSession,
 ) -> ScoreBreakdown:
@@ -2363,6 +2383,10 @@ async def generate_recommendations(
     scores: ScoreBreakdown | None = None,
 ) -> str:
     """Generate recommendations: rule-based instant + LLM enrichment if available."""
+    if scores and scores.details.get("_quality_assessment"):
+        quality = scores.details["_quality_assessment"]
+        missing = [r["label"] for r in quality["criteria"] if r["score"] < r["max_score"]]
+        return quality["summary"] + ("\n\nНа следующей тренировке:\n" + "\n".join("• " + x for x in missing[:3]) if missing else "")
     # Step 1: Instant rule-based recommendations (always works)
     rule_based = ""
     if scores:
@@ -2484,6 +2508,9 @@ def generate_layer_explanations(
         List of LayerExplanation for L1-L6, L8, L10 (L7/L9 hidden).
     """
     details = breakdown.details
+    if details.get("_quality_assessment"):
+        return [LayerExplanation(**{k: v for k, v in row.items() if k != "key"})
+                for row in details["_layer_explanations"]]
     explanations: list[LayerExplanation] = []
 
     user_msgs = [(m["index"], m["content"]) for m in messages if m["role"] == "user"]

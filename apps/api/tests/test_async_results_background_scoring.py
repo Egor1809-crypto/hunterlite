@@ -348,3 +348,21 @@ async def test_background_scoring_is_idempotent_single_score(
         ).scalar_one()
         assert refreshed.score_total is not None
         assert (refreshed.scoring_details or {}).get("_scoring_pending") is False
+
+
+@pytest.mark.asyncio
+async def test_provider_failure_clears_pending_without_fake_grade_or_completion_score_event(
+    db_engine, db_session, _patch_background_scoring, monkeypatch,
+):
+    from unittest.mock import AsyncMock
+    from app.api import training
+    user, session = await _seed_completed_session(db_session)
+    monkeypatch.setattr(training, "calculate_scores", AsyncMock(side_effect=TimeoutError()))
+    await training._score_session_background(session.id)
+    await db_session.refresh(session)
+    assert session.score_total is None
+    assert session.scoring_details["_scoring_unavailable"] is True
+    assert session.scoring_details["_scoring_pending"] is False
+    events = (await db_session.execute(select(OutboxEvent).where(
+        OutboxEvent.idempotency_key == f"training_completed:{session.id}"))).scalars().all()
+    assert events == []

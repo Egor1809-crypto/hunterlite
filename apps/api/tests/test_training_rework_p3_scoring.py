@@ -102,7 +102,7 @@ def _full_breakdown(**overrides) -> ScoreBreakdown:
 # ──────────────────────────────────────────────────────────────────────────
 
 @pytest.mark.asyncio
-async def test_persona_scoring_rubric_is_consumed(db_session):
+async def test_persona_scoring_rubric_is_consumed(db_session, monkeypatch):
     """P3: a session started from a ReferencePersona applies that persona's
     rubric to L1/L2/L3/L5 and surfaces ``details["rubric_eval"]``.
 
@@ -170,25 +170,18 @@ async def test_persona_scoring_rubric_is_consumed(db_session):
     db_session.add_all([user, scenario, persona, session, *msgs])
     await db_session.commit()
 
+    from unittest.mock import AsyncMock
+    from app.services import conversation_quality as quality
+    result = quality.aggregate_assessment({"awards": [], "violations": [],
+        "summary": "Контекст проверен."}, [], [])
+    assessor = AsyncMock(return_value=result)
+    monkeypatch.setattr(quality, "assess_conversation", assessor)
     breakdown = await calculate_scores(session.id, db_session)
-
-    rubric_eval = breakdown.details.get("rubric_eval")
-    assert rubric_eval is not None, (
-        "P3 regression: persona.scoring_rubric was not consumed — "
-        "details['rubric_eval'] missing (pre-P3 behaviour)."
-    )
-    assert rubric_eval["persona_slug"] == persona.slug
-    # All four mapped layers (L1/L2/L3/L5) must have an attainment evaluation.
-    assert set(rubric_eval["metrics"].keys()) == {
-        "script_adherence", "objection_handling", "communication", "result",
-    }
-    for mkey, ev in rubric_eval["metrics"].items():
-        assert ev["target"] > 0, mkey
-        assert ev["attainment"] is not None, mkey
-        assert "met" in ev, mkey
-    # The persona's checklist is forwarded for the judge / results UI.
-    assert rubric_eval["must_clarify"] == ["сумма долга", "доход", "наличие ипотеки"]
-    assert rubric_eval["red_flags"] == ["обещание гарантированного списания"]
+    assert breakdown.total == 0
+    context = assessor.call_args.kwargs["context"]
+    assert context["must_clarify"] == ["сумма долга", "доход", "наличие ипотеки"]
+    history = assessor.call_args.args[0]
+    assert [m["content"] for m in history] == [m.content for m in msgs]
 
 
 # ──────────────────────────────────────────────────────────────────────────

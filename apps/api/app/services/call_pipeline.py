@@ -524,120 +524,15 @@ async def score_call(
     assistant_messages: list[str],
     history: list[dict[str, str]] | None = None,
 ) -> dict:
-    """Score a finished call via per-criterion LLM judges (§7).
-
-    Contract:
-      - ONE LLM judge per rubric criterion, run concurrently (asyncio.gather).
-      - Deterministic aggregation IN CODE: total = Σ (score/cap)*weight,
-        clamped to [0, 100].
-      - EMPTY GUARD: fewer than 2 user turns of ≥2 words → {total: 0,
-        _empty: true} (no LLM spend on an empty/garbage call).
-      - Returns {total, scoring_details} where scoring_details carries a
-        "judge" block (rendered by the existing /results JudgeVerdictCard)
-        and a "_call_rubric" per-criterion breakdown.
-    """
-    from app.services.scoring_llm_judge import _format_transcript
-
-    # Empty guard — count substantive user turns (≥2 words).
-    substantive = sum(1 for m in (user_messages or []) if len((m or "").split()) >= 2)
-    if substantive < 2:
-        return {
-            "total": 0,
-            "_empty": True,
-            "scoring_details": {
-                "_empty": True,
-                "judge": {
-                    "verdict": "red_flag",
-                    "score_adjust": 0,
-                    "rationale_ru": (
-                        "Звонок пустой или слишком короткий (меньше двух "
-                        "содержательных реплик юриста) — оценка не начислена."
-                    ),
-                    "red_flags": [],
-                    "strengths": [],
-                    "model_used": settings.exam_model,
-                    "latency_ms": 0,
-                },
-                "_call_rubric": [],
-            },
-        }
-
-    if history is not None:
-        lines = []
-        user_index = 0
-        for message in history:
-            if message["role"] == "user":
-                user_index += 1
-                speaker = f"M[{user_index}]"
-            else:
-                speaker = "К"
-            lines.append(f"{speaker}: {message['content']}")
-        transcript = "\n".join(lines)
-    else:
-        transcript = _format_transcript(user_messages, assistant_messages)
-
-    results = await asyncio.gather(
-        *(
-            _judge_criterion(criterion_ru, kind, transcript)
-            for (criterion_ru, kind, _weight) in _RUBRIC
-        )
-    )
-
-    if any(raw is None for raw, _ in results):
-        return {
-            "total": None,
-            "scoring_details": {
-                "_scoring_unavailable": True,
-                "_scoring_pending": False,
-                "_scoring_error": "Сервис оценки временно недоступен. Звонок сохранён, балл не выставлен.",
-                "_call_rubric": [],
-            },
-        }
-
-    total = 0.0
-    rubric_rows: list[dict] = []
-    for (criterion_ru, kind, weight), (raw, rationale) in zip(_RUBRIC, results):
-        cap = _criterion_cap(kind)
-        earned = (raw / cap) * weight if cap else 0.0
-        total += earned
-        rubric_rows.append(
-            {
-                "criterion": criterion_ru,
-                "kind": kind,
-                "score": raw,
-                "cap": cap,
-                "weight": weight,
-                "earned": round(earned, 1),
-                "rationale_ru": rationale,
-            }
-        )
-
-    total_clamped = int(max(0, min(100, round(total))))
-    verdict = _verdict_from_total(total_clamped)
-
-    strengths = [
-        {"label": r["criterion"], "message_index": -1, "excerpt": ""}
-        for r in rubric_rows
-        if (r["score"] / r["cap"]) >= 0.6
-    ]
-    red_flags = [
-        {"label": r["criterion"], "message_index": -1, "excerpt": "", "fix_example": ""}
-        for r in rubric_rows
-        if (r["score"] / r["cap"]) < 0.4
-    ]
-    rationale_ru = "; ".join(f"{r['criterion']}: {r['score']}/{r['cap']}" for r in rubric_rows)
-
-    scoring_details = {
-        "judge": {
-            "verdict": verdict,
-            "score_adjust": 0,
-            "rationale_ru": rationale_ru,
-            "red_flags": red_flags,
-            "strengths": strengths,
-            "model_used": settings.exam_model,
-            "latency_ms": 0,
-        },
-        "_call_rubric": rubric_rows,
-    }
-
-    return {"total": total_clamped, "scoring_details": scoring_details}
+    """Use the same evidence rubric as text training; never synthesize a score."""
+    from app.database import async_session
+    from app.services.conversation_quality import assess_session
+    try:
+        async with async_session() as db:
+            return await assess_session(session_id, db, history=history)
+    except Exception:
+        logger.exception("Call assessment unavailable")
+        return {"total": None, "scoring_details": {
+            "_scoring_unavailable": True, "_scoring_pending": False,
+            "_scoring_error": "Разговор сохранён, но получить подтверждённую оценку пока не удалось.",
+        }}

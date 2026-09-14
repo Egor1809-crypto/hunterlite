@@ -115,68 +115,12 @@ def _story_to_summary(story: ClientStory, sessions: list[TrainingSession]) -> St
 
 
 def _apply_transcript_fallback_scores(session: TrainingSession, messages: list[Message]) -> None:
-    """Build a usable report when WS/call scoring did not finish."""
-    if session.score_total is not None:
-        return
+    """Compatibility hook: reads never invent or mutate an assessment.
 
-    user_msgs = [m for m in messages if m.role == MessageRole.user]
-    assistant_msgs = [m for m in messages if m.role == MessageRole.assistant]
-    if not user_msgs:
-        return
-
-    text = "\n".join(m.content for m in user_msgs)
-    lower = text.lower()
-    user_count = len(user_msgs)
-    assistant_count = len(assistant_msgs)
-    avg_len = sum(len(m.content) for m in user_msgs) / max(1, user_count)
-    question_count = sum(1 for m in user_msgs if "?" in m.content)
-
-    empathy_hits = sum(1 for word in ("понима", "давайте", "помогу", "ситуац", "спокой") if word in lower)
-    legal_hits = sum(1 for word in ("банкрот", "долг", "суд", "закон", "процедур", "кредитор", "имуще") if word in lower)
-    structure_hits = sum(1 for word in ("сначала", "далее", "документ", "встреч", "план", "шаг") if word in lower)
-    risky_hits = sum(1 for word in ("гарантир", "обещаю", "точно спиш", "без суда", "не скажем") if word in lower)
-
-    script = min(30.0, 8 + user_count * 3 + structure_hits * 2 + min(avg_len / 35, 6))
-    objections = min(20.0, 5 + assistant_count * 2 + question_count * 2 + empathy_hits)
-    communication = min(20.0, 6 + min(avg_len / 28, 6) + empathy_hits * 2 + min(user_count, 4))
-    anti_patterns = max(-10.0, -float(risky_hits * 2))
-    result = min(10.0, 2 + legal_hits + structure_hits + question_count)
-    total = round(max(18.0, min(78.0, script + objections + communication + anti_patterns + result)), 1)
-
-    session.score_script_adherence = round(script, 1)
-    session.score_objection_handling = round(objections, 1)
-    session.score_communication = round(communication, 1)
-    session.score_anti_patterns = round(anti_patterns, 1)
-    session.score_result = round(result, 1)
-    session.score_total = total
-
-    details = dict(session.scoring_details or {})
-    details.setdefault("_fallback_report", True)
-    details.setdefault("_fallback_reason", "technical_disconnect_with_saved_transcript")
-    details.setdefault("_user_message_count", user_count)
-    details.setdefault("_assistant_message_count", assistant_count)
-    details.setdefault("_analysis_summary", {
-        "title": "Разбор восстановлен по сохранённому диалогу",
-        "strong_points": [
-            "Контакт с клиентом был начат и зафиксирован в истории.",
-            "В разговоре есть юридические ориентиры и вопросы к ситуации клиента.",
-        ],
-        "growth_points": [
-            "Нужно быстрее структурировать следующий шаг: документы, сроки, план действий.",
-            "После возражений клиента стоит явно подводить итог договорённости.",
-        ],
-    })
-    details.setdefault("judge", {
-        "verdict": "mixed",
-        "rationale_ru": "Автоматический разбор недоступен для этой сессии — показан краткий итог.",
-        "summary": "Сессия завершилась техническим сбоем, но переписка сохранена. Оценка рассчитана по фактическим сообщениям пользователя.",
-        "recommendation": "Повтори тренировку и доведи клиента до финального шага: резюме проблемы, список документов, срок следующего контакта.",
-    })
-    session.scoring_details = details
-    session.feedback_text = (
-        "Разговор оборвался технически, но мы сохранили переписку и собрали отчёт по вашим сообщениям. "
-        "Для более точной оценки пройдите тренировку до штатного завершения."
-    )
+    A saved transcript is evidence for the scorer, not a substitute for it.
+    Pending/unavailable reports retain score_total=None.
+    """
+    return
 
 
 async def _load_story_context(
@@ -1828,6 +1772,8 @@ async def _score_session_background(
                 session.score_anti_patterns = scores.anti_patterns
                 session.score_result = scores.result
                 session.score_total = scores.total
+                session.score_human_factor = getattr(scores, "human_factor", 0)
+                session.score_legal = getattr(scores, "legal_accuracy", 0)
 
                 # Enrich scoring_details with Wave 2 metadata
                 enriched = dict(scores.details) if scores.details else {}
@@ -1928,6 +1874,11 @@ async def _score_session_background(
                 session.scoring_details = enriched
             except Exception:
                 logger.exception("Failed to calculate scores for session %s", session_id)
+                # Preserve completion and transcript. No fake grade or score=0 event.
+                session.scoring_details = {**(session.scoring_details or {}),
+                    "_scoring_pending": False, "_scoring_unavailable": True}
+                await db.commit()
+                return
 
             # Generate AI recommendations
             try:
@@ -3322,22 +3273,44 @@ async def generate_ideal_response(
 @limiter.limit("3/minute")
 async def rescore_call(session_id: uuid.UUID, request: Request,
     user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    """Retry an unavailable call score without replaying completion side effects."""
-    from app.services.call_pipeline import score_call
+    """Retry an unavailable assessment or explicitly migrate a legacy report.
+
+    Locks the owned session; concurrent retries observe the first result.
+    Regrading never replays completion, XP or payment side effects.
+    """
+    from app.services.conversation_quality import VERSION
     session = await db.scalar(select(TrainingSession).where(
         TrainingSession.id == session_id, TrainingSession.user_id == user.id).with_for_update())
     if session is None:
-        raise HTTPException(404, "Звонок не найден")
-    details = session.scoring_details or {}
-    if not details.get("_scoring_unavailable"):
+        raise HTTPException(404, "Тренировка не найдена")
+    if str(getattr(session.status, "value", session.status)) == "active":
+        raise HTTPException(409, "Сначала завершите тренировку")
+    details = dict(session.scoring_details or {})
+    if details.get("_scoring_pending"):
+        raise HTTPException(409, "Разбор ещё готовится")
+    if details.get("_scoring_version") == VERSION and not details.get("_scoring_unavailable"):
         return {"score_total": session.score_total}
-    history = details.get("_call_history", [])
-    result = await score_call(session_id=str(session.id),
-        user_messages=[m["content"] for m in history if m["role"] == "user"],
-        assistant_messages=[m["content"] for m in history if m["role"] == "assistant"], history=history)
-    if result.get("total") is None:
-        raise HTTPException(503, "Сервис оценки пока недоступен")
-    session.score_total = float(result["total"])
-    session.scoring_details = {**details, **result["scoring_details"], "_scoring_unavailable":False}
+    try:
+        scores = await calculate_scores(session.id, db)
+    except Exception:
+        raise HTTPException(503, "Не удалось получить подтверждённую оценку. Предыдущий результат сохранён.")
+    if session.score_total is not None and details.get("_scoring_version") != VERSION:
+        details["_previous_assessment"] = {"score_total": session.score_total,
+            "version": details.get("_scoring_version", "legacy"),
+            "details": {k: v for k, v in details.items() if k != "_previous_assessment"}}
+    # Keep operational metadata, replace obsolete grading metadata.
+    preserved = {k: v for k, v in details.items() if k in {
+        "_previous_assessment", "_call_history", "_client_name", "_client_card_reveal",
+        "_emotion_journey", "call_outcome"}}
+    session.score_total = scores.total
+    session.score_script_adherence = scores.script_adherence
+    session.score_objection_handling = scores.objection_handling
+    session.score_communication = scores.communication
+    session.score_anti_patterns = scores.anti_patterns
+    session.score_result = scores.result
+    session.score_human_factor = scores.human_factor
+    session.score_legal = scores.legal_accuracy
+    session.scoring_details = {**preserved, **scores.details}
+    session.feedback_text = await generate_recommendations(session.id, db, scores)
     await db.commit()
-    return {"score_total":session.score_total}
+    return {"score_total": session.score_total}

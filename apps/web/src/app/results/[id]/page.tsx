@@ -37,6 +37,8 @@ import AIRecommendations from "@/components/results/AIRecommendations";
 import CheckpointProgress from "@/components/results/CheckpointProgress";
 import StageBreakdown from "@/components/results/StageBreakdown";
 import AICoachSection from "@/components/results/AICoachSection";
+import QualityAssessment, { type QualityReport } from "@/components/results/QualityAssessment";
+import { resultScoringState } from "@/lib/resultScoring";
 import ScoreLayersBreakdown from "@/components/results/ScoreLayersBreakdown";
 import JudgeVerdictCard from "@/components/results/JudgeVerdictCard";
 import MistakesBreakdown from "@/components/results/MistakesBreakdown";
@@ -100,6 +102,18 @@ export default function ResultsPage() {
   // instead of a hard skeleton — UX-wise this is gentler than swapping
   // in a full skeleton on every poll cycle.
   const [processing, setProcessing] = useState(true);
+  const [regrading, setRegrading] = useState(false);
+  const [regradeError, setRegradeError] = useState("");
+  async function regrade() {
+    setRegrading(true); setRegradeError("");
+    try {
+      await api.post(`/training/sessions/${String(params.id)}/rescore-call`, {}, { timeoutMs: 75000 });
+      window.location.reload();
+    } catch {
+      setRegradeError("Получить оценку пока не удалось. Разговор и прежний результат сохранены. Попробуйте позже.");
+      setRegrading(false);
+    }
+  }
   // Async-results (2026-06-06): when scoring is deferred to a background task,
   // DeepSeek latency can push calculate_scores past the base 30s poll budget.
   // We extend the budget while the backend's `_scoring_pending` flag is still
@@ -121,19 +135,7 @@ export default function ResultsPage() {
 
     const isFullyScored = (data: SessionResultResponse | null): boolean => {
       if (!data?.session) return false;
-      const sess = data.session;
-      // Hard fail: backend marked the session terminal but with no scores
-      // (rare race). Treat as "done" so we don't spin forever.
-      if (sess.status === "abandoned" || sess.status === "error") return true;
-      if ((data.score_breakdown as Record<string,unknown>)?._scoring_unavailable) return true;
-      if (sess.score_total === null || sess.score_total === undefined) return false;
-      // Judge runs only on transcripts with enough user turns. If the
-      // transcript is short, skip the judge check.
-      const breakdown = data.score_breakdown as Record<string, unknown> | null;
-      const userMsgCount = (breakdown?._user_message_count as number) ?? 0;
-      const judgeRequired = userMsgCount >= 4;
-      const judgePresent = Boolean(breakdown?.judge);
-      return !judgeRequired || judgePresent;
+      return resultScoringState(data.session.score_total, data.session.scoring_details) !== "pending";
     };
 
     // Read the backend's durable "still scoring" flag. Both the REST and WS
@@ -252,9 +254,11 @@ export default function ResultsPage() {
   }
 
   const { session, messages } = result;
-  const scoringUnavailable = Boolean((result.score_breakdown as Record<string,unknown>)?._scoring_unavailable);
+  const scoreState = resultScoringState(session.score_total, session.scoring_details);
+  const scoringUnavailable = scoreState === "unavailable";
+  const qualityReport = session.scoring_details?._quality_assessment as QualityReport | undefined;
   const totalScore = session.score_total ?? 0;
-  const hasScores = session.score_total !== null;
+  const hasScores = scoreState === "ready";
 
   // Async-results (2026-06-06): backend now finalizes the session fast
   // (status=completed, training_completed emitted) and computes the score
@@ -397,7 +401,7 @@ export default function ResultsPage() {
             </div>
             <div className="mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-1">
               <span className="text-lg" style={{ color: "var(--text-primary)" }}>
-                Итог: {Math.round(totalScore)} из 100
+                Итог: {totalScore.toLocaleString("ru-RU", { maximumFractionDigits: 1 })} из 100
               </span>
               <span className="text-sm" style={{ color: "var(--text-secondary)" }}>
                 {totalScore >= 70
@@ -520,7 +524,16 @@ export default function ResultsPage() {
             half-page. The transcript / weak-legal / client sections below
             stay visible the whole time; this block is replaced in-place by
             the real score widgets as soon as polling sees `score_total`. */}
-        {scoringUnavailable && <section role="status" className="rounded-xl p-6 mb-6" style={{background:"var(--surface-card)",border:"1px solid var(--border-color)"}}><h2 className="font-display text-2xl">Оценка временно недоступна</h2><p className="mt-3" style={{color:"var(--text-secondary)"}}>Текст разговора сохранён. Сервис оценки не ответил — это не влияет на ваш балл.</p><button className="call-secondary mt-4" onClick={async(e)=>{const button=e.currentTarget;button.disabled=true;button.textContent="Повторяю оценку…";try{await api.post(`/training/sessions/${String(params.id)}/rescore-call`,{});window.location.reload();}catch{button.disabled=false;button.textContent="Повторить оценку";toast.error("Сервис пока недоступен. Попробуйте позже.");}}}>Повторить оценку</button></section>}
+        {(scoringUnavailable || (hasScores && !qualityReport)) && <section className="glass-panel rounded-2xl p-6 mb-6">
+          <h2 className="font-display text-xl">{scoringUnavailable ? "Оценка временно недоступна" : "Этот результат рассчитан по прежней шкале"}</h2>
+          <p className="mt-3 text-sm" style={{ color: "var(--text-secondary)" }}>{scoringUnavailable ? "Разговор сохранён. Балл появится после успешного анализа." : "Можно пересчитать качество разговора с подтверждением каждого начисления и штрафа. Прежняя оценка сохранится в истории разбора."}</p>
+          <button className="call-secondary mt-4" disabled={regrading} onClick={regrade}>{regrading ? "Анализируем разговор…" : scoringUnavailable ? "Повторить оценку" : "Пересчитать по новой шкале"}</button>
+          <p role="status" className="mt-2 text-sm">{regradeError}</p>
+        </section>}
+        {hasScores && qualityReport && <>
+          {session.scoring_details?._previous_assessment && <p className="mb-4 text-sm" style={{ color: "var(--text-secondary)" }}>Прежняя оценка: {String((session.scoring_details._previous_assessment as { score_total: number }).score_total)} / 100. Ниже — пересчёт по новой шкале.</p>}
+          <QualityAssessment report={qualityReport} />
+        </>}
         {scoringPending && !scoringStuck && (
           <motion.div
             initial={{ opacity: 0, y: 12 }}
@@ -535,8 +548,8 @@ export default function ResultsPage() {
               </span>
             </div>
             <p className="mt-4 text-sm leading-relaxed" style={{ color: "var(--text-secondary)" }}>
-              Оценка по навыкам, пентаграмма, разбор ошибок и рекомендации считаются
-              в фоне и появятся здесь автоматически — обновлять страницу не нужно.
+              Проверяем действия и правовую точность. Баллы и подтверждающие реплики
+              появятся здесь автоматически — обновлять страницу не нужно.
             </p>
             {/* Skeleton stand-ins for the two main score columns
                 (pentagram + emotion/verdict). Match the real layout so the
@@ -692,7 +705,7 @@ export default function ResultsPage() {
           </div>
         )}
         <div className="mt-6">
-          <MistakesBreakdown items={result.score_breakdown?.anti_patterns?.detected ?? []} />
+          {!qualityReport && <MistakesBreakdown items={result.score_breakdown?.anti_patterns?.detected ?? []} />}
         </div>
 
         {/* Transcript — moved here (2026-05-11 redesign-B) от позиции
@@ -812,14 +825,14 @@ export default function ResultsPage() {
             front-and-back. The backend no longer projects story/story_calls. */}
 
         {/* Soft Skills */}
-        {result.soft_skills && (
+        {!qualityReport && result.soft_skills && (
           <div className="mt-6">
             <SoftSkillsCard skills={result.soft_skills} />
           </div>
         )}
 
         {/* L1-L10 Detailed Score Layers */}
-        {hasScores && (
+        {hasScores && !qualityReport && (
           <div className="mt-6">
             <ScoreLayersBreakdown
               scoreBreakdown={{
@@ -883,7 +896,7 @@ export default function ResultsPage() {
             to story-mode. Cut front-and-back; backend no longer projects it. */}
 
         {/* Score bars */}
-        {hasScores && (
+        {hasScores && !qualityReport && (
           <motion.div
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
