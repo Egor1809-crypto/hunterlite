@@ -4,6 +4,10 @@ import { NextRequest } from "next/server";
 import { middleware } from "./middleware";
 
 describe("landing after clearing site data", () => {
+  it.each(["legalhunter.pro", "www.legalhunter.pro"])("keeps the public host %s behind nginx", (host) => {
+    const response = middleware(new NextRequest("http://localhost:3000/cases", {headers:{host, "x-forwarded-proto":"https", "x-forwarded-host":"untrusted.example"}}));
+    expect(response.headers.get("location")).toBe(`https://${host}/`);
+  });
   it.each(["/home", "/cases", "/training/session/call", "/home?redirect=/login"])("returns %s to the landing without opening auth", (path) => {
     const response = middleware(new NextRequest(`https://legalhunter.pro${path}`));
     expect(response.status).toBe(307);

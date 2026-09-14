@@ -186,6 +186,16 @@ function checkRoleAccess(pathname: string, token: string | undefined): string | 
 // Middleware entry point
 // ---------------------------------------------------------------------------
 
+function redirectWithinSite(path: string, request: NextRequest) {
+  // Next standalone sees its internal origin behind nginx. Only trust our
+  // public hosts; never use an arbitrary forwarded host for navigation.
+  const host = request.headers.get("host");
+  const origin = host === "legalhunter.pro" || host === "www.legalhunter.pro"
+    ? `https://${host}`
+    : request.url;
+  return NextResponse.redirect(new URL(path, origin));
+}
+
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
@@ -210,7 +220,7 @@ export function middleware(request: NextRequest) {
   // ── 2.5. Retired /profile → /settings (page deleted; avoid 404 on
   //         bookmarked/external deep links — TZ History/Profile/Settings §3) ──
   if (pathname === "/profile" || pathname.startsWith("/profile/")) {
-    const response = NextResponse.redirect(new URL("/settings", request.url));
+    const response = redirectWithinSite("/settings", request);
     response.headers.set("Content-Security-Policy", cspHeaderValue);
     response.headers.set("x-nonce", nonce);
     return response;
@@ -223,7 +233,7 @@ export function middleware(request: NextRequest) {
   if (!hasAccessToken && !hasMarker) {
     // A cleared/expired session returns to the public landing. Sign-in stays
     // an explicit action; do not bypass the guard for old ?redirect=/login URLs.
-    const response = NextResponse.redirect(new URL("/", request.url));
+    const response = redirectWithinSite("/", request);
 
     // Clear potentially stale/invalid auth cookies
     response.cookies.delete("access_token");
@@ -238,8 +248,7 @@ export function middleware(request: NextRequest) {
   const tokenValue = hasAccessToken?.value;
   const roleRedirect = checkRoleAccess(pathname, tokenValue);
   if (roleRedirect) {
-    const redirectUrl = new URL(roleRedirect, request.url);
-    const response = NextResponse.redirect(redirectUrl);
+    const response = redirectWithinSite(roleRedirect, request);
     response.headers.set("Content-Security-Policy", cspHeaderValue);
     response.headers.set("x-nonce", nonce);
     return response;
