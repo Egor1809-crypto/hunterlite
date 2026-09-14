@@ -269,6 +269,10 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
+      - name: Capture release build time
+        id: release_meta
+        run: echo "build_time=$(date -u +%FT%TZ)" >> "$GITHUB_OUTPUT"
+
       - name: Build and push API image
         uses: docker/build-push-action@v5
         with:
@@ -276,7 +280,7 @@ jobs:
           push: true
           build-args: |
             RELEASE_SHA=${{ github.sha }}
-            BUILD_TIME=${{ github.run_id }}
+            BUILD_TIME=${{ steps.release_meta.outputs.build_time }}
           tags: |
             ${{ env.API_IMAGE }}:latest
             ${{ env.API_IMAGE }}:${{ github.sha }}

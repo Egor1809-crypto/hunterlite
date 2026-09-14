@@ -548,8 +548,8 @@ export default function ResultsPage() {
               </span>
             </div>
             <p className="mt-4 text-sm leading-relaxed" style={{ color: "var(--text-secondary)" }}>
-              Оценка по навыкам, пентаграмма, разбор ошибок и рекомендации считаются
-              в фоне и появятся здесь автоматически — обновлять страницу не нужно.
+              Проверяем действия и правовую точность. Баллы и подтверждающие реплики
+              появятся здесь автоматически — обновлять страницу не нужно.
             </p>
             {/* Skeleton stand-ins for the two main score columns
                 (pentagram + emotion/verdict). Match the real layout so the
