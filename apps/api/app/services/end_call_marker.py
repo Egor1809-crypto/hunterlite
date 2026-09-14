@@ -1,29 +1,8 @@
-"""End-of-call marker detection — explicit hangup signal from the LLM.
+"""Explicit LLM disconnect markers and terminal stage directions.
 
-Background (2026-05-03 prod incident, BUG 1)
---------------------------------------------
-The previous AI-farewell auto-end relied on a substring match of the LAST
-sentence of the LLM reply (``"до свидания"``, ``"всего доброго"``, …) gated
-by ``current_emotion == "hostile"`` AND ``message_count >= 8``. The gates
-were tightened deliberately because the LLM frequently improvises
-dramatic farewells (``"всё, до свидания, разговор окончен!"``) when it
-doesn't actually mean it. The cost: real, polite, deserved hangups never
-fire because the emotion stays ``cold`` / ``curious``.
-
-Industry pattern (Vapi ``endCallPhrases`` / custom stop-tokens / OpenAI
-function-calling):
-
-* Give the LLM an explicit signal it must emit when it decides to hang up.
-* Trust that signal more than substring heuristics.
-* Strip the signal before TTS / FE display so the user never sees it.
-
-The system prompt rule 9 in :func:`app.services.llm._build_system_prompt`
-instructs the persona: when ending the call, append ``[END_CALL]`` to the
-reply. This module detects + strips the marker.
-
-The marker path bypasses the ``hostile`` / ``msg_count >= 8`` gates and
-keeps only a minimal ``msg_count >= 4`` sanity floor (handled in the
-caller) so a buggy first reply can't trigger an immediate hangup.
+Only affirmative, standalone closing actions at the end of a reply count.
+Threats, questions, quoted actions and ordinary farewells keep the existing
+weighted decision path. Remove machine/stage markers before display and TTS.
 """
 from __future__ import annotations
 
@@ -41,11 +20,21 @@ _END_CALL_RE: Final[re.Pattern[str]] = re.compile(
 )
 
 
+_ACTION = (
+    r"(?:прерывает разговор|завершает (?:разговор|звонок)|"
+    r"клад[её]т трубку|вешает трубку|отключается)"
+)
+_CLOSING_ACTION_RE = re.compile(
+    rf"(?:^|(?<=[.!…])\s+)(?:\(\s*{_ACTION}\s*\)|\[\s*{_ACTION}\s*\]|\*\s*{_ACTION}\s*\*)[.!…]?\s*$",
+    re.IGNORECASE,
+)
+
+
 def detect_end_call(text: str) -> bool:
-    """Return True iff ``text`` contains the ``[END_CALL]`` marker."""
-    if not text or "[" not in text:
+    """Detect a machine marker or an affirmative closing stage action."""
+    if not text:
         return False
-    return bool(_END_CALL_RE.search(text))
+    return bool(_END_CALL_RE.search(text) or _CLOSING_ACTION_RE.search(text))
 
 
 def strip_end_call(text: str) -> str:
@@ -56,7 +45,7 @@ def strip_end_call(text: str) -> str:
     """
     if not text:
         return text
-    out = _END_CALL_RE.sub(" ", text)
+    out = _CLOSING_ACTION_RE.sub("", _END_CALL_RE.sub(" ", text))
     # Collapse double spaces introduced by the strip.
     out = re.sub(r"[ \t]{2,}", " ", out)
     return out.strip()

@@ -23,6 +23,7 @@
  *   <ManyashaChat config={{ apiEndpoint: "/api/chat" }} />
  */
 
+import { requestManyasha } from "@/lib/manyashaRequest";
 import {
   useState,
   useRef,
@@ -342,6 +343,7 @@ export default function ManyashaChat({ config, onSpeak, autoOpen, autoOpenMessag
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [requestError, setRequestError] = useState<string | null>(null);
   const [sizeIdx, setSizeIdx] = useState(1);
   const [pos, setPos] = useState({ x: 0, y: 0 });
   const [dragging, setDragging] = useState(false);
@@ -415,7 +417,7 @@ export default function ManyashaChat({ config, onSpeak, autoOpen, autoOpenMessag
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  }, [messages, loading, requestError]);
 
   useEffect(() => {
     if (chatOpen && inputRef.current) inputRef.current.focus();
@@ -456,24 +458,15 @@ export default function ManyashaChat({ config, onSpeak, autoOpen, autoOpenMessag
       setMessages(newMessages);
       setInput("");
       setLoading(true);
+      setRequestError(null);
 
       try {
-        const res = await fetch(cfg.apiEndpoint, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ messages: newMessages }),
-        });
-
-        const data = await res.json();
-        const reply = data.reply ?? "Извините, произошла ошибка.";
+        const reply = await requestManyasha(cfg.apiEndpoint, newMessages);
 
         setMessages((prev) => [...prev, { role: "assistant", content: reply }]);
         onSpeak?.(reply);
-      } catch {
-        setMessages((prev) => [
-          ...prev,
-          { role: "assistant", content: "Не могу подключиться к серверу. Попробуйте позже." },
-        ]);
+      } catch (error) {
+        setRequestError(error instanceof Error ? error.message : "Не удалось получить ответ.");
       } finally {
         setLoading(false);
       }
@@ -648,7 +641,7 @@ export default function ManyashaChat({ config, onSpeak, autoOpen, autoOpenMessag
                 <div className="mnya-msg-avatar">
                   <ManyashaAvatar video={cfg.mascotVideo} poster={cfg.mascotPoster} />
                 </div>
-                <div className="mnya-typing">
+                <div className="mnya-typing" role="status" aria-label="Маняша готовит ответ">
                   <div className="d">
                     <span style={{ animationDelay: "0ms" }} />
                     <span style={{ animationDelay: "150ms" }} />
@@ -658,6 +651,15 @@ export default function ManyashaChat({ config, onSpeak, autoOpen, autoOpenMessag
               </div>
             )}
 
+            {requestError && (
+              <div role="alert" className="mnya-bubble mnya-bubble-bot">
+                <p>{requestError}</p>
+                <button type="button" className="mt-3 underline underline-offset-4" onClick={() => {
+                  const last = messages[messages.length - 1];
+                  if (last?.role === "user") void sendChatMessage(last.content, messages.slice(0, -1));
+                }}>Повторить вопрос</button>
+              </div>
+            )}
             <div ref={messagesEndRef} />
           </div>
 

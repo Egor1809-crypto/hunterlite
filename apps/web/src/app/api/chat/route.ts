@@ -1,27 +1,13 @@
-/**
- * Пример серверного эндпоинта чата для Next.js (App Router).
- * Положи как:  src/app/api/chat/route.ts
- *
- * Виджет шлёт сюда POST { messages: [{role, content}, ...] }
- * и ожидает в ответ { reply: string }.
- *
- * Ключ провайдера и адрес LLM — только из переменных окружения.
- * НИКОГДА не хардкодь ключ в коде и не коммить .env.
- *
- *   .env.local:
- *     LLM_API_KEY=sk-...
- *     LLM_BASE_URL=https://api.navy/v1      # адрес OpenAI-совместимого API
- *     LLM_MODEL=gpt-4o-mini
- *
- * Это минимальный шаблон без rate-limit. На проде добавь ограничение
- * по IP + глобальный лимит, чтобы не слить бюджет API (как в боевой версии).
- */
-
 import { NextRequest, NextResponse } from "next/server";
 
 const API_KEY = process.env.LLM_API_KEY;
 const BASE_URL = process.env.LLM_BASE_URL ?? "https://api.navy/v1";
-const MODEL = process.env.LLM_MODEL ?? "gpt-4o-mini";
+// The general LLM_MODEL may be a slow reasoning model. Keep interactive
+// assistant routing independent; both defaults are available on navy /models.
+const MODEL = process.env.MANYASHA_MODEL ?? "deepseek-v4-flash";
+const FALLBACK_MODEL = process.env.MANYASHA_FALLBACK_MODEL ?? "gemini-2.5-flash";
+const PROVIDER_TIMEOUT_MS = 8000;
+const UNAVAILABLE = "Маняша пока не смогла ответить. Попробуйте отправить вопрос ещё раз.";
 
 // Справка о чемпионате/розыгрыше — Маняша авто-открывается на странице
 // /championship и должна уметь отвечать по условиям, призам, срокам и налогам.
@@ -111,45 +97,42 @@ export async function POST(req: NextRequest) {
         content: m.content.slice(0, 2000),
       }));
 
-    const response = await fetch(`${BASE_URL}/chat/completions`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${API_KEY}`,
-      },
-      body: JSON.stringify({
-        model: MODEL,
-        messages: [{ role: "system", content: SYSTEM_PROMPT }, ...trimmed],
-        // deepseek-v4-pro — reasoning-модель: часть бюджета уходит на
-        // reasoning_content. С маленьким лимитом content остаётся пустым
-        // (finish_reason=length). 2000 хватает на reasoning + полноценный
-        // content (проверено: при 1200 content пуст, при 2000 finish=stop).
-        max_tokens: 2000,
-        temperature: 0.7,
-      }),
-    });
-
-    if (!response.ok) {
-      console.error("LLM API error:", response.status);
-      return NextResponse.json({ error: "AI service error" }, { status: 502 });
+    for (const model of [...new Set([MODEL, FALLBACK_MODEL])]) {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), PROVIDER_TIMEOUT_MS);
+      try {
+        const response = await fetch(`${BASE_URL}/chat/completions`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${API_KEY}`,
+          },
+          body: JSON.stringify({
+            model,
+            messages: [{ role: "system", content: SYSTEM_PROMPT }, ...trimmed],
+            max_tokens: 2000,
+            temperature: 0.7,
+          }),
+          signal: controller.signal,
+        });
+        if (!response.ok) {
+          console.warn("Manyasha provider rejected request", { model, status: response.status });
+          continue;
+        }
+        const data = await response.json();
+        const content = data.choices?.[0]?.message?.content;
+        // Internal reasoning is never a substitute for a user-facing answer.
+        const reply = typeof content === "string" ? cleanManyashaText(content) : "";
+        if (reply) return NextResponse.json({ reply });
+      } catch {
+        // Do not log prompts, credentials or upstream response bodies.
+        console.warn("Manyasha provider unavailable", { model, timedOut: controller.signal.aborted });
+      } finally {
+        clearTimeout(timeout);
+      }
     }
-
-    const data = await response.json();
-    const message = data.choices?.[0]?.message ?? {};
-    // У reasoning-моделей при нехватке токенов content пуст, а текст лежит
-    // в reasoning_content — подстраховываемся. Пустую строку считаем за отказ.
-    const content =
-      typeof message.content === "string" ? message.content.trim() : "";
-    const reasoning =
-      typeof message.reasoning_content === "string"
-        ? message.reasoning_content.trim()
-        : "";
-    const rawReply = content || reasoning || "Извините, не могу ответить сейчас.";
-    const reply = cleanManyashaText(rawReply);
-
-    return NextResponse.json({ reply });
-  } catch (error) {
-    console.error("Chat API error:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return NextResponse.json({ error: UNAVAILABLE }, { status: 503 });
+  } catch {
+    return NextResponse.json({ error: "Не удалось прочитать сообщение." }, { status: 400 });
   }
 }
