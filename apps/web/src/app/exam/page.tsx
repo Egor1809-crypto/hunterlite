@@ -17,6 +17,7 @@ import AuthLayout from "@/components/layout/AuthLayout";
 import { EditorialHeader } from "@/components/ui/EditorialHeader";
 import { api } from "@/lib/api";
 import { useAuthStore } from "@/stores/useAuthStore";
+import { CertificatePath } from "@/components/exam/CertificatePath";
 import { Card } from "@/components/ui/Card";
 import {
   CertificatePreview,
@@ -255,7 +256,7 @@ export default function ExamPage() {
           {/* Progress banner */}
           <Card variant="editorial" accentTop className="mt-6">
             <div className="flex flex-col gap-6 sm:flex-row sm:items-center">
-              <div className="flex-1">
+              <div className="min-w-0 flex-1">
                 <div className="mb-3 flex items-center gap-2">
                   <Award size={15} style={{ color: "var(--primary)" }} />
                   <span
@@ -266,72 +267,11 @@ export default function ExamPage() {
                   </span>
                 </div>
 
-                <div className="flex flex-wrap items-center gap-2">
-                  {exams
-                    .filter((e) => e.id !== "exam-5")
-                    .map((exam, i) => (
-                      <div key={exam.id} className="flex items-center gap-2">
-                        <div
-                          className="flex h-8 w-8 items-center justify-center rounded-lg font-mono text-xs font-semibold tabular-nums"
-                          style={{
-                            background: exam.passed
-                              ? "var(--primary-muted)"
-                              : "var(--bg-secondary)",
-                            border: `1.5px solid ${exam.passed ? "var(--primary)" : "var(--border-color)"}`,
-                            color: exam.passed
-                              ? "var(--primary)"
-                              : "var(--text-muted)",
-                          }}
-                        >
-                          {exam.passed ? <CheckCircle size={14} /> : i + 1}
-                        </div>
-                        {i < 3 && (
-                          <div
-                            className="h-0.5 w-6 rounded-full"
-                            style={{
-                              background: exam.passed
-                                ? "var(--primary)"
-                                : "var(--border-color)",
-                            }}
-                          />
-                        )}
-                      </div>
-                    ))}
-                  <div
-                    className="h-0.5 w-6 rounded-full"
-                    style={{
-                      background:
-                        passedModules === 4
-                          ? "var(--primary)"
-                          : "var(--border-color)",
-                    }}
-                  />
-                  <button
-                    onClick={() => setShowCert(true)}
-                    aria-label="Посмотреть сертификат"
-                    className="flex h-10 w-10 items-center justify-center rounded-xl transition-transform hover:scale-105"
-                    style={{
-                      background: finalPassed
-                        ? "var(--primary-muted)"
-                        : "var(--bg-secondary)",
-                      border: `2px solid ${finalPassed || passedModules === 4 ? "var(--primary)" : "var(--border-color)"}`,
-                    }}
-                  >
-                    {finalPassed ? (
-                      <Award size={18} style={{ color: "var(--primary)" }} />
-                    ) : (
-                      <Lock
-                        size={16}
-                        style={{
-                          color:
-                            passedModules === 4
-                              ? "var(--primary)"
-                              : "var(--text-muted)",
-                        }}
-                      />
-                    )}
-                  </button>
-                </div>
+                <CertificatePath
+                  exams={exams}
+                  finalPassed={finalPassed}
+                  onCertificate={() => setShowCert(true)}
+                />
 
                 <p
                   className="mt-3 text-[13px]"
