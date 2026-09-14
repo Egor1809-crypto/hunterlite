@@ -46,7 +46,8 @@ export default function ChampionshipRoute() {
     // Платформенный surface — Маняша приходит из AuthLayout (isContest).
     return (
       <AuthLayout showBreadcrumbs={false}>
-        <div className="editorial-page relative min-h-screen">
+        <div className="relative min-h-screen overflow-x-clip">
+          <AbstractBackdrop />
 
           <div className="relative z-10">
             <div className="mx-auto max-w-[1100px] px-6 pt-6 sm:px-10">

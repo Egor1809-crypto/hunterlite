@@ -2186,26 +2186,6 @@ html.light .editorial-app main .learning-region-heading {border:0;}
     display: none;
   }
 }
-.editorial-season-summary {
-  display: flex;
-  gap: 48px;
-  flex-wrap: wrap;
-  margin-top: 40px;
-  padding: 24px 0;
-  border-block: 1px solid var(--border-color);
-}
-.editorial-season-summary span {
-  display: block;
-  font-size: 13px;
-  color: var(--text-secondary);
-}
-.editorial-season-summary strong {
-  display: block;
-  margin-top: 8px;
-  font-size: 26px;
-  font-weight: 500;
-  font-variant-numeric: tabular-nums;
-}
 
 .call-controls button {
   overflow-wrap: normal;
