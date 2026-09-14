@@ -37,7 +37,7 @@ function variantStyles(variant: Variant) {
     case "primary":
       return {
         background: "var(--primary)",
-        color: "#fff",
+        color: "var(--primary-contrast, #fff)",
         border: "1px solid var(--primary)",
         "--btn-hover-bg": "var(--primary-hover)",
         "--btn-hover-shadow": "var(--shadow-sm)",

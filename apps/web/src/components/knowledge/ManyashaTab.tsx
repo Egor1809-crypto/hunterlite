@@ -26,7 +26,7 @@ import { api } from "@/lib/api";
 import { Card } from "@/components/ui/Card";
 
 const MASCOT_VIDEO = "/mascot/manyasha-idle-alpha.webm";
-const MASCOT_POSTER = "/mascot/manyasha-idle-poster.jpg";
+const MASCOT_POSTER = "/mascot/manyasha-visible-poster.png";
 
 const QUICK_QUESTIONS = [
   "Подходит ли мне банкротство физлица?",

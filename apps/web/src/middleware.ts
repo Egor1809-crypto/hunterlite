@@ -209,7 +209,7 @@ export function middleware(request: NextRequest) {
     pathname.startsWith("/_next") ||
     pathname.startsWith("/api") ||
     pathname.startsWith("/sw-") ||
-    /\.(js|css|ico|png|jpg|jpeg|gif|svg|webp|woff2?|ttf|eot|map|json|txt|xml|webmanifest)$/i.test(pathname)
+    /\.(js|css|ico|png|jpg|jpeg|gif|svg|webp|webm|woff2?|ttf|eot|map|json|txt|xml|webmanifest)$/i.test(pathname)
   ) {
     const response = NextResponse.next();
     response.headers.set("Content-Security-Policy", cspHeaderValue);
