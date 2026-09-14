@@ -472,8 +472,8 @@ function TariffsSection({ openRegister }: { openRegister: () => void }) {
                 </h3>
 
                 {/* price */}
-                <div className="mt-5 flex items-baseline gap-2">
-                  <span className="font-mono font-semibold leading-none tabular-nums" style={{ color: "var(--text-primary)", fontSize: "clamp(2.6rem, 5vw, 3.6rem)", letterSpacing: "-0.04em" }}>
+                <div className="mt-5 flex flex-wrap items-baseline gap-x-2 gap-y-1">
+                  <span className="whitespace-nowrap font-mono font-semibold leading-none tabular-nums" style={{ color: "var(--text-primary)", fontSize: "clamp(2.6rem, 5vw, 3.6rem)", letterSpacing: "-0.04em" }}>
                     {plan.price}
                   </span>
                   <span className="text-[15px]" style={{ color: "var(--text-muted)" }}>{plan.period}</span>
