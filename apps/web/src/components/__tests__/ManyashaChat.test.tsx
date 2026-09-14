@@ -8,7 +8,7 @@ it("clears typing after failure and retries the same question without duplicatin
     ok: true, json: async () => ({ reply: "Расскажите о вашей ситуации." }),
   });
   vi.stubGlobal("fetch", fetcher);
-  render(<ManyashaChat config={{ hidePaths: [] }} autoOpen forceShow />);
+  render(<ManyashaChat config={{ apiEndpoint: "/api/chat", hidePaths: [] }} autoOpen forceShow />);
   const input = screen.getByPlaceholderText("Напишите сообщение...");
   fireEvent.change(input, { target: { value: "Подходит ли мне БФЛ?" } });
   fireEvent.click(screen.getByRole("button", { name: "Отправить" }));
