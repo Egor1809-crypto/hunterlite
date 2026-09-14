@@ -46,7 +46,7 @@ const LEVEL_META: Record<Level, { label: string; color: string; soft: string }> 
 };
 
 const MASCOT_VIDEO = "/mascot/manyasha-idle-alpha.webm";
-const MASCOT_POSTER = "/mascot/manyasha-idle-poster.jpg";
+const MASCOT_POSTER = "/mascot/manyasha-visible-poster.png";
 
 function Mascot({ size = 132 }: { size?: number }) {
   return (

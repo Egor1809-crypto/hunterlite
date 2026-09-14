@@ -49,7 +49,7 @@ const products = [
     text: "Объективная проверка знаний, отчёт о результате и сертификат — подтверждение, что вам можно доверить дело.",
   },
   {
-    title: "Expertum",
+    title: "AILEGAL",
     text: "Отдельный сервис экосистемы «AI & право» — экспертные инструменты для юридической практики. Открыть expertum.pro.",
     href: "https://expertum.pro/",
   },
@@ -75,7 +75,6 @@ const plans = [
   {
     name: "Старт",
     plan: "scout",
-    code: "PL—01",
     price: "0",
     period: "₽ / мес",
     cta: "Начать бесплатно",
@@ -93,7 +92,6 @@ const plans = [
   {
     name: "Эксперт",
     plan: "hunter",
-    code: "PL—02",
     price: "120 000",
     period: "₽ · разовый доступ",
     cta: "Выбрать тариф",
@@ -233,7 +231,7 @@ function AboutSection({ openRegister }: { openRegister: () => void }) {
 function ExpertsSection() {
   return (
     <div className="py-2">
-      <motion.div {...reveal(0)} className="flex flex-col justify-between gap-6 lg:flex-row lg:items-end">
+      <motion.div {...reveal(0)} className="experts-heading grid items-start gap-6 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
         <div>
           <h2
             className="max-w-4xl font-display font-semibold"
@@ -312,18 +310,18 @@ function ProductsSection() {
             </div>
           );
           const body = (
-            <div>
+            <div className="min-w-0">
               <h3
                 className="flex items-center gap-2 font-semibold tracking-tight transition-transform group-hover:translate-x-1"
                 style={{ color: "var(--text-primary)", fontSize: "clamp(1.4rem, 2.4vw, 2rem)", letterSpacing: "-0.02em" }}
               >
-                {product.title}
+                {product.title === "AILEGAL" ? <span className="ailegal-wordmark" role="img" aria-label="AILEGAL">AI<span>LEGAL</span></span> : product.title}
                 {href && <ArrowRight size={22} style={{ color: "var(--primary)" }} />}
               </h3>
               <p className="mt-3 max-w-2xl text-[16px] leading-relaxed" style={{ color: "var(--text-secondary)" }}>{product.text}</p>
             </div>
           );
-          const cls = "group grid items-start gap-5 py-8 sm:grid-cols-[110px_1fr]";
+          const cls = "group grid min-w-0 items-start gap-5 py-8 sm:grid-cols-[110px_minmax(0,1fr)]";
           const st = { borderBottom: "1px solid var(--border-color)" };
           return href ? (
             <motion.a
@@ -354,7 +352,7 @@ function ProductsSection() {
 
       <motion.div {...reveal(0.28)} className="mt-10">
         <div
-          className="group relative overflow-hidden py-7 w-screen left-1/2 -translate-x-1/2"
+          className="group relative w-full min-w-0 overflow-hidden py-7"
           style={{
             background: "var(--surface-card)",
             borderTop: "1px solid var(--border-color)", borderBottom: "1px solid var(--border-color)",
@@ -454,27 +452,15 @@ function TariffsSection({ openRegister }: { openRegister: () => void }) {
                   <span aria-hidden style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, background: "var(--primary)" }} />
                 )}
 
-                {/* Plan metadata */}
-                <div className="flex min-h-7 items-center justify-end gap-3">
-                  <div className="flex items-center gap-2">
-                    {lead && (
-                      <span className="whitespace-nowrap rounded-full px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.14em]" style={{ background: "var(--primary-muted)", color: "var(--primary)" }}>
-                        Рекомендуем
-                      </span>
-                    )}
-                    <span className="whitespace-nowrap font-mono uppercase tabular-nums" style={{ fontSize: 11, letterSpacing: "0.16em", color: "var(--text-muted)" }}>
-                      {plan.code}
-                    </span>
-                  </div>
-                </div>
-
-                {/* name */}
+                <div className="flex flex-wrap items-center justify-between gap-3">
                 <h3
-                  className="mt-7 font-display font-semibold"
+                  className="font-display font-semibold"
                   style={{ color: "var(--text-primary)", fontSize: "clamp(2rem, 3.4vw, 3rem)", lineHeight: 0.96, letterSpacing: "-0.04em" }}
                 >
                   {plan.name}
                 </h3>
+                {lead && <span className="whitespace-nowrap rounded-full px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.14em]" style={{ background: "var(--primary-muted)", color: "var(--primary)" }}>Рекомендуем</span>}
+                </div>
 
                 {/* price */}
                 <div className="mt-5 flex flex-wrap items-baseline gap-x-2 gap-y-1">
@@ -537,29 +523,33 @@ function TariffsSection({ openRegister }: { openRegister: () => void }) {
 export default function LandingPage() {
   const { openRegister, openLogin } = useLandingAuth();
   const [active, setActive] = useState<SectionId>("about");
+  const selectSection = (section: SectionId) => {
+    setActive(section);
+    window.scrollTo({ top: 0, behavior: "instant" });
+  };
 
   return (
-    <main className="flex h-screen w-full flex-col overflow-hidden lg:flex-row" style={{ background: "var(--bg-primary)", color: "var(--text-primary)" }}>
+    <main className="landing-main flex min-h-screen w-full min-w-0 flex-col lg:flex-row" style={{ background: "var(--bg-primary)", color: "var(--text-primary)" }}>
       {/* ── Навигация по секциям ── */}
       <nav
-        className="flex shrink-0 flex-col gap-5 border-b px-5 py-5 lg:h-screen lg:w-[280px] lg:border-b-0 lg:border-r lg:px-7 lg:py-9"
+        className="flex shrink-0 flex-col gap-5 border-b px-5 py-5 lg:sticky lg:top-0 lg:h-dvh lg:w-[280px] lg:overflow-y-auto lg:border-b-0 lg:border-r lg:px-7 lg:py-9"
         style={{ borderColor: "var(--border-color)" }}
       >
         <div className="flex items-center justify-between gap-3">
-          <button onClick={() => setActive("about")} className="text-left text-xl font-extrabold tracking-tight" style={{ color: "var(--text-primary)" }}>
+          <button onClick={() => selectSection("about")} className="text-left text-xl font-extrabold tracking-tight" style={{ color: "var(--text-primary)" }}>
             Legal<span style={{ color: "var(--brand-logo-hunter)" }}>Hunter</span>
           </button>
           <button onClick={openLogin} className="text-sm font-medium lg:hidden" style={{ color: "var(--text-secondary)" }}>Войти</button>
         </div>
 
         {/* section links — horizontal chips on mobile, vertical list on desktop */}
-        <div className="-mx-1 flex gap-2 overflow-x-auto px-1 lg:mx-0 lg:flex-1 lg:flex-col lg:gap-1.5 lg:overflow-visible lg:px-0">
+        <div className="-mx-1 flex flex-wrap gap-2 px-1 lg:mx-0 lg:flex-1 lg:flex-col lg:flex-nowrap lg:gap-1.5 lg:px-0">
           {SECTIONS.map((s, i) => {
             const isActive = active === s.id;
             return (
               <button
                 key={s.id}
-                onClick={() => setActive(s.id)}
+                onClick={() => selectSection(s.id)}
                 className="flex shrink-0 items-center gap-3 rounded-full px-4 py-2.5 text-left text-[15px] transition-all lg:rounded-xl"
                 style={{
                   background: isActive ? "var(--primary-muted)" : "transparent",
@@ -621,9 +611,9 @@ export default function LandingPage() {
         </div>
       </nav>
 
-      {/* ── Активная секция — на весь экран, со скроллом внутри при необходимости ── */}
-      <div className="h-full flex-1 overflow-y-auto">
-        <div className="flex min-h-full flex-col justify-center px-6 py-12 sm:px-12 lg:px-20">
+      {/* The window owns page scrolling, including the footer. */}
+      <div className="min-w-0 flex-1">
+        <div className="flex min-h-full flex-col px-6 py-12 sm:px-12 lg:px-20">
           <div className="mx-auto w-full max-w-[1200px]">
             <AnimatePresence mode="wait">
               <motion.div

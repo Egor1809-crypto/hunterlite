@@ -115,7 +115,7 @@ const DEFAULTS: Required<
   quickQuestions: ["Подходит ли мне БФЛ?", "Какие нужны документы?", "Что будет с долгами?"],
   telegramUrl: "https://t.me/BFLHUNTER_bot",
   mascotVideo: "/mascot/manyasha-idle-alpha.webm",
-  mascotPoster: "/mascot/manyasha-idle-poster.jpg",
+  mascotPoster: "/mascot/manyasha-visible-poster.png",
   hint: "Нужна помощь?",
   hidePaths: ["/"],
 };
@@ -291,46 +291,9 @@ function useInjectStyles() {
   }, []);
 }
 
-/**
- * Замораживает видео-маскот на одном кадре (прозрачность webm сохраняется,
- * в отличие от непрозрачного jpg-постера). autoPlay заставляет браузер
- * декодировать и отрисовать кадр, после чего сразу ставим на паузу → маскот
- * статичен, ничего не «дёргается».
- */
-function freezeFrame(e: React.SyntheticEvent<HTMLVideoElement>) {
-  const v = e.currentTarget;
-  try {
-    v.pause();
-    v.currentTime = v.duration && isFinite(v.duration) ? Math.min(0.5, v.duration / 2) : 0.4;
-  } catch {
-    /* ignore */
-  }
-}
-
-function ManyashaAvatar({
-  video,
-  poster,
-  name,
-}: {
-  video: string;
-  poster: string;
-  name?: string;
-}) {
-  return (
-    <video
-      src={video}
-      poster={poster}
-      muted
-      playsInline
-      autoPlay
-      preload="auto"
-      draggable={false}
-      className="mnya-avatar-video"
-      aria-label={name}
-      onLoadedData={freezeFrame}
-      onPlay={(e) => { try { e.currentTarget.pause(); } catch { /* ignore */ } }}
-    />
-  );
+/** Static transparent portrait, also visible before the mascot video loads. */
+function ManyashaAvatar({ poster, name }: { poster: string; name?: string }) {
+  return <img src={poster} alt={name ?? ""} draggable={false} className="mnya-avatar-video" />;
 }
 
 export default function ManyashaChat({ config, onSpeak, autoOpen, autoOpenMessage, forceShow }: Props) {
@@ -585,7 +548,7 @@ export default function ManyashaChat({ config, onSpeak, autoOpen, autoOpenMessag
           <div className="mnya-header">
             <div className="mnya-grid" />
             <div className="mnya-avatar">
-              <ManyashaAvatar video={cfg.mascotVideo} poster={cfg.mascotPoster} name={cfg.botName} />
+              <ManyashaAvatar poster={cfg.mascotPoster} name={cfg.botName} />
             </div>
             <div className="mnya-head-text">
               <p className="mnya-name">{cfg.botName}</p>
@@ -608,7 +571,7 @@ export default function ManyashaChat({ config, onSpeak, autoOpen, autoOpenMessag
             {messages.length === 0 && (
               <div className="mnya-greet">
                 <div className="mnya-greet-avatar">
-                  <ManyashaAvatar video={cfg.mascotVideo} poster={cfg.mascotPoster} name={cfg.botName} />
+                  <ManyashaAvatar poster={cfg.mascotPoster} name={cfg.botName} />
                 </div>
                 <p className="mnya-greet-title">{cfg.greetingTitle}</p>
                 <p className="mnya-greet-sub">{cfg.greetingSubtitle}</p>
@@ -624,7 +587,7 @@ export default function ManyashaChat({ config, onSpeak, autoOpen, autoOpenMessag
               <div key={i} className={`mnya-row ${msg.role === "user" ? "mnya-row-user" : ""}`}>
                 {msg.role === "assistant" && (
                   <div className="mnya-msg-avatar">
-                    <ManyashaAvatar video={cfg.mascotVideo} poster={cfg.mascotPoster} />
+                    <ManyashaAvatar poster={cfg.mascotPoster} />
                   </div>
                 )}
                 <div
@@ -639,7 +602,7 @@ export default function ManyashaChat({ config, onSpeak, autoOpen, autoOpenMessag
             {loading && (
               <div className="mnya-row">
                 <div className="mnya-msg-avatar">
-                  <ManyashaAvatar video={cfg.mascotVideo} poster={cfg.mascotPoster} />
+                  <ManyashaAvatar poster={cfg.mascotPoster} />
                 </div>
                 <div className="mnya-typing" role="status" aria-label="Маняша готовит ответ">
                   <div className="d">

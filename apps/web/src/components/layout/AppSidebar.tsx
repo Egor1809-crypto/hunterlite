@@ -1,5 +1,5 @@
 "use client";
-import { Home, History, Settings, GraduationCap, Award } from "@/components/ui/RuneIcons";
+import { Home, History, Settings, ClipboardCheck, Award } from "@/components/ui/RuneIcons";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Crosshair, BookOpen, LogOut, ChevronDown, PanelLeftClose, PanelLeft, Briefcase, Library, Trophy, Sun, Moon } from "lucide-react";
@@ -18,7 +18,7 @@ const navItems = [
   { href: "/home", label: "Центр", icon: Home },
   { href: "/training", label: "Обучение", icon: Crosshair },
   { href: "/cases", label: "Кейсы", icon: Briefcase },
-  { href: "/exam", label: "Экзамен", icon: GraduationCap },
+  { href: "/exam", label: "Экзамен", icon: ClipboardCheck },
   { href: "/certificate", label: "Сертификат", icon: Award },
   { href: "/championship", label: "Чемпионат", icon: Trophy },
   { href: "/history", label: "История", icon: History },
