@@ -348,7 +348,7 @@ export default function SettingsPage() {
   return (
     <AuthLayout showBreadcrumbs={false}>
       <div className="editorial-page relative min-h-screen">
-        <div className="app-page max-w-4xl mx-auto">
+        <div className="workspace-page">
           <BackButton href="/home" label="На главную" />
 
           {/* Page title — editorial header */}

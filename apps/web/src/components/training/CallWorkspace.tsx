@@ -42,6 +42,7 @@ export function CallWorkspace({
   audioLevel,
   notice,
   unlockAudio,
+  energyStatus,
 }: {
   name: string;
   age?: number | null;
@@ -62,6 +63,7 @@ export function CallWorkspace({
   audioLevel: number;
   notice?: ReactNode;
   unlockAudio?: () => void;
+  energyStatus?: ReactNode;
 }) {
   const scroll = useRef<HTMLDivElement>(null);
   const follow = useRef(true);
@@ -102,13 +104,14 @@ export function CallWorkspace({
         <span className="call-brand">
           LegalHunter <span>/ Звонок</span>
         </span>
-        <span className="call-session-label">Учебная консультация</span>
+
         <time aria-label="Время на экране звонка">
           {Math.floor(seconds / 60)
             .toString()
             .padStart(2, "0")}
           :{(seconds % 60).toString().padStart(2, "0")}
         </time>
+        {energyStatus}
       </header>
       <div className="call-mobile-tabs" aria-label="Область звонка">
         <button aria-pressed={!mobilePlan} onClick={() => setMobilePlan(false)}>

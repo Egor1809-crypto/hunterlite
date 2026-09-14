@@ -10,9 +10,9 @@ import {
   CheckCircle,
   Lock,
   AlertTriangle,
-  Loader2,
   X,
 } from "lucide-react";
+import { WorkspaceLoading } from "@/components/layout/WorkspaceLoading";
 import AuthLayout from "@/components/layout/AuthLayout";
 import { EditorialHeader } from "@/components/ui/EditorialHeader";
 import { api } from "@/lib/api";
@@ -180,22 +180,7 @@ export default function ExamPage() {
     ? 100
     : Math.round((passedModules / 5) * 100);
 
-  if (loading) {
-    return (
-      <AuthLayout showBreadcrumbs={false}>
-        <div
-          className="flex min-h-screen items-center justify-center"
-          style={{ background: "var(--bg-primary)" }}
-        >
-          <Loader2
-            size={28}
-            className="animate-spin"
-            style={{ color: "var(--primary)" }}
-          />
-        </div>
-      </AuthLayout>
-    );
-  }
+  if (loading) return <AuthLayout showBreadcrumbs={false}><WorkspaceLoading /></AuthLayout>;
 
   if (error) {
     return (
@@ -222,12 +207,10 @@ export default function ExamPage() {
   return (
     <AuthLayout showBreadcrumbs={false}>
       <div className="relative min-h-screen overflow-hidden editorial-page">
-        <div className="relative z-10 mx-auto max-w-[920px] px-5 py-8 sm:px-8 sm:py-12">
+        <div className="workspace-page relative z-10">
           {/* Header */}
           <motion.div
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.24, ease: "easeOut" }}
+            initial={false}
           >
             <EditorialHeader
               eyebrowLeft="Аттестация · ФЗ-127"

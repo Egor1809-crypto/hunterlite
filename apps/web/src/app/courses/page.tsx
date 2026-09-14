@@ -91,11 +91,9 @@ export default function CoursesPage() {
   return (
     <AuthLayout showBreadcrumbs={false}>
       <div className="relative min-h-screen overflow-hidden editorial-page">
-        <div className="relative z-10 mx-auto max-w-[920px] px-5 py-8 sm:px-8 sm:py-12">
+        <div className="workspace-page relative z-10">
           <motion.div
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.24, ease: "easeOut" }}
+            initial={false}
           >
             <EditorialHeader
               eyebrowLeft="Обучение · Видеокурсы"

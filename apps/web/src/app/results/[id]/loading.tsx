@@ -1,10 +1,2 @@
-import { ResultsSkeleton, LoadingTip } from "@/components/ui/Skeleton";
-
-export default function ResultsLoading() {
-  return (
-    <>
-      <ResultsSkeleton />
-      <LoadingTip />
-    </>
-  );
-}
+import { WorkspaceLoading } from "@/components/layout/WorkspaceLoading";
+export default function Loading() { return <WorkspaceLoading />; }

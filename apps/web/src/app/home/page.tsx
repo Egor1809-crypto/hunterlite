@@ -195,16 +195,14 @@ export default function HomePage() {
 
   return (
     <AuthLayout showBreadcrumbs={false}>
-      <main
-        className="editorial-page min-h-screen px-5 py-8 sm:px-8 lg:px-12"
+      <div
+        className="editorial-page min-h-screen"
         style={{ background: "var(--bg-primary)" }}
       >
-        <div className="mx-auto max-w-[920px]">
+        <div className="workspace-page">
           {/* ── Masthead ── */}
           <motion.header
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.24, ease: "easeOut" }}
+            initial={false}
             className="mb-12 grid gap-8 lg:grid-cols-[1fr_200px] lg:items-end"
           >
             <div>
@@ -390,7 +388,7 @@ export default function HomePage() {
             </Card>
           </section>
         </div>
-      </main>
+      </div>
     </AuthLayout>
   );
 }
