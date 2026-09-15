@@ -2208,7 +2208,7 @@ html.light .editorial-app main .learning-region-heading {border:0;}
 .editorial-app main .editorial-topic { border: 0 !important; border-bottom: 1px solid var(--border-color) !important; border-radius: 0 !important; }
 
 /* Shared workspace chrome: stable during route changes, keyboard and touch ready. */
-.workspace-shell { --workspace-meter-thumb: #fff; --workspace-toolbar-height: 76px; min-height: 100dvh; background: var(--bg-primary); color: var(--text-primary); }
+.workspace-shell { --workspace-toolbar-height: 76px; min-height: 100dvh; background: var(--bg-primary); color: var(--text-primary); }
 .workspace-main { margin-inline-start: var(--workspace-sidebar-width); padding-top: var(--workspace-toolbar-height); min-height: 100dvh; min-width: 0; }
 .workspace-topbar { position: fixed; z-index: 35; inset-block-start: 0; inset-inline: var(--workspace-sidebar-width) 0; height: var(--workspace-toolbar-height); display: flex; align-items: center; justify-content: flex-end; gap: 16px; padding: 12px 28px; background: var(--bg-primary); border-bottom: 1px solid var(--border-color); }
 .workspace-page { box-sizing: border-box; width: 100%; max-width: 1040px; margin-inline: auto; padding: 32px 40px 64px; }
@@ -2257,10 +2257,45 @@ html.light .editorial-app main .learning-region-heading {border:0;}
 .workspace-energy-label > span { font-size: 10px; line-height: 1.2; color: var(--text-secondary); }
 .workspace-energy-label strong { font-size: 14px; font-weight: 600; line-height: 1.2; font-variant-numeric: tabular-nums; }
 .workspace-energy-label small { font-size: 11px; color: var(--text-secondary); font-weight: 400; }
-.workspace-energy-track { position: relative; flex: 1; height: 16px; min-width: 48px; border-radius: 999px; background: var(--bg-tertiary); box-shadow: inset 0 0 0 1px var(--border-color); }
-.workspace-energy-fill { position: absolute; inset-block: 0; inset-inline-start: 0; border-radius: inherit; background: linear-gradient(90deg, color-mix(in srgb, var(--primary) 64%, var(--surface-card)), var(--primary)); }
-.workspace-energy-track::after { content: ""; position: absolute; inset: 4px 10px; opacity: .4; background: repeating-linear-gradient(90deg, transparent 0, transparent calc(10% - 1px), var(--surface-card) calc(10% - 1px), var(--surface-card) 10%); pointer-events: none; }
-.workspace-energy-thumb { position: absolute; z-index: 1; top: 50%; width: 22px; height: 22px; border: 2px solid var(--primary); border-radius: 50%; background: var(--workspace-meter-thumb, #fff); box-shadow: var(--shadow-sm); transform: translate(-50%, -50%); }
+.workspace-energy-track {
+  --energy-gradient-start: #5957ad;
+  --energy-gradient-glow: #b697e2;
+  --energy-gradient-end: #51408f;
+  --energy-particle: rgb(248 240 255 / 70%);
+  position: relative;
+  flex: 1;
+  height: 24px;
+  min-width: 48px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--bg-tertiary);
+  box-shadow: inset 0 0 0 1px var(--border-color);
+}
+.workspace-energy-fill {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 0;
+  overflow: hidden;
+  border-radius: inherit;
+  background: linear-gradient(100deg, var(--energy-gradient-start) 0%, var(--energy-gradient-glow) 58%, var(--energy-gradient-end) 100%);
+}
+.workspace-energy-fill::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 9% 67%, var(--energy-particle) 0 1px, transparent 1.5px),
+    radial-gradient(circle at 14% 49%, var(--energy-particle) 0 1.4px, transparent 1.9px),
+    radial-gradient(circle at 22% 75%, var(--energy-particle) 0 .8px, transparent 1.3px),
+    radial-gradient(circle at 34% 59%, var(--energy-particle) 0 1px, transparent 1.5px),
+    radial-gradient(circle at 47% 37%, var(--energy-particle) 0 1.3px, transparent 1.8px),
+    radial-gradient(circle at 55% 48%, var(--energy-particle) 0 1px, transparent 1.5px),
+    radial-gradient(circle at 64% 29%, var(--energy-particle) 0 1px, transparent 1.5px),
+    radial-gradient(circle at 67% 65%, var(--energy-particle) 0 1px, transparent 1.5px),
+    radial-gradient(circle at 83% 32%, var(--energy-particle) 0 1.6px, transparent 2.1px),
+    radial-gradient(circle at 95% 57%, var(--energy-particle) 0 .8px, transparent 1.3px);
+}
 .workspace-energy-stale { font-size: 12px; color: var(--text-secondary); }
 .workspace-mobile-menu { display: none; }
 .workspace-drawer { padding: 0; margin: 0; width: min(292px, calc(100vw - 36px)); max-width: none; height: 100dvh; max-height: none; border: 0; background: var(--surface-card); overflow: visible; }
@@ -2283,7 +2318,6 @@ html.light .editorial-app main .learning-region-heading {border:0;}
   .workspace-nav-link, .workspace-icon-button { transition: background-color 150ms, color 150ms, transform 150ms cubic-bezier(0.2,0,0,1); }
   .workspace-icon-button:active { transform: scale(.96); }
   .workspace-energy-fill { transition: width 250ms ease-out; }
-  .workspace-energy-thumb { transition: inset-inline-start 250ms ease-out; }
   .workspace-content { animation: workspace-reveal 180ms ease-out; }
   @keyframes workspace-reveal { from { opacity: 0; } to { opacity: 1; } }
 }
