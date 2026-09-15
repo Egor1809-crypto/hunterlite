@@ -53,7 +53,6 @@ export function EnergyStatus() {
     <div className="workspace-energy-label"><span>Энергия</span><strong>{remaining ?? "—"}<small> / {DAILY_ENERGY}</small></strong></div>
     <div className="workspace-energy-track" role={remaining === null ? undefined : "meter"} aria-label="Осталось энергии" aria-valuemin={0} aria-valuemax={DAILY_ENERGY} aria-valuenow={remaining ?? undefined} aria-valuetext={remaining === null ? undefined : `${remaining} из ${DAILY_ENERGY}${stale ? ", последние данные" : ""}`} data-loading={remaining === null}>
       <span className="workspace-energy-fill" style={{width:`${percent}%`}} />
-      {remaining !== null && <span className="workspace-energy-thumb" style={{insetInlineStart:`clamp(9px, ${percent}%, calc(100% - 9px))`}} />}
     </div>
     {stale && <span className="workspace-energy-stale" aria-label="Баланс не обновлён">!</span>}
   </div>;
